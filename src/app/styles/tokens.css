@@ -1,0 +1,30 @@
+:root {
+  --canvas: #f4f4f4;
+  --surface-1: #ffffff;
+  --surface-2: #ffffff;
+  --surface-3: #efefef;
+  --surface-inverse: #111111;
+  --primary: #1e1888;
+  --primary-hover: #19146f;
+  --primary-pressed: #141058;
+  --primary-soft: #eeedff;
+  --primary-outline: rgba(30, 24, 136, 0.24);
+  --primary-glow: rgba(30, 24, 136, 0.3);
+  --primary-gradient-start: #1e1888;
+  --primary-gradient-end: #4b44d4;
+  --ink-strong: #000000;
+  --ink: #171717;
+  --ink-muted: #5c5c5c;
+  --ink-faint: #8b8b8b;
+  --outline-strong: rgba(0, 0, 0, 0.72);
+  --outline-soft: rgba(0, 0, 0, 0.14);
+  --shadow-soft: 0 10px 24px rgba(0, 0, 0, 0.08);
+  --font-display: "Space Grotesk", "IBM Plex Sans", "Pretendard", "Noto Sans KR",
+    sans-serif;
+  --font-body: "IBM Plex Sans", "Pretendard", "Noto Sans KR", sans-serif;
+  --radius-card: 24px;
+  --radius-panel: 20px;
+  --radius-control: 16px;
+  --radius-pill: 999px;
+  --page-max-width: 1200px;
+}
