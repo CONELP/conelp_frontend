@@ -53,7 +53,7 @@ export function useDocumentUploadDemoViewModel() {
   );
 
   const canReview = computed(() => uploadedFiles.value.length > 0);
-  const canProceed = computed(() => missingCount.value === 0);
+  const canProceed = computed(() => uploadedFiles.value.length > 0);
 
   const primaryFeedbackActionLabel = computed(() =>
     canProceed.value

@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from "vue-router";
 
 import DemoPlaceholderPage from "@/features/document-conversion-demo/ui/DemoPlaceholderPage.vue";
+import ConversionLoadingPage from "@/features/document-conversion-demo/ui/ConversionLoadingPage.vue";
 import DocumentSelectionPage from "@/features/document-conversion-demo/ui/DocumentSelectionPage.vue";
 import DocumentUploadPage from "@/features/document-conversion-demo/ui/DocumentUploadPage.vue";
 import UploadFeedbackPage from "@/features/document-conversion-demo/ui/UploadFeedbackPage.vue";
@@ -30,13 +31,7 @@ export const router = createRouter({
     {
       path: "/preview/loading",
       name: "loading-preview",
-      component: DemoPlaceholderPage,
-      props: {
-        eyebrow: "LOADING PREVIEW",
-        title: "변환 로딩 화면은 다음 stage에서 구체화됩니다",
-        description:
-          "Stage 7에서 AI 변환 경험을 느낄 수 있도록 glow, gradation, animation을 넣어 다듬습니다.",
-      },
+      component: ConversionLoadingPage,
     },
     {
       path: "/preview/result",
