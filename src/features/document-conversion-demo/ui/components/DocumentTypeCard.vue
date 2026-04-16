@@ -38,7 +38,7 @@ defineEmits<{
   min-height: clamp(4.55rem, 8vh, 5.35rem);
   padding: 0.84rem 0.95rem;
   border: 1px solid var(--outline-soft);
-  border-radius: 1.05rem;
+  border-radius: 0.95rem;
   background: var(--surface-1);
   color: var(--ink);
   text-align: left;

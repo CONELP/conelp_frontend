@@ -19,6 +19,40 @@ export interface UploadSampleFile {
   thumbnail?: string;
 }
 
+export type UploadFeedbackStatus = "matched" | "missing";
+
+export interface UploadFeedbackItem {
+  id: string;
+  label: string;
+  status: UploadFeedbackStatus;
+}
+
+export interface UploadDocumentPreset {
+  documentType: string;
+  guideItems: string[];
+  sampleFiles: UploadSampleFile[];
+  feedbackItems: UploadFeedbackItem[];
+}
+
+export interface UploadPageCopy {
+  title: string;
+  guideTitle: string;
+  filesTitle: string;
+  actionLabel: string;
+  loadSampleActionLabel: string;
+  clearActionLabel: string;
+  emptyTitle: string;
+  emptyDescription: string;
+}
+
+export interface UploadFeedbackPageCopy {
+  title: string;
+  summaryLabel: string;
+  primaryReadyActionLabel: string;
+  primaryRetryActionLabel: string;
+  secondaryActionLabel: string;
+}
+
 export interface ConversionDemoStep {
   id: "analyzing" | "mapping" | "rendering";
   label: string;

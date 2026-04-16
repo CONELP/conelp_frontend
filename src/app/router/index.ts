@@ -2,6 +2,8 @@ import { createRouter, createWebHistory } from "vue-router";
 
 import DemoPlaceholderPage from "@/features/document-conversion-demo/ui/DemoPlaceholderPage.vue";
 import DocumentSelectionPage from "@/features/document-conversion-demo/ui/DocumentSelectionPage.vue";
+import DocumentUploadPage from "@/features/document-conversion-demo/ui/DocumentUploadPage.vue";
+import UploadFeedbackPage from "@/features/document-conversion-demo/ui/UploadFeedbackPage.vue";
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -18,13 +20,12 @@ export const router = createRouter({
     {
       path: "/preview/upload",
       name: "upload-preview",
-      component: DemoPlaceholderPage,
-      props: {
-        eyebrow: "UPLOAD PREVIEW",
-        title: "업로드 화면은 다음 stage에서 구체화됩니다",
-        description:
-          "Stage 6에서 sample 이미지 업로드 상태, 가이드, CTA 흐름을 실제 화면으로 다듬습니다.",
-      },
+      component: DocumentUploadPage,
+    },
+    {
+      path: "/preview/upload-feedback",
+      name: "upload-feedback-preview",
+      component: UploadFeedbackPage,
     },
     {
       path: "/preview/loading",
