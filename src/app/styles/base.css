@@ -44,6 +44,18 @@ img {
   max-width: 100%;
 }
 
+@keyframes surface-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, var(--motion-page-distance), 0) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;

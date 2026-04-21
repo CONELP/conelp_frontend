@@ -1,0 +1,234 @@
+.result-page {
+  --page-inline: 1.2rem;
+  --surface-radius: 0.95rem;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding: 0 var(--page-inline) 1rem;
+  background: var(--surface-1);
+}
+
+.result-shell {
+  width: min(100%, 42rem);
+  margin: 0 auto;
+}
+
+.result-topbar {
+  display: flex;
+  align-items: flex-end;
+  min-height: 4.15rem;
+  margin-left: calc(var(--page-inline) * -0.84);
+  padding-bottom: 0.35rem;
+}
+
+.result-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  color: var(--ink);
+}
+
+.result-back__icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  opacity: 0.84;
+}
+
+.result-hero {
+  padding: 3rem 0 1.35rem;
+}
+
+.result-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.72rem, 5vw, 2.3rem);
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+}
+
+.result-body {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0 1rem;
+}
+
+.result-body__inner {
+  display: grid;
+  gap: 0.88rem;
+}
+
+.result-stack {
+  display: grid;
+  gap: 0.88rem;
+}
+
+.result-summary-card,
+.result-review-card {
+  padding: 1.08rem;
+  border: 1px solid var(--outline-soft);
+  border-radius: var(--surface-radius);
+  background: var(--surface-1);
+}
+
+.result-summary-card__content {
+  display: flex;
+  align-items: center;
+  gap: 0.88rem;
+}
+
+.result-summary-card__file {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  gap: 0.82rem;
+}
+
+.result-summary-card__file-icon,
+.result-summary-card__download-icon {
+  display: block;
+  flex: 0 0 auto;
+  object-fit: contain;
+}
+
+.result-summary-card__file-icon {
+  width: 1.35rem;
+  height: 1.35rem;
+  opacity: 1;
+}
+
+.result-summary-card__file-name,
+.result-review-card__title,
+.result-review-card__item {
+  margin: 0;
+}
+
+.result-summary-card__file-name {
+  min-width: 0;
+  color: var(--ink);
+  font-size: 0.98rem;
+  font-weight: 800;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.result-summary-card__download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 2.9rem;
+  height: 2.9rem;
+  border-radius: 0.82rem;
+  border: 1px solid var(--outline-soft);
+  background: #fff;
+  box-shadow: none;
+}
+
+.result-summary-card__download-icon {
+  width: 1.16rem;
+  height: 1.16rem;
+  opacity: 0.92;
+}
+
+.result-review-card__title {
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.result-review-card__list {
+  margin: 0.72rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.result-review-card__item + .result-review-card__item {
+  margin-top: 0.52rem;
+}
+
+.result-review-card__item {
+  color: var(--ink-muted);
+  line-height: 1.6;
+}
+
+.result-footer {
+  display: flex;
+  margin-top: auto;
+  padding-top: 1rem;
+}
+
+.result-footer__primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 3.45rem;
+  padding: 0.98rem 1.15rem;
+  border-radius: var(--surface-radius);
+  background: var(--primary);
+  color: #fff;
+  font-weight: 800;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .result-hero,
+  .result-body__inner {
+    opacity: 0;
+    animation: surface-rise var(--motion-page-duration) var(--motion-page-ease)
+      forwards;
+    will-change: transform, opacity;
+  }
+
+  .result-hero {
+    animation-delay: 70ms;
+  }
+
+  .result-body__inner {
+    animation-delay: 150ms;
+  }
+}
+
+@media (max-width: 767px) {
+  .result-summary-card__content {
+    gap: 0.72rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .result-page {
+    --page-inline: 1.6rem;
+    padding: 0 var(--page-inline) 1.4rem;
+  }
+
+  .result-shell {
+    width: min(100%, 52rem);
+  }
+
+  .result-topbar {
+    min-height: 4.45rem;
+    margin-left: calc(var(--page-inline) * -1);
+    padding-bottom: 0.42rem;
+  }
+
+  .result-back {
+    width: 2.15rem;
+    height: 2.15rem;
+  }
+
+  .result-back__icon {
+    width: 1.6rem;
+    height: 1.6rem;
+  }
+
+  .result-hero {
+    padding-top: 3.6rem;
+    padding-bottom: 1.7rem;
+  }
+}

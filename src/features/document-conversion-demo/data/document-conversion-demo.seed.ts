@@ -54,10 +54,11 @@ export const documentCatalog: DocumentDemoCard[] = [
     chipLabel: "공사일보",
     iconSrc: documentTextIcon,
     description: "일일 작업 현황과 투입 인력, 장비 기록을 정리하는 기본 문서",
-    uploadGuide: "현장 사진, 작업 메모, 당일 기록지를 올려 주세요.",
+    uploadGuide: "추가 자료 없이 바로 생성할 수 있어요.",
     resultLabel: "공사일보 결과 시안",
     status: "available",
     accentLabel: "즉시 데모 가능",
+    generationMode: "direct",
   },
   {
     type: "material_inspection_rebar",
@@ -69,6 +70,7 @@ export const documentCatalog: DocumentDemoCard[] = [
     resultLabel: "철근 검수요청서 결과 시안",
     status: "available",
     accentLabel: "즉시 데모 가능",
+    generationMode: "upload_required",
   },
   {
     type: "concrete_delivery_csi",
@@ -80,6 +82,7 @@ export const documentCatalog: DocumentDemoCard[] = [
     resultLabel: "콘크리트 반입 결과 시안",
     status: "available",
     accentLabel: "즉시 데모 가능",
+    generationMode: "upload_required",
   },
   {
     type: "concrete_strength_csi",
@@ -91,6 +94,7 @@ export const documentCatalog: DocumentDemoCard[] = [
     resultLabel: "압축강도 결과 시안",
     status: "available",
     accentLabel: "즉시 데모 가능",
+    generationMode: "upload_required",
   },
   {
     type: "inspection_request",
@@ -102,6 +106,7 @@ export const documentCatalog: DocumentDemoCard[] = [
     resultLabel: "검측 요청서 결과 시안",
     status: "available",
     accentLabel: "즉시 데모 가능",
+    generationMode: "upload_required",
   },
 ];
 

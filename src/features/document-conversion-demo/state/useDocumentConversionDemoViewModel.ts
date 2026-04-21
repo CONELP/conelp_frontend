@@ -27,8 +27,13 @@ export function useDocumentConversionDemoViewModel() {
     createSelectionSummary(store.selectedDocument),
   );
 
-  const canContinue = computed(() => Boolean(store.selectedDocument));
-  const nextRoute = computed(() => "/preview/upload");
+  function resolveNextRoute(type: string) {
+    const selectedType = documentCatalog.find((document) => document.type === type);
+
+    return selectedType?.generationMode === "direct"
+      ? "/preview/loading"
+      : "/preview/upload";
+  }
 
   return {
     pageCopy,
@@ -36,8 +41,8 @@ export function useDocumentConversionDemoViewModel() {
     documents,
     selectedDocument: store.selectedDocument,
     selectionSummary,
-    canContinue,
-    nextRoute,
+    resolveNextRoute,
+    clearSelectedDocument: store.clearSelectedDocument,
     selectDocument: store.selectDocument,
   };
 }

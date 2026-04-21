@@ -1,0 +1,122 @@
+.selection-page {
+  --page-inline: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding: 0 var(--page-inline) 1rem;
+  background: var(--surface-1);
+}
+
+.selection-shell {
+  width: min(100%, 42rem);
+  margin: 0 auto;
+}
+
+.selection-body {
+  flex: 1;
+  padding: 0 0 1rem;
+}
+
+.selection-header {
+  margin: 0 calc(var(--page-inline) * -1);
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--outline-soft);
+}
+
+.selection-header__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: min(100%, calc(42rem + (var(--page-inline) * 2)));
+  margin: 0 auto;
+  padding: 1.1rem var(--page-inline) 1rem;
+}
+
+.selection-header__logo {
+  width: clamp(5.16rem, 21.6vw, 7.2rem);
+  height: auto;
+}
+
+.selection-header__menu {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.selection-header__menu-icon {
+  width: 1.45rem;
+  height: 1.45rem;
+  opacity: 0.84;
+}
+
+.selection-intro {
+  padding: 3rem 0 3.4rem;
+}
+
+.selection-intro__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.52rem, 5vw, 2.05rem);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+
+.selection-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.78rem;
+  align-content: start;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .selection-intro,
+  .selection-grid {
+    opacity: 0;
+    animation: surface-rise var(--motion-page-duration) var(--motion-page-ease)
+      forwards;
+    will-change: transform, opacity;
+  }
+}
+
+@media (min-width: 768px) {
+  .selection-page {
+    --page-inline: 1.6rem;
+    padding: 0 var(--page-inline) 1.4rem;
+  }
+
+  .selection-shell {
+    width: min(100%, 52rem);
+  }
+
+  .selection-header__inner {
+    width: min(100%, calc(52rem + (var(--page-inline) * 2)));
+    padding-top: 1.25rem;
+    padding-bottom: 1.15rem;
+  }
+
+  .selection-header__menu {
+    width: 2.15rem;
+    height: 2.15rem;
+  }
+
+  .selection-header__menu-icon {
+    width: 1.58rem;
+    height: 1.58rem;
+  }
+
+  .selection-grid {
+    gap: 0.92rem;
+  }
+
+  .selection-intro {
+    padding-bottom: 3.9rem;
+  }
+}

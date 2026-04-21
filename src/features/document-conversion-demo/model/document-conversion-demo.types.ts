@@ -1,4 +1,5 @@
 export type DocumentDemoStatus = "available";
+export type DocumentGenerationMode = "direct" | "upload_required";
 
 export interface DocumentDemoCard {
   type: string;
@@ -10,6 +11,7 @@ export interface DocumentDemoCard {
   resultLabel: string;
   status: DocumentDemoStatus;
   accentLabel: string;
+  generationMode: DocumentGenerationMode;
 }
 
 export interface UploadSampleFile {

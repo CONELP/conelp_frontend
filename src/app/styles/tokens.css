@@ -19,6 +19,10 @@
   --outline-strong: rgba(0, 0, 0, 0.72);
   --outline-soft: rgba(0, 0, 0, 0.14);
   --shadow-soft: 0 10px 24px rgba(0, 0, 0, 0.08);
+  --motion-page-duration: 460ms;
+  --motion-page-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-stagger-step: 70ms;
+  --motion-page-distance: 1.05rem;
   --font-display: "Space Grotesk", "IBM Plex Sans", "Pretendard", "Noto Sans KR",
     sans-serif;
   --font-body: "IBM Plex Sans", "Pretendard", "Noto Sans KR", sans-serif;

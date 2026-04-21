@@ -1,9 +1,9 @@
 import { createRouter, createWebHistory } from "vue-router";
 
-import DemoPlaceholderPage from "@/features/document-conversion-demo/ui/DemoPlaceholderPage.vue";
 import ConversionLoadingPage from "@/features/document-conversion-demo/ui/ConversionLoadingPage.vue";
 import DocumentSelectionPage from "@/features/document-conversion-demo/ui/DocumentSelectionPage.vue";
 import DocumentUploadPage from "@/features/document-conversion-demo/ui/DocumentUploadPage.vue";
+import ResultPreviewPage from "@/features/document-conversion-demo/ui/ResultPreviewPage.vue";
 import UploadFeedbackPage from "@/features/document-conversion-demo/ui/UploadFeedbackPage.vue";
 
 export const router = createRouter({
@@ -36,13 +36,7 @@ export const router = createRouter({
     {
       path: "/preview/result",
       name: "result-preview",
-      component: DemoPlaceholderPage,
-      props: {
-        eyebrow: "RESULT PREVIEW",
-        title: "결과 화면은 다음 stage에서 구체화됩니다",
-        description:
-          "Stage 8에서 결과 요약, 예시 비주얼, 다음 행동 CTA를 실제 화면으로 정리합니다.",
-      },
+      component: ResultPreviewPage,
     },
   ],
 });

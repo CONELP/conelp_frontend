@@ -34,6 +34,10 @@ export function useDocumentUploadDemoViewModel() {
     );
   });
 
+  const requiresUpload = computed(
+    () => selectedDocument.value.generationMode === "upload_required",
+  );
+
   const uploadedFiles = computed(() =>
     store.uploadMode === "sample" ? selectedPreset.value.sampleFiles : [],
   );
@@ -70,6 +74,7 @@ export function useDocumentUploadDemoViewModel() {
     uploadFeedbackPageCopy,
     selectedDocument,
     selectedPreset,
+    requiresUpload,
     uploadedFiles,
     feedbackItems,
     matchedCount,

@@ -6,8 +6,8 @@ import { documentCatalog } from "@/features/document-conversion-demo/data/docume
 export const useDocumentConversionDemoStore = defineStore(
   "document-conversion-demo",
   () => {
-    const selectedDocumentType = ref(documentCatalog[0]?.type ?? "");
-    const uploadMode = ref<"sample" | "empty">("sample");
+    const selectedDocumentType = ref("");
+    const uploadMode = ref<"sample" | "empty">("empty");
 
     const selectedDocument = computed(() =>
       documentCatalog.find((document) => document.type === selectedDocumentType.value),
@@ -15,7 +15,12 @@ export const useDocumentConversionDemoStore = defineStore(
 
     function selectDocument(type: string) {
       selectedDocumentType.value = type;
-      uploadMode.value = "sample";
+      uploadMode.value = "empty";
+    }
+
+    function clearSelectedDocument() {
+      selectedDocumentType.value = "";
+      uploadMode.value = "empty";
     }
 
     function loadSampleUpload() {
@@ -31,6 +36,7 @@ export const useDocumentConversionDemoStore = defineStore(
       selectedDocument,
       uploadMode,
       selectDocument,
+      clearSelectedDocument,
       loadSampleUpload,
       clearUpload,
     };
