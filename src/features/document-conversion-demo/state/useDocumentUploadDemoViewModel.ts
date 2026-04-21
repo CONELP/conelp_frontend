@@ -1,4 +1,4 @@
-import { computed } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 
 import {
   documentCatalog,
@@ -9,18 +9,40 @@ import {
 import type {
   UploadDocumentPreset,
   UploadFeedbackItem,
+  UploadSampleFile,
 } from "@/features/document-conversion-demo/model/document-conversion-demo.types";
 import { useDocumentConversionDemoStore } from "@/features/document-conversion-demo/state/useDocumentConversionDemoStore";
 
-function createMissingFeedbackItems(items: UploadFeedbackItem[]): UploadFeedbackItem[] {
-  return items.map((item) => ({
+function createUploadPreviewFile(file: File, id: string): UploadSampleFile {
+  return {
+    id,
+    name: file.name,
+    previewType: file.type.startsWith("image/") ? "image" : "file",
+  };
+}
+
+function createFeedbackItems(
+  items: UploadFeedbackItem[],
+  uploadedCount: number,
+): UploadFeedbackItem[] {
+  return items.map((item, index) => ({
     ...item,
-    status: "missing",
+    status: index < uploadedCount ? "matched" : "missing",
   }));
+}
+
+type UploadGuideValidationStatus = "idle" | "inspecting" | "matched" | "error";
+
+interface UploadGuideItemViewData {
+  label: string;
+  status: UploadGuideValidationStatus;
 }
 
 export function useDocumentUploadDemoViewModel() {
   const store = useDocumentConversionDemoStore();
+  const guideInspectionState = ref<"idle" | "inspecting" | "done">("idle");
+  const guideInspectionCount = ref(0);
+  let guideInspectionTimer: ReturnType<typeof setTimeout> | null = null;
 
   const selectedDocument = computed(
     () => store.selectedDocument ?? documentCatalog[0],
@@ -38,14 +60,41 @@ export function useDocumentUploadDemoViewModel() {
     () => selectedDocument.value.generationMode === "upload_required",
   );
 
-  const uploadedFiles = computed(() =>
-    store.uploadMode === "sample" ? selectedPreset.value.sampleFiles : [],
+  const uploadedFiles = computed<UploadSampleFile[]>(() =>
+    store.uploadedImageFiles.map((entry) =>
+      createUploadPreviewFile(entry.file, entry.id),
+    ),
+  );
+
+  const uploadGuideItems = computed<UploadGuideItemViewData[]>(() =>
+    selectedPreset.value.guideItems.map((label, index) => {
+      if (index < guideInspectionCount.value) {
+        return {
+          label,
+          status:
+            guideInspectionState.value === "done" ? "matched" : "inspecting",
+        };
+      }
+
+      if (guideInspectionState.value === "done" && uploadedFiles.value.length > 0) {
+        return {
+          label,
+          status: "error",
+        };
+      }
+
+      return {
+        label,
+        status: "idle",
+      };
+    }),
   );
 
   const feedbackItems = computed(() =>
-    store.uploadMode === "sample"
-      ? selectedPreset.value.feedbackItems
-      : createMissingFeedbackItems(selectedPreset.value.feedbackItems),
+    createFeedbackItems(
+      selectedPreset.value.feedbackItems,
+      uploadedFiles.value.length,
+    ),
   );
 
   const matchedCount = computed(
@@ -69,6 +118,46 @@ export function useDocumentUploadDemoViewModel() {
     canProceed.value ? "/preview/loading" : "/preview/upload",
   );
 
+  function clearGuideInspectionTimer() {
+    if (guideInspectionTimer) {
+      clearTimeout(guideInspectionTimer);
+      guideInspectionTimer = null;
+    }
+  }
+
+  watch(
+    () => ({
+      selectedDocumentType: selectedDocument.value.type,
+      uploadedFileIds: uploadedFiles.value.map((file) => file.id).join(","),
+    }),
+    () => {
+      clearGuideInspectionTimer();
+
+      const nextInspectionCount = Math.min(
+        uploadedFiles.value.length,
+        selectedPreset.value.guideItems.length,
+      );
+
+      guideInspectionCount.value = nextInspectionCount;
+
+      if (nextInspectionCount === 0) {
+        guideInspectionState.value = "idle";
+        return;
+      }
+
+      guideInspectionState.value = "inspecting";
+      guideInspectionTimer = setTimeout(() => {
+        guideInspectionState.value = "done";
+        guideInspectionTimer = null;
+      }, 2000);
+    },
+    { immediate: true },
+  );
+
+  onBeforeUnmount(() => {
+    clearGuideInspectionTimer();
+  });
+
   return {
     uploadPageCopy,
     uploadFeedbackPageCopy,
@@ -76,6 +165,7 @@ export function useDocumentUploadDemoViewModel() {
     selectedPreset,
     requiresUpload,
     uploadedFiles,
+    uploadGuideItems,
     feedbackItems,
     matchedCount,
     missingCount,
@@ -85,7 +175,8 @@ export function useDocumentUploadDemoViewModel() {
     primaryFeedbackRoute,
     backToSelectionRoute: "/preview/documents",
     uploadFeedbackRoute: "/preview/upload-feedback",
-    loadSampleUpload: store.loadSampleUpload,
+    addUploadedImageFiles: store.addUploadedImageFiles,
+    removeUploadedImageFile: store.removeUploadedImageFile,
     clearUpload: store.clearUpload,
   };
 }

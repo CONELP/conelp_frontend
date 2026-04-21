@@ -19,8 +19,7 @@ export const selectionPageCopy: SelectionPageCopy = {
   title: "어떤 서류를 만들까요?",
   description:
     "서류 종류를 먼저 고르면 다음 화면에서 이미지 자료를 바로 올릴 수 있습니다.",
-  helper:
-    "스크롤 없이 한눈에 보고 빠르게 선택할 수 있는 형태로 구성했습니다.",
+  helper: "스크롤 없이 한눈에 보고 빠르게 선택할 수 있는 형태로 구성했습니다.",
   actionLabel: "자료 업로드하기",
 };
 
@@ -151,18 +150,26 @@ export const uploadDocumentPresets: UploadDocumentPreset[] = [
       },
     ],
     feedbackItems: [
-      { id: "daily-report-check-1", label: "작업 전경 사진", status: "matched" },
-      { id: "daily-report-check-2", label: "당일 작업 메모 사진", status: "matched" },
-      { id: "daily-report-check-3", label: "인력 또는 장비 기록 사진", status: "missing" },
+      {
+        id: "daily-report-check-1",
+        label: "작업 전경 사진",
+        status: "matched",
+      },
+      {
+        id: "daily-report-check-2",
+        label: "당일 작업 메모 사진",
+        status: "matched",
+      },
+      {
+        id: "daily-report-check-3",
+        label: "인력 또는 장비 기록 사진",
+        status: "missing",
+      },
     ],
   },
   {
     documentType: "material_inspection_rebar",
-    guideItems: [
-      "철근 표기 사진",
-      "반입 자재 전경 사진",
-      "규격표 또는 납품서 사진",
-    ],
+    guideItems: ["송장 사진 / 거래 명세서 사진"],
     sampleFiles: [
       {
         id: "rebar-1",
@@ -178,7 +185,11 @@ export const uploadDocumentPresets: UploadDocumentPreset[] = [
     feedbackItems: [
       { id: "rebar-check-1", label: "철근 표기 사진", status: "matched" },
       { id: "rebar-check-2", label: "반입 자재 전경 사진", status: "matched" },
-      { id: "rebar-check-3", label: "규격표 또는 납품서 사진", status: "missing" },
+      {
+        id: "rebar-check-3",
+        label: "규격표 또는 납품서 사진",
+        status: "missing",
+      },
     ],
   },
   {
@@ -201,18 +212,26 @@ export const uploadDocumentPresets: UploadDocumentPreset[] = [
       },
     ],
     feedbackItems: [
-      { id: "delivery-check-1", label: "반입 차량 전경 사진", status: "matched" },
-      { id: "delivery-check-2", label: "레미콘 출하증명서 사진", status: "matched" },
-      { id: "delivery-check-3", label: "반입시험 기록지 사진", status: "missing" },
+      {
+        id: "delivery-check-1",
+        label: "반입 차량 전경 사진",
+        status: "matched",
+      },
+      {
+        id: "delivery-check-2",
+        label: "레미콘 출하증명서 사진",
+        status: "matched",
+      },
+      {
+        id: "delivery-check-3",
+        label: "반입시험 기록지 사진",
+        status: "missing",
+      },
     ],
   },
   {
     documentType: "concrete_strength_csi",
-    guideItems: [
-      "시험 성적서 사진",
-      "공시체 사진",
-      "배합 또는 위치 메모 사진",
-    ],
+    guideItems: ["시험 성적서 사진", "공시체 사진", "배합 또는 위치 메모 사진"],
     sampleFiles: [
       {
         id: "concrete-strength-1",
@@ -228,7 +247,11 @@ export const uploadDocumentPresets: UploadDocumentPreset[] = [
     feedbackItems: [
       { id: "strength-check-1", label: "시험 성적서 사진", status: "matched" },
       { id: "strength-check-2", label: "공시체 사진", status: "matched" },
-      { id: "strength-check-3", label: "배합 또는 위치 메모 사진", status: "missing" },
+      {
+        id: "strength-check-3",
+        label: "배합 또는 위치 메모 사진",
+        status: "missing",
+      },
     ],
   },
   {
@@ -251,9 +274,21 @@ export const uploadDocumentPresets: UploadDocumentPreset[] = [
       },
     ],
     feedbackItems: [
-      { id: "inspection-check-1", label: "검측 대상 위치 사진", status: "matched" },
-      { id: "inspection-check-2", label: "체크 포인트 메모 사진", status: "matched" },
-      { id: "inspection-check-3", label: "도면 또는 표기 사진", status: "missing" },
+      {
+        id: "inspection-check-1",
+        label: "검측 대상 위치 사진",
+        status: "matched",
+      },
+      {
+        id: "inspection-check-2",
+        label: "체크 포인트 메모 사진",
+        status: "matched",
+      },
+      {
+        id: "inspection-check-3",
+        label: "도면 또는 표기 사진",
+        status: "missing",
+      },
     ],
   },
 ];
