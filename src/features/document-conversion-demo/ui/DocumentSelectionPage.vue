@@ -25,11 +25,27 @@
         />
       </section>
     </section>
+
+    <footer class="selection-shell selection-footer">
+      <RouterLink
+        class="selection-footer__link"
+        to="/preview/generated-documents"
+      >
+        생성된 문서 보기
+        <img
+          class="selection-footer__link-icon"
+          :src="documentsIcon"
+          alt=""
+          aria-hidden="true"
+        />
+      </RouterLink>
+    </footer>
   </main>
 </template>
 
 <script setup lang="ts">
-import { useRouter } from "vue-router";
+import { RouterLink, useRouter } from "vue-router";
+import documentsIcon from "@fluentui/svg-icons/icons/chevron_right_20_regular.svg";
 import menuIcon from "@fluentui/svg-icons/icons/text_align_justify_24_regular.svg";
 
 import DocumentTypeCard from "@/features/document-conversion-demo/ui/components/DocumentTypeCard.vue";
