@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from "vue-router";
 
 import DesktopDashboardPage from "@/features/desktop-dashboard/ui/DesktopDashboardPage.vue";
+import DesktopSchedulePage from "@/features/desktop-schedule/ui/DesktopSchedulePage.vue";
 import ConversionLoadingPage from "@/features/document-conversion-demo/ui/ConversionLoadingPage.vue";
 import DocumentSelectionPage from "@/features/document-conversion-demo/ui/DocumentSelectionPage.vue";
 import DocumentUploadPage from "@/features/document-conversion-demo/ui/DocumentUploadPage.vue";
@@ -21,7 +22,13 @@ export const router = createRouter({
       component: DesktopDashboardPage,
     },
     {
+      path: "/schedule",
+      name: "desktop-schedule",
+      component: DesktopSchedulePage,
+    },
+    {
       path: "/preview/documents",
+      alias: ["/documents"],
       name: "document-selection",
       component: DocumentSelectionPage,
     },

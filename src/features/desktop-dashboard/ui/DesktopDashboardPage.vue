@@ -1,22 +1,6 @@
 <template>
   <main class="dashboard-page">
-    <header class="dashboard-header">
-      <div class="dashboard-shell dashboard-header__inner">
-        <img class="dashboard-header__logo" :src="logoSrc" alt="CONELP" />
-
-        <div class="dashboard-header__controls">
-          <span class="dashboard-header__chip">{{ dashboard.siteChipLabel }}</span>
-
-          <button
-            class="dashboard-header__settings"
-            type="button"
-            aria-label="설정"
-          >
-            <img class="dashboard-header__settings-icon" :src="settingsIcon" alt="" />
-          </button>
-        </div>
-      </div>
-    </header>
+    <DesktopAppHeader :site-label="dashboard.siteChipLabel" />
 
     <div class="dashboard-shell dashboard-body">
       <section class="dashboard-row dashboard-row--status">
@@ -99,11 +83,12 @@
               </p>
               <p>
                 <span>실제 공정률</span>
-                <strong class="dashboard-line-chart__delta">
-                  <span>{{ formatPercent(getLatestValue(dashboard.overallComparisonChart.actualSeries)) }}</span>
-                  <em :class="getDeltaToneClass(dashboard.overallComparisonChart)">
-                    ({{ formatDelta(getDeltaValue(dashboard.overallComparisonChart)) }})
-                  </em>
+                <strong
+                  class="dashboard-line-chart__delta"
+                  :class="getDeltaToneClass(dashboard.overallComparisonChart)"
+                >
+                  {{ formatPercent(getLatestValue(dashboard.overallComparisonChart.actualSeries)) }}
+                  <em>({{ formatDelta(getDeltaValue(dashboard.overallComparisonChart)) }})</em>
                 </strong>
               </p>
             </div>
@@ -190,11 +175,12 @@
               </p>
               <p>
                 <span>실제 공정률</span>
-                <strong class="dashboard-line-chart__delta">
-                  <span>{{ formatPercent(getLatestValue(dashboard.currentComparisonChart.actualSeries)) }}</span>
-                  <em :class="getDeltaToneClass(dashboard.currentComparisonChart)">
-                    ({{ formatDelta(getDeltaValue(dashboard.currentComparisonChart)) }})
-                  </em>
+                <strong
+                  class="dashboard-line-chart__delta"
+                  :class="getDeltaToneClass(dashboard.currentComparisonChart)"
+                >
+                  {{ formatPercent(getLatestValue(dashboard.currentComparisonChart.actualSeries)) }}
+                  <em>({{ formatDelta(getDeltaValue(dashboard.currentComparisonChart)) }})</em>
                 </strong>
               </p>
             </div>
@@ -387,8 +373,8 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import settingsIcon from "@fluentui/svg-icons/icons/settings_20_regular.svg";
 
+import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
 import type {
   DashboardComparisonChart,
   DashboardComparisonPoint,
@@ -539,7 +525,6 @@ function getGapPolygon(
 }
 
 const chartGridValues = CHART_GRID_VALUES;
-const logoSrc = new URL("../../../../conelp_logo.png", import.meta.url).href;
 </script>
 
 <style scoped src="./styles/DesktopDashboardPage.css"></style>
