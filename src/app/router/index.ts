@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
 
+import DesktopDashboardPage from "@/features/desktop-dashboard/ui/DesktopDashboardPage.vue";
 import ConversionLoadingPage from "@/features/document-conversion-demo/ui/ConversionLoadingPage.vue";
 import DocumentSelectionPage from "@/features/document-conversion-demo/ui/DocumentSelectionPage.vue";
 import DocumentUploadPage from "@/features/document-conversion-demo/ui/DocumentUploadPage.vue";
@@ -12,7 +13,12 @@ export const router = createRouter({
   routes: [
     {
       path: "/",
-      redirect: "/preview/documents",
+      redirect: "/dashboard",
+    },
+    {
+      path: "/dashboard",
+      name: "desktop-dashboard",
+      component: DesktopDashboardPage,
     },
     {
       path: "/preview/documents",
