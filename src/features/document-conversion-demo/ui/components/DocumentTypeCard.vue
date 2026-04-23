@@ -3,6 +3,8 @@
     class="document-chip"
     :class="{ 'document-chip--selected': selected }"
     type="button"
+    :aria-label="document.selectLabel"
+    :aria-pressed="selected"
     @click="$emit('select')"
   >
     <span class="document-chip__icon-frame" aria-hidden="true">

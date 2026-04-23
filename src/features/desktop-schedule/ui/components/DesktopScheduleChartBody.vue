@@ -12,7 +12,9 @@
     @scroll="handleScroll"
     @pointermove="handlePanePointerMove"
     @pointerleave="clearHoveredCell"
+    @pointerdown.capture="handlePanePointerDownCapture"
     @pointerdown="handlePanePointerDown"
+    @auxclick.prevent
     @contextmenu.prevent="handlePaneContextMenu"
   >
     <div
@@ -959,6 +961,28 @@ function handlePanePointerMove(event: PointerEvent) {
   });
 }
 
+function startPanSession(event: PointerEvent) {
+  const element = containerRef.value;
+  if (!element) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  panState.value = {
+    startClientX: event.clientX,
+    startClientY: event.clientY,
+    startScrollLeft: element.scrollLeft,
+    startScrollTop: element.scrollTop,
+  };
+}
+
+function handlePanePointerDownCapture(event: PointerEvent) {
+  if (event.button === 1) {
+    startPanSession(event);
+  }
+}
+
 function handlePanePointerDown(event: PointerEvent) {
   if (event.button !== 0) {
     return;
@@ -979,17 +1003,7 @@ function handlePanePointerDown(event: PointerEvent) {
   }
 
   if (isSpacePressed.value) {
-    const element = containerRef.value;
-    if (!element) {
-      return;
-    }
-
-    panState.value = {
-      startClientX: event.clientX,
-      startClientY: event.clientY,
-      startScrollLeft: element.scrollLeft,
-      startScrollTop: element.scrollTop,
-    };
+    startPanSession(event);
     return;
   }
 

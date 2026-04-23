@@ -16,8 +16,10 @@ const DAILY_REPORT_STEP_TRANSITIONS = [
 ] as const;
 
 const RESULT_ROUTE = "/preview/result";
+const OCR_VALIDATION_ROUTE = "/preview/upload-feedback";
 const DIRECT_DOCUMENT_BACK_ROUTE = "/preview/documents";
 const UPLOAD_DOCUMENT_BACK_ROUTE = "/preview/upload-feedback";
+const UPLOAD_DOCUMENT_ROUTE = "/preview/upload";
 
 export function useConversionLoadingDemoViewModel() {
   const store = useDocumentConversionDemoStore();
@@ -31,9 +33,11 @@ export function useConversionLoadingDemoViewModel() {
   const loadingStepTimers: ReturnType<typeof setTimeout>[] = [];
 
   const loadingBackRoute = computed(() =>
-    selectedDocument.value.generationMode === "direct"
-      ? DIRECT_DOCUMENT_BACK_ROUTE
-      : UPLOAD_DOCUMENT_BACK_ROUTE,
+    selectedDocument.value.type === "material_registration"
+      ? UPLOAD_DOCUMENT_ROUTE
+      : selectedDocument.value.generationMode === "direct"
+        ? DIRECT_DOCUMENT_BACK_ROUTE
+        : UPLOAD_DOCUMENT_BACK_ROUTE,
   );
 
   const loadingDescription = computed(() => {
@@ -41,10 +45,20 @@ export function useConversionLoadingDemoViewModel() {
       return DAILY_REPORT_LOADING_STEPS[loadingStepIndex.value];
     }
 
+    if (selectedDocument.value.type === "material_registration") {
+      return "업로드한 이미지에서 텍스트를 추출하고 있어요.";
+    }
+
     return selectedDocument.value.generationMode === "direct"
       ? "기본 항목과 문서 형식을 준비하고 있어요."
       : "이미지에서 텍스트를 읽고 있어요.";
   });
+
+  const loadingDestinationRoute = computed(() =>
+    selectedDocument.value.type === "material_registration"
+      ? OCR_VALIDATION_ROUTE
+      : RESULT_ROUTE,
+  );
 
   function clearLoadingStepTimers() {
     loadingStepTimers.forEach((timer) => clearTimeout(timer));
@@ -54,7 +68,7 @@ export function useConversionLoadingDemoViewModel() {
   function scheduleResultNavigation(delayMs: number) {
     loadingStepTimers.push(
       setTimeout(() => {
-        void router.replace(RESULT_ROUTE);
+        void router.replace(loadingDestinationRoute.value);
       }, delayMs),
     );
   }

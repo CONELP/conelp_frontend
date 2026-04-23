@@ -27,7 +27,12 @@ export function useResultPreviewDemoViewModel() {
     formatResultFileName(selectedDocument.value.label, new Date()),
   );
 
+  const isMaterialRegistrationResult = computed(
+    () => selectedDocument.value.type === "material_registration",
+  );
+
   return {
+    isMaterialRegistrationResult,
     resultFileName,
     reviewItems: DEFAULT_REVIEW_ITEMS,
   };

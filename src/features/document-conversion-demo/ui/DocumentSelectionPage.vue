@@ -1,53 +1,118 @@
 <template>
-  <main class="selection-page">
-    <header class="selection-header">
-      <div class="selection-header__inner">
-        <img class="selection-header__logo" :src="logoSrc" alt="CONELP" />
+  <div class="selection-frame">
+    <DesktopAppHeader class="selection-page__desktop-header" />
 
-        <button class="selection-header__menu" type="button" aria-label="메뉴 열기">
-          <img class="selection-header__menu-icon" :src="menuIcon" alt="" aria-hidden="true" />
-        </button>
+    <main class="selection-page">
+      <header class="selection-header">
+        <div class="selection-header__inner">
+          <img class="selection-header__logo" :src="logoSrc" alt="CONELP" />
+
+          <button class="selection-header__menu" type="button" aria-label="메뉴 열기">
+            <img class="selection-header__menu-icon" :src="menuIcon" alt="" aria-hidden="true" />
+          </button>
+        </div>
+      </header>
+
+      <div class="selection-layout">
+        <section class="selection-main">
+          <section class="selection-shell selection-intro">
+            <p v-if="pageCopy.eyebrow" class="selection-intro__eyebrow">
+              {{ pageCopy.eyebrow }}
+            </p>
+            <h1 class="selection-intro__title">{{ pageCopy.title }}</h1>
+          </section>
+
+          <section class="selection-body">
+            <section class="selection-shell selection-grid">
+              <DocumentTypeCard
+                v-for="document in documents"
+                :key="document.type"
+                :document="document"
+                :selected="document.isSelected"
+                @select="handleSelectDocument(document.type)"
+              />
+            </section>
+          </section>
+
+          <footer class="selection-shell selection-footer">
+            <RouterLink
+              class="selection-footer__link"
+              to="/preview/generated-documents"
+            >
+              생성된 문서 보기
+              <img
+                class="selection-footer__link-icon"
+                :src="documentsIcon"
+                alt=""
+                aria-hidden="true"
+              />
+            </RouterLink>
+          </footer>
+        </section>
+
+        <aside class="selection-sidebar" aria-label="오늘 생성된 문서">
+          <section class="selection-panel">
+            <div class="selection-panel__section-head">
+              <h2 class="selection-panel__title selection-panel__title--regular">
+                오늘 생성된 문서
+              </h2>
+              <span class="selection-panel__count">{{ todayGeneratedDocuments.length }}건</span>
+            </div>
+
+            <div class="selection-panel__generated-list">
+              <template v-if="todayGeneratedDocuments.length > 0">
+                <article
+                  v-for="document in todayGeneratedDocuments"
+                  :key="document.id"
+                  class="selection-panel__generated-item"
+                >
+                  <span class="selection-panel__generated-icon-wrap" aria-hidden="true">
+                    <img
+                      class="selection-panel__generated-icon"
+                      :src="pdfIcon"
+                      alt=""
+                    />
+                  </span>
+
+                  <span class="selection-panel__generated-copy">
+                    <strong>{{ document.title }}</strong>
+                    <span>{{ document.subtitle }}</span>
+                  </span>
+                </article>
+              </template>
+
+              <p v-else class="selection-panel__empty">
+                생성된 문서가 없어요
+              </p>
+            </div>
+
+            <RouterLink
+              class="selection-panel__cta"
+              to="/preview/generated-documents"
+            >
+              전체 보기
+              <img
+                class="selection-panel__cta-icon"
+                :src="documentsIcon"
+                alt=""
+                aria-hidden="true"
+              />
+            </RouterLink>
+          </section>
+        </aside>
       </div>
-    </header>
-
-    <section class="selection-shell selection-intro">
-      <h1 class="selection-intro__title">{{ pageCopy.title }}</h1>
-    </section>
-
-    <section class="selection-body">
-      <section class="selection-shell selection-grid">
-        <DocumentTypeCard
-          v-for="document in documents"
-          :key="document.type"
-          :document="document"
-          :selected="document.isSelected"
-          @select="handleSelectDocument(document.type)"
-        />
-      </section>
-    </section>
-
-    <footer class="selection-shell selection-footer">
-      <RouterLink
-        class="selection-footer__link"
-        to="/preview/generated-documents"
-      >
-        생성된 문서 보기
-        <img
-          class="selection-footer__link-icon"
-          :src="documentsIcon"
-          alt=""
-          aria-hidden="true"
-        />
-      </RouterLink>
-    </footer>
-  </main>
+    </main>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { RouterLink, useRouter } from "vue-router";
 import documentsIcon from "@fluentui/svg-icons/icons/chevron_right_20_regular.svg";
+import pdfIcon from "@fluentui/svg-icons/icons/document_pdf_20_regular.svg";
 import menuIcon from "@fluentui/svg-icons/icons/text_align_justify_24_regular.svg";
 
+import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
+import { useGeneratedDocumentsDemoViewModel } from "@/features/document-conversion-demo/state/useGeneratedDocumentsDemoViewModel";
 import DocumentTypeCard from "@/features/document-conversion-demo/ui/components/DocumentTypeCard.vue";
 import { useDocumentConversionDemoViewModel } from "@/features/document-conversion-demo/state/useDocumentConversionDemoViewModel";
 
@@ -58,13 +123,24 @@ const {
   clearSelectedDocument,
   selectDocument,
 } = useDocumentConversionDemoViewModel();
+const { todayGeneratedDocuments } = useGeneratedDocumentsDemoViewModel();
 const router = useRouter();
 
 clearSelectedDocument();
 
 function handleSelectDocument(type: string) {
   selectDocument(type);
-  void router.push(resolveNextRoute(type));
+  const nextRoute = resolveNextRoute(type);
+
+  if (nextRoute === "/preview/upload") {
+    void router.push({
+      path: nextRoute,
+      query: { documentType: type },
+    });
+    return;
+  }
+
+  void router.push(nextRoute);
 }
 
 const logoSrc = new URL("../../../../conelp_logo.png", import.meta.url).href;

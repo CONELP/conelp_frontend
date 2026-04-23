@@ -1,3 +1,13 @@
+.loading-frame {
+  min-height: 100vh;
+  min-height: 100svh;
+  background: var(--surface-1);
+}
+
+.loading-page__desktop-header {
+  display: none;
+}
+
 .loading-page {
   --page-inline: 1.2rem;
   --surface-radius: 0.95rem;
@@ -357,5 +367,50 @@
 
   .loading-description {
     font-size: 0.92rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .loading-frame {
+    min-height: 100vh;
+    min-height: 100svh;
+    background: var(--canvas);
+  }
+
+  .loading-page__desktop-header {
+    display: block;
+  }
+
+  .loading-page {
+    --page-inline: 2rem;
+    --glow-size: 20rem;
+    width: min(100%, 76rem);
+    min-height: 46rem;
+    margin: 1.8rem auto 2.4rem;
+    padding: 1.55rem;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 1.3rem;
+    background: #fff;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.03);
+  }
+
+  .loading-shell {
+    width: 100%;
+  }
+
+  .loading-topbar {
+    display: none;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+  }
+
+  .loading-intro {
+    max-width: 32rem;
+    padding: 3rem 0 0;
+  }
+
+  .loading-intro__title {
+    font-size: clamp(1.56rem, 2vw, 2rem);
   }
 }

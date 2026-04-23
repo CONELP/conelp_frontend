@@ -49,15 +49,27 @@ export const demoFlowStages: FlowStageSummary[] = [
 export const documentCatalog: DocumentDemoCard[] = [
   {
     type: "daily_report",
-    label: "공사일보",
-    chipLabel: "공사일보",
+    label: "홈페이지 공사일보 변환",
+    chipLabel: "홈페이지 공사일보 변환",
     iconSrc: documentTextIcon,
     description: "일일 작업 현황과 투입 인력, 장비 기록을 정리하는 기본 문서",
     uploadGuide: "추가 자료 없이 바로 생성할 수 있어요.",
-    resultLabel: "공사일보 결과 시안",
+    resultLabel: "홈페이지 공사일보 변환 결과 시안",
     status: "available",
     accentLabel: "즉시 데모 가능",
     generationMode: "direct",
+  },
+  {
+    type: "material_registration",
+    label: "반입 자재 등록",
+    chipLabel: "반입 자재 등록",
+    iconSrc: clipboardTaskIcon,
+    description: "반입 자재 정보와 거래 명세 내용을 등록하는 문서",
+    uploadGuide: "송장 사진과 거래 명세서 사진을 올려 주세요.",
+    resultLabel: "반입 자재 등록 결과 시안",
+    status: "available",
+    accentLabel: "즉시 데모 가능",
+    generationMode: "upload_required",
   },
   {
     type: "material_inspection_rebar",
@@ -163,6 +175,44 @@ export const uploadDocumentPresets: UploadDocumentPreset[] = [
       {
         id: "daily-report-check-3",
         label: "인력 또는 장비 기록 사진",
+        status: "missing",
+      },
+    ],
+  },
+  {
+    documentType: "material_registration",
+    guideItems: ["송장사진", "자재반입사진", "밀시트 사진"],
+    sampleFiles: [
+      {
+        id: "material-registration-1",
+        name: "IMG_2409_송장.jpg",
+        previewType: "image",
+      },
+      {
+        id: "material-registration-2",
+        name: "IMG_2410_자재반입.jpg",
+        previewType: "image",
+      },
+      {
+        id: "material-registration-3",
+        name: "IMG_2411_밀시트.jpg",
+        previewType: "image",
+      },
+    ],
+    feedbackItems: [
+      {
+        id: "material-registration-check-1",
+        label: "송장사진",
+        status: "matched",
+      },
+      {
+        id: "material-registration-check-2",
+        label: "자재반입사진",
+        status: "matched",
+      },
+      {
+        id: "material-registration-check-3",
+        label: "밀시트 사진",
         status: "missing",
       },
     ],
@@ -313,10 +363,10 @@ export const conversionLoadingSteps: ConversionDemoStep[] = [
 
 export const demoResultState: DemoResultState = {
   documentType: "daily_report",
-  title: "공사일보 결과 시안",
+  title: "홈페이지 공사일보 변환 결과 시안",
   statusLabel: "변환 완료",
   summaryItems: [
-    { label: "문서 타입", value: "공사일보" },
+    { label: "문서 타입", value: "홈페이지 공사일보 변환" },
     { label: "입력 자료", value: "현장 이미지 2건" },
     { label: "데모 상태", value: "검토 가능한 시안 준비" },
   ],

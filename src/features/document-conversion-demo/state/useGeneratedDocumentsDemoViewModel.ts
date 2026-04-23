@@ -2,6 +2,7 @@ interface GeneratedDocumentListItem {
   id: string;
   title: string;
   subtitle: string;
+  createdAt: string;
 }
 
 interface GeneratedDocumentDateGroup {
@@ -50,26 +51,34 @@ function formatGeneratedDocumentDateGroup(value: string) {
   };
 }
 
+function formatGeneratedDocumentDateKey(value: Date) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
 const generatedDocumentSeeds: GeneratedDocumentSeedItem[] = [
   {
     id: "generated-daily-report",
     fileName: "2026.04.21 공사일보.pdf",
     documentLabel: "공사일보",
     documentNumber: "DR-2026-0421-01",
-    createdAt: "2026-04-21T14:32:00+09:00",
+    createdAt: "2026-04-22T14:32:00+09:00",
   },
   {
     id: "generated-material-inspection",
     fileName: "2026.04.20 자재반입 검수요청.pdf",
     documentLabel: "자재반입 검수요청",
     documentNumber: "MI-2026-0420-03",
-    createdAt: "2026-04-20T17:08:00+09:00",
+    createdAt: "2026-04-22T11:08:00+09:00",
   },
   {
     id: "generated-concrete-delivery",
     fileName: "2026.04.20 콘크리트 반입시험.pdf",
     documentLabel: "콘크리트 반입시험",
-    createdAt: "2026-04-20T13:24:00+09:00",
+    createdAt: "2026-04-22T09:24:00+09:00",
   },
   {
     id: "generated-concrete-strength",
@@ -110,6 +119,7 @@ export function useGeneratedDocumentsDemoViewModel() {
         subtitle: `${
           document.documentNumber ?? formatGeneratedDocumentDate(document.createdAt)
         }, ${formatGeneratedDocumentTime(document.createdAt)}`,
+        createdAt: document.createdAt,
       };
 
       if (existingGroup) {
@@ -128,7 +138,22 @@ export function useGeneratedDocumentsDemoViewModel() {
     [],
   );
 
+  const recentGeneratedDocuments = [...generatedDocumentGroups]
+    .flatMap((group) => group.documents)
+    .sort(
+      (left, right) =>
+        new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+    )
+    .slice(0, 5);
+
+  const todayDateKey = formatGeneratedDocumentDateKey(new Date());
+  const todayGeneratedDocuments =
+    generatedDocumentGroups.find((group) => group.dateKey === todayDateKey)
+      ?.documents ?? [];
+
   return {
     generatedDocumentGroups,
+    recentGeneratedDocuments,
+    todayGeneratedDocuments,
   };
 }
