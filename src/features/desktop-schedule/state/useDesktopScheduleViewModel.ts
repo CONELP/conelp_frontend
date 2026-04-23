@@ -948,11 +948,21 @@ export function useDesktopScheduleViewModel() {
           return;
         }
 
-        workingLinks.value = desktopScheduleService.createLink(workingLinks.value, {
+        const nextLinks = desktopScheduleService.createLink(workingLinks.value, {
           sourceItemId: connectionCreation.sourceItemId,
           targetItemId,
           gapDays,
         });
+
+        if (nextLinks !== workingLinks.value) {
+          workingLinks.value = nextLinks;
+          workingItems.value = desktopScheduleService.constrainItemsToRelationshipGaps(
+            workingItems.value,
+            [connectionCreation.sourceItemId],
+            workingDependencies.value,
+            nextLinks,
+          );
+        }
       }
 
       selectionState.value = {

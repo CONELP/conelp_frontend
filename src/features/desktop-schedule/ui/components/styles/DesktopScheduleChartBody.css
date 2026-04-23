@@ -58,7 +58,8 @@
 }
 
 .schedule-chart-body__day-column--today {
-  background: rgba(59, 130, 246, 0.08);
+  z-index: 0;
+  background: rgba(30, 24, 136, 0.12);
 }
 
 .schedule-chart-body__row {

@@ -1931,6 +1931,20 @@ function applyRelationshipConstraints(
   return serializeItemsInBaseOrder(baseItems, itemsById);
 }
 
+function constrainItemsToRelationshipGaps(
+  baseItems: DesktopScheduleItem[],
+  seedItemIds: string[],
+  dependencies: DesktopScheduleDependency[] = [],
+  links: DesktopScheduleLink[] = [],
+) {
+  if (seedItemIds.length === 0) {
+    return baseItems;
+  }
+
+  const itemsById = new Map(baseItems.map((item) => [item.id, item] as const));
+  return applyRelationshipConstraints(baseItems, itemsById, seedItemIds, dependencies, links);
+}
+
 function moveItems(
   baseItems: DesktopScheduleItem[],
   itemIds: string[],
@@ -2097,6 +2111,7 @@ export const desktopScheduleService = {
   updateItemName,
   updateItemDetails,
   moveItems,
+  constrainItemsToRelationshipGaps,
   moveSummaryRows,
   resizeItem,
   resizeSummaryRow,
