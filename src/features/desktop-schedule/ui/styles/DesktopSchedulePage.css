@@ -5,82 +5,30 @@
 }
 
 .desktop-schedule-page__shell {
-  width: min(100%, 76rem);
-  margin: 0 auto;
-  padding: 1.6rem 0 2.4rem;
-}
-
-.desktop-schedule-page__surface {
+  width: 100%;
+  padding: 1.1rem 1.5rem 2.5rem;
   display: grid;
-  gap: 1.3rem;
-  padding: 1.4rem;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 0.95rem;
-  background: #fff;
+  gap: 0;
 }
 
-.desktop-schedule-page__header {
-  display: grid;
-  gap: 0.42rem;
+.desktop-schedule-page__workspace {
+  min-height: calc(100vh - 10.75rem);
 }
 
-.desktop-schedule-page__eyebrow,
-.desktop-schedule-page__title,
-.desktop-schedule-page__description,
-.desktop-schedule-page__card h2,
-.desktop-schedule-page__card p {
-  margin: 0;
+.desktop-schedule-page__workspace-host {
+  position: relative;
+  min-height: calc(100vh - 10.75rem);
 }
 
-.desktop-schedule-page__eyebrow {
-  color: var(--ink-muted);
-  font-size: 0.82rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
+@media (prefers-reduced-motion: no-preference) {
+  .desktop-schedule-page__workspace {
+    opacity: 0;
+    animation: surface-rise var(--motion-page-duration) var(--motion-page-ease)
+      forwards;
+    will-change: transform, opacity;
+  }
 
-.desktop-schedule-page__title {
-  color: var(--ink);
-  font-family: var(--font-display);
-  font-size: 1.46rem;
-  font-weight: 700;
-  line-height: 1.08;
-  letter-spacing: -0.03em;
-}
-
-.desktop-schedule-page__description {
-  max-width: 42rem;
-  color: var(--ink-muted);
-  font-size: 0.92rem;
-  line-height: 1.55;
-}
-
-.desktop-schedule-page__grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
-}
-
-.desktop-schedule-page__card {
-  display: grid;
-  gap: 0.55rem;
-  min-height: 9.75rem;
-  padding: 1rem;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 0.85rem;
-  background: #fff;
-  align-content: start;
-}
-
-.desktop-schedule-page__card h2 {
-  color: var(--ink);
-  font-size: 0.95rem;
-  font-weight: 700;
-  line-height: 1.3;
-}
-
-.desktop-schedule-page__card p {
-  color: var(--ink-muted);
-  font-size: 0.88rem;
-  line-height: 1.6;
+  .desktop-schedule-page__workspace {
+    animation-delay: 70ms;
+  }
 }

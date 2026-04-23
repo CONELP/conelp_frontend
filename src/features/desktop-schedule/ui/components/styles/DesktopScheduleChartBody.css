@@ -1,0 +1,365 @@
+.schedule-chart-body {
+  overflow: auto;
+  background: #fff;
+}
+
+.schedule-chart-body--grab {
+  cursor: grab;
+}
+
+.schedule-chart-body--grabbing {
+  cursor: grabbing;
+}
+
+.schedule-chart-body--crosshair {
+  cursor: crosshair;
+}
+
+.schedule-chart-body--locked {
+  user-select: none;
+}
+
+.schedule-chart-body__surface {
+  position: relative;
+}
+
+.schedule-chart-body__surface::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 4;
+  height: 2px;
+  background: rgba(0, 0, 0, 0.16);
+  content: "";
+  pointer-events: none;
+}
+
+.schedule-chart-body__day-column,
+.schedule-chart-body__row,
+.schedule-chart-body__hover-day,
+.schedule-chart-body__hover-row,
+.schedule-chart-body__hover-cell,
+.schedule-chart-body__bar,
+.schedule-chart-body__milestone-deadline,
+.schedule-chart-body__milestone-cell,
+.schedule-chart-body__marquee,
+.schedule-chart-body__summary-overflow {
+  position: absolute;
+}
+
+.schedule-chart-body__day-column {
+  top: 0;
+  border-right: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.schedule-chart-body__day-column--weekend {
+  background: rgba(244, 63, 94, 0.05);
+}
+
+.schedule-chart-body__day-column--today {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.schedule-chart-body__row {
+  left: 0;
+  right: 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+}
+
+.schedule-chart-body__row--division {
+  background: #fff;
+  border-top: 2px solid rgba(0, 0, 0, 0.16);
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+.schedule-chart-body__row--selected {
+  background: rgba(125, 211, 252, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.9);
+}
+
+.schedule-chart-body__row--milestone {
+  background: transparent;
+}
+
+.schedule-chart-body__row--parent {
+  background: rgba(15, 23, 42, 0.04);
+}
+
+.schedule-chart-body__hover-day {
+  top: 0;
+  z-index: 1;
+  background: rgba(125, 211, 252, 0.18);
+}
+
+.schedule-chart-body__hover-row {
+  left: 0;
+  z-index: 1;
+  background: rgba(125, 211, 252, 0.18);
+}
+
+.schedule-chart-body__hover-cell {
+  z-index: 1;
+  background: rgba(125, 211, 252, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.8);
+}
+
+.schedule-chart-body__connections {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.schedule-chart-body__connection-hit {
+  cursor: pointer;
+}
+
+.schedule-chart-body__milestone-deadline {
+  z-index: 3;
+  display: block;
+  appearance: none;
+  overflow: visible;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  outline: none;
+}
+
+.schedule-chart-body__milestone-deadline::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  background: #d97706;
+  box-shadow: 0 0 0 1px rgba(217, 119, 6, 0.16);
+  content: "";
+  transform: translateX(-50%);
+}
+
+.schedule-chart-body__milestone-deadline--hovered::before {
+  width: 3px;
+  background: #b45309;
+  box-shadow: 0 0 0 1px rgba(180, 83, 9, 0.16), 0 0 10px rgba(217, 119, 6, 0.24);
+}
+
+.schedule-chart-body__milestone-cell {
+  z-index: 4;
+  display: flex;
+  appearance: none;
+  align-items: center;
+  overflow: visible;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  outline: none;
+}
+
+.schedule-chart-body__milestone-deadline-label {
+  position: absolute;
+  top: 50%;
+  right: 50%;
+  width: max-content;
+  padding: calc(0.18rem * var(--schedule-zoom-scale, 1))
+    calc(0.42rem * var(--schedule-zoom-scale, 1));
+  border: 1px solid rgba(217, 119, 6, 0.28);
+  border-radius: calc(0.16rem * var(--schedule-zoom-scale, 1));
+  background: rgba(255, 255, 255, 0.96);
+  color: #92400e;
+  font-size: clamp(0.58rem, calc(0.82rem * var(--schedule-zoom-scale, 1)), 1.12rem);
+  font-weight: 600;
+  line-height: 1;
+  pointer-events: auto;
+  text-align: right;
+  transform: translateY(-50%);
+  white-space: nowrap;
+}
+
+.schedule-chart-body__milestone-cell--hovered .schedule-chart-body__milestone-deadline-label,
+.schedule-chart-body__milestone-cell--selected .schedule-chart-body__milestone-deadline-label {
+  border-color: rgba(180, 83, 9, 0.54);
+  background: #fffbeb;
+  color: #78350f;
+  box-shadow: 0 0 0 1px rgba(217, 119, 6, 0.12), 0 8px 14px rgba(146, 64, 14, 0.08);
+}
+
+.schedule-chart-body__milestone-deadline-label--editing {
+  min-width: 8ch;
+  pointer-events: auto;
+  cursor: text;
+  outline: none;
+  user-select: text;
+  caret-color: currentColor;
+}
+
+.schedule-chart-body__bar {
+  z-index: 2;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  overflow: visible;
+  padding: 0 calc(0.625rem * var(--schedule-zoom-scale, 1));
+  border: 1px solid #94a3b8;
+  border-radius: calc(0.4rem * var(--schedule-zoom-scale, 1));
+  background: #e5e7eb;
+  color: #111827;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  transition: box-shadow 140ms ease, border-color 140ms ease, border-width 140ms ease;
+}
+
+.schedule-chart-body__bar--summary {
+  cursor: pointer;
+  border-color: #64748b;
+  background: #e2e8f0;
+  color: #111827;
+}
+
+.schedule-chart-body__bar--summary-selected {
+  z-index: 10;
+  border: 2px solid var(--schedule-bar-accent-color, #64748b);
+  background: #e2e8f0;
+  box-shadow: 0 0 0 1px var(--schedule-bar-focus-shadow, rgba(100, 116, 139, 0.18));
+}
+
+.schedule-chart-body__bar--item {
+  cursor: pointer;
+}
+
+.schedule-chart-body__bar--item-editing {
+  z-index: 12;
+  border: 2px solid var(--schedule-bar-accent-color, #64748b);
+  cursor: text;
+}
+
+.schedule-chart-body__bar--item-selected {
+  z-index: 10;
+  border: 2px solid var(--schedule-bar-accent-color, #64748b);
+  box-shadow: 0 0 0 1px var(--schedule-bar-focus-shadow, rgba(100, 116, 139, 0.18));
+}
+
+.schedule-chart-body__bar--holiday-off {
+  border-color: #94a3b8;
+  background: #e2e8f0;
+  color: #111827;
+}
+
+.schedule-chart-body__bar--connection-source {
+  z-index: 10;
+  border: 2px solid var(--schedule-bar-accent-color, #64748b);
+  box-shadow: 0 0 0 1px var(--schedule-bar-focus-shadow, rgba(100, 116, 139, 0.18));
+}
+
+.schedule-chart-body__bar--connection-target {
+  z-index: 10;
+  border: 2px solid var(--schedule-bar-accent-color, #64748b);
+  box-shadow: 0 0 0 2px var(--schedule-bar-focus-shadow, rgba(100, 116, 139, 0.16));
+}
+
+.schedule-chart-body__summary-title,
+.schedule-chart-body__item-title {
+  display: flex;
+  align-items: center;
+}
+
+.schedule-chart-body__summary-title {
+  width: 100%;
+  justify-content: center;
+  overflow: hidden;
+  text-align: center;
+}
+
+.schedule-chart-body__summary-title span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: clamp(0.6rem, calc(0.84rem * var(--schedule-zoom-scale, 1)), 1.14rem);
+  font-weight: 800;
+  line-height: 1;
+}
+
+.schedule-chart-body__item-title {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  width: max-content;
+  min-width: max-content;
+  justify-content: flex-start;
+  overflow: visible;
+  pointer-events: none;
+  text-overflow: clip;
+  white-space: nowrap;
+  text-align: left;
+  font-size: clamp(0.58rem, calc(0.82rem * var(--schedule-zoom-scale, 1)), 1.12rem);
+  font-weight: 600;
+  line-height: 1;
+  text-shadow: 0 0 1px rgba(15, 23, 42, 0.24), 0 0 2px rgba(15, 23, 42, 0.16);
+}
+
+.schedule-chart-body__bar--holiday-off .schedule-chart-body__item-title {
+  text-shadow: none;
+}
+
+.schedule-chart-body__item-title--editing {
+  pointer-events: auto;
+  cursor: text;
+  outline: none;
+  user-select: text;
+  caret-color: currentColor;
+  min-width: 1ch;
+}
+
+.schedule-chart-body__summary-mismatch,
+.schedule-chart-body__summary-overflow {
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    -60deg,
+    rgba(15, 23, 42, 0.42) 0,
+    rgba(15, 23, 42, 0.42) 1px,
+    transparent 1px,
+    transparent 6px
+  );
+}
+
+.schedule-chart-body__summary-mismatch {
+  inset-block: 0;
+}
+
+.schedule-chart-body__resize-handle {
+  position: absolute;
+  top: 0;
+  width: calc(0.65rem * var(--schedule-zoom-scale, 1));
+  height: 100%;
+  border-radius: calc(0.35rem * var(--schedule-zoom-scale, 1));
+  background: rgba(255, 255, 255, 0.4);
+  cursor: ew-resize;
+  opacity: 0;
+  transition: opacity 120ms ease, background-color 120ms ease;
+}
+
+.schedule-chart-body__resize-handle:hover {
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.schedule-chart-body__resize-handle--left {
+  left: 0;
+}
+
+.schedule-chart-body__resize-handle--right {
+  right: 0;
+}
+
+.schedule-chart-body__bar:hover .schedule-chart-body__resize-handle {
+  opacity: 1;
+}
+
+.schedule-chart-body__resize-handle--visible {
+  opacity: 1;
+}
+
+.schedule-chart-body__marquee {
+  z-index: 20;
+  border: 1px solid #0ea5e9;
+  background: rgba(56, 189, 248, 0.15);
+}

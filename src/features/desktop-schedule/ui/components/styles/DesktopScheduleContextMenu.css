@@ -1,0 +1,53 @@
+.schedule-context-menu {
+  position: fixed;
+  z-index: 100;
+  min-width: 14rem;
+  padding: 0.35rem;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 0.7rem;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.14);
+  backdrop-filter: blur(12px);
+}
+
+.schedule-context-menu__item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.5rem;
+  color: var(--ink);
+  font-size: 0.84rem;
+  text-align: left;
+}
+
+.schedule-context-menu__item:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.schedule-context-menu__icon {
+  display: inline-flex;
+  width: 1rem;
+  justify-content: center;
+  color: var(--ink-faint);
+  font-size: 0.84rem;
+  line-height: 1;
+}
+
+.schedule-context-menu__item--danger {
+  color: #b42318;
+}
+
+.schedule-context-menu__item--danger:hover {
+  background: rgba(180, 35, 24, 0.08);
+}
+
+.schedule-context-menu__item--disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.schedule-context-menu__item--disabled:hover {
+  background: transparent;
+}

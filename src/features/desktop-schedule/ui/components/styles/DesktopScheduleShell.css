@@ -1,0 +1,198 @@
+.schedule-shell {
+  height: 100%;
+  --schedule-header-height: 84px;
+  --schedule-zoom-scale: 1;
+}
+
+.schedule-shell__frame {
+  display: grid;
+  height: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 0.95rem;
+  background: #fff;
+}
+
+.schedule-shell__left-column {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  border-right: 1px solid rgba(0, 0, 0, 0.22);
+}
+
+.schedule-shell__left-header {
+  display: grid;
+  align-items: center;
+  min-height: var(--schedule-header-height, 84px);
+  grid-template-columns: minmax(0, 1fr);
+  padding: 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  background: #fff;
+}
+
+.schedule-shell__left-header span {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.45rem;
+  margin: 0;
+  overflow: hidden;
+  color: var(--ink-muted);
+  font-size: clamp(0.58rem, calc(0.78rem * var(--schedule-zoom-scale, 1)), 1.02rem);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.schedule-shell__main {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.schedule-shell__timeline-pane {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.schedule-shell__actions {
+  position: absolute;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 0.5rem;
+  background: #fff;
+  pointer-events: auto;
+}
+
+.schedule-shell__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: #fff;
+  color: #6b7280;
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.schedule-shell__zoom-slider {
+  appearance: none;
+  width: 8.5rem;
+  height: 2rem;
+  padding: 0 0.7rem;
+  border: 0;
+  border-left: 1px solid rgba(0, 0, 0, 0.12);
+  border-right: 1px solid rgba(0, 0, 0, 0.12);
+  background: #fff;
+  accent-color: #6b7280;
+}
+
+.schedule-shell__zoom-slider::-webkit-slider-runnable-track {
+  height: 0.25rem;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    #6b7280 0%,
+    #6b7280 var(--zoom-progress, 0%),
+    rgba(0, 0, 0, 0.16) var(--zoom-progress, 0%),
+    rgba(0, 0, 0, 0.16) 100%
+  );
+}
+
+.schedule-shell__zoom-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 0.85rem;
+  height: 0.85rem;
+  margin-top: -0.3rem;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  background: #6b7280;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.24);
+}
+
+.schedule-shell__zoom-slider::-moz-range-track {
+  height: 0.25rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.schedule-shell__zoom-slider::-moz-range-progress {
+  height: 0.25rem;
+  border-radius: 999px;
+  background: #6b7280;
+}
+
+.schedule-shell__zoom-slider::-moz-range-thumb {
+  width: 0.85rem;
+  height: 0.85rem;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  background: #6b7280;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.24);
+}
+
+.schedule-shell__zoom-slider:focus-visible,
+.schedule-shell__action:focus-visible {
+  outline: 2px solid rgba(107, 114, 128, 0.42);
+  outline-offset: -2px;
+}
+
+.schedule-shell__action:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.schedule-shell__action--toggle {
+  min-width: auto;
+}
+
+.schedule-shell__action--active {
+  border-color: rgba(203, 58, 49, 0.18);
+  background: rgba(254, 242, 242, 0.95);
+  color: #9f2d28;
+}
+
+.schedule-shell__action-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.2rem;
+  height: 1.1rem;
+  padding: 0 0.28rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--ink-faint);
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.schedule-shell__action-count--active {
+  background: rgba(203, 58, 49, 0.1);
+  color: #9f2d28;
+}
+
+.schedule-shell__chart-scroll {
+  overflow: auto;
+  border-left: 1px solid rgba(0, 0, 0, 0.08);
+  background: #fff;
+}

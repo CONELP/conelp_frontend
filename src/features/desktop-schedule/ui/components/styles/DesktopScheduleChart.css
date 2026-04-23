@@ -1,0 +1,139 @@
+.schedule-chart {
+  position: relative;
+  background: #fff;
+}
+
+.schedule-chart__day,
+.schedule-chart__row,
+.schedule-chart__bar,
+.schedule-chart__milestone,
+.schedule-chart__connections {
+  position: absolute;
+}
+
+.schedule-chart__day {
+  top: 0;
+  bottom: 0;
+  border-right: 1px solid rgba(0, 0, 0, 0.04);
+  background: transparent;
+}
+
+.schedule-chart__day--weekend {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.schedule-chart__day--today {
+  background: rgba(30, 24, 136, 0.05);
+}
+
+.schedule-chart__row {
+  left: 0;
+  right: 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  background: transparent;
+}
+
+.schedule-chart__row--parent {
+  background: rgba(0, 0, 0, 0.015);
+}
+
+.schedule-chart__row--milestone {
+  background: #f7f7f7;
+}
+
+.schedule-chart__connections {
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.schedule-chart__connection-path {
+  fill: none;
+  stroke: var(--connection-color);
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+
+.schedule-chart__connection-path--link {
+  stroke-dasharray: 4 3;
+}
+
+.schedule-chart__connection-path--critical-path {
+  stroke-width: 1.6;
+}
+
+.schedule-chart__connection-label {
+  fill: var(--ink-faint);
+  font-size: 10px;
+  text-anchor: middle;
+}
+
+.schedule-chart__milestone {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0 0.7rem 0 0;
+}
+
+.schedule-chart__milestone-marker {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border: 1.4px solid var(--primary);
+  background: #fff;
+  transform: rotate(45deg);
+}
+
+.schedule-chart__milestone-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+  padding: 0 0.5rem;
+  border: 1px solid rgba(30, 24, 136, 0.14);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.schedule-chart__bar {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0 0.55rem;
+  border: 1px solid var(--bar-color);
+  border-radius: 999px;
+  background: var(--bar-color);
+  color: #fff;
+  box-shadow: none;
+}
+
+.schedule-chart__bar--summary {
+  border-radius: 0.7rem;
+  background: #fff;
+  color: var(--ink);
+}
+
+.schedule-chart__bar--holiday-off {
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      rgba(255, 255, 255, 0.28),
+      rgba(255, 255, 255, 0.28) 4px,
+      rgba(255, 255, 255, 0.08) 4px,
+      rgba(255, 255, 255, 0.08) 8px
+    ),
+    var(--bar-color);
+}
+
+.schedule-chart__bar-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1;
+}
