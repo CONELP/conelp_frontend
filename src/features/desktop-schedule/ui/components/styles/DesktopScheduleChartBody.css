@@ -40,6 +40,8 @@
 .schedule-chart-body__hover-day,
 .schedule-chart-body__hover-row,
 .schedule-chart-body__hover-cell,
+.schedule-chart-body__today-column-overlay,
+.schedule-chart-body__today-division-border,
 .schedule-chart-body__bar,
 .schedule-chart-body__milestone-deadline,
 .schedule-chart-body__milestone-cell,
@@ -59,7 +61,7 @@
 
 .schedule-chart-body__day-column--today {
   z-index: 0;
-  background: rgba(30, 24, 136, 0.12);
+  background: transparent;
 }
 
 .schedule-chart-body__row {
@@ -103,6 +105,21 @@
   z-index: 1;
   background: rgba(125, 211, 252, 0.18);
   box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.8);
+}
+
+.schedule-chart-body__today-column-overlay {
+  top: 0;
+  z-index: 1;
+  background: rgba(30, 24, 136, 0.12);
+  pointer-events: none;
+}
+
+.schedule-chart-body__today-division-border {
+  z-index: 2;
+  box-sizing: border-box;
+  border-right: 1px solid rgba(0, 0, 0, 0.08);
+  border-left: 1px solid rgba(0, 0, 0, 0.08);
+  pointer-events: none;
 }
 
 .schedule-chart-body__connections {

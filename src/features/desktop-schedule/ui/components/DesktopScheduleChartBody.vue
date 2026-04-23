@@ -43,6 +43,23 @@
       />
 
       <div
+        v-if="todayTimelineDay"
+        class="schedule-chart-body__today-column-overlay"
+        :style="{
+          left: `${todayTimelineDay.left}px`,
+          width: `${todayTimelineDay.width}px`,
+          height: `${shellLayout.chartHeight}px`,
+        }"
+      />
+
+      <div
+        v-for="border in divisionTodayBorderStyles"
+        :key="border.key"
+        class="schedule-chart-body__today-division-border"
+        :style="border.style"
+      />
+
+      <div
         v-if="hoveredDayOverlayStyle"
         class="schedule-chart-body__hover-day"
         :style="hoveredDayOverlayStyle"
@@ -537,6 +554,30 @@ const hoveredTimelineDay = computed(() =>
     ? props.timeline.days.find((day) => day.date === hoveredCell.value.date) ?? null
     : null,
 );
+const todayTimelineDay = computed(() => props.timeline.days.find((day) => day.isToday) ?? null);
+const divisionTodayBorderStyles = computed(() => {
+  const today = todayTimelineDay.value;
+
+  if (!today) {
+    return [];
+  }
+
+  return props.shellLayout.rows
+    .filter((row) => row.kind === "division")
+    .map((row) => {
+      const leftOffset = today.left > 0 ? 1 : 0;
+
+      return {
+        key: `today-division-border-${row.id}`,
+        style: {
+          left: `${today.left - leftOffset}px`,
+          top: `${row.top}px`,
+          width: `${today.width + leftOffset}px`,
+          height: `${row.height}px`,
+        },
+      };
+    });
+});
 const hoveredShellRow = computed(() =>
   hoveredCell.value.rowId
     ? props.shellLayout.rows.find((row) => row.id === hoveredCell.value.rowId) ?? null
