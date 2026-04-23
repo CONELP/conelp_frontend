@@ -5,199 +5,142 @@
     <div class="dashboard-shell dashboard-body">
       <section class="dashboard-row dashboard-row--status">
         <div class="dashboard-status-grid">
-          <article class="dashboard-panel">
-            <h2 class="dashboard-panel__title">
-              {{ dashboard.overallComparisonChart.title }}
-            </h2>
+          <article class="dashboard-panel dashboard-panel--status-chart">
+            <div class="dashboard-panel__topline dashboard-panel__topline--progress">
+              <div class="dashboard-panel__heading-group">
+                <h2 class="dashboard-panel__title">
+                  {{ activeComparisonChart.title }}
+                </h2>
+              </div>
 
-            <div class="dashboard-line-chart">
-              <svg
-                class="dashboard-line-chart__svg"
-                viewBox="0 0 100 72"
-                preserveAspectRatio="none"
-                aria-hidden="true"
-              >
-                <defs>
-                  <pattern
-                    :id="`${dashboard.overallComparisonChart.id}-gap`"
-                    patternUnits="userSpaceOnUse"
-                    width="6"
-                    height="6"
-                    patternTransform="rotate(45)"
-                  >
-                    <line
-                      x1="0"
-                      y1="0"
-                      x2="0"
-                      y2="6"
-                      class="dashboard-line-chart__pattern-line"
-                    />
-                  </pattern>
-                </defs>
-
-                <line
-                  v-for="gridValue in chartGridValues"
-                  :key="`overall-grid-${gridValue}`"
-                  class="dashboard-line-chart__grid-line"
-                  x1="8"
-                  :y1="mapChartValueToY(gridValue)"
-                  x2="92"
-                  :y2="mapChartValueToY(gridValue)"
-                />
-
-                <polygon
-                  class="dashboard-line-chart__gap"
-                  :points="getGapPolygon(
-                    dashboard.overallComparisonChart.plannedSeries,
-                    dashboard.overallComparisonChart.actualSeries,
-                  )"
-                  :fill="`url(#${dashboard.overallComparisonChart.id}-gap)`"
-                />
-
-                <polyline
-                  class="dashboard-line-chart__line dashboard-line-chart__line--planned"
-                  :points="getPolylinePoints(dashboard.overallComparisonChart.plannedSeries)"
-                />
-
-                <polyline
-                  class="dashboard-line-chart__line dashboard-line-chart__line--actual"
-                  :points="getPolylinePoints(dashboard.overallComparisonChart.actualSeries)"
-                />
-
-              </svg>
-
-              <div class="dashboard-line-chart__labels">
-                <span
-                  v-for="point in dashboard.overallComparisonChart.actualSeries"
-                  :key="`overall-label-${point.label}`"
+              <div class="dashboard-chart-tabs">
+                <button
+                  v-for="tab in progressChartTabs"
+                  :key="tab.id"
+                  type="button"
+                  class="dashboard-chart-tabs__button"
+                  :class="{ 'dashboard-chart-tabs__button--active': activeProgressChartId === tab.id }"
+                  :aria-pressed="activeProgressChartId === tab.id"
+                  @click="selectProgressChart(tab.id)"
                 >
-                  {{ point.label }}
-                </span>
+                  {{ tab.label }}
+                </button>
               </div>
             </div>
 
-            <div class="dashboard-line-chart__summary">
-              <p>
+            <div class="dashboard-line-chart dashboard-line-chart--expanded">
+              <ProgressComparisonChart :chart="activeComparisonChart" />
+            </div>
+
+            <div class="dashboard-line-chart__summary dashboard-line-chart__summary--expanded">
+              <p class="dashboard-line-chart__summary-item dashboard-line-chart__summary-item--planned">
                 <span>계획 공정률</span>
-                <strong>{{ formatPercent(getLatestValue(dashboard.overallComparisonChart.plannedSeries)) }}</strong>
+                <strong>{{ formatPercent(getLatestValue(activeComparisonChart.plannedSeries)) }}</strong>
               </p>
-              <p>
+              <p class="dashboard-line-chart__summary-item dashboard-line-chart__summary-item--actual">
                 <span>실제 공정률</span>
                 <strong
                   class="dashboard-line-chart__delta"
-                  :class="getDeltaToneClass(dashboard.overallComparisonChart)"
+                  :class="getDeltaToneClass(activeComparisonChart)"
                 >
-                  {{ formatPercent(getLatestValue(dashboard.overallComparisonChart.actualSeries)) }}
-                  <em>({{ formatDelta(getDeltaValue(dashboard.overallComparisonChart)) }})</em>
+                  {{ formatPercent(getLatestValue(activeComparisonChart.actualSeries)) }}
+                  <em>({{ formatDelta(getDeltaValue(activeComparisonChart)) }})</em>
                 </strong>
               </p>
             </div>
           </article>
 
-          <article class="dashboard-panel">
-            <div class="dashboard-panel__topline">
-              <h2 class="dashboard-panel__title">
-                {{ dashboard.currentComparisonChart.title }}
-              </h2>
-              <span class="dashboard-panel__pill">{{ dashboard.currentProcess.windowLabel }}</span>
-            </div>
+          <article class="dashboard-panel dashboard-panel--today-work">
+            <h2 class="dashboard-panel__title">오늘 작업내용</h2>
 
-            <div class="dashboard-line-chart">
-              <svg
-                class="dashboard-line-chart__svg"
-                viewBox="0 0 100 72"
-                preserveAspectRatio="none"
-                aria-hidden="true"
+            <div class="dashboard-today-work-sheet">
+              <section
+                v-for="section in todayWorkSections"
+                :key="section.title"
+                class="dashboard-today-work-section"
               >
-                <defs>
-                  <pattern
-                    :id="`${dashboard.currentComparisonChart.id}-gap`"
-                    patternUnits="userSpaceOnUse"
-                    width="6"
-                    height="6"
-                    patternTransform="rotate(45)"
+                <h3 class="dashboard-today-work-section__title">{{ section.title }}</h3>
+
+                <ul class="dashboard-today-work-section__list">
+                  <li
+                    v-for="task in section.tasks"
+                    :key="`${section.title}-${task}`"
+                    class="dashboard-today-work-section__item"
                   >
-                    <line
-                      x1="0"
-                      y1="0"
-                      x2="0"
-                      y2="6"
-                      class="dashboard-line-chart__pattern-line"
-                    />
-                  </pattern>
-                </defs>
+                    {{ task }}
+                  </li>
+                </ul>
+              </section>
+            </div>
+          </article>
+        </div>
+      </section>
 
-                <line
-                  v-for="gridValue in chartGridValues"
-                  :key="`current-grid-${gridValue}`"
-                  class="dashboard-line-chart__grid-line"
-                  x1="8"
-                  :y1="mapChartValueToY(gridValue)"
-                  x2="92"
-                  :y2="mapChartValueToY(gridValue)"
-                />
+      <section class="dashboard-row dashboard-row--issues">
+        <div class="dashboard-issues-grid">
+          <article class="dashboard-panel">
+            <h3 class="dashboard-panel__title">{{ dashboard.calendarMonthLabel }}</h3>
 
-                <polygon
-                  class="dashboard-line-chart__gap"
-                  :points="getGapPolygon(
-                    dashboard.currentComparisonChart.plannedSeries,
-                    dashboard.currentComparisonChart.actualSeries,
-                  )"
-                  :fill="`url(#${dashboard.currentComparisonChart.id}-gap)`"
-                />
-
-                <polyline
-                  class="dashboard-line-chart__line dashboard-line-chart__line--planned"
-                  :points="getPolylinePoints(dashboard.currentComparisonChart.plannedSeries)"
-                />
-
-                <polyline
-                  class="dashboard-line-chart__line dashboard-line-chart__line--actual"
-                  :points="getPolylinePoints(dashboard.currentComparisonChart.actualSeries)"
-                />
-
-              </svg>
-
-              <div class="dashboard-line-chart__labels">
+            <div class="dashboard-calendar">
+              <div class="dashboard-calendar__weekdays">
                 <span
-                  v-for="point in dashboard.currentComparisonChart.actualSeries"
-                  :key="`current-label-${point.label}`"
+                  v-for="weekday in dashboard.calendarWeekdays"
+                  :key="weekday"
                 >
-                  {{ point.label }}
+                  {{ weekday }}
                 </span>
               </div>
+
+              <section
+                v-for="week in dashboard.calendarWeeks"
+                :key="week.label"
+                class="dashboard-calendar__week-row"
+              >
+                <div class="dashboard-calendar__grid">
+                  <article
+                    v-for="(day, dayIndex) in week.days"
+                    :key="`${week.label}-${dayIndex}-${day.day ?? 'empty'}`"
+                    class="dashboard-calendar__cell"
+                    :class="`dashboard-calendar__cell--${day.tone}`"
+                  >
+                    <span>{{ day.day ?? "" }}</span>
+                    <small v-if="day.agenda">{{ day.agenda }}</small>
+                  </article>
+                </div>
+              </section>
             </div>
 
-            <div class="dashboard-line-chart__summary">
-              <p>
-                <span>계획 공정률</span>
-                <strong>{{ formatPercent(getLatestValue(dashboard.currentComparisonChart.plannedSeries)) }}</strong>
-              </p>
-              <p>
-                <span>실제 공정률</span>
-                <strong
-                  class="dashboard-line-chart__delta"
-                  :class="getDeltaToneClass(dashboard.currentComparisonChart)"
-                >
-                  {{ formatPercent(getLatestValue(dashboard.currentComparisonChart.actualSeries)) }}
-                  <em>({{ formatDelta(getDeltaValue(dashboard.currentComparisonChart)) }})</em>
-                </strong>
-              </p>
+            <div class="dashboard-calendar__legend">
+              <span><i class="dashboard-calendar__dot dashboard-calendar__dot--today" /> 오늘</span>
+              <span><i class="dashboard-calendar__dot dashboard-calendar__dot--issue" /> 이슈</span>
+              <span><i class="dashboard-calendar__dot dashboard-calendar__dot--milestone" /> 마일스톤</span>
             </div>
           </article>
 
-          <article class="dashboard-panel dashboard-panel--milestones">
-            <h2 class="dashboard-panel__title">다음 마일스톤</h2>
+          <article class="dashboard-panel dashboard-panel--todo">
+            <h3 class="dashboard-panel__title">TODO</h3>
 
-            <div class="dashboard-milestone-list">
-              <article
-                v-for="milestone in dashboard.milestones"
-                :key="`${milestone.title}-${milestone.dueLabel}`"
-                class="dashboard-milestone"
+            <div class="dashboard-todo-list">
+              <button
+                v-for="item in dashboard.todoItems"
+                :key="item.title"
+                class="dashboard-todo"
+                :class="{ 'dashboard-todo--completed': isTodoCompleted(item.title) }"
+                type="button"
+                @click="toggleTodo(item.title)"
               >
-                <span class="dashboard-milestone__date">{{ milestone.dueLabel }}</span>
-                <p class="dashboard-milestone__title">{{ milestone.title }}</p>
-              </article>
+                <span class="dashboard-todo__checkbox" aria-hidden="true" />
+
+                <span class="dashboard-todo__title-row">
+                  <span class="dashboard-todo__title">{{ item.title }}</span>
+                  <span
+                    v-if="!isTodoCompleted(item.title) && item.priority === 'high'"
+                    class="dashboard-todo__priority-text"
+                  >
+                    긴급
+                  </span>
+                </span>
+              </button>
             </div>
           </article>
         </div>
@@ -258,14 +201,13 @@
 
           <article class="dashboard-panel">
             <div class="dashboard-panel__topline dashboard-panel__topline--today">
-              <h3 class="dashboard-panel__title">자재 및 장비 투입 현황</h3>
+              <h3 class="dashboard-panel__title">자재 투입현황</h3>
             </div>
 
             <div class="dashboard-table-wrap">
               <table class="dashboard-table">
                 <thead>
                   <tr>
-                    <th>분류</th>
                     <th>항목 (단위)</th>
                     <th class="dashboard-table__number">어제</th>
                     <th class="dashboard-table__number">오늘</th>
@@ -274,10 +216,9 @@
 
                 <tbody>
                   <tr
-                    v-for="item in dashboard.resourceItems"
+                    v-for="item in materialResources"
                     :key="`${item.group}-${item.label}`"
                   >
-                    <td>{{ item.group === "material" ? "자재" : "장비" }}</td>
                     <td>{{ item.label }} ({{ item.unit }})</td>
                     <td class="dashboard-table__number dashboard-table__emphasis">{{ item.yesterdayValue }}</td>
                     <td class="dashboard-table__number">
@@ -298,81 +239,12 @@
           </article>
         </div>
       </section>
-
-      <section class="dashboard-row dashboard-row--issues">
-        <div class="dashboard-issues-grid">
-          <article class="dashboard-panel">
-            <h3 class="dashboard-panel__title">{{ dashboard.calendarMonthLabel }}</h3>
-
-            <div class="dashboard-calendar">
-              <div class="dashboard-calendar__weekdays">
-                <span
-                  v-for="weekday in dashboard.calendarWeekdays"
-                  :key="weekday"
-                >
-                  {{ weekday }}
-                </span>
-              </div>
-
-              <div class="dashboard-calendar__grid">
-                <template
-                  v-for="(week, rowIndex) in calendarRows"
-                  :key="`week-${rowIndex}`"
-                >
-                  <article
-                    v-for="(day, dayIndex) in week"
-                    :key="`day-${rowIndex}-${dayIndex}-${day.day ?? 'empty'}`"
-                    class="dashboard-calendar__cell"
-                    :class="`dashboard-calendar__cell--${day.tone}`"
-                  >
-                    <span>{{ day.day ?? "" }}</span>
-                    <small v-if="day.agenda">{{ day.agenda }}</small>
-                  </article>
-                </template>
-              </div>
-            </div>
-
-            <div class="dashboard-calendar__legend">
-              <span><i class="dashboard-calendar__dot dashboard-calendar__dot--today" /> 오늘</span>
-              <span><i class="dashboard-calendar__dot dashboard-calendar__dot--issue" /> 이슈</span>
-              <span><i class="dashboard-calendar__dot dashboard-calendar__dot--milestone" /> 마일스톤</span>
-            </div>
-          </article>
-
-          <article class="dashboard-panel dashboard-panel--todo">
-            <h3 class="dashboard-panel__title">TODO</h3>
-
-            <div class="dashboard-todo-list">
-              <button
-                v-for="item in dashboard.todoItems"
-                :key="item.title"
-                class="dashboard-todo"
-                :class="{ 'dashboard-todo--completed': isTodoCompleted(item.title) }"
-                type="button"
-                @click="toggleTodo(item.title)"
-              >
-                <span class="dashboard-todo__checkbox" aria-hidden="true" />
-
-                <span class="dashboard-todo__title-row">
-                  <span class="dashboard-todo__title">{{ item.title }}</span>
-                  <span
-                    v-if="!isTodoCompleted(item.title) && item.priority === 'high'"
-                    class="dashboard-todo__priority-text"
-                  >
-                    긴급
-                  </span>
-                </span>
-              </button>
-            </div>
-          </article>
-        </div>
-      </section>
     </div>
   </main>
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, defineAsyncComponent, ref } from "vue";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
 import type {
@@ -381,18 +253,33 @@ import type {
 } from "@/features/desktop-dashboard/model/desktop-dashboard.types";
 import { useDesktopDashboardViewModel } from "@/features/desktop-dashboard/state/useDesktopDashboardViewModel";
 
+const ProgressComparisonChart = defineAsyncComponent(
+  () => import("@/features/desktop-dashboard/ui/components/ProgressComparisonChart.vue"),
+);
+
 const {
   dashboard,
-  calendarRows,
+  todayWorkSections,
+  materialResources,
 } = useDesktopDashboardViewModel();
 const completedTodoTitles = ref<Set<string>>(new Set());
+const progressChartTabs = [
+  {
+    id: "overall",
+    label: "전체 공정률",
+  },
+  {
+    id: "current",
+    label: "철근 콘크리트 공정률",
+  },
+] as const;
+const activeProgressChartId = ref<"overall" | "current">("overall");
 
-const CHART_GRID_VALUES = [0, 25, 50, 75, 100];
-const CHART_HEIGHT = 72;
-const CHART_MIN_X = 8;
-const CHART_MAX_X = 92;
-const CHART_MIN_Y = 8;
-const CHART_MAX_Y = 64;
+const activeComparisonChart = computed(() =>
+  activeProgressChartId.value === "overall"
+    ? dashboard.value.overallComparisonChart
+    : dashboard.value.currentComparisonChart,
+);
 
 function toggleTodo(title: string) {
   const nextTitles = new Set(completedTodoTitles.value);
@@ -408,6 +295,10 @@ function toggleTodo(title: string) {
 
 function isTodoCompleted(title: string) {
   return completedTodoTitles.value.has(title);
+}
+
+function selectProgressChart(chartId: "overall" | "current") {
+  activeProgressChartId.value = chartId;
 }
 
 function getWorkforceDeltaLabel(note: string) {
@@ -485,46 +376,6 @@ function getDeltaToneClass(chart: DashboardComparisonChart) {
     ? "dashboard-line-chart__delta--positive"
     : "dashboard-line-chart__delta--negative";
 }
-
-function mapChartValueToY(value: number) {
-  const drawableHeight = CHART_MAX_Y - CHART_MIN_Y;
-
-  return CHART_MAX_Y - (drawableHeight * value) / 100;
-}
-
-function getChartCoordinates(points: DashboardComparisonPoint[]) {
-  const maxIndex = Math.max(points.length - 1, 1);
-
-  return points.map((point, index) => {
-    const progress = index / maxIndex;
-
-    return {
-      label: point.label,
-      x: CHART_MIN_X + (CHART_MAX_X - CHART_MIN_X) * progress,
-      y: mapChartValueToY(point.value),
-    };
-  });
-}
-
-function getPolylinePoints(points: DashboardComparisonPoint[]) {
-  return getChartCoordinates(points)
-    .map((point) => `${point.x},${point.y}`)
-    .join(" ");
-}
-
-function getGapPolygon(
-  plannedSeries: DashboardComparisonPoint[],
-  actualSeries: DashboardComparisonPoint[],
-) {
-  const plannedCoordinates = getChartCoordinates(plannedSeries);
-  const actualCoordinates = getChartCoordinates(actualSeries);
-
-  return [...plannedCoordinates, ...actualCoordinates.slice().reverse()]
-    .map((point) => `${point.x},${point.y}`)
-    .join(" ");
-}
-
-const chartGridValues = CHART_GRID_VALUES;
 </script>
 
 <style scoped src="./styles/DesktopDashboardPage.css"></style>

@@ -55,11 +55,9 @@ export interface DashboardCurrentProcess {
   summary: string;
 }
 
-export interface DashboardMilestone {
+export interface DashboardTodayWorkSection {
   title: string;
-  dueLabel: string;
-  note: string;
-  status: "next" | "watch" | "planned";
+  tasks: string[];
 }
 
 export interface DashboardWorkforceItem {
@@ -90,6 +88,11 @@ export interface DashboardCalendarDay {
   agenda?: string;
 }
 
+export interface DashboardCalendarWeek {
+  label: string;
+  days: DashboardCalendarDay[];
+}
+
 export interface DashboardTodoItem {
   title: string;
   category: string;
@@ -112,12 +115,12 @@ export interface DesktopDashboardSeed {
   currentProcessPoints: DashboardProgressPoint[];
   currentComparisonChart: DashboardComparisonChart;
   progressStages: DashboardProgressStage[];
-  milestones: DashboardMilestone[];
+  todayWorkRawText: string;
   workforceSnapshot: DashboardWorkforceSnapshot;
   workforceBreakdown: DashboardWorkforceItem[];
   resourceItems: DashboardResourceItem[];
   calendarMonthLabel: string;
   calendarWeekdays: string[];
-  calendarDays: DashboardCalendarDay[];
+  calendarWeeks: DashboardCalendarWeek[];
   todoItems: DashboardTodoItem[];
 }

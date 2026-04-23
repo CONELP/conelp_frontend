@@ -1,22 +1,40 @@
 import { computed } from "vue";
 
 import { desktopDashboardSeed } from "@/features/desktop-dashboard/data/desktop-dashboard.seed";
+import type { DashboardTodayWorkSection } from "@/features/desktop-dashboard/model/desktop-dashboard.types";
 
-function chunkArray<T>(items: T[], size: number): T[][] {
-  const chunks: T[][] = [];
+function parseTodayWorkSections(rawText: string): DashboardTodayWorkSection[] {
+  const sections: DashboardTodayWorkSection[] = [];
+  let currentSection: DashboardTodayWorkSection | null = null;
 
-  for (let index = 0; index < items.length; index += size) {
-    chunks.push(items.slice(index, index + size));
+  for (const rawLine of rawText.split("\n")) {
+    const line = rawLine.trim();
+
+    if (!line) {
+      continue;
+    }
+
+    if (line.startsWith("■")) {
+      currentSection = {
+        title: line.replace(/^■\s*/, ""),
+        tasks: [],
+      };
+      sections.push(currentSection);
+      continue;
+    }
+
+    if (currentSection && /^[-•·]\s*/.test(line)) {
+      currentSection.tasks.push(line.replace(/^[-•·]\s*/, ""));
+    }
   }
 
-  return chunks;
+  return sections;
 }
 
 export function useDesktopDashboardViewModel() {
   const dashboard = computed(() => desktopDashboardSeed);
-
-  const calendarRows = computed(() =>
-    chunkArray(dashboard.value.calendarDays, dashboard.value.calendarWeekdays.length),
+  const todayWorkSections = computed(() =>
+    parseTodayWorkSections(dashboard.value.todayWorkRawText),
   );
 
   const materialResources = computed(() =>
@@ -34,7 +52,7 @@ export function useDesktopDashboardViewModel() {
 
   return {
     dashboard,
-    calendarRows,
+    todayWorkSections,
     materialResources,
     equipmentResources,
     highPriorityIssues,

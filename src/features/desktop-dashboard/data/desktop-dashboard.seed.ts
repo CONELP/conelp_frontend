@@ -4,7 +4,7 @@ export const desktopDashboardSeed: DesktopDashboardSeed = {
   siteName: "청운교회 현장",
   siteChipLabel: "청운교회 현장",
   siteSubtitle: "공정, 인력, 일정 흐름을 한 화면에서 보는 데스크탑 대시보드",
-  updatedAtLabel: "2026.04.21 화요일 08:30 기준",
+  updatedAtLabel: "2026.04.22 수요일 08:30 기준",
   headerBadges: [
     {
       label: "정상 운영",
@@ -58,28 +58,26 @@ export const desktopDashboardSeed: DesktopDashboardSeed = {
     id: "overall-progress",
     title: "전체 공정률",
     plannedSeries: [
-      { label: "02.24", value: 2 },
-      { label: "03.03", value: 5 },
-      { label: "03.10", value: 8 },
-      { label: "03.17", value: 11 },
-      { label: "03.24", value: 14 },
-      { label: "03.31", value: 17 },
-      { label: "04.07", value: 20 },
-      { label: "04.14", value: 22 },
-      { label: "04.21", value: 24 },
+      { label: "04.08", value: 17 },
+      { label: "04.10", value: 18 },
+      { label: "04.12", value: 20 },
+      { label: "04.14", value: 23 },
+      { label: "04.16", value: 25 },
+      { label: "04.18", value: 26 },
+      { label: "04.20", value: 26 },
+      { label: "04.22", value: 27 },
     ],
     actualSeries: [
-      { label: "02.24", value: 1 },
-      { label: "03.03", value: 4 },
-      { label: "03.10", value: 7 },
-      { label: "03.17", value: 9 },
-      { label: "03.24", value: 13 },
-      { label: "03.31", value: 18 },
-      { label: "04.07", value: 23 },
-      { label: "04.14", value: 28 },
-      { label: "04.21", value: 34 },
+      { label: "04.08", value: 16 },
+      { label: "04.10", value: 17 },
+      { label: "04.12", value: 21 },
+      { label: "04.14", value: 26 },
+      { label: "04.16", value: 31 },
+      { label: "04.18", value: 33 },
+      { label: "04.20", value: 34 },
+      { label: "04.22", value: 34 },
     ],
-    plannedValueLabel: "24%",
+    plannedValueLabel: "27%",
     actualValueLabel: "34%",
   },
   currentProcess: {
@@ -123,26 +121,24 @@ export const desktopDashboardSeed: DesktopDashboardSeed = {
     id: "concrete-progress",
     title: "철근 콘크리트 공정률",
     plannedSeries: [
-      { label: "04.05", value: 8 },
-      { label: "04.07", value: 14 },
-      { label: "04.09", value: 20 },
-      { label: "04.11", value: 28 },
-      { label: "04.13", value: 36 },
-      { label: "04.15", value: 45 },
-      { label: "04.17", value: 54 },
-      { label: "04.19", value: 62 },
-      { label: "04.21", value: 70 },
+      { label: "04.08", value: 12 },
+      { label: "04.10", value: 15 },
+      { label: "04.12", value: 22 },
+      { label: "04.14", value: 34 },
+      { label: "04.16", value: 47 },
+      { label: "04.18", value: 58 },
+      { label: "04.20", value: 66 },
+      { label: "04.22", value: 70 },
     ],
     actualSeries: [
-      { label: "04.05", value: 5 },
-      { label: "04.07", value: 10 },
-      { label: "04.09", value: 16 },
-      { label: "04.11", value: 22 },
-      { label: "04.13", value: 30 },
-      { label: "04.15", value: 38 },
-      { label: "04.17", value: 47 },
-      { label: "04.19", value: 55 },
-      { label: "04.21", value: 64 },
+      { label: "04.08", value: 9 },
+      { label: "04.10", value: 11 },
+      { label: "04.12", value: 17 },
+      { label: "04.14", value: 28 },
+      { label: "04.16", value: 42 },
+      { label: "04.18", value: 53 },
+      { label: "04.20", value: 60 },
+      { label: "04.22", value: 64 },
     ],
     plannedValueLabel: "70%",
     actualValueLabel: "64%",
@@ -179,26 +175,28 @@ export const desktopDashboardSeed: DesktopDashboardSeed = {
       tone: "upcoming",
     },
   ],
-  milestones: [
-    {
-      title: "외장 패널 12F 완료",
-      dueLabel: "4월 23일 목",
-      note: "고소작업대 1대 추가 배치 예정",
-      status: "next",
-    },
-    {
-      title: "방수 자재 반입 확인",
-      dueLabel: "4월 24일 금",
-      note: "납기 지연 가능성 있어 공급처 재확인 필요",
-      status: "watch",
-    },
-    {
-      title: "내장 마감 샘플 검토",
-      dueLabel: "4월 28일 화",
-      note: "발주처 승인 회의와 연계",
-      status: "planned",
-    },
-  ],
+  todayWorkRawText: `
+■ 철근콘크리트공사
+- 지상4층 바닥보 거푸집 설치
+- 지상3~4층 계단실 거푸집 설치
+- 지하3층 방수턱 및 장비패드 철근가공 및 조립
+- 지하1층 방수턱 거푸집 설치
+- 지상3층 시스템동바리 설치
+
+■ 시스템비계공사
+- 지상3층 테라스 시스템비계 설치
+
+■ 전기공사
+- 지하층 입선작업
+
+■ 설비공사
+- 지하3층 위생배관 설치
+- 지하3층 SP배관 시공
+
+■ 직영공사
+- 안전시설물 설치
+- 현장정리
+  `.trim(),
   workforceSnapshot: {
     totalLabel: "48명",
     note: "전일 대비 +6명",
@@ -282,44 +280,45 @@ export const desktopDashboardSeed: DesktopDashboardSeed = {
       group: "equipment",
     },
   ],
-  calendarMonthLabel: "2026년 4월",
+  calendarMonthLabel: "3주 일정",
   calendarWeekdays: ["일", "월", "화", "수", "목", "금", "토"],
-  calendarDays: [
-    { day: null, tone: "muted" },
-    { day: null, tone: "muted" },
-    { day: null, tone: "muted" },
-    { day: 1, tone: "default" },
-    { day: 2, tone: "default" },
-    { day: 3, tone: "default" },
-    { day: 4, tone: "default" },
-    { day: 5, tone: "default" },
-    { day: 6, tone: "default" },
-    { day: 7, tone: "default" },
-    { day: 8, tone: "default" },
-    { day: 9, tone: "default" },
-    { day: 10, tone: "default" },
-    { day: 11, tone: "default" },
-    { day: 12, tone: "default" },
-    { day: 13, tone: "default" },
-    { day: 14, tone: "default" },
-    { day: 15, tone: "default" },
-    { day: 16, tone: "default" },
-    { day: 17, tone: "default" },
-    { day: 18, tone: "default" },
-    { day: 19, tone: "default" },
-    { day: 20, tone: "default" },
-    { day: 21, tone: "today", agenda: "외장 패널 양중" },
-    { day: 22, tone: "default" },
-    { day: 23, tone: "issue", agenda: "패널 12F 완료" },
-    { day: 24, tone: "issue", agenda: "방수 자재 납기 확인" },
-    { day: 25, tone: "default" },
-    { day: 26, tone: "default" },
-    { day: 27, tone: "default" },
-    { day: 28, tone: "milestone", agenda: "내장 샘플 검토" },
-    { day: 29, tone: "default" },
-    { day: 30, tone: "default" },
-    { day: null, tone: "muted" },
-    { day: null, tone: "muted" },
+  calendarWeeks: [
+    {
+      label: "지난주",
+      days: [
+        { day: 12, tone: "default" },
+        { day: 13, tone: "default" },
+        { day: 14, tone: "default" },
+        { day: 15, tone: "default" },
+        { day: 16, tone: "default" },
+        { day: 17, tone: "issue", agenda: "방수 자재 발주" },
+        { day: 18, tone: "default" },
+      ],
+    },
+    {
+      label: "이번주",
+      days: [
+        { day: 19, tone: "default" },
+        { day: 20, tone: "default" },
+        { day: 21, tone: "default", agenda: "외장 패널 양중" },
+        { day: 22, tone: "today", agenda: "지하층 배관 협의" },
+        { day: 23, tone: "issue", agenda: "패널 12F 완료" },
+        { day: 24, tone: "issue", agenda: "방수 자재 납기 확인" },
+        { day: 25, tone: "default" },
+      ],
+    },
+    {
+      label: "다음주",
+      days: [
+        { day: 26, tone: "default" },
+        { day: 27, tone: "default" },
+        { day: 28, tone: "milestone", agenda: "내장 샘플 검토" },
+        { day: 29, tone: "default" },
+        { day: 30, tone: "default" },
+        { day: 1, tone: "default", agenda: "노무 계획 조정" },
+        { day: 2, tone: "default" },
+      ],
+    },
   ],
   todoItems: [
     {
