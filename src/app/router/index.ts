@@ -6,6 +6,7 @@ import ConversionLoadingPage from "@/features/document-conversion-demo/ui/Conver
 import DocumentSelectionPage from "@/features/document-conversion-demo/ui/DocumentSelectionPage.vue";
 import DocumentUploadPage from "@/features/document-conversion-demo/ui/DocumentUploadPage.vue";
 import GeneratedDocumentsPage from "@/features/document-conversion-demo/ui/GeneratedDocumentsPage.vue";
+import MaterialRegistrationResultPage from "@/features/document-conversion-demo/ui/MaterialRegistrationResultPage.vue";
 import ResultPreviewPage from "@/features/document-conversion-demo/ui/ResultPreviewPage.vue";
 import UploadFeedbackPage from "@/features/document-conversion-demo/ui/UploadFeedbackPage.vue";
 
@@ -51,6 +52,11 @@ export const router = createRouter({
       path: "/preview/result",
       name: "result-preview",
       component: ResultPreviewPage,
+    },
+    {
+      path: "/preview/material-registration-result",
+      name: "material-registration-result-preview",
+      component: MaterialRegistrationResultPage,
     },
     {
       path: "/preview/generated-documents",

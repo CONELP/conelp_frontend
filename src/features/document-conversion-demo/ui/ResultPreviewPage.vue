@@ -5,19 +5,10 @@
     <main class="result-page">
       <section class="result-shell result-card">
         <header class="result-hero">
-          <h1 class="result-title">
-            {{
-              isMaterialRegistrationResult
-                ? "자재를 성공적으로 등록했어요."
-                : "문서를 성공적으로 생성했어요."
-            }}
-          </h1>
+          <h1 class="result-title">문서를 성공적으로 생성했어요.</h1>
         </header>
 
-        <section
-          v-if="!isMaterialRegistrationResult"
-          class="result-body"
-        >
+        <section class="result-body">
           <div class="result-body__inner">
             <section class="result-stack">
               <article class="result-summary-card">
@@ -66,30 +57,13 @@
           </div>
         </section>
 
-        <footer
-          class="result-footer"
-          :class="{
-            'result-footer--material': isMaterialRegistrationResult,
-          }"
-        >
+        <footer class="result-footer">
           <RouterLink
             class="result-footer__primary"
-            :class="{
-              'result-footer__primary--secondary': isMaterialRegistrationResult,
-            }"
             to="/preview/documents"
           >
             다른 문서 생성하기
           </RouterLink>
-
-          <button
-            v-if="isMaterialRegistrationResult"
-            class="result-footer__primary"
-            type="button"
-            @click="handleCreateInspectionRequest"
-          >
-            자재 반입 검수 요청서 생성하기
-          </button>
         </footer>
       </section>
     </main>
@@ -97,25 +71,13 @@
 </template>
 
 <script setup lang="ts">
-import { RouterLink, useRouter } from "vue-router";
+import { RouterLink } from "vue-router";
 import downloadIcon from "@fluentui/svg-icons/icons/arrow_download_20_regular.svg";
 import pdfIcon from "@fluentui/svg-icons/icons/document_pdf_20_regular.svg";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
-import { useDocumentConversionDemoStore } from "@/features/document-conversion-demo/state/useDocumentConversionDemoStore";
 import { useResultPreviewDemoViewModel } from "@/features/document-conversion-demo/state/useResultPreviewDemoViewModel";
 
-const { isMaterialRegistrationResult, resultFileName, reviewItems } =
-  useResultPreviewDemoViewModel();
-const documentStore = useDocumentConversionDemoStore();
-const router = useRouter();
-
-function handleCreateInspectionRequest() {
-  documentStore.selectDocument("material_inspection_rebar");
-  void router.push({
-    path: "/preview/upload",
-    query: { documentType: "material_inspection_rebar" },
-  });
-}
+const { resultFileName, reviewItems } = useResultPreviewDemoViewModel();
 </script>
 <style scoped src="./styles/ResultPreviewPage.css"></style>

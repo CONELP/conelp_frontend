@@ -21,12 +21,34 @@ interface UploadedImageFileEntry {
   fileKey: string;
 }
 
+interface MaterialRegistrationReview {
+  trade: string;
+  workType: string;
+  supplier: string;
+  deliveryDate: string;
+  location: string;
+}
+
+interface MaterialRegistrationRow {
+  id: string;
+  manufacturer: string;
+  spec: string;
+  quantity: string;
+}
+
+interface MaterialRegistrationResult {
+  review: MaterialRegistrationReview;
+  rows: MaterialRegistrationRow[];
+}
+
 export const useDocumentConversionDemoStore = defineStore(
   "document-conversion-demo",
   () => {
     const selectedDocumentType = ref("");
     const uploadMode = ref<"uploaded" | "empty">("empty");
     const uploadedImageFiles = ref<UploadedImageFileEntry[]>([]);
+    const materialRegistrationResult =
+      ref<MaterialRegistrationResult | null>(null);
 
     const selectedDocument = computed(() =>
       documentCatalog.find((document) => document.type === selectedDocumentType.value),
@@ -81,16 +103,22 @@ export const useDocumentConversionDemoStore = defineStore(
       uploadedImageFiles.value = [];
     }
 
+    function saveMaterialRegistrationResult(result: MaterialRegistrationResult) {
+      materialRegistrationResult.value = result;
+    }
+
     return {
       selectedDocumentType,
       selectedDocument,
       uploadMode,
       uploadedImageFiles,
+      materialRegistrationResult,
       selectDocument,
       clearSelectedDocument,
       addUploadedImageFiles,
       removeUploadedImageFile,
       clearUpload,
+      saveMaterialRegistrationResult,
     };
   },
 );

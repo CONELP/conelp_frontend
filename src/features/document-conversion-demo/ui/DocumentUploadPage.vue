@@ -8,8 +8,7 @@
     <main
       class="upload-page"
       :class="{
-        'upload-page--single-card':
-          selectedDocument.type === 'material_registration',
+        'upload-page--single-card': requiresUpload,
       }"
     >
       <section class="upload-shell upload-topbar">
@@ -58,50 +57,11 @@
               <span
                 class="upload-dropzone__status"
                 :class="{
-                  'upload-dropzone__status--static':
-                    selectedDocument.type === 'material_registration',
-                  'upload-dropzone__status--inspecting':
-                    selectedDocument.type !== 'material_registration' &&
-                    guideItem.status === 'inspecting',
-                  'upload-dropzone__status--error':
-                    selectedDocument.type !== 'material_registration' &&
-                    guideItem.status === 'error',
+                  'upload-dropzone__status--static': requiresUpload,
                 }"
                 aria-hidden="true"
               >
-                <span
-                  v-if="
-                    selectedDocument.type !== 'material_registration' &&
-                    guideItem.status === 'inspecting'
-                  "
-                  class="upload-dropzone__status-spinner"
-                />
-
-                <img
-                  v-else-if="
-                    selectedDocument.type !== 'material_registration' &&
-                    guideItem.status === 'matched'
-                  "
-                  class="upload-dropzone__selected-indicator-icon"
-                  :src="checkIcon"
-                  alt=""
-                />
-
-                <img
-                  v-else-if="
-                    selectedDocument.type !== 'material_registration' &&
-                    guideItem.status === 'error'
-                  "
-                  class="upload-dropzone__status-icon upload-dropzone__status-icon--error"
-                  :src="dismissIcon"
-                  alt=""
-                />
-
-                <span
-                  v-else
-                  class="upload-dropzone__status-bullet"
-                />
-
+                <span class="upload-dropzone__status-bullet" />
               </span>
               <span>{{ guideItem.label }}</span>
             </p>
@@ -170,7 +130,6 @@
 import { ref, watchEffect } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import backIcon from "@fluentui/svg-icons/icons/chevron_left_24_regular.svg";
-import checkIcon from "@fluentui/svg-icons/icons/checkmark_16_regular.svg";
 import dismissIcon from "@fluentui/svg-icons/icons/dismiss_16_regular.svg";
 import uploadIcon from "@fluentui/svg-icons/icons/add_24_regular.svg";
 
@@ -185,7 +144,6 @@ const {
   uploadedFiles,
   uploadGuideItems,
   canReview,
-  uploadFeedbackRoute,
   backToSelectionRoute,
   addUploadedImageFiles,
   removeUploadedImageFile,
@@ -242,12 +200,7 @@ function handleGenerate() {
     return;
   }
 
-  if (selectedDocument.value.type === "material_registration") {
-    void router.push("/preview/loading");
-    return;
-  }
-
-  void router.push(uploadFeedbackRoute);
+  void router.push("/preview/loading");
 }
 </script>
 

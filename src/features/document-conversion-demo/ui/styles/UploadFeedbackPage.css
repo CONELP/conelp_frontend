@@ -378,6 +378,7 @@
 }
 
 .feedback-ocr-image-frame {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -390,7 +391,75 @@
   cursor: context-menu;
 }
 
+.feedback-ocr-image-hitbox {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  width: 33.3333%;
+  padding: 0 1rem;
+  border: 0;
+  background: transparent;
+  color: rgba(20, 24, 33, 0.42);
+  box-shadow: none;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease;
+}
+
+.feedback-ocr-image-hitbox--previous {
+  left: 0;
+  justify-content: flex-start;
+  cursor: w-resize;
+}
+
+.feedback-ocr-image-hitbox--next {
+  right: 0;
+  justify-content: flex-end;
+  cursor: e-resize;
+}
+
+.feedback-ocr-image-hitbox--previous:hover,
+.feedback-ocr-image-hitbox--previous:focus-visible {
+  background: linear-gradient(
+    90deg,
+    rgba(106, 115, 129, 0.16) 0%,
+    rgba(106, 115, 129, 0.08) 52%,
+    rgba(106, 115, 129, 0) 100%
+  );
+  color: rgba(20, 24, 33, 0.82);
+}
+
+.feedback-ocr-image-hitbox--next:hover,
+.feedback-ocr-image-hitbox--next:focus-visible {
+  background: linear-gradient(
+    270deg,
+    rgba(106, 115, 129, 0.16) 0%,
+    rgba(106, 115, 129, 0.08) 52%,
+    rgba(106, 115, 129, 0) 100%
+  );
+  color: rgba(20, 24, 33, 0.82);
+}
+
+.feedback-ocr-image-hitbox__label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.55rem;
+  height: 2.55rem;
+}
+
+.feedback-ocr-image-hitbox__icon {
+  width: 1.15rem;
+  height: 1.15rem;
+  opacity: 0.88;
+}
+
 .feedback-ocr-image {
+  position: relative;
+  z-index: 0;
   display: block;
   max-width: 100%;
   max-height: 20rem;

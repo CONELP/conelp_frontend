@@ -73,8 +73,8 @@ export const documentCatalog: DocumentDemoCard[] = [
   },
   {
     type: "material_inspection_rebar",
-    label: "자재반입 검수요청",
-    chipLabel: "자재반입 검수요청",
+    label: "자재 반입 검수요청",
+    chipLabel: "자재 반입 검수요청",
     iconSrc: clipboardTaskIcon,
     description: "철근 반입 수량과 규격 확인 내용을 작성하는 검수 요청 문서",
     uploadGuide: "철근 표기 사진과 검수 대상 자재 사진을 올려 주세요.",
@@ -219,7 +219,7 @@ export const uploadDocumentPresets: UploadDocumentPreset[] = [
   },
   {
     documentType: "material_inspection_rebar",
-    guideItems: ["송장 사진 / 거래 명세서 사진"],
+    guideItems: ["송장 사진", "자재 반입 사진", "밀시트 사진"],
     sampleFiles: [
       {
         id: "rebar-1",
@@ -233,11 +233,11 @@ export const uploadDocumentPresets: UploadDocumentPreset[] = [
       },
     ],
     feedbackItems: [
-      { id: "rebar-check-1", label: "철근 표기 사진", status: "matched" },
-      { id: "rebar-check-2", label: "반입 자재 전경 사진", status: "matched" },
+      { id: "rebar-check-1", label: "송장 사진", status: "matched" },
+      { id: "rebar-check-2", label: "자재 반입 사진", status: "matched" },
       {
         id: "rebar-check-3",
-        label: "규격표 또는 납품서 사진",
+        label: "밀시트 사진",
         status: "missing",
       },
     ],

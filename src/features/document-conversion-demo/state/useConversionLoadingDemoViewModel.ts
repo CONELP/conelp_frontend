@@ -18,7 +18,6 @@ const DAILY_REPORT_STEP_TRANSITIONS = [
 const RESULT_ROUTE = "/preview/result";
 const OCR_VALIDATION_ROUTE = "/preview/upload-feedback";
 const DIRECT_DOCUMENT_BACK_ROUTE = "/preview/documents";
-const UPLOAD_DOCUMENT_BACK_ROUTE = "/preview/upload-feedback";
 const UPLOAD_DOCUMENT_ROUTE = "/preview/upload";
 
 export function useConversionLoadingDemoViewModel() {
@@ -33,11 +32,11 @@ export function useConversionLoadingDemoViewModel() {
   const loadingStepTimers: ReturnType<typeof setTimeout>[] = [];
 
   const loadingBackRoute = computed(() =>
-    selectedDocument.value.type === "material_registration"
+    selectedDocument.value.generationMode === "upload_required"
       ? UPLOAD_DOCUMENT_ROUTE
       : selectedDocument.value.generationMode === "direct"
         ? DIRECT_DOCUMENT_BACK_ROUTE
-        : UPLOAD_DOCUMENT_BACK_ROUTE,
+        : UPLOAD_DOCUMENT_ROUTE,
   );
 
   const loadingDescription = computed(() => {
@@ -58,7 +57,7 @@ export function useConversionLoadingDemoViewModel() {
     selectedDocument.value.type === "material_registration"
       ? OCR_VALIDATION_ROUTE
       : RESULT_ROUTE,
-  );
+  ); 
 
   function clearLoadingStepTimers() {
     loadingStepTimers.forEach((timer) => clearTimeout(timer));

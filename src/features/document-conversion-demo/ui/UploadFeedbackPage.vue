@@ -42,11 +42,41 @@
                 class="feedback-ocr-image-frame"
                 @contextmenu.prevent="handleNextValidationImage"
               >
+                <button
+                  class="feedback-ocr-image-hitbox feedback-ocr-image-hitbox--previous"
+                  type="button"
+                  aria-label="이전 이미지"
+                  @click="handlePreviousValidationImage"
+                >
+                  <span class="feedback-ocr-image-hitbox__label" aria-hidden="true">
+                    <img
+                      class="feedback-ocr-image-hitbox__icon"
+                      :src="backIcon"
+                      alt=""
+                    />
+                  </span>
+                </button>
+
                 <img
                   class="feedback-ocr-image"
                   :src="currentValidationItem.previewUrl"
                   :alt="currentValidationItem.label"
                 />
+
+                <button
+                  class="feedback-ocr-image-hitbox feedback-ocr-image-hitbox--next"
+                  type="button"
+                  aria-label="다음 이미지"
+                  @click="handleNextValidationImage"
+                >
+                  <span class="feedback-ocr-image-hitbox__label" aria-hidden="true">
+                    <img
+                      class="feedback-ocr-image-hitbox__icon"
+                      :src="chevronRightIcon"
+                      alt=""
+                    />
+                  </span>
+                </button>
               </div>
 
               <div class="feedback-ocr-image-controls" aria-label="이미지 이동">
@@ -284,8 +314,10 @@
 import { computed, ref, watchEffect } from "vue";
 import { RouterLink, useRouter } from "vue-router";
 import backIcon from "@fluentui/svg-icons/icons/chevron_left_24_regular.svg";
+import chevronRightIcon from "@fluentui/svg-icons/icons/chevron_right_24_regular.svg";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
+import { useDocumentConversionDemoStore } from "@/features/document-conversion-demo/state/useDocumentConversionDemoStore";
 import { useDocumentUploadDemoViewModel } from "@/features/document-conversion-demo/state/useDocumentUploadDemoViewModel";
 
 const {
@@ -299,6 +331,7 @@ const {
   primaryFeedbackActionLabel,
   primaryFeedbackRoute,
 } = useDocumentUploadDemoViewModel();
+const documentStore = useDocumentConversionDemoStore();
 const router = useRouter();
 const currentValidationIndex = ref(0);
 const materialReview = ref({
@@ -376,7 +409,13 @@ function handleNextValidationImage() {
 }
 
 function handleRegisterMaterial() {
-  void router.push("/preview/result");
+  documentStore.saveMaterialRegistrationResult({
+    review: { ...materialReview.value },
+    rows: materialRows.value
+      .filter((row) => row.manufacturer || row.spec || row.quantity)
+      .map((row) => ({ ...row })),
+  });
+  void router.push("/preview/material-registration-result");
 }
 
 function handleAddMaterialRow() {
