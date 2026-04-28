@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from "vue-router";
 
 import DesktopDashboardPage from "@/features/desktop-dashboard/ui/DesktopDashboardPage.vue";
 import DesktopSchedulePage from "@/features/desktop-schedule/ui/DesktopSchedulePage.vue";
+import LoginPage from "@/features/auth/ui/LoginPage.vue";
 import ConversionLoadingPage from "@/features/document-conversion-demo/ui/ConversionLoadingPage.vue";
 import DocumentSelectionPage from "@/features/document-conversion-demo/ui/DocumentSelectionPage.vue";
 import DocumentUploadPage from "@/features/document-conversion-demo/ui/DocumentUploadPage.vue";
@@ -16,6 +17,14 @@ export const router = createRouter({
     {
       path: "/",
       redirect: "/dashboard",
+    },
+    {
+      path: "/login",
+      name: "login",
+      component: LoginPage,
+      meta: {
+        public: true,
+      },
     },
     {
       path: "/dashboard",
@@ -64,4 +73,32 @@ export const router = createRouter({
       component: GeneratedDocumentsPage,
     },
   ],
+});
+
+router.beforeEach(async (to) => {
+  const { useAuthStore } = await import("@/features/auth/state/useAuthStore");
+  const authStore = useAuthStore();
+
+  if (!authStore.isInitialized) {
+    await authStore.initialize();
+  }
+
+  if (to.meta.public) {
+    if (to.path === "/login" && authStore.isAuthenticated) {
+      return "/dashboard";
+    }
+
+    return true;
+  }
+
+  if (!authStore.isAuthenticated) {
+    return {
+      path: "/login",
+      query: {
+        redirect: to.fullPath,
+      },
+    };
+  }
+
+  return true;
 });
