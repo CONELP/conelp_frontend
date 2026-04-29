@@ -264,11 +264,9 @@ export function useDesktopScheduleViewModel() {
 
   function selectBars(payload: { itemIds: string[]; rowIds: string[]; milestoneIds?: string[] }) {
     selectionState.value = {
-      ...selectionState.value,
+      ...createEmptyDesktopScheduleSelectionState(),
       rowIds: payload.rowIds,
       itemIds: payload.itemIds,
-      criticalPathIds: [],
-      groupIds: [],
       milestoneIds: payload.milestoneIds ?? [],
     };
     closeContextMenu();

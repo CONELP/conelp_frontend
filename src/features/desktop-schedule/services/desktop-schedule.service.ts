@@ -350,13 +350,11 @@ function buildRangeMismatchSegments(
 function buildConnectionGeometry(
   sourceBar: DesktopScheduleBarLayout,
   targetBar: DesktopScheduleBarLayout,
-  kind: DesktopScheduleConnectionKind,
 ) {
-  const verticalOffset = kind === "critical-path" ? 8 : -8;
   const sourceX = sourceBar.left + sourceBar.width;
-  const sourceY = sourceBar.top + sourceBar.height / 2 + verticalOffset;
+  const sourceY = sourceBar.top + sourceBar.height / 2;
   const targetX = targetBar.left;
-  const targetY = targetBar.top + targetBar.height / 2 + verticalOffset;
+  const targetY = targetBar.top + targetBar.height / 2;
 
   function buildRoundedOrthogonalPath(
     points: Array<{ x: number; y: number }>,
@@ -429,8 +427,7 @@ function buildConnectionGeometry(
     };
   }
 
-  const bendX = Math.max(sourceX, targetX) + 36 + Math.abs(verticalOffset);
-  const midY = sourceY + (targetY - sourceY) / 2;
+  const bendX = Math.max(sourceX, targetX) + 36;
 
   return {
     path: buildRoundedOrthogonalPath([
@@ -440,7 +437,7 @@ function buildConnectionGeometry(
       { x: targetX, y: targetY },
     ]),
     labelX: bendX + 10,
-    labelY: midY,
+    labelY: (sourceY + targetY) / 2,
   };
 }
 
@@ -635,7 +632,7 @@ function buildConnectionLayouts(
       return;
     }
 
-    const geometry = buildConnectionGeometry(sourceBar, targetBar, kind);
+    const geometry = buildConnectionGeometry(sourceBar, targetBar);
 
     connectionLayouts.push({
       id,

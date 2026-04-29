@@ -146,6 +146,12 @@
               : isWorkConnectionHighlighted(connection.id) ? 1 : 0.9"
           />
 
+        </g>
+
+        <template
+          v-for="connection in shellLayout.connections"
+          :key="`connection-label-${connection.id}`"
+        >
           <text
             v-if="connection.label && connection.kind === 'work-connection'"
             :x="connection.labelX"
@@ -162,7 +168,7 @@
           >
             {{ connection.label }}
           </text>
-        </g>
+        </template>
       </svg>
 
       <template
@@ -584,8 +590,8 @@ const editingMilestone = computed(() =>
     : null,
 );
 const normalizedZoomScale = computed(() => Math.min(Math.max(props.zoomScale, 0.68), 1.46));
-const connectionLabelFontSize = computed(() => Math.round(16 * normalizedZoomScale.value));
-const connectionLabelStrokeWidth = computed(() => Math.max(2.5, 4 * normalizedZoomScale.value));
+const connectionLabelFontSize = computed(() => Math.round(14 * normalizedZoomScale.value));
+const connectionLabelStrokeWidth = computed(() => Math.max(2.25, 3.5 * normalizedZoomScale.value));
 
 function buildRoundedOrthogonalPreviewPath(
   points: Array<{ x: number; y: number }>,
@@ -1021,27 +1027,9 @@ function handleBarPointerDown(bar: DesktopScheduleBarLayout, event: PointerEvent
     return;
   }
 
-  if (bar.kind === "item") {
-    const now = Date.now();
-    const isSameBarDoublePress =
-      lastItemPointerDown?.itemId === bar.itemId &&
-      now - lastItemPointerDown.timestamp <= ITEM_RENAME_DOUBLE_CLICK_WINDOW_MS;
-
-    lastItemPointerDown = {
-      itemId: bar.itemId,
-      timestamp: now,
-    };
-
-    if (isSameBarDoublePress) {
-      lastItemPointerDown = null;
-      emit("start-item-rename", bar.itemId);
-      return;
-    }
-  } else {
-    lastItemPointerDown = null;
-  }
-
   if (props.connectionCreationState) {
+    lastItemPointerDown = null;
+
     if (bar.kind !== "item") {
       emit("cancel-connection-create");
       return;
@@ -1062,6 +1050,41 @@ function handleBarPointerDown(bar: DesktopScheduleBarLayout, event: PointerEvent
       emit("complete-connection-create", bar.itemId);
     }
     return;
+  }
+
+  if (bar.kind === "item" && event.shiftKey) {
+    event.preventDefault();
+    lastItemPointerDown = null;
+
+    const nextItemIds = selectedItemIdSet.value.has(bar.itemId)
+      ? props.selectedItemIds.filter((itemId) => itemId !== bar.itemId)
+      : [...props.selectedItemIds, bar.itemId];
+
+    emit("select-bars", {
+      itemIds: nextItemIds,
+      rowIds: [],
+    });
+    return;
+  }
+
+  if (bar.kind === "item") {
+    const now = Date.now();
+    const isSameBarDoublePress =
+      lastItemPointerDown?.itemId === bar.itemId &&
+      now - lastItemPointerDown.timestamp <= ITEM_RENAME_DOUBLE_CLICK_WINDOW_MS;
+
+    lastItemPointerDown = {
+      itemId: bar.itemId,
+      timestamp: now,
+    };
+
+    if (isSameBarDoublePress) {
+      lastItemPointerDown = null;
+      emit("start-item-rename", bar.itemId);
+      return;
+    }
+  } else {
+    lastItemPointerDown = null;
   }
 
   if (bar.kind === "summary") {
