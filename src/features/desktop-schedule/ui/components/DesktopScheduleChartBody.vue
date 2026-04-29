@@ -95,10 +95,7 @@
             : '#64748b'"
           :stroke-width="connectionCreationState?.kind === 'critical-path'
             ? 2.25
-            : connectionCreationState?.kind === 'link'
-              ? 2
-              : 1.5"
-          :stroke-dasharray="connectionCreationState?.kind === 'dependency' ? '4 4' : undefined"
+            : 2"
           stroke-linecap="round"
           stroke-linejoin="round"
           opacity="0.9"
@@ -113,21 +110,15 @@
             pointer-events="stroke"
             class="schedule-chart-body__connection-hit"
             @pointerdown.stop
-            @mouseenter="connection.kind === 'dependency'
-              ? handleDependencyPointerEnter(connection.id)
-              : connection.kind === 'link'
-                ? handleLinkPointerEnter(connection.id)
-                : handleCriticalPathPointerEnter(connection.pathId)"
-            @mouseleave="connection.kind === 'dependency'
-              ? handleDependencyPointerLeave(connection.id)
-              : connection.kind === 'link'
-                ? handleLinkPointerLeave(connection.id)
-                : handleCriticalPathPointerLeave(connection.pathId)"
-            @contextmenu="connection.kind === 'dependency'
-              ? handleDependencyContextMenu(connection.id, $event)
-              : connection.kind === 'link'
-                ? handleLinkContextMenu(connection.id, $event)
-                : handleCriticalPathContextMenu(connection.id, $event)"
+            @mouseenter="connection.kind === 'work-connection'
+              ? handleWorkConnectionPointerEnter(connection.id)
+              : handleCriticalPathPointerEnter(connection.pathId)"
+            @mouseleave="connection.kind === 'work-connection'
+              ? handleWorkConnectionPointerLeave(connection.id)
+              : handleCriticalPathPointerLeave(connection.pathId)"
+            @contextmenu="connection.kind === 'work-connection'
+              ? handleWorkConnectionContextMenu(connection.id, $event)
+              : handleCriticalPathContextMenu(connection.id, $event)"
           />
 
           <path
@@ -150,16 +141,13 @@
             stroke-linejoin="round"
             :stroke="getConnectionStroke(connection)"
             :stroke-width="getRenderedConnectionStrokeWidth(connection.id, connection.kind, connection.pathId)"
-            :stroke-dasharray="getConnectionDashArray(connection.kind)"
             :opacity="connection.kind === 'critical-path'
               ? isCriticalPathHighlighted(connection.id, connection.pathId) ? 1 : 0.95
-              : connection.kind === 'dependency' && isDependencyHighlighted(connection.id)
-                ? 1
-                : 0.9"
+              : isWorkConnectionHighlighted(connection.id) ? 1 : 0.9"
           />
 
           <text
-            v-if="connection.label && connection.kind === 'link'"
+            v-if="connection.label && connection.kind === 'work-connection'"
             :x="connection.labelX"
             :y="connection.labelY"
             pointer-events="none"
@@ -374,7 +362,7 @@ type ResizeState = {
   edge: "left" | "right";
 };
 
-type PreviewDependencyPoint = {
+type PreviewConnectionPoint = {
   x: number;
   y: number;
 };
@@ -385,7 +373,7 @@ type HoveredCellState = {
 };
 
 type ConnectionCreationState = {
-  kind: "dependency" | "link" | "critical-path";
+  kind: "work-connection" | "critical-path";
   sourceItemId: string;
   pathId?: number;
   colorHex?: string;
@@ -397,10 +385,10 @@ const props = defineProps<{
   viewportHeight: number;
   scrollTop: number;
   scrollLeft: number;
+  interactionCancelVersion: number;
   selectedRowIds: string[];
   selectedItemIds: string[];
-  selectedDependencyIds: string[];
-  selectedLinkIds: string[];
+  selectedWorkConnectionIds: string[];
   selectedMilestoneIds: string[];
   selectedCriticalPathIds?: string[];
   connectionCreationState: ConnectionCreationState | null;
@@ -417,8 +405,7 @@ const emit = defineEmits<{
   "select-row": [rowId: string];
   "delete-selection": [];
   "item-context-menu": [payload: { itemId: string; x: number; y: number }];
-  "dependency-context-menu": [payload: { dependencyId: string; x: number; y: number }];
-  "link-context-menu": [payload: { linkId: string; x: number; y: number }];
+  "work-connection-context-menu": [payload: { workConnectionId: string; x: number; y: number }];
   "critical-path-context-menu": [payload: { criticalPathId: string; x: number; y: number }];
   "milestone-context-menu": [payload: { milestoneId: string; x: number; y: number }];
   "row-context-menu": [payload: { rowId: string; x: number; y: number }];
@@ -452,12 +439,11 @@ const panState = ref<PanState | null>(null);
 const moveState = ref<MoveState | null>(null);
 const resizeState = ref<ResizeState | null>(null);
 const isSpacePressed = ref(false);
-const hoveredDependencyId = ref<string | null>(null);
-const hoveredLinkId = ref<string | null>(null);
+const hoveredWorkConnectionId = ref<string | null>(null);
 const hoveredCriticalPathPathId = ref<number | null>(null);
 const hoveredMilestoneId = ref<string | null>(null);
 const hoveredConnectionTargetItemId = ref<string | null>(null);
-const previewConnectionPoint = ref<PreviewDependencyPoint | null>(null);
+const previewConnectionPoint = ref<PreviewConnectionPoint | null>(null);
 const hoveredCell = ref<HoveredCellState>({ rowId: null, date: null });
 const renameEditorRef = ref<HTMLElement | null>(null);
 const milestoneRenameEditorRef = ref<HTMLElement | null>(null);
@@ -484,8 +470,7 @@ const ITEM_RENAME_DOUBLE_CLICK_WINDOW_MS = 320;
 
 const selectedItemIdSet = computed(() => new Set(props.selectedItemIds));
 const selectedRowIdSet = computed(() => new Set(props.selectedRowIds));
-const selectedDependencyIdSet = computed(() => new Set(props.selectedDependencyIds));
-const selectedLinkIdSet = computed(() => new Set(props.selectedLinkIds));
+const selectedWorkConnectionIdSet = computed(() => new Set(props.selectedWorkConnectionIds));
 const selectedMilestoneIdSet = computed(() => new Set(props.selectedMilestoneIds));
 const selectedCriticalPathIdSet = computed(() => new Set(props.selectedCriticalPathIds ?? []));
 const selectedCriticalPathPathIdSet = computed(() => {
@@ -848,6 +833,16 @@ watch(
     });
   },
   { immediate: true },
+);
+
+watch(
+  () => props.interactionCancelVersion,
+  () => {
+    panState.value = null;
+    moveState.value = null;
+    resizeState.value = null;
+    marqueeState.value = null;
+  },
 );
 
 function setRenameEditorRef(
@@ -1488,11 +1483,7 @@ function getConnectionStroke(connection: DesktopScheduleConnectionLayout) {
 }
 
 function getConnectionStrokeWidth(kind: DesktopScheduleConnectionLayout["kind"]) {
-  if (kind === "dependency") {
-    return 1.25;
-  }
-
-  if (kind === "link") {
+  if (kind === "work-connection") {
     return 2;
   }
 
@@ -1503,23 +1494,15 @@ function getConnectionStrokeWidth(kind: DesktopScheduleConnectionLayout["kind"])
   return 1.25;
 }
 
-function getConnectionDashArray(kind: DesktopScheduleConnectionLayout["kind"]) {
-  if (kind === "dependency") {
-    return "3 3";
-  }
-  return undefined;
-}
-
 function getConnectionLabelColor(connection: DesktopScheduleConnectionLayout) {
   return connection.colorHex ?? "#64748b";
 }
 
-function isDependencyHighlighted(connectionId: string) {
-  return hoveredDependencyId.value === connectionId || selectedDependencyIdSet.value.has(connectionId);
-}
-
-function isLinkHighlighted(connectionId: string) {
-  return hoveredLinkId.value === connectionId || selectedLinkIdSet.value.has(connectionId);
+function isWorkConnectionHighlighted(connectionId: string) {
+  return (
+    hoveredWorkConnectionId.value === connectionId ||
+    selectedWorkConnectionIdSet.value.has(connectionId)
+  );
 }
 
 function getRenderedConnectionStrokeWidth(
@@ -1527,11 +1510,7 @@ function getRenderedConnectionStrokeWidth(
   kind: DesktopScheduleConnectionLayout["kind"],
   pathId?: number,
 ) {
-  if (kind === "dependency" && isDependencyHighlighted(connectionId)) {
-    return 2.75;
-  }
-
-  if (kind === "link" && isLinkHighlighted(connectionId)) {
+  if (kind === "work-connection" && isWorkConnectionHighlighted(connectionId)) {
     return 3;
   }
 
@@ -1554,43 +1533,22 @@ function getRenderedConnectionStrokeWidth(
   return getConnectionStrokeWidth(kind);
 }
 
-function handleDependencyPointerEnter(dependencyId: string) {
-  hoveredDependencyId.value = dependencyId;
+function handleWorkConnectionPointerEnter(workConnectionId: string) {
+  hoveredWorkConnectionId.value = workConnectionId;
 }
 
-function handleDependencyPointerLeave(dependencyId: string) {
-  if (hoveredDependencyId.value === dependencyId) {
-    hoveredDependencyId.value = null;
+function handleWorkConnectionPointerLeave(workConnectionId: string) {
+  if (hoveredWorkConnectionId.value === workConnectionId) {
+    hoveredWorkConnectionId.value = null;
   }
 }
 
-function handleDependencyContextMenu(dependencyId: string, event: MouseEvent) {
+function handleWorkConnectionContextMenu(workConnectionId: string, event: MouseEvent) {
   event.preventDefault();
   event.stopPropagation();
-  hoveredDependencyId.value = dependencyId;
-  emit("dependency-context-menu", {
-    dependencyId,
-    x: event.clientX,
-    y: event.clientY,
-  });
-}
-
-function handleLinkPointerEnter(linkId: string) {
-  hoveredLinkId.value = linkId;
-}
-
-function handleLinkPointerLeave(linkId: string) {
-  if (hoveredLinkId.value === linkId) {
-    hoveredLinkId.value = null;
-  }
-}
-
-function handleLinkContextMenu(linkId: string, event: MouseEvent) {
-  event.preventDefault();
-  event.stopPropagation();
-  hoveredLinkId.value = linkId;
-  emit("link-context-menu", {
-    linkId,
+  hoveredWorkConnectionId.value = workConnectionId;
+  emit("work-connection-context-menu", {
+    workConnectionId,
     x: event.clientX,
     y: event.clientY,
   });
@@ -1744,8 +1702,7 @@ function handleKeyDown(event: KeyboardEvent) {
     if (
       props.selectedRowIds.length > 0 ||
       props.selectedItemIds.length > 0 ||
-      props.selectedDependencyIds.length > 0 ||
-      props.selectedLinkIds.length > 0 ||
+      props.selectedWorkConnectionIds.length > 0 ||
       props.selectedMilestoneIds.length > 0
     ) {
       event.preventDefault();

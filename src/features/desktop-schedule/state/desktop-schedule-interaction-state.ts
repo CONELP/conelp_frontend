@@ -1,8 +1,7 @@
 export interface DesktopScheduleSelectionState {
   rowIds: string[];
   itemIds: string[];
-  dependencyIds: string[];
-  linkIds: string[];
+  workConnectionIds: string[];
   criticalPathIds: string[];
   groupIds: string[];
   milestoneIds: string[];
@@ -11,8 +10,7 @@ export interface DesktopScheduleSelectionState {
 export type DesktopScheduleContextMenuTarget =
   | { kind: "row"; rowId: string }
   | { kind: "item"; itemId: string }
-  | { kind: "dependency"; dependencyId: string }
-  | { kind: "link"; linkId: string }
+  | { kind: "work-connection"; workConnectionId: string }
   | { kind: "critical-path"; criticalPathId: string }
   | { kind: "group"; groupId: string }
   | { kind: "milestone"; milestoneId: string }
@@ -22,10 +20,8 @@ export type DesktopScheduleContextMenuCommand =
   | "create-milestone"
   | "create-item"
   | "delete-item"
-  | "toggle-dependency"
-  | "remove-dependency"
-  | "toggle-link"
-  | "remove-link"
+  | "toggle-work-connection"
+  | "remove-work-connection"
   | "remove-milestone"
   | "toggle-critical-path"
   | "remove-critical-path"
@@ -36,8 +32,8 @@ export type DesktopScheduleContextMenuCommand =
 export type DesktopScheduleContextMenuIcon =
   | "plus"
   | "trash"
-  | "link"
-  | "unlink"
+  | "connection"
+  | "disconnect"
   | "palette"
   | "pencil";
 
@@ -61,8 +57,7 @@ export function createEmptyDesktopScheduleSelectionState(): DesktopScheduleSelec
   return {
     rowIds: [],
     itemIds: [],
-    dependencyIds: [],
-    linkIds: [],
+    workConnectionIds: [],
     criticalPathIds: [],
     groupIds: [],
     milestoneIds: [],

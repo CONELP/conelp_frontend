@@ -3,9 +3,7 @@ import type {
   DesktopScheduleConnectionKind,
   DesktopScheduleConnectionLayout,
   DesktopScheduleCriticalPath,
-  DesktopScheduleDependency,
   DesktopScheduleItem,
-  DesktopScheduleLink,
   DesktopScheduleMilestone,
   DesktopScheduleMilestoneLayout,
   DesktopScheduleRow,
@@ -17,6 +15,7 @@ import type {
   DesktopScheduleTimelineGroup,
   DesktopScheduleTimelineLayout,
   DesktopScheduleSnapshot,
+  DesktopScheduleWorkConnection,
 } from "@/features/desktop-schedule/model/desktop-schedule.types";
 
 interface ChildRowDraft {
@@ -40,8 +39,7 @@ interface ShellLayoutOptions {
   barHeight?: number;
   preferredLaneByItemId?: Readonly<Record<string, number>>;
   pinnedLaneByItemId?: Readonly<Record<string, number>>;
-  dependencies?: DesktopScheduleDependency[];
-  links?: DesktopScheduleLink[];
+  workConnections?: DesktopScheduleWorkConnection[];
   criticalPaths?: DesktopScheduleCriticalPath[];
   milestones?: DesktopScheduleMilestone[];
   showCriticalPaths?: boolean;
@@ -75,7 +73,7 @@ export const DESKTOP_SCHEDULE_SHELL_DEFAULTS = {
   barHeight: 24,
 } as const;
 export const DESKTOP_SCHEDULE_MILESTONE_ROW_ID = "row:milestones";
-const LINK_CONNECTION_COLOR = "#64748b";
+const WORK_CONNECTION_COLOR = "#64748b";
 
 const CRITICAL_PATH_COLORS = [
   "#cb3a31",
@@ -277,12 +275,20 @@ function getSuccessorStartDateFromPredecessor(endDate: string, gapDays: number) 
   return shiftDateString(endDate, gapDays + 1);
 }
 
-function getPredecessorEndDateFromSuccessor(startDate: string, gapDays: number) {
-  return shiftDateString(startDate, -(gapDays + 1));
+function getWorkConnectionSuccessorStartDate(
+  sourceItem: DesktopScheduleItem,
+  gapDays: number,
+) {
+  const preferredStartDate = getSuccessorStartDateFromPredecessor(sourceItem.endDate, gapDays);
+  return preferredStartDate < sourceItem.startDate ? sourceItem.startDate : preferredStartDate;
 }
 
 function getCurrentGapDays(sourceItem: DesktopScheduleItem, targetItem: DesktopScheduleItem) {
   return diffDays(sourceItem.endDate, targetItem.startDate) - 1;
+}
+
+function getGapDaysBetweenItems(sourceItem: DesktopScheduleItem, targetItem: DesktopScheduleItem) {
+  return getCurrentGapDays(sourceItem, targetItem);
 }
 
 function buildRangeMismatchSegments(
@@ -346,7 +352,7 @@ function buildConnectionGeometry(
   targetBar: DesktopScheduleBarLayout,
   kind: DesktopScheduleConnectionKind,
 ) {
-  const verticalOffset = kind === "critical-path" ? 8 : kind === "link" ? -8 : 0;
+  const verticalOffset = kind === "critical-path" ? 8 : -8;
   const sourceX = sourceBar.left + sourceBar.width;
   const sourceY = sourceBar.top + sourceBar.height / 2 + verticalOffset;
   const targetX = targetBar.left;
@@ -603,71 +609,9 @@ function buildItems(tasks: DesktopScheduleSourceTask[]): DesktopScheduleItem[] {
   }));
 }
 
-function buildDependencies(bundle: DesktopScheduleSourceBundle) {
-  const itemIds = new Set(bundle.tasks.map((task) => `item:${task.workId}`));
-
-  return bundle.links
-    .filter((link) => {
-      return itemIds.has(`item:${link.sourceWorkId}`) && itemIds.has(`item:${link.targetWorkId}`);
-    })
-    .map((link) => ({
-      id: `dependency:${link.pathId}:${link.sourceWorkId}:${link.targetWorkId}`,
-      pathId: link.pathId,
-      sourceItemId: `item:${link.sourceWorkId}`,
-      targetItemId: `item:${link.targetWorkId}`,
-      lagDays: 0,
-      pathName: link.pathName,
-      color: "#878787",
-    }));
-}
-
-function buildLinks(bundle: DesktopScheduleSourceBundle) {
-  const itemIds = new Set(bundle.tasks.map((task) => `item:${task.workId}`));
-
-  return bundle.links
-    .filter((link) => {
-      return (
-        itemIds.has(`item:${link.sourceWorkId}`) &&
-        itemIds.has(`item:${link.targetWorkId}`) &&
-        typeof link.lagDays === "number" &&
-        link.lagDays > 0
-      );
-    })
-    .map((link) => ({
-      id: `link:${link.pathId}:${link.sourceWorkId}:${link.targetWorkId}`,
-      pathId: link.pathId,
-      sourceItemId: `item:${link.sourceWorkId}`,
-      targetItemId: `item:${link.targetWorkId}`,
-      gapDays: link.lagDays ?? 0,
-      pathName: link.pathName,
-      color: LINK_CONNECTION_COLOR,
-    }));
-}
-
-function buildCriticalPaths(bundle: DesktopScheduleSourceBundle) {
-  const itemIds = new Set(bundle.tasks.map((task) => `item:${task.workId}`));
-
-  return bundle.links
-    .filter((link) => {
-      return (
-        itemIds.has(`item:${link.sourceWorkId}`) &&
-        itemIds.has(`item:${link.targetWorkId}`) &&
-        link.critical
-      );
-    })
-    .map((link) => ({
-      id: `critical:${link.pathId}:${link.sourceWorkId}:${link.targetWorkId}`,
-      pathId: link.pathId,
-      sourceItemId: `item:${link.sourceWorkId}`,
-      targetItemId: `item:${link.targetWorkId}`,
-      colorHex: getCriticalPathColor(link.pathId),
-    }));
-}
-
 function buildConnectionLayouts(
   itemBars: DesktopScheduleBarLayout[],
-  dependencies: DesktopScheduleDependency[],
-  links: DesktopScheduleLink[],
+  workConnections: DesktopScheduleWorkConnection[],
   criticalPaths: DesktopScheduleCriticalPath[],
 ) {
   const itemBarById = new Map(
@@ -707,27 +651,15 @@ function buildConnectionLayouts(
     });
   }
 
-  dependencies.forEach((dependency) => {
+  workConnections.forEach((workConnection) => {
     pushConnection(
-      dependency.id,
-      "dependency",
-      dependency.pathId,
-      dependency.color,
-      dependency.sourceItemId,
-      dependency.targetItemId,
-      "FS",
-    );
-  });
-
-  links.forEach((link) => {
-    pushConnection(
-      link.id,
-      "link",
-      link.pathId,
-      link.color,
-      link.sourceItemId,
-      link.targetItemId,
-      formatGapDaysLabel(link.gapDays),
+      workConnection.id,
+      "work-connection",
+      workConnection.pathId,
+      workConnection.color,
+      workConnection.sourceItemId,
+      workConnection.targetItemId,
+      formatGapDaysLabel(workConnection.gapDays),
     );
   });
 
@@ -752,27 +684,21 @@ function buildSnapshot(
 ): DesktopScheduleSnapshot {
   const rows = buildRows(bundle.tasks);
   const items = buildItems(bundle.tasks);
-  const dependencies = buildDependencies(bundle);
-  const links = buildLinks(bundle);
-  const criticalPaths = buildCriticalPaths(bundle);
+  const workConnections: DesktopScheduleWorkConnection[] = [];
+  const criticalPaths: DesktopScheduleCriticalPath[] = [];
   const parentRowCount = 0;
   const childRowCount = rows.length;
-  const uniquePathCount = new Set(bundle.links.map((link) => link.pathId)).size;
 
   return {
     rows,
     items,
-    dependencies,
-    links,
+    workConnections,
     criticalPaths,
     milestones,
     metadata: {
       source: bundle.source,
       generatedAt: new Date().toISOString(),
       workCount: bundle.tasks.length,
-      pathCount: uniquePathCount,
-      dependencyCount: dependencies.length,
-      linkCount: links.length,
       criticalPathCount: criticalPaths.length,
       parentRowCount,
       childRowCount,
@@ -856,8 +782,7 @@ function buildShellLayout(
 ): DesktopScheduleShellLayout {
   const rowHeight = options.rowHeight ?? DESKTOP_SCHEDULE_SHELL_DEFAULTS.rowHeight;
   const barHeight = options.barHeight ?? DESKTOP_SCHEDULE_SHELL_DEFAULTS.barHeight;
-  const dependencies = options.dependencies ?? [];
-  const links = options.links ?? [];
+  const workConnections = options.workConnections ?? [];
   const criticalPaths = options.showCriticalPaths === false ? [] : options.criticalPaths ?? [];
   const milestones = options.milestones ?? [];
   const orderedRows = [...rowsSource].sort((a, b) => a.order - b.order);
@@ -1162,7 +1087,11 @@ function buildShellLayout(
     rows: [milestoneRow, ...processRows],
     bars: itemBars,
     milestones: milestoneLayoutResult.milestones,
-    connections: buildConnectionLayouts(itemBars, dependencies, links, criticalPaths),
+    connections: buildConnectionLayouts(
+      itemBars,
+      workConnections,
+      criticalPaths,
+    ),
     chartHeight: accumulatedTop,
     rowHeight,
   };
@@ -1210,7 +1139,7 @@ function createLocalRowId(prefix: "parent" | "child") {
     .toString(36)}`;
 }
 
-function createLocalEntityId(prefix: "dependency" | "critical-path" | "milestone") {
+function createLocalEntityId(prefix: "critical-path" | "milestone") {
   return `${prefix}:local:${Date.now()}-${Math.floor(Math.random() * 1_000_000)
     .toString(36)}`;
 }
@@ -1319,60 +1248,33 @@ function deleteRows(rows: DesktopScheduleRow[], rowIds: string[]) {
   return reindexRows(rows.filter((row) => !rowIdSet.has(row.id)));
 }
 
-function createDependency(
-  dependencies: DesktopScheduleDependency[],
-  payload: { sourceItemId: string; targetItemId: string },
-) {
-  if (
-    payload.sourceItemId === payload.targetItemId ||
-    dependencies.some(
-      (dependency) =>
-        dependency.sourceItemId === payload.sourceItemId &&
-        dependency.targetItemId === payload.targetItemId,
-    )
-  ) {
-    return dependencies;
-  }
-
-  return [
-    ...dependencies,
-    {
-      id: createLocalEntityId("dependency"),
-      pathId: Date.now(),
-      sourceItemId: payload.sourceItemId,
-      targetItemId: payload.targetItemId,
-      lagDays: 0,
-      pathName: null,
-      color: "#64748b",
-    },
-  ];
-}
-
-function createLink(
-  links: DesktopScheduleLink[],
+function createWorkConnection(
+  workConnections: DesktopScheduleWorkConnection[],
   payload: { sourceItemId: string; targetItemId: string; gapDays: number },
 ) {
   if (
     payload.sourceItemId === payload.targetItemId ||
-    links.some(
-      (link) =>
-        link.sourceItemId === payload.sourceItemId &&
-        link.targetItemId === payload.targetItemId,
+    workConnections.some(
+      (workConnection) =>
+        (workConnection.sourceItemId === payload.sourceItemId &&
+          workConnection.targetItemId === payload.targetItemId) ||
+        (workConnection.sourceItemId === payload.targetItemId &&
+          workConnection.targetItemId === payload.sourceItemId),
     )
   ) {
-    return links;
+    return workConnections;
   }
 
   return [
-    ...links,
+    ...workConnections,
     {
-      id: `link:local:${Date.now()}-${Math.floor(Math.random() * 1_000_000).toString(36)}`,
+      id: `work-connection:local:${Date.now()}-${Math.floor(Math.random() * 1_000_000).toString(36)}`,
       pathId: Date.now(),
       sourceItemId: payload.sourceItemId,
       targetItemId: payload.targetItemId,
       gapDays: payload.gapDays,
       pathName: null,
-      color: LINK_CONNECTION_COLOR,
+      color: WORK_CONNECTION_COLOR,
     },
   ];
 }
@@ -1450,51 +1352,32 @@ function createCriticalPath(
   ];
 }
 
-function removeDependenciesForItems(
-  dependencies: DesktopScheduleDependency[],
+function removeWorkConnectionsForItems(
+  workConnections: DesktopScheduleWorkConnection[],
   itemIds: string[],
 ) {
   if (itemIds.length === 0) {
-    return dependencies;
+    return workConnections;
   }
 
   const itemIdSet = new Set(itemIds);
-  return dependencies.filter(
-    (dependency) =>
-      !itemIdSet.has(dependency.sourceItemId) && !itemIdSet.has(dependency.targetItemId),
+  return workConnections.filter(
+    (workConnection) =>
+      !itemIdSet.has(workConnection.sourceItemId) &&
+      !itemIdSet.has(workConnection.targetItemId),
   );
 }
 
-function removeDependenciesByIds(
-  dependencies: DesktopScheduleDependency[],
-  dependencyIds: string[],
+function removeWorkConnectionsByIds(
+  workConnections: DesktopScheduleWorkConnection[],
+  workConnectionIds: string[],
 ) {
-  if (dependencyIds.length === 0) {
-    return dependencies;
+  if (workConnectionIds.length === 0) {
+    return workConnections;
   }
 
-  const dependencyIdSet = new Set(dependencyIds);
-  return dependencies.filter((dependency) => !dependencyIdSet.has(dependency.id));
-}
-
-function removeLinksForItems(links: DesktopScheduleLink[], itemIds: string[]) {
-  if (itemIds.length === 0) {
-    return links;
-  }
-
-  const itemIdSet = new Set(itemIds);
-  return links.filter(
-    (link) => !itemIdSet.has(link.sourceItemId) && !itemIdSet.has(link.targetItemId),
-  );
-}
-
-function removeLinksByIds(links: DesktopScheduleLink[], linkIds: string[]) {
-  if (linkIds.length === 0) {
-    return links;
-  }
-
-  const linkIdSet = new Set(linkIds);
-  return links.filter((link) => !linkIdSet.has(link.id));
+  const workConnectionIdSet = new Set(workConnectionIds);
+  return workConnections.filter((workConnection) => !workConnectionIdSet.has(workConnection.id));
 }
 
 function removeCriticalPathsByIds(
@@ -1787,61 +1670,22 @@ function buildRelationMaps<TRelation extends { sourceItemId: string; targetItemI
   };
 }
 
-function collectLinkedItemIds(seedItemIds: string[], links: DesktopScheduleLink[]) {
-  const linkedItemIds = new Set(seedItemIds);
-  const queue = [...linkedItemIds];
-  const adjacentItemIdsByItemId = new Map<string, string[]>();
-
-  links.forEach((link) => {
-    const sourceAdjacentItemIds = adjacentItemIdsByItemId.get(link.sourceItemId) ?? [];
-    sourceAdjacentItemIds.push(link.targetItemId);
-    adjacentItemIdsByItemId.set(link.sourceItemId, sourceAdjacentItemIds);
-
-    const targetAdjacentItemIds = adjacentItemIdsByItemId.get(link.targetItemId) ?? [];
-    targetAdjacentItemIds.push(link.sourceItemId);
-    adjacentItemIdsByItemId.set(link.targetItemId, targetAdjacentItemIds);
-  });
-
-  while (queue.length > 0) {
-    const currentItemId = queue.shift();
-
-    if (!currentItemId) {
-      continue;
-    }
-
-    (adjacentItemIdsByItemId.get(currentItemId) ?? []).forEach((nextItemId) => {
-      if (linkedItemIds.has(nextItemId)) {
-        return;
-      }
-
-      linkedItemIds.add(nextItemId);
-      queue.push(nextItemId);
-    });
-  }
-
-  return Array.from(linkedItemIds);
-}
-
-function applyRelationshipConstraints(
+function applyWorkConnectionRules(
   baseItems: DesktopScheduleItem[],
   itemsById: Map<string, DesktopScheduleItem>,
-  seedItemIds: string[],
-  dependencies: DesktopScheduleDependency[],
-  links: DesktopScheduleLink[],
+  controlledSourceItemIds: string[],
+  workConnections: DesktopScheduleWorkConnection[],
 ) {
-  if (seedItemIds.length === 0 || (dependencies.length === 0 && links.length === 0)) {
-    return serializeItemsInBaseOrder(baseItems, itemsById);
-  }
-
-  const dependencyMaps = buildRelationMaps(dependencies);
-  const linkMaps = buildRelationMaps(links);
-  const queue = Array.from(new Set(seedItemIds));
-  const queuedItemIds = new Set(queue);
-  const maxIterations = Math.max(
-    baseItems.length * Math.max(dependencies.length + links.length, 1) * 4,
-    32,
+  const connectionMaps = buildRelationMaps(workConnections);
+  const nextWorkConnectionById = new Map<string, DesktopScheduleWorkConnection>(
+    workConnections.map((workConnection) => [workConnection.id, { ...workConnection }]),
   );
+  const preservedConnectionIds = new Set<string>();
+  const queue = Array.from(new Set(controlledSourceItemIds));
+  const queuedItemIds = new Set(queue);
+  const maxIterations = Math.max(baseItems.length * Math.max(workConnections.length, 1) * 4, 32);
   let iterationCount = 0;
+  let blockedByPredecessorStart = false;
 
   function enqueue(itemId: string) {
     if (queuedItemIds.has(itemId)) {
@@ -1852,120 +1696,171 @@ function applyRelationshipConstraints(
     queuedItemIds.add(itemId);
   }
 
-  while (queue.length > 0 && iterationCount < maxIterations) {
-    iterationCount += 1;
-    const currentItemId = queue.shift();
+  function setItemStart(item: DesktopScheduleItem, nextStartDate: string) {
+    const deltaDays = diffDays(item.startDate, nextStartDate);
 
-    if (!currentItemId) {
-      continue;
+    if (deltaDays === 0) {
+      return item;
     }
 
-    queuedItemIds.delete(currentItemId);
-    const currentItem = itemsById.get(currentItemId);
-
-    if (!currentItem) {
-      continue;
-    }
-
-    (linkMaps.outgoingByItemId.get(currentItemId) ?? []).forEach((link) => {
-      const targetItem = itemsById.get(link.targetItemId);
-      if (!targetItem) {
-        return;
-      }
-
-      const requiredStartDate = getSuccessorStartDateFromPredecessor(
-        currentItem.endDate,
-        link.gapDays,
-      );
-      const deltaDays = diffDays(targetItem.startDate, requiredStartDate);
-
-      if (deltaDays === 0) {
-        return;
-      }
-
-      itemsById.set(targetItem.id, shiftItemByDays(targetItem, deltaDays));
-      enqueue(targetItem.id);
-    });
-
-    (linkMaps.incomingByItemId.get(currentItemId) ?? []).forEach((link) => {
-      const sourceItem = itemsById.get(link.sourceItemId);
-      if (!sourceItem) {
-        return;
-      }
-
-      const requiredEndDate = getPredecessorEndDateFromSuccessor(
-        currentItem.startDate,
-        link.gapDays,
-      );
-      const deltaDays = diffDays(sourceItem.endDate, requiredEndDate);
-
-      if (deltaDays === 0) {
-        return;
-      }
-
-      itemsById.set(sourceItem.id, shiftItemByDays(sourceItem, deltaDays));
-      enqueue(sourceItem.id);
-    });
-
-    (dependencyMaps.outgoingByItemId.get(currentItemId) ?? []).forEach((dependency) => {
-      const targetItem = itemsById.get(dependency.targetItemId);
-      if (!targetItem) {
-        return;
-      }
-
-      const requiredStartDate = getSuccessorStartDateFromPredecessor(
-        currentItem.endDate,
-        dependency.lagDays ?? 0,
-      );
-
-      if (targetItem.startDate >= requiredStartDate) {
-        return;
-      }
-
-      const deltaDays = diffDays(targetItem.startDate, requiredStartDate);
-      itemsById.set(targetItem.id, shiftItemByDays(targetItem, deltaDays));
-      enqueue(targetItem.id);
-    });
+    return shiftItemByDays(item, deltaDays);
   }
 
-  return serializeItemsInBaseOrder(baseItems, itemsById);
+  function processOutgoingQueue() {
+    while (queue.length > 0 && iterationCount < maxIterations) {
+      iterationCount += 1;
+      const currentItemId = queue.shift();
+
+      if (!currentItemId) {
+        continue;
+      }
+
+      queuedItemIds.delete(currentItemId);
+      const sourceItem = itemsById.get(currentItemId);
+
+      if (!sourceItem) {
+        continue;
+      }
+
+      (connectionMaps.outgoingByItemId.get(currentItemId) ?? []).forEach((workConnection) => {
+        const targetItem = itemsById.get(workConnection.targetItemId);
+        const nextWorkConnection = nextWorkConnectionById.get(workConnection.id);
+
+        if (!targetItem || !nextWorkConnection) {
+          return;
+        }
+
+        const requiredStartDate = getWorkConnectionSuccessorStartDate(
+          sourceItem,
+          nextWorkConnection.gapDays,
+        );
+        const nextTargetItem = setItemStart(targetItem, requiredStartDate);
+
+        if (nextTargetItem !== targetItem) {
+          itemsById.set(nextTargetItem.id, nextTargetItem);
+          enqueue(nextTargetItem.id);
+        }
+
+        const actualTargetItem = itemsById.get(workConnection.targetItemId);
+
+        if (actualTargetItem) {
+          nextWorkConnection.gapDays = getCurrentGapDays(sourceItem, actualTargetItem);
+        }
+
+        preservedConnectionIds.add(workConnection.id);
+      });
+    }
+  }
+
+  processOutgoingQueue();
+
+  let didClampSuccessor = true;
+
+  while (didClampSuccessor && iterationCount < maxIterations) {
+    didClampSuccessor = false;
+
+    workConnections.forEach((workConnection) => {
+      if (preservedConnectionIds.has(workConnection.id)) {
+        return;
+      }
+
+      const sourceItem = itemsById.get(workConnection.sourceItemId);
+      const targetItem = itemsById.get(workConnection.targetItemId);
+
+      if (!sourceItem || !targetItem || targetItem.startDate >= sourceItem.startDate) {
+        return;
+      }
+
+      const nextTargetItem = setItemStart(targetItem, sourceItem.startDate);
+      itemsById.set(nextTargetItem.id, nextTargetItem);
+      blockedByPredecessorStart = true;
+      didClampSuccessor = true;
+      enqueue(nextTargetItem.id);
+    });
+
+    processOutgoingQueue();
+  }
+
+  workConnections.forEach((workConnection) => {
+    if (preservedConnectionIds.has(workConnection.id)) {
+      return;
+    }
+
+    const sourceItem = itemsById.get(workConnection.sourceItemId);
+    const targetItem = itemsById.get(workConnection.targetItemId);
+    const nextWorkConnection = nextWorkConnectionById.get(workConnection.id);
+
+    if (!sourceItem || !targetItem || !nextWorkConnection) {
+      return;
+    }
+
+    nextWorkConnection.gapDays = getCurrentGapDays(sourceItem, targetItem);
+  });
+
+  return {
+    items: serializeItemsInBaseOrder(baseItems, itemsById),
+    workConnections: workConnections.map(
+      (workConnection) => nextWorkConnectionById.get(workConnection.id) ?? workConnection,
+    ),
+    blockedByPredecessorStart,
+  };
 }
 
-function constrainItemsToRelationshipGaps(
+function getChangedItemIds(
   baseItems: DesktopScheduleItem[],
-  seedItemIds: string[],
-  dependencies: DesktopScheduleDependency[] = [],
-  links: DesktopScheduleLink[] = [],
+  nextItems: DesktopScheduleItem[],
 ) {
-  if (seedItemIds.length === 0) {
-    return baseItems;
-  }
+  const baseItemById = new Map(baseItems.map((item) => [item.id, item] as const));
 
-  const itemsById = new Map(baseItems.map((item) => [item.id, item] as const));
-  return applyRelationshipConstraints(baseItems, itemsById, seedItemIds, dependencies, links);
+  return nextItems
+    .filter((item) => {
+      const baseItem = baseItemById.get(item.id);
+      return (
+        !!baseItem &&
+        (baseItem.startDate !== item.startDate ||
+          baseItem.endDate !== item.endDate ||
+          baseItem.durationDays !== item.durationDays)
+      );
+    })
+    .map((item) => item.id);
 }
 
 function moveItems(
   baseItems: DesktopScheduleItem[],
   itemIds: string[],
   deltaDays: number,
-  dependencies: DesktopScheduleDependency[] = [],
-  links: DesktopScheduleLink[] = [],
 ) {
   if (itemIds.length === 0) {
     return baseItems;
   }
 
-  const movedItemIds = collectLinkedItemIds(itemIds, links);
-  const movedIdSet = new Set(movedItemIds);
-  const itemsById = new Map(
-    baseItems.map((item) => [
-      item.id,
-      movedIdSet.has(item.id) ? shiftItemByDays(item, deltaDays) : item,
-    ] as const),
-  );
+  const itemIdSet = new Set(itemIds);
+  return baseItems.map((item) => (itemIdSet.has(item.id) ? shiftItemByDays(item, deltaDays) : item));
+}
 
-  return applyRelationshipConstraints(baseItems, itemsById, movedItemIds, dependencies, []);
+function moveItemsWithWorkConnections(
+  baseItems: DesktopScheduleItem[],
+  itemIds: string[],
+  deltaDays: number,
+  workConnections: DesktopScheduleWorkConnection[] = [],
+) {
+  const itemsAfterLinkedMove = moveItems(baseItems, itemIds, deltaDays);
+  const changedItemIds = getChangedItemIds(baseItems, itemsAfterLinkedMove);
+
+  if (workConnections.length === 0 || changedItemIds.length === 0) {
+    return {
+      items: itemsAfterLinkedMove,
+      workConnections,
+      blockedByPredecessorStart: false,
+    };
+  }
+
+  return applyWorkConnectionRules(
+    baseItems,
+    new Map(itemsAfterLinkedMove.map((item) => [item.id, item] as const)),
+    changedItemIds,
+    workConnections,
+  );
 }
 
 function moveSummaryRows(baseRows: DesktopScheduleRow[], rowIds: string[], deltaDays: number) {
@@ -1997,8 +1892,6 @@ function resizeItem(
   itemId: string,
   edge: "left" | "right",
   deltaDays: number,
-  dependencies: DesktopScheduleDependency[] = [],
-  links: DesktopScheduleLink[] = [],
 ) {
   const itemsById = new Map(baseItems.map((item) => [item.id, item] as const));
   const targetItem = itemsById.get(itemId);
@@ -2024,7 +1917,33 @@ function resizeItem(
     });
   }
 
-  return applyRelationshipConstraints(baseItems, itemsById, [itemId], dependencies, links);
+  return serializeItemsInBaseOrder(baseItems, itemsById);
+}
+
+function resizeItemWithWorkConnections(
+  baseItems: DesktopScheduleItem[],
+  itemId: string,
+  edge: "left" | "right",
+  deltaDays: number,
+  workConnections: DesktopScheduleWorkConnection[] = [],
+) {
+  const itemsAfterResize = resizeItem(baseItems, itemId, edge, deltaDays);
+  const changedItemIds = getChangedItemIds(baseItems, itemsAfterResize);
+
+  if (workConnections.length === 0 || changedItemIds.length === 0) {
+    return {
+      items: itemsAfterResize,
+      workConnections,
+      blockedByPredecessorStart: false,
+    };
+  }
+
+  return applyWorkConnectionRules(
+    baseItems,
+    new Map(itemsAfterResize.map((item) => [item.id, item] as const)),
+    changedItemIds,
+    workConnections,
+  );
 }
 
 function resizeSummaryRow(
@@ -2089,14 +2008,11 @@ export const desktopScheduleService = {
   toggleRowCollapse,
   deleteItems,
   deleteRows,
-  createDependency,
-  createLink,
+  createWorkConnection,
   createCriticalPathDraft,
   createCriticalPath,
-  removeDependenciesForItems,
-  removeDependenciesByIds,
-  removeLinksForItems,
-  removeLinksByIds,
+  removeWorkConnectionsForItems,
+  removeWorkConnectionsByIds,
   removeCriticalPathsByIds,
   removeConnectedCriticalPathChain,
   upsertMilestone,
@@ -2111,10 +2027,12 @@ export const desktopScheduleService = {
   updateItemName,
   updateItemDetails,
   moveItems,
-  constrainItemsToRelationshipGaps,
+  moveItemsWithWorkConnections,
   moveSummaryRows,
   resizeItem,
+  resizeItemWithWorkConnections,
   resizeSummaryRow,
+  getGapDaysBetweenItems,
   getScrollLeftForZoom,
   getInitialScrollLeftForYesterday,
   getCriticalPathColor,

@@ -2,7 +2,9 @@ export type DesktopScheduleSource = "mock-seed" | "work-and-path-api";
 export type DesktopScheduleRowKind = "parent-process" | "child-process";
 export type DesktopScheduleShellRowKind = DesktopScheduleRowKind | "division" | "milestone";
 export type DesktopScheduleItemAppearance = "standard" | "holiday-off";
-export type DesktopScheduleConnectionKind = "dependency" | "link" | "critical-path";
+export type DesktopScheduleConnectionKind =
+  | "work-connection"
+  | "critical-path";
 
 export interface DesktopScheduleRowSource {
   kind: "work-type" | "sub-work-type" | "mock";
@@ -47,17 +49,7 @@ export interface DesktopScheduleItem {
   componentTypeIds?: number[];
 }
 
-export interface DesktopScheduleDependency {
-  id: string;
-  pathId: number;
-  sourceItemId: string;
-  targetItemId: string;
-  lagDays: number | null;
-  pathName: string | null;
-  color: string;
-}
-
-export interface DesktopScheduleLink {
+export interface DesktopScheduleWorkConnection {
   id: string;
   pathId: number;
   sourceItemId: string;
@@ -97,19 +89,8 @@ export interface DesktopScheduleSourceTask {
   annotation?: string;
 }
 
-export interface DesktopScheduleSourceLink {
-  pathId: number;
-  sourceWorkId: number;
-  targetWorkId: number;
-  lagDays: number | null;
-  pathName: string | null;
-  color: string;
-  critical: boolean;
-}
-
 export interface DesktopScheduleSourceBundle {
   tasks: DesktopScheduleSourceTask[];
-  links: DesktopScheduleSourceLink[];
   source: DesktopScheduleSource;
 }
 
@@ -117,9 +98,6 @@ export interface DesktopScheduleSnapshotMetadata {
   source: DesktopScheduleSource;
   generatedAt: string;
   workCount: number;
-  pathCount: number;
-  dependencyCount: number;
-  linkCount: number;
   criticalPathCount: number;
   parentRowCount: number;
   childRowCount: number;
@@ -128,8 +106,7 @@ export interface DesktopScheduleSnapshotMetadata {
 export interface DesktopScheduleSnapshot {
   rows: DesktopScheduleRow[];
   items: DesktopScheduleItem[];
-  dependencies: DesktopScheduleDependency[];
-  links: DesktopScheduleLink[];
+  workConnections: DesktopScheduleWorkConnection[];
   criticalPaths: DesktopScheduleCriticalPath[];
   milestones: DesktopScheduleMilestone[];
   metadata: DesktopScheduleSnapshotMetadata;

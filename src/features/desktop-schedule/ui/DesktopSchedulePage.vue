@@ -23,6 +23,7 @@ const {
   shellLayout,
   chartScrollTop,
   chartScrollLeft,
+  interactionCancelVersion,
   zoomScale,
   currentZoomIndex,
   maxZoomIndex,
@@ -34,8 +35,7 @@ const {
   selectRows,
   deleteSelection,
   openItemContextMenu,
-  openDependencyContextMenu,
-  openLinkContextMenu,
+  openWorkConnectionContextMenu,
   openMilestoneContextMenu,
   openRowContextMenu,
   openCanvasContextMenu,
@@ -139,10 +139,10 @@ watch(
             :viewport-height="shellViewportHeight"
             :scroll-top="chartScrollTop"
             :scroll-left="chartScrollLeft"
+            :interaction-cancel-version="interactionCancelVersion"
             :selected-row-ids="selectionState.rowIds"
             :selected-item-ids="selectionState.itemIds"
-            :selected-dependency-ids="selectionState.dependencyIds"
-            :selected-link-ids="selectionState.linkIds"
+            :selected-work-connection-ids="selectionState.workConnectionIds"
             :selected-milestone-ids="selectionState.milestoneIds"
             :connection-creation-state="connectionCreationState"
             :editing-item-id="renamingItemId"
@@ -158,8 +158,7 @@ watch(
             @select-row="(rowId) => selectRows({ rowIds: [rowId] })"
             @delete-selection="deleteSelection"
             @item-context-menu="openItemContextMenu"
-            @dependency-context-menu="openDependencyContextMenu"
-            @link-context-menu="openLinkContextMenu"
+            @work-connection-context-menu="openWorkConnectionContextMenu"
             @milestone-context-menu="openMilestoneContextMenu"
             @row-context-menu="openRowContextMenu"
             @canvas-context-menu="openCanvasContextMenu"

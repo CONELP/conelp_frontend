@@ -62,9 +62,9 @@ function getIconGlyph(icon: DesktopScheduleContextMenuIcon) {
       return "◐";
     case "pencil":
       return "✎";
-    case "unlink":
+    case "disconnect":
       return "⤫";
-    case "link":
+    case "connection":
     default:
       return "↔";
   }

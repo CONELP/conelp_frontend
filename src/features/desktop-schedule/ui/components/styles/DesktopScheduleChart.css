@@ -55,10 +55,6 @@
   vector-effect: non-scaling-stroke;
 }
 
-.schedule-chart__connection-path--link {
-  stroke-dasharray: 4 3;
-}
-
 .schedule-chart__connection-path--critical-path {
   stroke-width: 1.6;
 }

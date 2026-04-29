@@ -1,7 +1,6 @@
 import type {
   DesktopScheduleMilestone,
   DesktopScheduleSourceBundle,
-  DesktopScheduleSourceLink,
   DesktopScheduleSourceTask,
 } from "@/features/desktop-schedule/model/desktop-schedule.types";
 
@@ -40,26 +39,6 @@ function createTask(
     positionY,
     isWorkingOnHoliday,
     annotation,
-  };
-}
-
-function createLink(
-  pathId: number,
-  sourceWorkId: number,
-  targetWorkId: number,
-  color: string,
-  critical: boolean,
-  lagDays: number | null = null,
-  pathName: string | null = null,
-): DesktopScheduleSourceLink {
-  return {
-    pathId,
-    sourceWorkId,
-    targetWorkId,
-    lagDays,
-    pathName,
-    color,
-    critical,
   };
 }
 
@@ -235,23 +214,6 @@ const tasks: DesktopScheduleSourceTask[] = [
   ),
 ];
 
-const links: DesktopScheduleSourceLink[] = [
-  createLink(1001, 101, 102, "#6b7280", false, 0, "현장 준비"),
-  createLink(1002, 102, 103, "#cb3a31", true, 0, "토공 주경로"),
-  createLink(1002, 103, 105, "#cb3a31", true, 0, "토공 주경로"),
-  createLink(1003, 104, 105, "#1f8a70", false, 1, "보강 여유"),
-  createLink(1002, 105, 106, "#cb3a31", true, 0, "토공 주경로"),
-  createLink(1002, 106, 107, "#cb3a31", true, 0, "토공 주경로"),
-  createLink(1002, 107, 108, "#cb3a31", true, 0, "골조 주경로"),
-  createLink(1002, 108, 109, "#cb3a31", true, 0, "골조 주경로"),
-  createLink(1002, 109, 110, "#cb3a31", true, 0, "골조 주경로"),
-  createLink(1002, 110, 111, "#cb3a31", true, 0, "골조 주경로"),
-  createLink(1004, 109, 112, "#4661e6", false, 0, "설비 선행"),
-  createLink(1005, 111, 113, "#1f8a70", false, 3, "외장 착수"),
-  createLink(1006, 112, 114, "#6b7280", false, 2, "마감 준비"),
-  createLink(1007, 114, 115, "#6b7280", false, 0, "전기 마감"),
-];
-
 const milestones: DesktopScheduleMilestone[] = [
   {
     id: "milestone-1",
@@ -285,7 +247,6 @@ export const desktopScheduleSeed: {
 } = {
   sourceBundle: {
     tasks,
-    links,
     source: "mock-seed",
   },
   milestones,

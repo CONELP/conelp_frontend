@@ -13,7 +13,7 @@ import "@/features/desktop-schedule/ui/components/styles/DesktopScheduleShell.cs
 const SHELL_HEADER_HEIGHT = 84;
 
 type ConnectionCreationState = {
-  kind: "dependency" | "link";
+  kind: "work-connection";
   sourceItemId: string;
 };
 
@@ -23,10 +23,10 @@ const props = defineProps<{
   viewportHeight?: number;
   scrollTop: number;
   scrollLeft: number;
+  interactionCancelVersion: number;
   selectedRowIds: string[];
   selectedItemIds: string[];
-  selectedDependencyIds: string[];
-  selectedLinkIds: string[];
+  selectedWorkConnectionIds: string[];
   selectedMilestoneIds: string[];
   connectionCreationState: ConnectionCreationState | null;
   editingItemId: string | null;
@@ -45,8 +45,7 @@ const emit = defineEmits<{
   "select-row": [rowId: string];
   "delete-selection": [];
   "item-context-menu": [payload: { itemId: string; x: number; y: number }];
-  "dependency-context-menu": [payload: { dependencyId: string; x: number; y: number }];
-  "link-context-menu": [payload: { linkId: string; x: number; y: number }];
+  "work-connection-context-menu": [payload: { workConnectionId: string; x: number; y: number }];
   "milestone-context-menu": [payload: { milestoneId: string; x: number; y: number }];
   "row-context-menu": [payload: { rowId: string; x: number; y: number }];
   "canvas-context-menu": [payload: { x: number; y: number; rowId: string | null; date: string | null }];
@@ -163,10 +162,10 @@ function handleZoomSliderInput(event: Event) {
           :viewport-height="bodyViewportHeight"
           :scroll-top="scrollTop"
           :scroll-left="scrollLeft"
+          :interaction-cancel-version="interactionCancelVersion"
           :selected-row-ids="selectedRowIds"
           :selected-item-ids="selectedItemIds"
-          :selected-dependency-ids="selectedDependencyIds"
-          :selected-link-ids="selectedLinkIds"
+          :selected-work-connection-ids="selectedWorkConnectionIds"
           :selected-milestone-ids="selectedMilestoneIds"
           :connection-creation-state="connectionCreationState"
           :editing-item-id="editingItemId"
@@ -178,8 +177,7 @@ function handleZoomSliderInput(event: Event) {
           @select-row="emit('select-row', $event)"
           @delete-selection="emit('delete-selection')"
           @item-context-menu="emit('item-context-menu', $event)"
-          @dependency-context-menu="emit('dependency-context-menu', $event)"
-          @link-context-menu="emit('link-context-menu', $event)"
+          @work-connection-context-menu="emit('work-connection-context-menu', $event)"
           @milestone-context-menu="emit('milestone-context-menu', $event)"
           @row-context-menu="emit('row-context-menu', $event)"
           @canvas-context-menu="emit('canvas-context-menu', $event)"

@@ -2,11 +2,10 @@ import { computed, ref } from "vue";
 
 import { desktopScheduleSeed } from "@/features/desktop-schedule/data/desktop-schedule.seed";
 import type {
-  DesktopScheduleDependency,
   DesktopScheduleItem,
-  DesktopScheduleLink,
   DesktopScheduleMilestone,
   DesktopScheduleRow,
+  DesktopScheduleWorkConnection,
 } from "@/features/desktop-schedule/model/desktop-schedule.types";
 import {
   DESKTOP_SCHEDULE_MILESTONE_ROW_ID,
@@ -30,9 +29,11 @@ type ItemMoveSession = {
   rowIds: string[];
   baseItems: DesktopScheduleItem[];
   baseRows: DesktopScheduleRow[];
+  baseWorkConnections: DesktopScheduleWorkConnection[];
   baseLaneByItemId: Record<string, number>;
   maxLaneIndexByRowId: Record<string, number>;
   pinnedLaneByItemId: Record<string, number>;
+  blockedAlertShown: boolean;
 };
 
 type MilestoneMoveSession = {
@@ -50,6 +51,8 @@ type ResizeSession = {
   itemId: string;
   edge: "left" | "right";
   baseItems: DesktopScheduleItem[];
+  baseWorkConnections: DesktopScheduleWorkConnection[];
+  blockedAlertShown: boolean;
 };
 
 type SummaryResizeSession = {
@@ -61,7 +64,7 @@ type SummaryResizeSession = {
 };
 
 type ConnectionCreationState = {
-  kind: "dependency" | "link";
+  kind: "work-connection";
   sourceItemId: string;
 };
 
@@ -119,28 +122,19 @@ function promptForName(label: string, currentName: string): string | null {
   return trimmedName.length > 0 ? trimmedName : null;
 }
 
-function promptForGapDays(currentGapDays = 0): number | null {
-  if (typeof window === "undefined") {
-    return null;
+function shouldSwapConnectionDirection(
+  sourceItem: DesktopScheduleItem,
+  targetItem: DesktopScheduleItem,
+) {
+  if (sourceItem.startDate !== targetItem.startDate) {
+    return sourceItem.startDate > targetItem.startDate;
   }
 
-  const nextValue = window.prompt(
-    "링크 gap 일수를 입력하세요. 예) -2, 0, +2",
-    currentGapDays >= 0 ? `+${currentGapDays}` : `${currentGapDays}`,
-  );
-
-  if (nextValue === null) {
-    return null;
+  if (sourceItem.endDate !== targetItem.endDate) {
+    return sourceItem.endDate > targetItem.endDate;
   }
 
-  const normalizedValue = nextValue.trim().replace(/\s+/g, "");
-
-  if (!/^[+-]?\d+$/.test(normalizedValue)) {
-    window.alert("정수 일수를 입력해야 합니다. 예) -2, 0, +2");
-    return null;
-  }
-
-  return Number.parseInt(normalizedValue, 10);
+  return false;
 }
 
 export function useDesktopScheduleViewModel() {
@@ -150,10 +144,9 @@ export function useDesktopScheduleViewModel() {
   );
   const workingRows = ref<DesktopScheduleRow[]>(snapshot.rows.map((row) => ({ ...row })));
   const workingItems = ref<DesktopScheduleItem[]>(snapshot.items.map((item) => ({ ...item })));
-  const workingDependencies = ref<DesktopScheduleDependency[]>(
-    snapshot.dependencies.map((dependency) => ({ ...dependency })),
+  const workingWorkConnections = ref<DesktopScheduleWorkConnection[]>(
+    snapshot.workConnections.map((workConnection) => ({ ...workConnection })),
   );
-  const workingLinks = ref<DesktopScheduleLink[]>(snapshot.links.map((link) => ({ ...link })));
   const workingMilestones = ref<DesktopScheduleMilestone[]>(
     snapshot.milestones.map((milestone) => ({ ...milestone })),
   );
@@ -165,6 +158,7 @@ export function useDesktopScheduleViewModel() {
   const chartScrollLeft = ref(0);
   const lanePreferenceByItemId = ref<Record<string, number>>({});
   const interactionSession = ref<MoveSession | ResizeSession | SummaryResizeSession | null>(null);
+  const interactionCancelVersion = ref(0);
   const connectionCreationState = ref<ConnectionCreationState | null>(null);
   const renamingItemId = ref<string | null>(null);
   const renamingMilestoneId = ref<string | null>(null);
@@ -216,8 +210,7 @@ export function useDesktopScheduleViewModel() {
         interactionSession.value.itemIds.length > 0
           ? interactionSession.value.pinnedLaneByItemId
           : undefined,
-      dependencies: workingDependencies.value,
-      links: workingLinks.value,
+      workConnections: workingWorkConnections.value,
       milestones: workingMilestones.value,
     }),
   );
@@ -274,8 +267,6 @@ export function useDesktopScheduleViewModel() {
       ...selectionState.value,
       rowIds: payload.rowIds,
       itemIds: payload.itemIds,
-      dependencyIds: [],
-      linkIds: [],
       criticalPathIds: [],
       groupIds: [],
       milestoneIds: payload.milestoneIds ?? [],
@@ -310,27 +301,16 @@ export function useDesktopScheduleViewModel() {
 
     if (itemIdsToDelete.length > 0) {
       workingItems.value = desktopScheduleService.deleteItems(workingItems.value, itemIdsToDelete);
-      workingDependencies.value = desktopScheduleService.removeDependenciesForItems(
-        workingDependencies.value,
-        itemIdsToDelete,
-      );
-      workingLinks.value = desktopScheduleService.removeLinksForItems(
-        workingLinks.value,
+      workingWorkConnections.value = desktopScheduleService.removeWorkConnectionsForItems(
+        workingWorkConnections.value,
         itemIdsToDelete,
       );
     }
 
-    if (selectionState.value.dependencyIds.length > 0) {
-      workingDependencies.value = desktopScheduleService.removeDependenciesByIds(
-        workingDependencies.value,
-        selectionState.value.dependencyIds,
-      );
-    }
-
-    if (selectionState.value.linkIds.length > 0) {
-      workingLinks.value = desktopScheduleService.removeLinksByIds(
-        workingLinks.value,
-        selectionState.value.linkIds,
+    if (selectionState.value.workConnectionIds.length > 0) {
+      workingWorkConnections.value = desktopScheduleService.removeWorkConnectionsByIds(
+        workingWorkConnections.value,
+        selectionState.value.workConnectionIds,
       );
     }
 
@@ -393,34 +373,18 @@ export function useDesktopScheduleViewModel() {
     };
   }
 
-  function openDependencyContextMenu(payload: { dependencyId: string; x: number; y: number }) {
+  function openWorkConnectionContextMenu(payload: { workConnectionId: string; x: number; y: number }) {
     selectionState.value = {
       ...createEmptyDesktopScheduleSelectionState(),
-      dependencyIds: [payload.dependencyId],
+      workConnectionIds: [payload.workConnectionId],
     };
     contextMenuState.value = {
       open: true,
       x: payload.x,
       y: payload.y,
       target: {
-        kind: "dependency",
-        dependencyId: payload.dependencyId,
-      },
-    };
-  }
-
-  function openLinkContextMenu(payload: { linkId: string; x: number; y: number }) {
-    selectionState.value = {
-      ...createEmptyDesktopScheduleSelectionState(),
-      linkIds: [payload.linkId],
-    };
-    contextMenuState.value = {
-      open: true,
-      x: payload.x,
-      y: payload.y,
-      target: {
-        kind: "link",
-        linkId: payload.linkId,
+        kind: "work-connection",
+        workConnectionId: payload.workConnectionId,
       },
     };
   }
@@ -647,6 +611,20 @@ export function useDesktopScheduleViewModel() {
     closeContextMenu();
   }
 
+  function alertWorkConnectionPredecessorLimitOnce(session: {
+    blockedAlertShown: boolean;
+  }) {
+    if (session.blockedAlertShown || typeof window === "undefined") {
+      return;
+    }
+
+    session.blockedAlertShown = true;
+    selectionState.value = createEmptyDesktopScheduleSelectionState();
+    interactionSession.value = null;
+    interactionCancelVersion.value += 1;
+    window.alert("작업 연결 상태에서 후행작업은 선행작업보다 빠를 수 없어요.");
+  }
+
   const contextMenuItems = computed<DesktopScheduleContextMenuItem[]>(() => {
     const target = contextMenuState.value.target;
     if (!contextMenuState.value.open || !target) {
@@ -655,8 +633,12 @@ export function useDesktopScheduleViewModel() {
 
     if (target.kind === "item") {
       return [
-        { id: "toggle-dependency", label: "dependency 생성", command: "toggle-dependency", icon: "link" },
-        { id: "toggle-link", label: "link 생성", command: "toggle-link", icon: "link" },
+        {
+          id: "toggle-work-connection",
+          label: "작업 연결 생성",
+          command: "toggle-work-connection",
+          icon: "connection",
+        },
         { id: "change-item-color", label: "색상 변경", command: "change-color", icon: "palette" },
         {
           id: "change-item-properties",
@@ -674,25 +656,13 @@ export function useDesktopScheduleViewModel() {
       ];
     }
 
-    if (target.kind === "dependency") {
+    if (target.kind === "work-connection") {
       return [
         {
-          id: "remove-dependency",
-          label: "dependency 제거",
-          command: "remove-dependency",
-          icon: "unlink",
-          danger: true,
-        },
-      ];
-    }
-
-    if (target.kind === "link") {
-      return [
-        {
-          id: "remove-link",
-          label: "link 제거",
-          command: "remove-link",
-          icon: "unlink",
+          id: "remove-work-connection",
+          label: "작업 연결 제거",
+          command: "remove-work-connection",
+          icon: "disconnect",
           danger: true,
         },
       ];
@@ -831,22 +801,9 @@ export function useDesktopScheduleViewModel() {
     if (target.kind === "item") {
       const scopedItemIds = getScopedItemIds(target.itemId);
 
-      if (command === "toggle-dependency") {
+      if (command === "toggle-work-connection") {
         connectionCreationState.value = {
-          kind: "dependency",
-          sourceItemId: target.itemId,
-        };
-        selectionState.value = {
-          ...createEmptyDesktopScheduleSelectionState(),
-          itemIds: [target.itemId],
-        };
-        closeContextMenu();
-        return;
-      }
-
-      if (command === "toggle-link") {
-        connectionCreationState.value = {
-          kind: "link",
+          kind: "work-connection",
           sourceItemId: target.itemId,
         };
         selectionState.value = {
@@ -859,12 +816,8 @@ export function useDesktopScheduleViewModel() {
 
       if (command === "delete-item") {
         workingItems.value = desktopScheduleService.deleteItems(workingItems.value, scopedItemIds);
-        workingDependencies.value = desktopScheduleService.removeDependenciesForItems(
-          workingDependencies.value,
-          scopedItemIds,
-        );
-        workingLinks.value = desktopScheduleService.removeLinksForItems(
-          workingLinks.value,
+        workingWorkConnections.value = desktopScheduleService.removeWorkConnectionsForItems(
+          workingWorkConnections.value,
           scopedItemIds,
         );
         if (renamingItemId.value && scopedItemIds.includes(renamingItemId.value)) {
@@ -887,17 +840,11 @@ export function useDesktopScheduleViewModel() {
       }
     }
 
-    if (target.kind === "dependency" && command === "remove-dependency") {
-      workingDependencies.value = desktopScheduleService.removeDependenciesByIds(
-        workingDependencies.value,
-        [target.dependencyId],
+    if (target.kind === "work-connection" && command === "remove-work-connection") {
+      workingWorkConnections.value = desktopScheduleService.removeWorkConnectionsByIds(
+        workingWorkConnections.value,
+        [target.workConnectionId],
       );
-      closeContextMenu();
-      return;
-    }
-
-    if (target.kind === "link" && command === "remove-link") {
-      workingLinks.value = desktopScheduleService.removeLinksByIds(workingLinks.value, [target.linkId]);
       closeContextMenu();
       return;
     }
@@ -934,41 +881,36 @@ export function useDesktopScheduleViewModel() {
     }
 
     if (connectionCreation.sourceItemId !== targetItemId) {
-      if (connectionCreation.kind === "dependency") {
-        workingDependencies.value = desktopScheduleService.createDependency(
-          workingDependencies.value,
-          {
-            sourceItemId: connectionCreation.sourceItemId,
-            targetItemId,
-          },
-        );
-      } else {
-        const gapDays = promptForGapDays();
-        if (gapDays === null) {
-          return;
-        }
+      let sourceItemId = connectionCreation.sourceItemId;
+      let nextTargetItemId = targetItemId;
 
-        const nextLinks = desktopScheduleService.createLink(workingLinks.value, {
-          sourceItemId: connectionCreation.sourceItemId,
-          targetItemId,
-          gapDays,
-        });
+      const sourceItem = workingItems.value.find((item) => item.id === connectionCreation.sourceItemId);
+      const targetItem = workingItems.value.find((item) => item.id === targetItemId);
 
-        if (nextLinks !== workingLinks.value) {
-          workingLinks.value = nextLinks;
-          workingItems.value = desktopScheduleService.constrainItemsToRelationshipGaps(
-            workingItems.value,
-            [connectionCreation.sourceItemId],
-            workingDependencies.value,
-            nextLinks,
-          );
-        }
+      if (sourceItem && targetItem && shouldSwapConnectionDirection(sourceItem, targetItem)) {
+        sourceItemId = targetItem.id;
+        nextTargetItemId = sourceItem.id;
       }
 
-      selectionState.value = {
-        ...createEmptyDesktopScheduleSelectionState(),
-        itemIds: [connectionCreation.sourceItemId, targetItemId],
-      };
+      const nextSourceItem = workingItems.value.find((item) => item.id === sourceItemId);
+      const nextTargetItem = workingItems.value.find((item) => item.id === nextTargetItemId);
+
+      if (!nextSourceItem || !nextTargetItem) {
+        return;
+      }
+
+      workingWorkConnections.value = desktopScheduleService.createWorkConnection(
+        workingWorkConnections.value,
+        {
+          sourceItemId,
+          targetItemId: nextTargetItemId,
+          gapDays: desktopScheduleService.getGapDaysBetweenItems(
+            nextSourceItem,
+            nextTargetItem,
+          ),
+        },
+      );
+      selectionState.value = createEmptyDesktopScheduleSelectionState();
     }
 
     connectionCreationState.value = null;
@@ -1072,9 +1014,13 @@ export function useDesktopScheduleViewModel() {
       rowIds: selectedRowIds,
       baseItems: workingItems.value.map((item) => ({ ...item })),
       baseRows: workingRows.value.map((row) => ({ ...row })),
+      baseWorkConnections: workingWorkConnections.value.map((workConnection) => ({
+        ...workConnection,
+      })),
       baseLaneByItemId,
       maxLaneIndexByRowId,
       pinnedLaneByItemId: baseLaneByItemId,
+      blockedAlertShown: false,
     };
   }
 
@@ -1152,13 +1098,18 @@ export function useDesktopScheduleViewModel() {
       ),
     };
 
-    workingItems.value = desktopScheduleService.moveItems(
+    const moveResult = desktopScheduleService.moveItemsWithWorkConnections(
       session.baseItems,
       session.itemIds,
       payload.deltaDays,
-      workingDependencies.value,
-      workingLinks.value,
+      session.baseWorkConnections,
     );
+    workingItems.value = moveResult.items;
+    workingWorkConnections.value = moveResult.workConnections;
+
+    if (moveResult.blockedByPredecessorStart) {
+      alertWorkConnectionPredecessorLimitOnce(session);
+    }
   }
 
   function endMoveSession() {
@@ -1221,6 +1172,10 @@ export function useDesktopScheduleViewModel() {
       itemId: payload.itemId,
       edge: payload.edge,
       baseItems: workingItems.value.map((item) => ({ ...item })),
+      baseWorkConnections: workingWorkConnections.value.map((workConnection) => ({
+        ...workConnection,
+      })),
+      blockedAlertShown: false,
     };
   }
 
@@ -1240,14 +1195,19 @@ export function useDesktopScheduleViewModel() {
       return;
     }
 
-    workingItems.value = desktopScheduleService.resizeItem(
+    const resizeResult = desktopScheduleService.resizeItemWithWorkConnections(
       session.baseItems,
       session.itemId,
       session.edge,
       payload.deltaDays,
-      workingDependencies.value,
-      workingLinks.value,
+      session.baseWorkConnections,
     );
+    workingItems.value = resizeResult.items;
+    workingWorkConnections.value = resizeResult.workConnections;
+
+    if (resizeResult.blockedByPredecessorStart) {
+      alertWorkConnectionPredecessorLimitOnce(session);
+    }
   }
 
   function endResizeSession() {
@@ -1303,6 +1263,7 @@ export function useDesktopScheduleViewModel() {
     shellLayout,
     chartScrollTop,
     chartScrollLeft,
+    interactionCancelVersion,
     zoomScale,
     currentZoomIndex,
     maxZoomIndex,
@@ -1317,8 +1278,7 @@ export function useDesktopScheduleViewModel() {
     selectRows,
     deleteSelection,
     openItemContextMenu,
-    openDependencyContextMenu,
-    openLinkContextMenu,
+    openWorkConnectionContextMenu,
     openMilestoneContextMenu,
     openRowContextMenu,
     openCanvasContextMenu,
