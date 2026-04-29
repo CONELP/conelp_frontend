@@ -79,6 +79,13 @@
         :style="hoveredIntersectionStyle"
       />
 
+      <div
+        v-if="cellSelectionRangeStyle"
+        :key="cellSelectionRangeKey"
+        class="schedule-chart-body__cell-selection"
+        :style="cellSelectionRangeStyle"
+      />
+
       <svg
         class="schedule-chart-body__connections"
         :width="timeline.chartWidth"
@@ -378,6 +385,11 @@ type HoveredCellState = {
   date: string | null;
 };
 
+type GridCellSelectionPoint = {
+  rowId: string;
+  date: string;
+};
+
 type ConnectionCreationState = {
   kind: "work-connection" | "critical-path";
   sourceItemId: string;
@@ -451,6 +463,8 @@ const hoveredMilestoneId = ref<string | null>(null);
 const hoveredConnectionTargetItemId = ref<string | null>(null);
 const previewConnectionPoint = ref<PreviewConnectionPoint | null>(null);
 const hoveredCell = ref<HoveredCellState>({ rowId: null, date: null });
+const cellSelectionAnchor = ref<GridCellSelectionPoint | null>(null);
+const cellSelectionFocus = ref<GridCellSelectionPoint | null>(null);
 const renameEditorRef = ref<HTMLElement | null>(null);
 const milestoneRenameEditorRef = ref<HTMLElement | null>(null);
 const renameDraft = ref("");
@@ -479,6 +493,12 @@ const selectedRowIdSet = computed(() => new Set(props.selectedRowIds));
 const selectedWorkConnectionIdSet = computed(() => new Set(props.selectedWorkConnectionIds));
 const selectedMilestoneIdSet = computed(() => new Set(props.selectedMilestoneIds));
 const selectedCriticalPathIdSet = computed(() => new Set(props.selectedCriticalPathIds ?? []));
+const timelineDayByDate = computed(
+  () => new Map(props.timeline.days.map((day) => [day.date, day] as const)),
+);
+const shellRowById = computed(
+  () => new Map(props.shellLayout.rows.map((row) => [row.id, row] as const)),
+);
 const selectedCriticalPathPathIdSet = computed(() => {
   const pathIds = new Set<number>();
 
@@ -548,6 +568,35 @@ const hoveredTimelineDay = computed(() =>
     : null,
 );
 const todayTimelineDay = computed(() => props.timeline.days.find((day) => day.isToday) ?? null);
+const cellSelectionRangeStyle = computed(() => {
+  if (!cellSelectionAnchor.value || !cellSelectionFocus.value) {
+    return null;
+  }
+
+  const rangeBounds = getCellRangeBounds(cellSelectionAnchor.value, cellSelectionFocus.value);
+  if (!rangeBounds) {
+    return null;
+  }
+
+  return {
+    left: `${rangeBounds.left}px`,
+    top: `${rangeBounds.top}px`,
+    width: `${rangeBounds.right - rangeBounds.left}px`,
+    height: `${rangeBounds.bottom - rangeBounds.top}px`,
+  };
+});
+const cellSelectionRangeKey = computed(() => {
+  if (!cellSelectionAnchor.value || !cellSelectionFocus.value) {
+    return "cell-selection-empty";
+  }
+
+  return [
+    cellSelectionAnchor.value.rowId,
+    cellSelectionAnchor.value.date,
+    cellSelectionFocus.value.rowId,
+    cellSelectionFocus.value.date,
+  ].join(":");
+});
 const divisionTodayBorderStyles = computed(() => {
   const today = todayTimelineDay.value;
 
@@ -883,6 +932,11 @@ function getDateAtContentX(contentX: number) {
   return props.timeline.days[dayIndex]?.date ?? null;
 }
 
+function getTimelineDayAtContentX(contentX: number) {
+  const dayIndex = Math.floor(contentX / props.timeline.dayWidth);
+  return props.timeline.days[dayIndex] ?? null;
+}
+
 function getRowIdAtContentY(contentY: number) {
   const row = props.shellLayout.rows.find(
     (candidate) => contentY >= candidate.top && contentY < candidate.top + candidate.height,
@@ -890,10 +944,133 @@ function getRowIdAtContentY(contentY: number) {
   return row?.id ?? null;
 }
 
+function getShellRowAtContentY(contentY: number) {
+  return (
+    props.shellLayout.rows.find(
+      (candidate) => contentY >= candidate.top && contentY < candidate.top + candidate.height,
+    ) ?? null
+  );
+}
+
+function isSelectableGridRow(row: DesktopScheduleShellLayout["rows"][number]) {
+  return row.kind === "child-process" || row.kind === "parent-process";
+}
+
+function getSelectableCellAtContentPoint(point: { x: number; y: number }) {
+  const day = getTimelineDayAtContentX(point.x);
+  const row = getShellRowAtContentY(point.y);
+
+  if (!day || !row || !isSelectableGridRow(row)) {
+    return null;
+  }
+
+  return {
+    rowId: row.id,
+    date: day.date,
+  };
+}
+
+function getCellRangeBounds(
+  anchor: GridCellSelectionPoint,
+  focus: GridCellSelectionPoint,
+) {
+  const anchorRow = shellRowById.value.get(anchor.rowId);
+  const focusRow = shellRowById.value.get(focus.rowId);
+  const anchorDay = timelineDayByDate.value.get(anchor.date);
+  const focusDay = timelineDayByDate.value.get(focus.date);
+
+  if (!anchorRow || !focusRow || !anchorDay || !focusDay) {
+    return null;
+  }
+
+  return {
+    left: Math.min(anchorDay.left, focusDay.left),
+    right: Math.max(anchorDay.left + anchorDay.width, focusDay.left + focusDay.width),
+    top: Math.min(anchorRow.top, focusRow.top),
+    bottom: Math.max(anchorRow.top + anchorRow.height, focusRow.top + focusRow.height),
+  };
+}
+
+function selectBarsInCellRange(focusCell: GridCellSelectionPoint) {
+  const anchorCell = cellSelectionAnchor.value ?? focusCell;
+  const rangeBounds = getCellRangeBounds(anchorCell, focusCell);
+
+  cellSelectionAnchor.value = anchorCell;
+  cellSelectionFocus.value = focusCell;
+
+  if (!rangeBounds) {
+    emit("select-bars", {
+      itemIds: [],
+      rowIds: [],
+    });
+    return;
+  }
+
+  const selectedItemIds = props.shellLayout.bars
+    .filter((bar) => {
+      if (bar.kind !== "item") {
+        return false;
+      }
+
+      const barRight = bar.left + bar.width;
+      const barBottom = bar.top + bar.height;
+      return (
+        bar.left < rangeBounds.right &&
+        barRight > rangeBounds.left &&
+        bar.top < rangeBounds.bottom &&
+        barBottom > rangeBounds.top
+      );
+    })
+    .map((bar) => bar.itemId);
+
+  emit("select-bars", {
+    itemIds: selectedItemIds,
+    rowIds: [],
+  });
+}
+
+function selectSingleCell(cell: GridCellSelectionPoint) {
+  cellSelectionAnchor.value = cell;
+  cellSelectionFocus.value = cell;
+  emit("select-bars", {
+    itemIds: [],
+    rowIds: [],
+  });
+}
+
+function clearCellSelection() {
+  cellSelectionAnchor.value = null;
+  cellSelectionFocus.value = null;
+}
+
+function selectCellAtContentPoint(point: { x: number; y: number }) {
+  const cell = getSelectableCellAtContentPoint(point);
+
+  if (!cell) {
+    clearCellSelection();
+    emit("clear-selection");
+    return;
+  }
+
+  selectSingleCell(cell);
+}
+
+function extendCellSelectionAtContentPoint(point: { x: number; y: number }) {
+  const cell = getSelectableCellAtContentPoint(point);
+
+  if (!cell) {
+    return;
+  }
+
+  selectBarsInCellRange(cell);
+}
+
 function selectBarsInMarquee() {
   if (!marqueeState.value) {
     return;
   }
+
+  clearCellSelection();
 
   const left = Math.min(marqueeState.value.startX, marqueeState.value.currentX);
   const right = Math.max(marqueeState.value.startX, marqueeState.value.currentX);
@@ -1008,6 +1185,12 @@ function handlePanePointerDown(event: PointerEvent) {
     return;
   }
 
+  if (event.shiftKey) {
+    event.preventDefault();
+    extendCellSelectionAtContentPoint(point);
+    return;
+  }
+
   marqueeState.value = {
     startX: point.x,
     startY: point.y,
@@ -1056,6 +1239,19 @@ function handleBarPointerDown(bar: DesktopScheduleBarLayout, event: PointerEvent
     event.preventDefault();
     lastItemPointerDown = null;
 
+    const point = getContentPoint(event);
+    const targetCell = point ? getSelectableCellAtContentPoint(point) : null;
+
+    if (
+      cellSelectionAnchor.value &&
+      targetCell &&
+      props.selectedItemIds.length === 0 &&
+      props.selectedRowIds.length === 0
+    ) {
+      selectBarsInCellRange(targetCell);
+      return;
+    }
+
     const nextItemIds = selectedItemIdSet.value.has(bar.itemId)
       ? props.selectedItemIds.filter((itemId) => itemId !== bar.itemId)
       : [...props.selectedItemIds, bar.itemId];
@@ -1065,6 +1261,15 @@ function handleBarPointerDown(bar: DesktopScheduleBarLayout, event: PointerEvent
       rowIds: [],
     });
     return;
+  }
+
+  const point = getContentPoint(event);
+  const targetCell = point ? getSelectableCellAtContentPoint(point) : null;
+  if (targetCell) {
+    cellSelectionAnchor.value = targetCell;
+    cellSelectionFocus.value = targetCell;
+  } else {
+    clearCellSelection();
   }
 
   if (bar.kind === "item") {
@@ -1190,18 +1395,6 @@ function handleRowContextMenu(row: DesktopScheduleShellLayout["rows"][number], e
 }
 
 function handleRowPointerDown(row: DesktopScheduleShellLayout["rows"][number], event: PointerEvent) {
-  if (
-    event.button === 0 &&
-    row.kind === "child-process" &&
-    !isSpacePressed.value &&
-    !props.editingItemId &&
-    !props.connectionCreationState
-  ) {
-    event.stopPropagation();
-    emit("select-row", row.id);
-    return;
-  }
-
   if (row.kind === "milestone") {
     event.stopPropagation();
   }
@@ -1703,7 +1896,10 @@ function handlePointerUp() {
     const height = Math.abs(marqueeState.value.currentY - marqueeState.value.startY);
 
     if (width < 4 && height < 4) {
-      emit("clear-selection");
+      selectCellAtContentPoint({
+        x: marqueeState.value.currentX,
+        y: marqueeState.value.currentY,
+      });
     } else {
       selectBarsInMarquee();
     }
