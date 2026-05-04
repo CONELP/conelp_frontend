@@ -13,6 +13,10 @@ const {
   scheduleLoadStatus,
   scheduleLoadErrorMessage,
   scheduleToast,
+  isScheduleReadOnly,
+  scheduleVersionDisplayName,
+  scheduleVersionModeLabel,
+  scheduleVersionAccessLabel,
   selectionState,
   contextMenuState,
   contextMenuItems,
@@ -86,6 +90,8 @@ const {
   setZoomIndex,
   zoomIn,
   zoomOut,
+  notifyReadOnlyScheduleAction,
+  createDraftVersionFromCurrent,
 } = useDesktopScheduleViewModel();
 
 const shellHostRef = ref<HTMLElement | null>(null);
@@ -261,6 +267,10 @@ watch(
             <DesktopScheduleShell
               :timeline="timeline"
               :shell-layout="shellLayout"
+              :read-only="isScheduleReadOnly"
+              :version-name="scheduleVersionDisplayName"
+              :version-mode-label="scheduleVersionModeLabel"
+              :version-access-label="scheduleVersionAccessLabel"
               :viewport-height="shellViewportHeight"
               :scroll-top="chartScrollTop"
               :scroll-left="chartScrollLeft"
@@ -289,9 +299,11 @@ watch(
               @work-type-column-width-change="handleWorkTypeColumnWidthChange"
               @undo="undoLocalHistory"
               @redo="redoLocalHistory"
+              @create-draft-version="createDraftVersionFromCurrent"
+              @readonly-edit-attempt="notifyReadOnlyScheduleAction"
               @clear-selection="clearSelection"
               @select-bars="selectBars"
-              @select-row="(rowId) => selectRows({ rowIds: [rowId] })"
+              @select-row="(rowId: string) => selectRows({ rowIds: [rowId] })"
               @start-division-rename="startDivisionRename"
               @commit-division-rename="commitDivisionRename"
               @cancel-division-rename="cancelDivisionRename"

@@ -96,6 +96,7 @@ const CRITICAL_PATH_COLORS = [
 const MILESTONE_MARKER_SIZE = 10;
 const MILESTONE_BADGE_HEIGHT = 22;
 const MILESTONE_BADGE_GAP = 5;
+const MILESTONE_ROW_EXTRA_HEIGHT = 8;
 const MILESTONE_BADGE_HORIZONTAL_GAP = 8;
 const MILESTONE_BADGE_HORIZONTAL_PADDING = 10;
 const MILESTONE_MIN_LABEL_WIDTH = 52;
@@ -176,6 +177,10 @@ function diffDays(startDate: string, endDate: string) {
   end.setHours(0, 0, 0, 0);
 
   return Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
+}
+
+function getDateEndBoundaryLeft(timeline: DesktopScheduleTimelineLayout, date: string) {
+  return (diffDays(timeline.startDate, date) + 1) * timeline.dayWidth;
 }
 
 function getIsoWeekInfo(date: Date) {
@@ -496,12 +501,15 @@ function buildMilestoneLayouts(
   const labelScale = baseRowHeight / DESKTOP_SCHEDULE_SHELL_DEFAULTS.rowHeight;
   const badgeHeight = Math.max(Math.round(MILESTONE_BADGE_HEIGHT * labelScale), 18);
   const laneGap = Math.max(Math.round(MILESTONE_BADGE_GAP * labelScale), 3);
-  const verticalPadding = Math.max(Math.round((baseRowHeight - badgeHeight) / 2), 6);
+  const rowExtraHeight = Math.max(Math.round(MILESTONE_ROW_EXTRA_HEIGHT * labelScale), 5);
+  const verticalPadding = Math.max(
+    Math.round((baseRowHeight + rowExtraHeight - badgeHeight) / 2),
+    6,
+  );
 
   const milestoneLayouts = sortedMilestones.map((milestone) => {
-    const dayLeft = diffDays(timeline.startDate, milestone.date) * timeline.dayWidth;
-    const markerLeft = dayLeft + timeline.dayWidth - 4;
-    const markerCenter = markerLeft + 4;
+    const markerCenter = getDateEndBoundaryLeft(timeline, milestone.date);
+    const markerLeft = markerCenter - MILESTONE_MARKER_SIZE / 2;
     const labelWidth = estimateMilestoneLabelWidth(milestone.label, timeline.dayWidth) * labelScale;
     const labelLeft = markerCenter - labelWidth;
     const labelRight = markerCenter;
@@ -520,7 +528,7 @@ function buildMilestoneLayouts(
       rowId: milestone.rowId,
       left: markerLeft,
       top: verticalPadding + laneIndex * (badgeHeight + laneGap),
-      width: 8,
+      width: MILESTONE_MARKER_SIZE,
       height: badgeHeight,
       labelWidth,
     };

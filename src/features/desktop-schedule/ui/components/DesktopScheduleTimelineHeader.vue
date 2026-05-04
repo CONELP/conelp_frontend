@@ -5,7 +5,6 @@ import "@/features/desktop-schedule/ui/components/styles/DesktopScheduleTimeline
 const props = defineProps<{
   timeline: DesktopScheduleTimelineLayout;
   scrollLeft: number;
-  milestoneDates: string[];
   hoveredDate?: string | null;
 }>();
 
@@ -22,7 +21,10 @@ function getDayCellClass(day: DesktopScheduleTimelineLayout["days"][number]) {
   <div class="schedule-timeline-header">
     <div
       class="schedule-timeline-header__canvas"
-      :style="{ width: `${timeline.chartWidth}px`, transform: `translateX(-${scrollLeft}px)` }"
+      :style="{
+        width: `${timeline.chartWidth}px`,
+        transform: `translateX(-${scrollLeft}px)`,
+      }"
     >
       <div
         v-for="group in timeline.monthGroups"
@@ -52,6 +54,26 @@ function getDayCellClass(day: DesktopScheduleTimelineLayout["days"][number]) {
         <span>{{ day.dayOfMonth }}</span>
         <small>{{ day.dayName }}</small>
       </div>
+
+      <svg
+        class="schedule-timeline-header__day-grid"
+        :width="timeline.chartWidth"
+        height="100%"
+        :viewBox="`0 0 ${timeline.chartWidth} 100`"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <line
+          v-for="day in timeline.days"
+          :key="`day-grid-${day.key}`"
+          :x1="day.left + day.width"
+          y1="0"
+          :x2="day.left + day.width"
+          y2="100"
+        />
+      </svg>
+
+      <div class="schedule-timeline-header__date-bottom-line" aria-hidden="true" />
     </div>
   </div>
 </template>

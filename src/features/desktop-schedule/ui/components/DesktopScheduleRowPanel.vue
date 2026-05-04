@@ -59,9 +59,11 @@ const REFERENCE_DRAG_LISTENER_OPTIONS = true;
 const WORK_TYPE_COLUMN_MIN_WIDTH = 72;
 const WORK_TYPE_COLUMN_MAX_WIDTH = 240;
 const COLUMN_RESIZE_LISTENER_OPTIONS = true;
+const SCROLL_SYNC_EPSILON = 0.01;
 
 const props = defineProps<{
   rows: DesktopScheduleShellRow[];
+  readOnly: boolean;
   viewportHeight: number;
   scrollTop: number;
   workTypeColumnWidth: number;
@@ -361,7 +363,7 @@ function syncContainerScrollFromProps() {
     return;
   }
 
-  if (Math.abs(element.scrollTop - props.scrollTop) < 1) {
+  if (Math.abs(element.scrollTop - props.scrollTop) < SCROLL_SYNC_EPSILON) {
     return;
   }
 
@@ -467,6 +469,10 @@ function handleRowPointerDown(row: DesktopScheduleShellRow, event: PointerEvent)
 function handleRowContextMenu(row: DesktopScheduleShellRow, event: MouseEvent) {
   event.preventDefault();
 
+  if (props.readOnly) {
+    return;
+  }
+
   if (row.kind === "division" && row.divisionId && row.divisionId > 0) {
     emit("header-context-menu", {
       target: {
@@ -510,6 +516,10 @@ function handleRowContextMenu(row: DesktopScheduleShellRow, event: MouseEvent) {
 
 function handleWorkTypeContextMenu(group: WorkTypeGroupEntry, event: MouseEvent) {
   event.preventDefault();
+
+  if (props.readOnly) {
+    return;
+  }
 
   if (!group.divisionId || group.divisionId < 0 || !group.workTypeId || group.workTypeId < 0) {
     return;
@@ -753,6 +763,10 @@ function handleReferenceDragPointerUp(event: PointerEvent) {
 }
 
 function startDivisionDrag(row: DesktopScheduleShellRow, event: PointerEvent) {
+  if (props.readOnly) {
+    return;
+  }
+
   if (event.button !== 0 || !row.divisionId || row.divisionId < 0) {
     return;
   }
@@ -778,6 +792,10 @@ function startDivisionDrag(row: DesktopScheduleShellRow, event: PointerEvent) {
 }
 
 function startWorkTypeDrag(group: WorkTypeGroupEntry, event: PointerEvent) {
+  if (props.readOnly) {
+    return;
+  }
+
   if (
     event.button !== 0 ||
     !group.divisionId ||
@@ -810,6 +828,10 @@ function startWorkTypeDrag(group: WorkTypeGroupEntry, event: PointerEvent) {
 }
 
 function startDivisionRename(row: DesktopScheduleShellRow) {
+  if (props.readOnly) {
+    return;
+  }
+
   if (row.kind !== "division" || row.divisionId === undefined) {
     return;
   }
@@ -877,6 +899,10 @@ function handleDivisionRenameEscape() {
 }
 
 function startWorkTypeRename(group: WorkTypeGroupEntry) {
+  if (props.readOnly) {
+    return;
+  }
+
   if (group.workTypeId === null || group.workTypeId === undefined) {
     return;
   }
@@ -944,6 +970,10 @@ function handleWorkTypeRenameEscape() {
 }
 
 function startSubWorkTypeRename(row: DesktopScheduleShellRow) {
+  if (props.readOnly) {
+    return;
+  }
+
   if (row.subWorkTypeId === null || row.subWorkTypeId === undefined) {
     return;
   }
@@ -1015,7 +1045,10 @@ function handleSubWorkTypeRenameEscape() {
   <div
     ref="containerRef"
     class="schedule-row-panel"
-    :class="{ 'schedule-row-panel--resizing-column': workTypeColumnResizeState }"
+    :class="{
+      'schedule-row-panel--resizing-column': workTypeColumnResizeState,
+      'schedule-row-panel--readonly': readOnly,
+    }"
     :style="panelStyle"
     @scroll="handleScroll"
   >
@@ -1057,7 +1090,7 @@ function handleSubWorkTypeRenameEscape() {
           @dblclick.stop="handleDivisionDoubleClick(entry.row)"
         >
           <button
-            v-if="entry.row.divisionId && entry.row.divisionId > 0"
+            v-if="!readOnly && entry.row.divisionId && entry.row.divisionId > 0"
             type="button"
             class="schedule-row-panel__drag-handle schedule-row-panel__drag-handle--division"
             :aria-label="`${entry.row.name} 순서 변경`"
@@ -1145,7 +1178,7 @@ function handleSubWorkTypeRenameEscape() {
           @contextmenu.stop="handleWorkTypeContextMenu(group, $event)"
         >
           <button
-            v-if="group.workTypeId && group.workTypeId > 0"
+            v-if="!readOnly && group.workTypeId && group.workTypeId > 0"
             type="button"
             class="schedule-row-panel__drag-handle schedule-row-panel__drag-handle--work-type"
             :aria-label="`${group.label} 순서 변경`"
@@ -1175,6 +1208,43 @@ function handleSubWorkTypeRenameEscape() {
           </span>
         </div>
       </div>
+
+      <svg
+        class="schedule-row-panel__row-grid"
+        :width="workTypeColumnWidth + 100"
+        :height="contentHeight"
+        :viewBox="`0 0 ${workTypeColumnWidth + 100} ${contentHeight}`"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <line
+          v-for="entry in panelEntries.filter((candidate) => candidate.row.kind === 'child-process')"
+          :key="`row-panel-row-end-${entry.row.id}`"
+          class="schedule-row-panel__row-grid-line"
+          :x1="workTypeColumnWidth"
+          :y1="entry.row.top + entry.row.height"
+          :x2="workTypeColumnWidth + 100"
+          :y2="entry.row.top + entry.row.height"
+        />
+        <line
+          v-for="entry in panelEntries.filter((candidate) => candidate.row.kind !== 'child-process')"
+          :key="`row-panel-full-row-end-${entry.row.id}`"
+          class="schedule-row-panel__row-grid-line"
+          x1="0"
+          :y1="entry.row.top + entry.row.height"
+          :x2="workTypeColumnWidth + 100"
+          :y2="entry.row.top + entry.row.height"
+        />
+        <line
+          v-for="entry in panelEntries.filter((candidate) => candidate.row.kind === 'division')"
+          :key="`row-panel-division-start-${entry.row.id}`"
+          class="schedule-row-panel__row-grid-line schedule-row-panel__row-grid-line--strong"
+          x1="0"
+          :y1="entry.row.top"
+          :x2="workTypeColumnWidth + 100"
+          :y2="entry.row.top"
+        />
+      </svg>
 
       <div
         v-if="activeWorkTypeDragPreview"

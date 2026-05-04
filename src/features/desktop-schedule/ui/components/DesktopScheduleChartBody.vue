@@ -7,6 +7,7 @@
       'schedule-chart-body--grabbing': !!panState,
       'schedule-chart-body--crosshair': !!connectionCreationState,
       'schedule-chart-body--locked': marqueeState || moveState || resizeState || panState,
+      'schedule-chart-body--readonly': readOnly,
     }"
     :style="{ height: `${viewportHeight}px` }"
     @scroll="handleScroll"
@@ -19,7 +20,10 @@
   >
     <div
       class="schedule-chart-body__surface"
-      :style="{ width: `${timeline.chartWidth}px`, height: `${shellLayout.chartHeight}px` }"
+      :style="{
+        width: `${timeline.chartWidth}px`,
+        height: `${shellLayout.chartHeight}px`,
+      }"
     >
       <div
         v-for="day in timeline.days"
@@ -43,6 +47,52 @@
         @pointerdown="handleRowPointerDown(row, $event)"
         @contextmenu.prevent.stop="handleRowContextMenu(row, $event)"
       />
+
+      <svg
+        class="schedule-chart-body__vertical-grid"
+        :width="timeline.chartWidth"
+        :height="shellLayout.chartHeight"
+        :viewBox="`0 0 ${timeline.chartWidth} ${shellLayout.chartHeight}`"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <line
+          v-for="day in timeline.days"
+          :key="`body-grid-${day.key}`"
+          :x1="day.left + day.width"
+          y1="0"
+          :x2="day.left + day.width"
+          :y2="shellLayout.chartHeight"
+        />
+      </svg>
+
+      <svg
+        class="schedule-chart-body__row-grid"
+        :width="timeline.chartWidth"
+        :height="shellLayout.chartHeight"
+        :viewBox="`0 0 ${timeline.chartWidth} ${shellLayout.chartHeight}`"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <line
+          v-for="row in shellLayout.rows"
+          :key="`body-row-end-${row.id}`"
+          class="schedule-chart-body__row-grid-line"
+          x1="0"
+          :y1="row.top + row.height"
+          :x2="timeline.chartWidth"
+          :y2="row.top + row.height"
+        />
+        <line
+          v-for="row in shellLayout.rows.filter((candidate) => candidate.kind === 'division')"
+          :key="`body-division-start-${row.id}`"
+          class="schedule-chart-body__row-grid-line schedule-chart-body__row-grid-line--strong"
+          x1="0"
+          :y1="row.top"
+          :x2="timeline.chartWidth"
+          :y2="row.top"
+        />
+      </svg>
 
       <div
         v-if="todayTimelineDay"
@@ -148,9 +198,7 @@
             stroke-linejoin="round"
             :stroke="getConnectionStroke(connection)"
             :stroke-width="getRenderedConnectionStrokeWidth(connection.id, connection.kind, connection.pathId)"
-            :opacity="connection.kind === 'critical-path'
-              ? isCriticalPathHighlighted(connection.id, connection.pathId) ? 1 : 0.95
-              : isWorkConnectionHighlighted(connection.id) ? 1 : 0.9"
+            :opacity="getConnectionOpacity(connection)"
           />
 
         </g>
@@ -293,14 +341,14 @@
         </span>
 
         <button
-          v-if="!connectionCreationState && (bar.kind === 'item' || bar.kind === 'summary')"
+          v-if="!readOnly && !connectionCreationState && (bar.kind === 'item' || bar.kind === 'summary')"
           type="button"
           class="schedule-chart-body__resize-handle schedule-chart-body__resize-handle--left"
           :class="getResizeHandleClass(bar, 'left')"
           @pointerdown.stop="handleResizePointerDown(bar, 'left', $event)"
         />
         <button
-          v-if="!connectionCreationState && (bar.kind === 'item' || bar.kind === 'summary')"
+          v-if="!readOnly && !connectionCreationState && (bar.kind === 'item' || bar.kind === 'summary')"
           type="button"
           class="schedule-chart-body__resize-handle schedule-chart-body__resize-handle--right"
           :class="getResizeHandleClass(bar, 'right')"
@@ -400,6 +448,7 @@ type ConnectionCreationState = {
 const props = defineProps<{
   timeline: DesktopScheduleTimelineLayout;
   shellLayout: DesktopScheduleShellLayout;
+  readOnly: boolean;
   viewportHeight: number;
   scrollTop: number;
   scrollLeft: number;
@@ -422,6 +471,7 @@ const emit = defineEmits<{
   "select-bars": [payload: { itemIds: string[]; rowIds: string[]; milestoneIds?: string[] }];
   "select-row": [rowId: string];
   "delete-selection": [];
+  "readonly-edit-attempt": [];
   "item-context-menu": [payload: { itemId: string; x: number; y: number }];
   "work-connection-context-menu": [payload: { workConnectionId: string; x: number; y: number }];
   "critical-path-context-menu": [payload: { criticalPathId: string; x: number; y: number }];
@@ -487,6 +537,7 @@ let syncingFromProp = false;
 const LANE_GAP = 6;
 const DRAG_ACTIVATION_THRESHOLD = 4;
 const ITEM_RENAME_DOUBLE_CLICK_WINDOW_MS = 320;
+const SCROLL_SYNC_EPSILON = 0.01;
 
 const selectedItemIdSet = computed(() => new Set(props.selectedItemIds));
 const selectedRowIdSet = computed(() => new Set(props.selectedRowIds));
@@ -790,7 +841,7 @@ function syncContainerScrollFromProps() {
 
   const topDiff = Math.abs(element.scrollTop - props.scrollTop);
   const leftDiff = Math.abs(element.scrollLeft - props.scrollLeft);
-  if (topDiff < 1 && leftDiff < 1) {
+  if (topDiff < SCROLL_SYNC_EPSILON && leftDiff < SCROLL_SYNC_EPSILON) {
     return;
   }
 
@@ -1212,6 +1263,52 @@ function handleBarPointerDown(bar: DesktopScheduleBarLayout, event: PointerEvent
     return;
   }
 
+  if (props.readOnly) {
+    if (props.connectionCreationState) {
+      emit("cancel-connection-create");
+      emit("readonly-edit-attempt");
+      return;
+    }
+
+    if (bar.kind === "item") {
+      const now = Date.now();
+      const previousPointerDown = lastItemPointerDown;
+      const isSameBarDoublePress =
+        previousPointerDown?.itemId === bar.itemId &&
+        now - previousPointerDown.timestamp <= ITEM_RENAME_DOUBLE_CLICK_WINDOW_MS;
+
+      lastItemPointerDown = {
+        itemId: bar.itemId,
+        timestamp: now,
+      };
+
+      if (isSameBarDoublePress) {
+        lastItemPointerDown = null;
+        emit("readonly-edit-attempt");
+        return;
+      }
+
+      const nextItemIds = event.shiftKey
+        ? selectedItemIdSet.value.has(bar.itemId)
+          ? props.selectedItemIds.filter((itemId) => itemId !== bar.itemId)
+          : [...props.selectedItemIds, bar.itemId]
+        : [bar.itemId];
+
+      emit("select-bars", {
+        itemIds: nextItemIds,
+        rowIds: [],
+      });
+      return;
+    }
+
+    lastItemPointerDown = null;
+    emit("select-bars", {
+      itemIds: [],
+      rowIds: [bar.rowId],
+    });
+    return;
+  }
+
   if (props.connectionCreationState) {
     lastItemPointerDown = null;
 
@@ -1345,6 +1442,11 @@ function handleResizePointerDown(
   edge: "left" | "right",
   event: PointerEvent,
 ) {
+  if (props.readOnly) {
+    emit("readonly-edit-attempt");
+    return;
+  }
+
   if (props.connectionCreationState || event.button !== 0 || isSpacePressed.value) {
     return;
   }
@@ -1423,6 +1525,31 @@ function handleMilestonePointerDown(
 
   if (props.connectionCreationState) {
     emit("cancel-connection-create");
+    return;
+  }
+
+  if (props.readOnly) {
+    const now = Date.now();
+    const isSameMilestoneDoublePress =
+      lastMilestonePointerDown?.milestoneId === milestone.id &&
+      now - lastMilestonePointerDown.timestamp <= ITEM_RENAME_DOUBLE_CLICK_WINDOW_MS;
+
+    lastMilestonePointerDown = {
+      milestoneId: milestone.id,
+      timestamp: now,
+    };
+
+    if (isSameMilestoneDoublePress) {
+      lastMilestonePointerDown = null;
+      emit("readonly-edit-attempt");
+      return;
+    }
+
+    emit("select-bars", {
+      itemIds: [],
+      rowIds: [],
+      milestoneIds: [milestone.id],
+    });
     return;
   }
 
@@ -1667,12 +1794,16 @@ function getBarClassList(bar: DesktopScheduleBarLayout) {
   return {
     "schedule-chart-body__bar--item": true,
     "schedule-chart-body__bar--item-selected": selectedItemIdSet.value.has(bar.itemId),
-    "schedule-chart-body__bar--item-editing": props.editingItemId === bar.itemId,
+    "schedule-chart-body__bar--item-editing": !props.readOnly && props.editingItemId === bar.itemId,
     "schedule-chart-body__bar--holiday-off": bar.appearance === "holiday-off",
     "schedule-chart-body__bar--connection-source":
-      !!props.connectionCreationState && bar.itemId === props.connectionCreationState.sourceItemId,
+      !props.readOnly &&
+      !!props.connectionCreationState &&
+      bar.itemId === props.connectionCreationState.sourceItemId,
     "schedule-chart-body__bar--connection-target":
-      !!props.connectionCreationState && hoveredConnectionTargetItemId.value === bar.itemId,
+      !props.readOnly &&
+      !!props.connectionCreationState &&
+      hoveredConnectionTargetItemId.value === bar.itemId,
   };
 }
 
@@ -1697,6 +1828,14 @@ function getDayColumnClass(day: DesktopScheduleTimelineLayout["days"][number]) {
 }
 
 function getConnectionStroke(connection: DesktopScheduleConnectionLayout) {
+  if (
+    props.readOnly &&
+    connection.kind === "work-connection" &&
+    !isWorkConnectionHighlighted(connection.id)
+  ) {
+    return "#9ca3af";
+  }
+
   return connection.colorHex ?? "#64748b";
 }
 
@@ -1713,7 +1852,27 @@ function getConnectionStrokeWidth(kind: DesktopScheduleConnectionLayout["kind"])
 }
 
 function getConnectionLabelColor(connection: DesktopScheduleConnectionLayout) {
+  if (
+    props.readOnly &&
+    connection.kind === "work-connection" &&
+    !isWorkConnectionHighlighted(connection.id)
+  ) {
+    return "#6b7280";
+  }
+
   return connection.colorHex ?? "#64748b";
+}
+
+function getConnectionOpacity(connection: DesktopScheduleConnectionLayout) {
+  if (connection.kind === "critical-path") {
+    return isCriticalPathHighlighted(connection.id, connection.pathId) ? 1 : 0.95;
+  }
+
+  if (!props.readOnly) {
+    return isWorkConnectionHighlighted(connection.id) ? 1 : 0.9;
+  }
+
+  return isWorkConnectionHighlighted(connection.id) ? 0.92 : 0.46;
 }
 
 function isWorkConnectionHighlighted(connectionId: string) {
@@ -1729,7 +1888,7 @@ function getRenderedConnectionStrokeWidth(
   pathId?: number,
 ) {
   if (kind === "work-connection" && isWorkConnectionHighlighted(connectionId)) {
-    return 3;
+    return props.readOnly ? 2.4 : 3;
   }
 
   if (
@@ -1748,7 +1907,7 @@ function getRenderedConnectionStrokeWidth(
     return 3.75;
   }
 
-  return getConnectionStrokeWidth(kind);
+  return props.readOnly && kind === "work-connection" ? 1.55 : getConnectionStrokeWidth(kind);
 }
 
 function handleWorkConnectionPointerEnter(workConnectionId: string) {
@@ -1764,6 +1923,7 @@ function handleWorkConnectionPointerLeave(workConnectionId: string) {
 function handleWorkConnectionContextMenu(workConnectionId: string, event: MouseEvent) {
   event.preventDefault();
   event.stopPropagation();
+
   hoveredWorkConnectionId.value = workConnectionId;
   emit("work-connection-context-menu", {
     workConnectionId,
@@ -1927,6 +2087,10 @@ function handleKeyDown(event: KeyboardEvent) {
       props.selectedMilestoneIds.length > 0
     ) {
       event.preventDefault();
+      if (props.readOnly) {
+        emit("readonly-edit-attempt");
+        return;
+      }
       emit("delete-selection");
     }
     return;

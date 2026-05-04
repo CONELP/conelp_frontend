@@ -666,6 +666,19 @@ function createDesktopScheduleViewModel() {
     projectLabel: scheduleLoadState.value.data?.selectedProject.projectName ?? "",
     versionLabel: scheduleLoadState.value.data?.selectedScheduleVersion.versionName ?? "",
   }));
+  const selectedScheduleVersion = computed(
+    () => scheduleLoadState.value.data?.selectedScheduleVersion ?? null,
+  );
+  const isScheduleReadOnly = computed(() => selectedScheduleVersion.value?.isMain === true);
+  const scheduleVersionDisplayName = computed(
+    () => selectedScheduleVersion.value?.versionName ?? "공정표",
+  );
+  const scheduleVersionModeLabel = computed(() =>
+    isScheduleReadOnly.value ? "기준 공정표" : "작업본",
+  );
+  const scheduleVersionAccessLabel = computed(() =>
+    isScheduleReadOnly.value ? "읽기 전용" : "수정 가능",
+  );
   const scheduleLoadStatus = computed(() => scheduleLoadState.value.status);
   const scheduleLoadErrorMessage = computed(
     () => scheduleLoadState.value.error?.message ?? "공정표 데이터를 불러오지 못했습니다.",
@@ -727,6 +740,34 @@ function createDesktopScheduleViewModel() {
       };
       scheduleToastTimer = null;
     }, 2800);
+  }
+
+  function notifyReadOnlyScheduleAction() {
+    selectionState.value = createEmptyDesktopScheduleSelectionState();
+    interactionSession.value = null;
+    interactionCancelVersion.value += 1;
+    connectionCreationState.value = null;
+    renamingDivisionId.value = null;
+    renamingWorkTypeId.value = null;
+    renamingSubWorkTypeId.value = null;
+    renamingItemId.value = null;
+    renamingMilestoneId.value = null;
+    closeContextMenu();
+    closeColorPalette();
+    showScheduleToast("기준 공정표는 직접 수정할 수 없어요. 작업본을 만들어 수정해 주세요.");
+  }
+
+  function ensureScheduleEditable() {
+    if (!isScheduleReadOnly.value) {
+      return true;
+    }
+
+    notifyReadOnlyScheduleAction();
+    return false;
+  }
+
+  function createDraftVersionFromCurrent() {
+    showScheduleToast("작업본 만들기는 다음 단계에서 연결할게요. 지금은 기준 공정표를 안전하게 잠가두었어요.");
   }
 
   function syncChartScroll(position: { left: number; top: number }) {
@@ -1905,6 +1946,10 @@ function createDesktopScheduleViewModel() {
   }
 
   function addParentRow() {
+    if (!ensureScheduleEditable()) {
+      return;
+    }
+
     const snapshot = captureWorkingSnapshot();
     workingRows.value = desktopScheduleService.addParentRow(workingRows.value);
     pushLocalHistoryEntry(snapshot);
@@ -1912,6 +1957,10 @@ function createDesktopScheduleViewModel() {
   }
 
   function addChildRow(parentRowId: string) {
+    if (!ensureScheduleEditable()) {
+      return;
+    }
+
     const snapshot = captureWorkingSnapshot();
     workingRows.value = desktopScheduleService.addChildRow(workingRows.value, parentRowId);
     pushLocalHistoryEntry(snapshot);
@@ -1926,6 +1975,10 @@ function createDesktopScheduleViewModel() {
   }
 
   function createReferenceDivisionSet() {
+    if (!ensureScheduleEditable()) {
+      return;
+    }
+
     const snapshot = captureWorkingSnapshot();
     const tempReferenceItem: DesktopScheduleReferenceHierarchyItem = {
       divisionId: createOptimisticReferenceId(),
@@ -1944,6 +1997,10 @@ function createDesktopScheduleViewModel() {
   }
 
   function startDivisionRename(divisionId: number) {
+    if (!ensureScheduleEditable()) {
+      return;
+    }
+
     const targetHierarchyItem = scheduleLoadState.value.data?.workHierarchy.find(
       (item) => item.divisionId === divisionId,
     );
@@ -1960,6 +2017,11 @@ function createDesktopScheduleViewModel() {
   }
 
   async function commitDivisionRename(payload: { divisionId: number; name: string }) {
+    if (!ensureScheduleEditable()) {
+      renamingDivisionId.value = null;
+      return;
+    }
+
     const nextName = payload.name.trim();
     const targetHierarchyItem = scheduleLoadState.value.data?.workHierarchy.find(
       (item) => item.divisionId === payload.divisionId,
@@ -2020,6 +2082,10 @@ function createDesktopScheduleViewModel() {
   }
 
   function createReferenceWorkTypeSet(payload: { divisionId: number; divisionName: string }) {
+    if (!ensureScheduleEditable()) {
+      return;
+    }
+
     if (payload.divisionId < 0) {
       showScheduleToast("분류 저장이 끝난 뒤 상위공정을 추가할 수 있어요.");
       return;
@@ -2043,6 +2109,10 @@ function createDesktopScheduleViewModel() {
   }
 
   function createReferenceSubWorkTypeSet(payload: { workTypeId: number }) {
+    if (!ensureScheduleEditable()) {
+      return;
+    }
+
     const targetHierarchyItem = scheduleLoadState.value.data?.workHierarchy.find(
       (item) => item.workTypeId === payload.workTypeId,
     );
@@ -2076,6 +2146,10 @@ function createDesktopScheduleViewModel() {
   }
 
   function startWorkTypeRename(workTypeId: number) {
+    if (!ensureScheduleEditable()) {
+      return;
+    }
+
     const targetHierarchyItem = scheduleLoadState.value.data?.workHierarchy.find(
       (item) => item.workTypeId === workTypeId,
     );
@@ -2094,6 +2168,11 @@ function createDesktopScheduleViewModel() {
   }
 
   async function commitWorkTypeRename(payload: { workTypeId: number; name: string }) {
+    if (!ensureScheduleEditable()) {
+      renamingWorkTypeId.value = null;
+      return;
+    }
+
     const nextName = payload.name.trim();
     const targetHierarchyItem = scheduleLoadState.value.data?.workHierarchy.find(
       (item) => item.workTypeId === payload.workTypeId,
@@ -2167,6 +2246,10 @@ function createDesktopScheduleViewModel() {
   }
 
   function startSubWorkTypeRename(subWorkTypeId: number) {
+    if (!ensureScheduleEditable()) {
+      return;
+    }
+
     const targetHierarchyItem = scheduleLoadState.value.data?.workHierarchy.find(
       (item) => item.subWorkTypeId === subWorkTypeId,
     );
@@ -2185,6 +2268,11 @@ function createDesktopScheduleViewModel() {
   }
 
   async function commitSubWorkTypeRename(payload: { subWorkTypeId: number; name: string }) {
+    if (!ensureScheduleEditable()) {
+      renamingSubWorkTypeId.value = null;
+      return;
+    }
+
     const nextName = payload.name.trim();
     const targetHierarchyItem = scheduleLoadState.value.data?.workHierarchy.find(
       (item) => item.subWorkTypeId === payload.subWorkTypeId,
@@ -2258,6 +2346,10 @@ function createDesktopScheduleViewModel() {
   }
 
   async function reorderReferenceDivisions(payload: { divisionIds: number[] }) {
+    if (!ensureScheduleEditable()) {
+      return;
+    }
+
     if (payload.divisionIds.length < 2) {
       return;
     }
@@ -2285,6 +2377,10 @@ function createDesktopScheduleViewModel() {
   }
 
   async function reorderReferenceWorkTypes(payload: { divisionId: number; workTypeIds: number[] }) {
+    if (!ensureScheduleEditable()) {
+      return;
+    }
+
     if (payload.workTypeIds.length < 2) {
       return;
     }
@@ -2342,6 +2438,10 @@ function createDesktopScheduleViewModel() {
   }
 
   async function deleteSelection() {
+    if (!ensureScheduleEditable()) {
+      return;
+    }
+
     const selectedRowIds = selectionState.value.rowIds.filter((rowId) => rowById.value.has(rowId));
     const selectedRowIdSet = new Set(selectedRowIds);
     const rowItemIds = workingItems.value
@@ -2630,6 +2730,10 @@ function createDesktopScheduleViewModel() {
   }
 
   async function applyColorSelection(colorHex: string | null) {
+    if (!ensureScheduleEditable()) {
+      return;
+    }
+
     const target = colorPaletteState.value.target;
 
     if (!target) {
@@ -2694,6 +2798,10 @@ function createDesktopScheduleViewModel() {
   }
 
   async function createItemOnCanvasTarget(payload: { rowId: string; startDate: string }) {
+    if (!ensureScheduleEditable()) {
+      return;
+    }
+
     const targetRow = rowById.value.get(payload.rowId);
     const scheduleVersionId = getSelectedScheduleVersionId();
     const subWorkTypeId = targetRow?.source.subWorkTypeId;
@@ -2746,6 +2854,10 @@ function createDesktopScheduleViewModel() {
   }
 
   function startItemRename(itemId: string) {
+    if (!ensureScheduleEditable()) {
+      return;
+    }
+
     const targetItem = workingItems.value.find((item) => item.id === itemId);
 
     if (!targetItem) {
@@ -2763,6 +2875,11 @@ function createDesktopScheduleViewModel() {
   }
 
   async function commitItemRename(payload: { itemId: string; name: string }) {
+    if (!ensureScheduleEditable()) {
+      renamingItemId.value = null;
+      return;
+    }
+
     const nextName = payload.name;
     const targetItem = workingItems.value.find((item) => item.id === payload.itemId);
 
@@ -2820,6 +2937,10 @@ function createDesktopScheduleViewModel() {
   }
 
   function startMilestoneRename(milestoneId: string) {
+    if (!ensureScheduleEditable()) {
+      return;
+    }
+
     const targetMilestone = workingMilestones.value.find((milestone) => milestone.id === milestoneId);
 
     if (!targetMilestone) {
@@ -2838,6 +2959,11 @@ function createDesktopScheduleViewModel() {
   }
 
   async function commitMilestoneRename(payload: { milestoneId: string; label: string }) {
+    if (!ensureScheduleEditable()) {
+      renamingMilestoneId.value = null;
+      return;
+    }
+
     const trimmedLabel = payload.label.trim();
     const targetMilestone = workingMilestones.value.find(
       (milestone) => milestone.id === payload.milestoneId,
@@ -2912,6 +3038,10 @@ function createDesktopScheduleViewModel() {
   const contextMenuItems = computed<DesktopScheduleContextMenuItem[]>(() => {
     const target = contextMenuState.value.target;
     if (!contextMenuState.value.open || !target) {
+      return [];
+    }
+
+    if (isScheduleReadOnly.value) {
       return [];
     }
 
@@ -3083,6 +3213,10 @@ function createDesktopScheduleViewModel() {
   });
 
   async function executeContextMenuCommand(command: DesktopScheduleContextMenuCommand) {
+    if (!ensureScheduleEditable()) {
+      return;
+    }
+
     const target = contextMenuState.value.target;
 
     if (!target) {
@@ -3407,6 +3541,10 @@ function createDesktopScheduleViewModel() {
   }
 
   async function completeConnectionCreation(targetItemId: string) {
+    if (!ensureScheduleEditable()) {
+      return;
+    }
+
     const connectionCreation = connectionCreationState.value;
     const scheduleVersionId = getSelectedScheduleVersionId();
 
@@ -3510,6 +3648,10 @@ function createDesktopScheduleViewModel() {
   }
 
   async function activateMilestone(payload: { date: string; milestoneId?: string }) {
+    if (!ensureScheduleEditable()) {
+      return;
+    }
+
     closeContextMenu();
     const snapshot = captureWorkingSnapshot();
 
@@ -3578,6 +3720,10 @@ function createDesktopScheduleViewModel() {
       | { kind: "summary"; rowId: string }
       | { kind: "milestone"; milestoneId: string },
   ) {
+    if (!ensureScheduleEditable()) {
+      return;
+    }
+
     if (payload.kind === "milestone") {
       const selectedMilestoneIds = selectionState.value.milestoneIds.includes(payload.milestoneId)
         ? selectionState.value.milestoneIds
@@ -3645,6 +3791,10 @@ function createDesktopScheduleViewModel() {
   }
 
   function previewMoveSession(payload: { deltaDays: number; deltaLanes: number }) {
+    if (isScheduleReadOnly.value) {
+      return;
+    }
+
     const session = interactionSession.value;
 
     if (!session || session.type !== "move") {
@@ -3733,6 +3883,11 @@ function createDesktopScheduleViewModel() {
   }
 
   async function endMoveSession() {
+    if (isScheduleReadOnly.value) {
+      interactionSession.value = null;
+      return;
+    }
+
     const session = interactionSession.value;
     if (!session || session.type !== "move") {
       return;
@@ -3869,6 +4024,10 @@ function createDesktopScheduleViewModel() {
       | { kind: "item"; itemId: string; edge: "left" | "right" }
       | { kind: "summary"; rowId: string; edge: "left" | "right" },
   ) {
+    if (!ensureScheduleEditable()) {
+      return;
+    }
+
     if (payload.kind === "summary") {
       clearSelection();
       interactionSession.value = {
@@ -3899,6 +4058,10 @@ function createDesktopScheduleViewModel() {
   }
 
   function previewResizeSession(payload: { deltaDays: number }) {
+    if (isScheduleReadOnly.value) {
+      return;
+    }
+
     const session = interactionSession.value;
     if (!session || session.type !== "resize") {
       return;
@@ -3930,6 +4093,11 @@ function createDesktopScheduleViewModel() {
   }
 
   async function endResizeSession() {
+    if (isScheduleReadOnly.value) {
+      interactionSession.value = null;
+      return;
+    }
+
     const session = interactionSession.value;
 
     if (!session || session.type !== "resize") {
@@ -4025,6 +4193,10 @@ function createDesktopScheduleViewModel() {
 
   return {
     scheduleMeta,
+    isScheduleReadOnly,
+    scheduleVersionDisplayName,
+    scheduleVersionModeLabel,
+    scheduleVersionAccessLabel,
     scheduleLoadStatus,
     scheduleLoadErrorMessage,
     scheduleToast,
@@ -4107,6 +4279,8 @@ function createDesktopScheduleViewModel() {
     setZoomIndex,
     zoomIn,
     zoomOut,
+    notifyReadOnlyScheduleAction,
+    createDraftVersionFromCurrent,
   };
 }
 

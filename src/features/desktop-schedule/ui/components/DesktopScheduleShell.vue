@@ -14,6 +14,8 @@ import "@/features/desktop-schedule/ui/components/styles/DesktopScheduleShell.cs
 
 const SHELL_HEADER_HEIGHT = 84;
 const SHELL_TOOLBAR_HEIGHT = 48;
+const SHELL_STACK_GAP = 8;
+const READONLY_NOTICE_HEIGHT = 40;
 const ROW_PANEL_MIN_WIDTH = 180;
 const ROW_PANEL_MAX_WIDTH = 520;
 const WIDTH_RESIZE_LISTENER_OPTIONS = true;
@@ -26,6 +28,10 @@ type ConnectionCreationState = {
 const props = defineProps<{
   timeline: DesktopScheduleTimelineLayout;
   shellLayout: DesktopScheduleShellLayout;
+  readOnly: boolean;
+  versionName: string;
+  versionModeLabel: string;
+  versionAccessLabel: string;
   viewportHeight?: number;
   scrollTop: number;
   scrollLeft: number;
@@ -117,6 +123,8 @@ const emit = defineEmits<{
   "resize-end": [];
   undo: [];
   redo: [];
+  "create-draft-version": [];
+  "readonly-edit-attempt": [];
   "zoom-in": [];
   "zoom-out": [];
   "zoom-change": [zoomIndex: number];
@@ -130,16 +138,36 @@ const shellHeight = computed(() => Math.max(props.viewportHeight ?? 640, 320));
 const scaledShellHeaderHeight = computed(() =>
   Math.round(SHELL_HEADER_HEIGHT * Math.min(Math.max(props.zoomScale, 0.68), 1.46)),
 );
+const scaledHeaderMonthHeight = computed(() =>
+  Math.round((scaledShellHeaderHeight.value * 24) / SHELL_HEADER_HEIGHT),
+);
+const scaledHeaderWeekHeight = computed(() =>
+  Math.round((scaledShellHeaderHeight.value * 20) / SHELL_HEADER_HEIGHT),
+);
+const scaledHeaderDayHeight = computed(() =>
+  scaledShellHeaderHeight.value - scaledHeaderMonthHeight.value - scaledHeaderWeekHeight.value,
+);
+const readonlyNoticeStackHeight = computed(() =>
+  props.readOnly ? READONLY_NOTICE_HEIGHT + SHELL_STACK_GAP : 0,
+);
 const bodyViewportHeight = computed(() =>
-  Math.max(shellHeight.value - scaledShellHeaderHeight.value - SHELL_TOOLBAR_HEIGHT, 200),
+  Math.max(
+    shellHeight.value -
+      scaledShellHeaderHeight.value -
+      SHELL_TOOLBAR_HEIGHT -
+      readonlyNoticeStackHeight.value,
+    200,
+  ),
 );
 const zoomSliderValue = computed(() => Math.min(Math.max(props.zoomIndex, 0), props.zoomMax));
 const zoomSliderProgress = computed(() =>
   props.zoomMax > 0 ? (zoomSliderValue.value / props.zoomMax) * 100 : 0,
 );
-const milestoneDates = computed(() =>
-  Array.from(new Set(props.shellLayout.milestones.map((milestone) => milestone.date))),
+const leftHeaderVersionLabel = computed(() =>
+  props.readOnly ? props.versionModeLabel : props.versionName,
 );
+const shouldShowVersionNameInToolbar = computed(() => !props.readOnly && props.versionName.trim().length > 0);
+const shouldShowVersionAccessInToolbar = computed(() => !props.readOnly);
 const frameStyle = computed(() => ({
   gridTemplateColumns: `${props.rowPanelWidth}px minmax(0, 1fr)`,
 }));
@@ -147,6 +175,9 @@ const shellStyle = computed(() => ({
   height: `${shellHeight.value}px`,
   "--schedule-zoom-scale": `${props.zoomScale}`,
   "--schedule-header-height": `${scaledShellHeaderHeight.value}px`,
+  "--schedule-header-month-height": `${scaledHeaderMonthHeight.value}px`,
+  "--schedule-header-week-height": `${scaledHeaderWeekHeight.value}px`,
+  "--schedule-header-day-height": `${scaledHeaderDayHeight.value}px`,
   "--schedule-row-panel-width": `${props.rowPanelWidth}px`,
 }));
 
@@ -247,10 +278,52 @@ onUnmounted(() => {
 <template>
   <div
     class="schedule-shell"
-    :class="{ 'schedule-shell--resizing': rowPanelResizeState }"
+    :class="{
+      'schedule-shell--resizing': rowPanelResizeState,
+      'schedule-shell--readonly': readOnly,
+    }"
     :style="shellStyle"
   >
     <div class="schedule-shell__toolbar" aria-label="공정표 도구">
+      <div class="schedule-shell__version">
+        <div
+          class="schedule-shell__version-chip"
+          :class="{ 'schedule-shell__version-chip--readonly': readOnly }"
+          aria-label="현재 공정표 버전"
+        >
+          <span class="schedule-shell__version-mode">{{ versionModeLabel }}</span>
+          <span v-if="shouldShowVersionNameInToolbar" class="schedule-shell__version-name">
+            {{ versionName }}
+          </span>
+          <span
+            v-if="shouldShowVersionAccessInToolbar"
+            class="schedule-shell__version-access"
+            :class="{ 'schedule-shell__version-access--separated': shouldShowVersionNameInToolbar }"
+          >
+            {{ versionAccessLabel }}
+          </span>
+        </div>
+
+        <span
+          v-if="readOnly"
+          class="schedule-shell__version-divider"
+          aria-hidden="true"
+        />
+
+        <button
+          v-if="readOnly"
+          type="button"
+          class="schedule-shell__draft-button"
+          @click="emit('create-draft-version')"
+        >
+          + 작업본 만들기
+        </button>
+      </div>
+
+      <div class="schedule-shell__toolbar-spacer" aria-hidden="true" />
+
+      <span class="schedule-shell__toolbar-divider" aria-hidden="true" />
+
       <div class="schedule-shell__actions" aria-label="작업 되돌리기">
         <button
           type="button"
@@ -274,8 +347,6 @@ onUnmounted(() => {
           <img class="schedule-shell__action-icon" :src="redoIcon" alt="" aria-hidden="true" />
         </button>
       </div>
-
-      <div class="schedule-shell__toolbar-spacer" aria-hidden="true" />
 
       <div class="schedule-shell__actions schedule-shell__actions--zoom" aria-label="공정표 확대 축소">
         <button
@@ -315,14 +386,22 @@ onUnmounted(() => {
       </div>
     </div>
 
+    <p v-if="readOnly" class="schedule-shell__readonly-notice" role="note">
+      <span class="schedule-shell__readonly-notice-chip">읽기 전용</span>
+      <span>기준 공정표는 직접 수정할 수 없어요. 작업본을 만들어 수정해 주세요.</span>
+    </p>
+
     <div class="schedule-shell__frame" :style="frameStyle">
       <div class="schedule-shell__left-column">
         <div class="schedule-shell__left-header">
-          <span aria-hidden="true" />
+          <span class="schedule-shell__left-version-label">
+            {{ leftHeaderVersionLabel }}
+          </span>
         </div>
 
         <DesktopScheduleRowPanel
           :rows="shellLayout.rows"
+          :read-only="readOnly"
           :viewport-height="bodyViewportHeight"
           :scroll-top="scrollTop"
           :work-type-column-width="workTypeColumnWidth"
@@ -363,14 +442,16 @@ onUnmounted(() => {
           <DesktopScheduleTimelineHeader
             :timeline="timeline"
             :scroll-left="scrollLeft"
-            :milestone-dates="milestoneDates"
             :hovered-date="hoveredDate"
           />
         </div>
 
+        <div class="schedule-shell__date-divider" aria-hidden="true" />
+
         <DesktopScheduleChartBody
           :timeline="timeline"
           :shell-layout="shellLayout"
+          :read-only="readOnly"
           :viewport-height="bodyViewportHeight"
           :scroll-top="scrollTop"
           :scroll-left="scrollLeft"
@@ -388,6 +469,7 @@ onUnmounted(() => {
           @select-bars="emit('select-bars', $event)"
           @select-row="emit('select-row', $event)"
           @delete-selection="emit('delete-selection')"
+          @readonly-edit-attempt="emit('readonly-edit-attempt')"
           @item-context-menu="emit('item-context-menu', $event)"
           @work-connection-context-menu="emit('work-connection-context-menu', $event)"
           @milestone-context-menu="emit('milestone-context-menu', $event)"
