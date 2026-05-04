@@ -308,10 +308,6 @@ Input:
 - body `startDate`: `LocalDate`, required
 - body `workLeadTime`: `Integer`, required
 - body `subWorkTypeId`: `Integer`, required
-- body `isWorkingOnHoliday`: `Boolean`, default `true`
-- body `zoneIds`: `Integer[]`
-- body `floorIds`: `Integer[]`
-- body `componentTypes`: `{ componentDivisionId: Integer, componentTypeIds: Integer[] }[]`
 - body `annotation`: `String`
 - body `scheduleVersionId`: `Integer`, required
 
@@ -324,25 +320,27 @@ Return:
 ```
 
 Rules:
-- 전체 zone/floor 선택은 error.
-- 전체를 의미하려면 빈 배열 또는 미전달을 사용한다.
+- `completionDate = startDate + (workLeadTime - 1)` calendar days.
+- 시작일이 휴일이어도 입력한 `startDate` 그대로 저장된다.
+- 생성 시 `isWorkingOnHoliday`, `zoneIds`, `floorIds`, `componentTypes`는 각각 `true`, `[]`, `[]`, `[]`로 초기화되고 response에는 그대로 노출된다.
 
-### PUT `/api/work/updateWork/{workId}`
+### PUT `/api/work/updateWork`
 
 목적:
-work 부분 수정. 날짜 변경 시 successor 일정이 재계산될 수 있다.
+work batch 부분 수정. 날짜 변경 시 successor 일정이 재계산될 수 있다.
 
 Input:
-- path `workId`: `Integer`, required
-- body `startDate`: `LocalDate`
-- body `workLeadTime`: `Integer`
-- body `subWorkTypeId`: `Integer`
-- body `isWorkingOnHoliday`: `Boolean`
-- body `positionY`: `Integer`
-- body `zoneIds`: `Integer[]`
-- body `floorIds`: `Integer[]`
-- body `componentTypes`: `{ componentDivisionId: Integer, componentTypeIds: Integer[] }[]`
-- body `annotation`: `String`, empty string removes annotation
+- body `items`: `WorkUpdateItem[]`, required, non-empty
+- item `workId`: `Integer`, required
+- item `startDate`: `LocalDate`
+- item `workLeadTime`: `Integer`
+- item `subWorkTypeId`: `Integer`
+- item `positionY`: `Integer`
+- item `zoneIds`: `Integer[]`
+- item `floorIds`: `Integer[]`
+- item `componentTypes`: `{ componentDivisionId: Integer, componentTypeIds: Integer[] }[]`
+- item `annotation`: `String`, empty string removes annotation
+- item `workName`: `String`, optional, saved as-is when provided
 
 Return:
 ```json
@@ -354,10 +352,12 @@ Return:
 
 Rules:
 - 제공한 필드만 변경된다.
-- 관련 필드 변경 시 `workName`은 자동 재생성된다.
+- `workName == null`이면 기존 동작을 유지하고, 관련 필드 변경 시 backend가 작업명을 자동 재생성할 수 있다.
+- `workName != null`이면 자동 생성을 무시하고 입력값을 그대로 저장한다. 빈 문자열 `""`도 그대로 저장된다.
 - 날짜 변경은 WorkDependency successor에 cascade된다.
-- `lagDays != null` 관계가 있는 work는 수동 이동할 수 없다.
-- push-only 관계(`lagDays=null`)에서는 predecessor `completionDate + 1`이 startDate 하한이다.
+- 선행작업을 이동하면 후행작업은 기존 `lagDays`를 유지하며 함께 이동한다.
+- 후행작업을 이동하면 선행작업은 움직이지 않고 incoming dependency의 `lagDays`가 재계산된다.
+- 후행작업 `startDate`가 선행작업 `startDate`보다 빠르면 400 에러를 반환한다.
 
 ### DELETE `/api/work/deleteWork/{workId}`
 
@@ -371,12 +371,12 @@ Return:
 ```json
 {
   "updatedWorks": [],
-  "updatedWorkPaths": ["WorkPath"]
+  "updatedWorkDeps": ["WorkDependency"]
 }
 ```
 
 Rules:
-- WorkPath에 포함되어 있으면 path에서 제거되고 변경된 path가 반환된다.
+- 삭제된 work와 연결된 dependency 변경분이 `updatedWorkDeps`로 반환될 수 있다.
 
 ## 4. Work Dependency / Gantt Link
 
@@ -395,7 +395,7 @@ Return:
     "id": "Integer",
     "sourceWorkId": "Integer",
     "targetWorkId": "Integer",
-    "lagDays": "Integer | null",
+    "lagDays": "Integer",
     "scheduleVersionId": "Integer"
   }
 ]
@@ -409,21 +409,21 @@ Return:
 Input:
 - body `sourceWorkId`: `Integer`, required
 - body `targetWorkId`: `Integer`, required
-- body `lagDays`: `Integer | null`
+- body `lagDays`: `Integer`, required, calendar days
 - body `scheduleVersionId`: `Integer`, required
 
 Return:
 ```json
 {
   "updatedWorks": ["Work"],
-  "updatedWorkPaths": ["WorkPath"]
+  "updatedWorkDeps": ["WorkDependency"]
 }
 ```
 
 Rules:
 - duplicate, self-reference는 막는다.
+- `lagDays`는 필수이며 calendar days 단위다.
 - 생성 후 DFS cascade로 successor 날짜를 자동 조정한다.
-- `lagDays=null`: push-only
 - `lagDays=0`: 다음 날 follow
 - `lagDays>0`: N-day gap
 - `lagDays<0`: N-day overlap
@@ -435,18 +435,19 @@ Rules:
 
 Input:
 - path `workDepId`: `Integer`, required
-- body `lagDays`: `Integer`
+- body `lagDays`: `Integer`, required, calendar days
 
 Return:
 ```json
 {
   "updatedWorks": ["Work"],
-  "updatedWorkPaths": ["WorkPath"]
+  "updatedWorkDeps": ["WorkDependency"]
 }
 ```
 
 Rules:
 - `lagDays`만 수정 가능하다.
+- `lagDays`는 필수이며 calendar days 단위다.
 - 수정 후 DFS cascade가 실행된다.
 
 ### DELETE `/api/workDep/deleteWorkDep/{workDepId}`
@@ -461,7 +462,7 @@ Return:
 ```json
 {
   "updatedWorks": ["Work"],
-  "updatedWorkPaths": ["WorkPath"]
+  "updatedWorkDeps": ["WorkDependency"]
 }
 ```
 

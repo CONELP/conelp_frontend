@@ -9,6 +9,9 @@ export interface DesktopScheduleSelectionState {
 
 export type DesktopScheduleContextMenuTarget =
   | { kind: "row"; rowId: string }
+  | { kind: "division-header"; divisionId: number; name: string }
+  | { kind: "work-type-header"; divisionId: number; workTypeId: number; name: string }
+  | { kind: "sub-work-type-header"; workTypeId: number; subWorkTypeId: number; rowId: string; name: string }
   | { kind: "item"; itemId: string }
   | { kind: "work-connection"; workConnectionId: string }
   | { kind: "critical-path"; criticalPathId: string }
@@ -19,10 +22,15 @@ export type DesktopScheduleContextMenuTarget =
 export type DesktopScheduleContextMenuCommand =
   | "create-milestone"
   | "create-item"
+  | "create-division-reference"
+  | "create-work-type-reference"
+  | "create-sub-work-type-reference"
   | "delete-item"
   | "toggle-work-connection"
   | "remove-work-connection"
   | "remove-milestone"
+  | "rename-reference"
+  | "delete-reference"
   | "toggle-critical-path"
   | "remove-critical-path"
   | "remove-critical-path-chain"

@@ -782,25 +782,27 @@ const hoveredIntersectionStyle = computed(() => {
   };
 });
 
-watch(
-  () => [props.scrollTop, props.scrollLeft] as const,
-  ([nextScrollTop, nextScrollLeft]) => {
-    const element = containerRef.value;
-    if (!element) {
-      return;
-    }
+function syncContainerScrollFromProps() {
+  const element = containerRef.value;
+  if (!element) {
+    return;
+  }
 
-    const topDiff = Math.abs(element.scrollTop - nextScrollTop);
-    const leftDiff = Math.abs(element.scrollLeft - nextScrollLeft);
-    if (topDiff < 1 && leftDiff < 1) {
-      return;
-    }
+  const topDiff = Math.abs(element.scrollTop - props.scrollTop);
+  const leftDiff = Math.abs(element.scrollLeft - props.scrollLeft);
+  if (topDiff < 1 && leftDiff < 1) {
+    return;
+  }
 
-    syncingFromProp = true;
-    element.scrollTop = nextScrollTop;
-    element.scrollLeft = nextScrollLeft;
-  },
-);
+  syncingFromProp = true;
+  element.scrollTop = props.scrollTop;
+  element.scrollLeft = props.scrollLeft;
+  requestAnimationFrame(() => {
+    syncingFromProp = false;
+  });
+}
+
+watch(() => [props.scrollTop, props.scrollLeft] as const, syncContainerScrollFromProps);
 
 watch(
   () => props.connectionCreationState,
@@ -1952,6 +1954,10 @@ onMounted(() => {
   window.addEventListener("pointerup", handlePointerUp);
   window.addEventListener("keydown", handleKeyDown);
   window.addEventListener("keyup", handleKeyUp);
+
+  void nextTick(() => {
+    syncContainerScrollFromProps();
+  });
 });
 
 onUnmounted(() => {

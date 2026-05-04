@@ -10,6 +10,7 @@ import type {
   DesktopScheduleShellLayout,
   DesktopScheduleShellRow,
   DesktopScheduleSourceBundle,
+  DesktopScheduleSourceRow,
   DesktopScheduleSourceTask,
   DesktopScheduleTimelineCell,
   DesktopScheduleTimelineGroup,
@@ -21,7 +22,9 @@ import type {
 interface ChildRowDraft {
   id: string;
   name: string;
+  divisionId?: number;
   division: string;
+  workTypeId?: number;
   workType: string;
   subWorkType: string;
   subWorkTypeId: number;
@@ -32,6 +35,9 @@ interface TimelineOptions {
   dayWidth?: number;
   paddingBeforeDays?: number;
   paddingAfterDays?: number;
+  startDate?: string;
+  endDate?: string;
+  calendarDates?: Readonly<Record<string, { isHoliday?: boolean; isActivated?: boolean }>>;
 }
 
 interface ShellLayoutOptions {
@@ -118,11 +124,11 @@ function makeChildRowId(
   return `child:${toStableIdPart(division)}:${toStableIdPart(workType)}:${subPart}`;
 }
 
-function compareByPositionThenName(
-  a: { minPositionY: number; name: string },
-  b: { minPositionY: number; name: string },
+function compareByPosition(
+  a: { minPositionY: number },
+  b: { minPositionY: number },
 ) {
-  return a.minPositionY - b.minPositionY || a.name.localeCompare(b.name, "ko");
+  return a.minPositionY - b.minPositionY;
 }
 
 function compareTasks(a: DesktopScheduleSourceTask, b: DesktopScheduleSourceTask) {
@@ -136,12 +142,7 @@ function compareTasks(a: DesktopScheduleSourceTask, b: DesktopScheduleSourceTask
 }
 
 function compareRowsForShellGrouping(a: DesktopScheduleRow, b: DesktopScheduleRow) {
-  return (
-    (a.source.division ?? "").localeCompare(b.source.division ?? "", "ko") ||
-    (a.source.workType ?? "").localeCompare(b.source.workType ?? "", "ko") ||
-    a.order - b.order ||
-    a.name.localeCompare(b.name, "ko")
-  );
+  return a.order - b.order;
 }
 
 function parseLocalDate(value: string) {
@@ -530,34 +531,65 @@ function buildMilestoneLayouts(
   };
 }
 
-function buildRows(tasks: DesktopScheduleSourceTask[]) {
+function upsertChildDraft(
+  childDrafts: Map<string, ChildRowDraft>,
+  draft: Omit<ChildRowDraft, "id">,
+) {
+  const childId = makeChildRowId(
+    draft.division,
+    draft.workType,
+    draft.subWorkTypeId,
+    draft.subWorkType,
+  );
+  const existingChild = childDrafts.get(childId);
+
+  if (!existingChild) {
+    childDrafts.set(childId, {
+      ...draft,
+      id: childId,
+    });
+    return;
+  }
+
+  existingChild.divisionId = existingChild.divisionId ?? draft.divisionId;
+  existingChild.workTypeId = existingChild.workTypeId ?? draft.workTypeId;
+}
+
+function buildRows(tasks: DesktopScheduleSourceTask[], sourceRows: DesktopScheduleSourceRow[] = []) {
   const childDrafts = new Map<string, ChildRowDraft>();
+
+  sourceRows.forEach((sourceRow, index) => {
+    upsertChildDraft(childDrafts, {
+      name: sourceRow.subWorkType,
+      divisionId: sourceRow.divisionId,
+      division: sourceRow.division || "미분류",
+      workTypeId: sourceRow.workTypeId,
+      workType: sourceRow.workType || "미분류 공정",
+      subWorkType: sourceRow.subWorkType || "세부공정 미분류",
+      subWorkTypeId: sourceRow.subWorkTypeId,
+      minPositionY: index,
+    });
+  });
 
   tasks.forEach((task) => {
     const division = task.division || "미분류";
     const workType = task.workType || "미분류 공정";
     const subWorkType = task.subWorkType || "세부공정 미분류";
-    const childId = makeChildRowId(division, workType, task.subWorkTypeId, subWorkType);
 
-    const existingChild = childDrafts.get(childId);
-
-    if (!existingChild) {
-      childDrafts.set(childId, {
-        id: childId,
-        name: subWorkType,
-        division,
-        workType,
-        subWorkType,
-        subWorkTypeId: task.subWorkTypeId,
-        minPositionY: task.positionY,
-      });
-    } else {
-      existingChild.minPositionY = Math.min(existingChild.minPositionY, task.positionY);
-    }
+    upsertChildDraft(childDrafts, {
+      name: subWorkType,
+      divisionId: task.divisionId,
+      division,
+      workTypeId: task.workTypeId,
+      workType,
+      subWorkType,
+      subWorkTypeId: task.subWorkTypeId,
+      minPositionY: task.positionY,
+    });
   });
 
   return Array.from(childDrafts.values())
-    .sort(compareByPositionThenName)
+    .sort(compareByPosition)
     .map((childDraft, index) => ({
       id: childDraft.id,
       kind: "child-process" as const,
@@ -572,7 +604,9 @@ function buildRows(tasks: DesktopScheduleSourceTask[]) {
       source: {
         kind: "sub-work-type" as const,
         derivedFrom: `${childDraft.division} / ${childDraft.workType} / ${childDraft.subWorkType}`,
+        divisionId: childDraft.divisionId,
         division: childDraft.division,
+        workTypeId: childDraft.workTypeId,
         workType: childDraft.workType,
         subWorkType: childDraft.subWorkType,
         subWorkTypeId: childDraft.subWorkTypeId,
@@ -603,6 +637,9 @@ function buildItems(tasks: DesktopScheduleSourceTask[]): DesktopScheduleItem[] {
     workType: task.workType,
     subWorkType: task.subWorkType,
     annotation: task.annotation,
+    zoneIds: task.zoneIds ? [...task.zoneIds] : [],
+    floorIds: task.floorIds ? [...task.floorIds] : [],
+    componentTypeIds: task.componentTypeIds ? [...task.componentTypeIds] : [],
   }));
 }
 
@@ -679,7 +716,7 @@ function buildSnapshot(
   bundle: DesktopScheduleSourceBundle,
   milestones: DesktopScheduleMilestone[] = [],
 ): DesktopScheduleSnapshot {
-  const rows = buildRows(bundle.tasks);
+  const rows = buildRows(bundle.tasks, bundle.rows);
   const items = buildItems(bundle.tasks);
   const workConnections: DesktopScheduleWorkConnection[] = [];
   const criticalPaths: DesktopScheduleCriticalPath[] = [];
@@ -716,13 +753,15 @@ function buildTimeline(
   const itemDates = items.flatMap((item) => [item.startDate, item.endDate]);
   const todayString = formatLocalDate(new Date());
   const baseStartDate =
-    itemDates.length > 0
+    options.startDate ??
+    (itemDates.length > 0
       ? itemDates.reduce((min, value) => (value < min ? value : min), itemDates[0]!)
-      : todayString;
+      : todayString);
   const baseEndDate =
-    itemDates.length > 0
+    options.endDate ??
+    (itemDates.length > 0
       ? itemDates.reduce((max, value) => (value > max ? value : max), itemDates[0]!)
-      : todayString;
+      : todayString);
   const startDate = formatLocalDate(addDays(parseLocalDate(baseStartDate), -paddingBeforeDays));
   const endDate = formatLocalDate(addDays(parseLocalDate(baseEndDate), paddingAfterDays));
   const totalDays = diffDays(startDate, endDate) + 1;
@@ -733,6 +772,8 @@ function buildTimeline(
     const dayOfWeek = date.getDay();
     const isoWeek = getIsoWeekInfo(date);
     const weekLabel = `W${String(isoWeek.weekNumber).padStart(2, "0")}`;
+    const calendarDate = options.calendarDates?.[dateString];
+    const isCalendarOffDay = !!calendarDate?.isHoliday || calendarDate?.isActivated === false;
 
     return {
       key: dateString,
@@ -747,7 +788,7 @@ function buildTimeline(
       left: index * dayWidth,
       width: dayWidth,
       isToday: dateString === todayString,
-      isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
+      isWeekend: isCalendarOffDay || dayOfWeek === 0 || dayOfWeek === 6,
     };
   });
 
@@ -982,8 +1023,11 @@ function buildShellLayout(
     name: "마일스톤",
     kind: "milestone",
     colorHex: null,
+    divisionId: undefined,
     division: undefined,
+    workTypeId: undefined,
     workType: undefined,
+    subWorkTypeId: undefined,
     subWorkType: undefined,
     collapsed: false,
     hasChildren: false,
@@ -998,19 +1042,24 @@ function buildShellLayout(
 
   const processRows: DesktopScheduleShellRow[] = [];
   let currentDivision: string | null = null;
+  let currentDivisionId: number | undefined;
 
   [...visibleRows].sort(compareRowsForShellGrouping).forEach((row) => {
     const division = row.source.division ?? "미분류";
+    const divisionId = row.source.divisionId;
 
-    if (division !== currentDivision) {
+    if (division !== currentDivision || divisionId !== currentDivisionId) {
       processRows.push({
-        id: makeDivisionShellRowId(division),
+        id: divisionId ? `division:${divisionId}` : makeDivisionShellRowId(division),
         parentId: null,
         name: division,
         kind: "division",
         colorHex: null,
+        divisionId,
         division,
+        workTypeId: undefined,
         workType: undefined,
+        subWorkTypeId: undefined,
         subWorkType: undefined,
         collapsed: false,
         hasChildren: false,
@@ -1023,6 +1072,7 @@ function buildShellLayout(
 
       accumulatedTop += divisionRowHeight;
       currentDivision = division;
+      currentDivisionId = divisionId;
     }
 
     const nextRowHeight = rowHeightById.get(row.id) ?? rowHeight;
@@ -1034,8 +1084,11 @@ function buildShellLayout(
       name: row.name,
       kind: row.kind,
       colorHex: row.colorHex ?? null,
+      divisionId: row.source.divisionId,
       division: row.source.division,
+      workTypeId: row.source.workTypeId,
       workType: row.source.workType,
+      subWorkTypeId: row.source.subWorkTypeId,
       subWorkType: row.source.subWorkType,
       collapsed: row.collapsed,
       hasChildren: (childRowsByParentId.get(row.id)?.length ?? 0) > 0,
@@ -1249,21 +1302,19 @@ function createWorkConnection(
   workConnections: DesktopScheduleWorkConnection[],
   payload: { sourceItemId: string; targetItemId: string; gapDays: number },
 ) {
-  if (
-    payload.sourceItemId === payload.targetItemId ||
-    workConnections.some(
-      (workConnection) =>
-        (workConnection.sourceItemId === payload.sourceItemId &&
-          workConnection.targetItemId === payload.targetItemId) ||
-        (workConnection.sourceItemId === payload.targetItemId &&
-          workConnection.targetItemId === payload.sourceItemId),
-    )
-  ) {
+  if (payload.sourceItemId === payload.targetItemId) {
     return workConnections;
   }
 
+  const connectedItemIds = new Set([payload.sourceItemId, payload.targetItemId]);
+  const preservedWorkConnections = workConnections.filter(
+    (workConnection) =>
+      !connectedItemIds.has(workConnection.sourceItemId) &&
+      !connectedItemIds.has(workConnection.targetItemId),
+  );
+
   return [
-    ...workConnections,
+    ...preservedWorkConnections,
     {
       id: `work-connection:local:${Date.now()}-${Math.floor(Math.random() * 1_000_000).toString(36)}`,
       pathId: Date.now(),
@@ -1592,13 +1643,7 @@ function updateItemColor(
 }
 
 function updateItemName(items: DesktopScheduleItem[], itemId: string, name: string) {
-  const trimmedName = name.trim();
-
-  if (!trimmedName) {
-    return items;
-  }
-
-  return items.map((item) => (item.id === itemId ? { ...item, name: trimmedName } : item));
+  return items.map((item) => (item.id === itemId ? { ...item, name } : item));
 }
 
 function updateItemDetails(
@@ -1615,17 +1660,11 @@ function updateItemDetails(
     componentTypeIds?: number[];
   },
 ) {
-  const trimmedName = payload.name.trim();
-
-  if (!trimmedName) {
-    return items;
-  }
-
   return items.map((item) =>
     item.id === itemId
       ? {
           ...item,
-          name: trimmedName,
+          name: payload.name,
           division: payload.division,
           workType: payload.workType,
           subWorkType: payload.subWorkType,

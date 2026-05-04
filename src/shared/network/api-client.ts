@@ -30,7 +30,12 @@ function buildHeaders(body: ApiBody | undefined, initHeaders?: HeadersInit) {
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  if (selectedProjectId) {
+  if (
+    selectedProjectId &&
+    selectedProjectId !== "undefined" &&
+    selectedProjectId !== "null" &&
+    !headers.has("X-Project-Id")
+  ) {
     headers.set("X-Project-Id", selectedProjectId);
   }
 

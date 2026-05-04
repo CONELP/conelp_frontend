@@ -1,4 +1,4 @@
-export type DesktopScheduleSource = "mock-seed" | "work-and-path-api";
+export type DesktopScheduleSource = "work-api";
 export type DesktopScheduleRowKind = "parent-process" | "child-process";
 export type DesktopScheduleShellRowKind = DesktopScheduleRowKind | "division" | "milestone";
 export type DesktopScheduleItemAppearance = "standard" | "holiday-off";
@@ -9,7 +9,9 @@ export type DesktopScheduleConnectionKind =
 export interface DesktopScheduleRowSource {
   kind: "work-type" | "sub-work-type" | "mock";
   derivedFrom: string;
+  divisionId?: number;
   division?: string;
+  workTypeId?: number;
   workType?: string;
   subWorkType?: string;
   subWorkTypeId?: number;
@@ -81,16 +83,32 @@ export interface DesktopScheduleSourceTask {
   endDate: string;
   durationDays: number;
   division: string;
+  divisionId?: number;
   workType: string;
+  workTypeId?: number;
   subWorkType: string;
   subWorkTypeId: number;
   positionY: number;
   isWorkingOnHoliday: boolean;
   annotation?: string;
+  zoneIds?: number[];
+  floorIds?: number[];
+  componentTypeIds?: number[];
+}
+
+export interface DesktopScheduleSourceRow {
+  divisionId: number;
+  division: string;
+  workTypeId: number;
+  workType: string;
+  isStructure: boolean;
+  subWorkTypeId: number;
+  subWorkType: string;
 }
 
 export interface DesktopScheduleSourceBundle {
   tasks: DesktopScheduleSourceTask[];
+  rows?: DesktopScheduleSourceRow[];
   source: DesktopScheduleSource;
 }
 
@@ -154,8 +172,11 @@ export interface DesktopScheduleShellRow {
   name: string;
   kind: DesktopScheduleShellRowKind;
   colorHex?: string | null;
+  divisionId?: number;
   division?: string;
+  workTypeId?: number;
   workType?: string;
+  subWorkTypeId?: number;
   subWorkType?: string;
   collapsed: boolean;
   hasChildren: boolean;

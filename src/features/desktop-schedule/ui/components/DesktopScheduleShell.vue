@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onUnmounted, ref } from "vue";
 
 import type {
   DesktopScheduleShellLayout,
@@ -11,6 +11,9 @@ import DesktopScheduleTimelineHeader from "@/features/desktop-schedule/ui/compon
 import "@/features/desktop-schedule/ui/components/styles/DesktopScheduleShell.css";
 
 const SHELL_HEADER_HEIGHT = 84;
+const ROW_PANEL_MIN_WIDTH = 180;
+const ROW_PANEL_MAX_WIDTH = 520;
+const WIDTH_RESIZE_LISTENER_OPTIONS = true;
 
 type ConnectionCreationState = {
   kind: "work-connection";
@@ -23,12 +26,17 @@ const props = defineProps<{
   viewportHeight?: number;
   scrollTop: number;
   scrollLeft: number;
+  rowPanelWidth: number;
+  workTypeColumnWidth: number;
   interactionCancelVersion: number;
   selectedRowIds: string[];
   selectedItemIds: string[];
   selectedWorkConnectionIds: string[];
   selectedMilestoneIds: string[];
   connectionCreationState: ConnectionCreationState | null;
+  editingDivisionId: number | null;
+  editingWorkTypeId: number | null;
+  editingSubWorkTypeId: number | null;
   editingItemId: string | null;
   editingMilestoneId: string | null;
   zoomIndex: number;
@@ -40,14 +48,43 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   "scroll-sync": [position: { top: number; left: number }];
+  "row-panel-width-change": [width: number];
+  "work-type-column-width-change": [width: number];
   "clear-selection": [];
   "select-bars": [payload: { itemIds: string[]; rowIds: string[]; milestoneIds?: string[] }];
   "select-row": [rowId: string];
+  "start-division-rename": [divisionId: number];
+  "commit-division-rename": [payload: { divisionId: number; name: string }];
+  "cancel-division-rename": [];
+  "start-work-type-rename": [workTypeId: number];
+  "commit-work-type-rename": [payload: { workTypeId: number; name: string }];
+  "cancel-work-type-rename": [];
+  "start-sub-work-type-rename": [subWorkTypeId: number];
+  "commit-sub-work-type-rename": [payload: { subWorkTypeId: number; name: string }];
+  "cancel-sub-work-type-rename": [];
+  "reorder-divisions": [payload: { divisionIds: number[] }];
+  "reorder-work-types": [payload: { divisionId: number; workTypeIds: number[] }];
   "delete-selection": [];
   "item-context-menu": [payload: { itemId: string; x: number; y: number }];
   "work-connection-context-menu": [payload: { workConnectionId: string; x: number; y: number }];
   "milestone-context-menu": [payload: { milestoneId: string; x: number; y: number }];
   "row-context-menu": [payload: { rowId: string; x: number; y: number }];
+  "header-context-menu": [
+    payload: {
+      target:
+        | { kind: "division-header"; divisionId: number; name: string }
+        | { kind: "work-type-header"; divisionId: number; workTypeId: number; name: string }
+        | {
+            kind: "sub-work-type-header";
+            workTypeId: number;
+            subWorkTypeId: number;
+            rowId: string;
+            name: string;
+          };
+      x: number;
+      y: number;
+    },
+  ];
   "canvas-context-menu": [payload: { x: number; y: number; rowId: string | null; date: string | null }];
   "cancel-connection-create": [];
   "complete-connection-create": [targetItemId: string];
@@ -80,6 +117,7 @@ const emit = defineEmits<{
 
 const hoveredRowId = ref<string | null>(null);
 const hoveredDate = ref<string | null>(null);
+const rowPanelResizeState = ref<{ startClientX: number; startWidth: number } | null>(null);
 
 const shellHeight = computed(() => Math.max(props.viewportHeight ?? 640, 320));
 const scaledShellHeaderHeight = computed(() =>
@@ -95,6 +133,19 @@ const zoomSliderProgress = computed(() =>
 const milestoneDates = computed(() =>
   Array.from(new Set(props.shellLayout.milestones.map((milestone) => milestone.date))),
 );
+const frameStyle = computed(() => ({
+  gridTemplateColumns: `${props.rowPanelWidth}px minmax(0, 1fr)`,
+}));
+const shellStyle = computed(() => ({
+  height: `${shellHeight.value}px`,
+  "--schedule-zoom-scale": `${props.zoomScale}`,
+  "--schedule-header-height": `${scaledShellHeaderHeight.value}px`,
+  "--schedule-row-panel-width": `${props.rowPanelWidth}px`,
+}));
+
+function clampWidth(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
 
 function handleRowPanelScroll(scrollTop: number) {
   emit("scroll-sync", {
@@ -117,18 +168,82 @@ function handleZoomSliderInput(event: Event) {
   const nextZoomIndex = Math.min(Math.max(target.valueAsNumber, 0), props.zoomMax);
   emit("zoom-change", nextZoomIndex);
 }
+
+function removeRowPanelResizeListeners() {
+  document.removeEventListener(
+    "pointermove",
+    handleRowPanelResizePointerMove,
+    WIDTH_RESIZE_LISTENER_OPTIONS,
+  );
+  document.removeEventListener(
+    "pointerup",
+    handleRowPanelResizePointerUp,
+    WIDTH_RESIZE_LISTENER_OPTIONS,
+  );
+}
+
+function handleRowPanelResizePointerMove(event: PointerEvent) {
+  const resizeState = rowPanelResizeState.value;
+  if (!resizeState) {
+    return;
+  }
+
+  if (event.buttons === 0) {
+    handleRowPanelResizePointerUp();
+    return;
+  }
+
+  event.preventDefault();
+  emit(
+    "row-panel-width-change",
+    clampWidth(
+      resizeState.startWidth + event.clientX - resizeState.startClientX,
+      ROW_PANEL_MIN_WIDTH,
+      ROW_PANEL_MAX_WIDTH,
+    ),
+  );
+}
+
+function handleRowPanelResizePointerUp() {
+  rowPanelResizeState.value = null;
+  removeRowPanelResizeListeners();
+}
+
+function startRowPanelResize(event: PointerEvent) {
+  if (event.button !== 0) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  rowPanelResizeState.value = {
+    startClientX: event.clientX,
+    startWidth: props.rowPanelWidth,
+  };
+  document.addEventListener(
+    "pointermove",
+    handleRowPanelResizePointerMove,
+    WIDTH_RESIZE_LISTENER_OPTIONS,
+  );
+  document.addEventListener(
+    "pointerup",
+    handleRowPanelResizePointerUp,
+    WIDTH_RESIZE_LISTENER_OPTIONS,
+  );
+}
+
+onUnmounted(() => {
+  removeRowPanelResizeListeners();
+});
 </script>
 
 <template>
   <div
     class="schedule-shell"
-    :style="{
-      height: `${shellHeight}px`,
-      '--schedule-zoom-scale': `${zoomScale}`,
-      '--schedule-header-height': `${scaledShellHeaderHeight}px`,
-    }"
+    :class="{ 'schedule-shell--resizing': rowPanelResizeState }"
+    :style="shellStyle"
   >
-    <div class="schedule-shell__frame">
+    <div class="schedule-shell__frame" :style="frameStyle">
       <div class="schedule-shell__left-column">
         <div class="schedule-shell__left-header">
           <span aria-hidden="true" />
@@ -138,13 +253,38 @@ function handleZoomSliderInput(event: Event) {
           :rows="shellLayout.rows"
           :viewport-height="bodyViewportHeight"
           :scroll-top="scrollTop"
+          :work-type-column-width="workTypeColumnWidth"
           :hovered-row-id="hoveredRowId"
           :selected-row-ids="selectedRowIds"
+          :editing-division-id="editingDivisionId"
+          :editing-work-type-id="editingWorkTypeId"
+          :editing-sub-work-type-id="editingSubWorkTypeId"
           @scroll-top-change="handleRowPanelScroll"
           @select-row="emit('select-row', $event)"
+          @start-division-rename="emit('start-division-rename', $event)"
+          @commit-division-rename="emit('commit-division-rename', $event)"
+          @cancel-division-rename="emit('cancel-division-rename')"
+          @start-work-type-rename="emit('start-work-type-rename', $event)"
+          @commit-work-type-rename="emit('commit-work-type-rename', $event)"
+          @cancel-work-type-rename="emit('cancel-work-type-rename')"
+          @start-sub-work-type-rename="emit('start-sub-work-type-rename', $event)"
+          @commit-sub-work-type-rename="emit('commit-sub-work-type-rename', $event)"
+          @cancel-sub-work-type-rename="emit('cancel-sub-work-type-rename')"
+          @reorder-divisions="emit('reorder-divisions', $event)"
+          @reorder-work-types="emit('reorder-work-types', $event)"
+          @work-type-column-width-change="emit('work-type-column-width-change', $event)"
+          @header-context-menu="emit('header-context-menu', $event)"
           @row-context-menu="emit('row-context-menu', $event)"
         />
       </div>
+
+      <button
+        type="button"
+        class="schedule-shell__left-resize-handle"
+        aria-label="공정표 왼쪽 영역 너비 조절"
+        title="드래그해서 왼쪽 영역 너비 조절"
+        @pointerdown="startRowPanelResize"
+      />
 
       <div class="schedule-shell__main">
         <div class="schedule-shell__timeline-pane">
