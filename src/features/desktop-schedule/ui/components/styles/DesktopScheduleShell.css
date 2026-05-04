@@ -30,27 +30,15 @@
 
 .schedule-shell__toolbar {
   display: flex;
-  flex: 0 0 2.5rem;
-  min-height: 2.5rem;
+  flex: 0 0 2.9rem;
+  min-height: 2.9rem;
   align-items: center;
   gap: 0.55rem;
-  padding: 0 0.6rem;
+  padding: 0.28rem 0.6rem;
   overflow: hidden;
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 0.8rem;
   background: #fff;
-}
-
-.schedule-shell__toolbar-title {
-  display: inline-flex;
-  align-items: center;
-  min-width: 0;
-  padding: 0 0.45rem;
-  color: #374151;
-  font-size: 0.74rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  white-space: nowrap;
 }
 
 .schedule-shell__toolbar-spacer {
@@ -183,6 +171,13 @@
 .schedule-shell__action--history {
   font-size: 0.98rem;
   font-weight: 700;
+}
+
+.schedule-shell__action-icon {
+  width: 1rem;
+  height: 1rem;
+  opacity: 0.82;
+  pointer-events: none;
 }
 
 .schedule-shell__zoom-slider {

@@ -8,6 +8,8 @@ import type {
 import DesktopScheduleChartBody from "@/features/desktop-schedule/ui/components/DesktopScheduleChartBody.vue";
 import DesktopScheduleRowPanel from "@/features/desktop-schedule/ui/components/DesktopScheduleRowPanel.vue";
 import DesktopScheduleTimelineHeader from "@/features/desktop-schedule/ui/components/DesktopScheduleTimelineHeader.vue";
+import redoIcon from "@fluentui/svg-icons/icons/arrow_redo_20_regular.svg";
+import undoIcon from "@fluentui/svg-icons/icons/arrow_undo_20_regular.svg";
 import "@/features/desktop-schedule/ui/components/styles/DesktopScheduleShell.css";
 
 const SHELL_HEADER_HEIGHT = 84;
@@ -249,10 +251,6 @@ onUnmounted(() => {
     :style="shellStyle"
   >
     <div class="schedule-shell__toolbar" aria-label="공정표 도구">
-      <div class="schedule-shell__toolbar-title">
-        공정표 도구
-      </div>
-
       <div class="schedule-shell__actions" aria-label="작업 되돌리기">
         <button
           type="button"
@@ -262,7 +260,7 @@ onUnmounted(() => {
           title="되돌리기 (Ctrl/Cmd+Z)"
           @click="emit('undo')"
         >
-          ↶
+          <img class="schedule-shell__action-icon" :src="undoIcon" alt="" aria-hidden="true" />
         </button>
 
         <button
@@ -273,7 +271,7 @@ onUnmounted(() => {
           title="다시 실행 (Ctrl/Cmd+Shift+Z 또는 Ctrl/Cmd+Y)"
           @click="emit('redo')"
         >
-          ↷
+          <img class="schedule-shell__action-icon" :src="redoIcon" alt="" aria-hidden="true" />
         </button>
       </div>
 

@@ -157,7 +157,7 @@ const ROW_PANEL_MIN_WIDTH = 180;
 const ROW_PANEL_MAX_WIDTH = 520;
 const WORK_TYPE_COLUMN_MIN_WIDTH = 72;
 const WORK_TYPE_COLUMN_MAX_WIDTH = 240;
-const LOCAL_HISTORY_MAX_ENTRIES = 80;
+const LOCAL_HISTORY_MAX_ENTRIES = 200;
 let optimisticReferenceIdSeed = -1;
 
 function clampNumber(value: number, min: number, max: number) {
@@ -235,6 +235,19 @@ function shouldSwapConnectionDirection(
   }
 
   return false;
+}
+
+function isSameConnectionItemPair(
+  workConnection: DesktopScheduleWorkConnection,
+  sourceItemId: string,
+  targetItemId: string,
+) {
+  return (
+    (workConnection.sourceItemId === sourceItemId &&
+      workConnection.targetItemId === targetItemId) ||
+    (workConnection.sourceItemId === targetItemId &&
+      workConnection.targetItemId === sourceItemId)
+  );
 }
 
 function createEmptyScheduleSnapshot() {
@@ -3334,10 +3347,7 @@ function createDesktopScheduleViewModel() {
       );
       const overridingWorkConnections = workingWorkConnections.value.filter(
         (workConnection) =>
-          workConnection.sourceItemId === nextSourceItem.id ||
-          workConnection.targetItemId === nextSourceItem.id ||
-          workConnection.sourceItemId === nextTargetItem.id ||
-          workConnection.targetItemId === nextTargetItem.id,
+          isSameConnectionItemPair(workConnection, nextSourceItem.id, nextTargetItem.id),
       );
       const overridingWorkDepIds = overridingWorkConnections.map(
         (workConnection) => workConnection.pathId,

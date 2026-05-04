@@ -1310,11 +1310,13 @@ function createWorkConnection(
     return workConnections;
   }
 
-  const connectedItemIds = new Set([payload.sourceItemId, payload.targetItemId]);
+  const isSameItemPair = (workConnection: DesktopScheduleWorkConnection) =>
+    (workConnection.sourceItemId === payload.sourceItemId &&
+      workConnection.targetItemId === payload.targetItemId) ||
+    (workConnection.sourceItemId === payload.targetItemId &&
+      workConnection.targetItemId === payload.sourceItemId);
   const preservedWorkConnections = workConnections.filter(
-    (workConnection) =>
-      !connectedItemIds.has(workConnection.sourceItemId) &&
-      !connectedItemIds.has(workConnection.targetItemId),
+    (workConnection) => !isSameItemPair(workConnection),
   );
 
   return [
