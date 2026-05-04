@@ -5,6 +5,7 @@ import { createDesktopScheduleSnapshotFromApiData } from "@/features/desktop-sch
 import type {
   DesktopScheduleApiLoadState,
   DesktopScheduleBootstrapData,
+  DesktopScheduleMilestoneResponse,
   DesktopScheduleMutationResponse,
   DesktopScheduleReferenceHierarchyItem,
   DesktopScheduleWorkDepResponse,
@@ -117,6 +118,36 @@ type DesktopScheduleLocalSnapshot = {
   selection: ReturnType<typeof createEmptyDesktopScheduleSelectionState>;
 };
 
+type DesktopScheduleHistoryEntityChange<TEntity, TKey extends string | number> = {
+  key: TKey;
+  before: TEntity | null;
+  after: TEntity | null;
+};
+
+type DesktopScheduleHistoryCollectionPatch<TEntity, TKey extends string | number> = {
+  changes: Array<DesktopScheduleHistoryEntityChange<TEntity, TKey>>;
+  beforeOrder: TKey[];
+  afterOrder: TKey[];
+};
+
+type DesktopScheduleLoadedDataHistoryPatch = {
+  workHierarchy: DesktopScheduleHistoryCollectionPatch<
+    DesktopScheduleReferenceHierarchyItem,
+    number
+  >;
+  works: DesktopScheduleHistoryCollectionPatch<DesktopScheduleWorkResponse, number>;
+  workDeps: DesktopScheduleHistoryCollectionPatch<DesktopScheduleWorkDepResponse, number>;
+  milestones: DesktopScheduleHistoryCollectionPatch<DesktopScheduleMilestoneResponse, number>;
+};
+
+type DesktopScheduleLocalHistoryEntry = {
+  rows: DesktopScheduleHistoryCollectionPatch<DesktopScheduleRow, string>;
+  items: DesktopScheduleHistoryCollectionPatch<DesktopScheduleItem, string>;
+  workConnections: DesktopScheduleHistoryCollectionPatch<DesktopScheduleWorkConnection, string>;
+  milestones: DesktopScheduleHistoryCollectionPatch<DesktopScheduleMilestone, string>;
+  loadedData: DesktopScheduleLoadedDataHistoryPatch | null;
+};
+
 const DEFAULT_DIVISION_NAME = "분류 (건축공사)";
 const DEFAULT_WORK_TYPE_NAME = "상위 공사명 (철콘공사)";
 const DEFAULT_SUB_WORK_TYPE_NAME = "하위 공사명 (타설)";
@@ -126,6 +157,7 @@ const ROW_PANEL_MIN_WIDTH = 180;
 const ROW_PANEL_MAX_WIDTH = 520;
 const WORK_TYPE_COLUMN_MIN_WIDTH = 72;
 const WORK_TYPE_COLUMN_MAX_WIDTH = 240;
+const LOCAL_HISTORY_MAX_ENTRIES = 80;
 let optimisticReferenceIdSeed = -1;
 
 function clampNumber(value: number, min: number, max: number) {
@@ -304,6 +336,37 @@ function createUniqueReferenceName(baseName: string, existingNames: string[]) {
   return nextName;
 }
 
+function cloneWorkHierarchyItem(
+  item: DesktopScheduleReferenceHierarchyItem,
+): DesktopScheduleReferenceHierarchyItem {
+  return { ...item };
+}
+
+function cloneWorkResponse(work: DesktopScheduleWorkResponse): DesktopScheduleWorkResponse {
+  return {
+    ...work,
+    zoneIds: [...(work.zoneIds ?? [])],
+    zoneNames: [...(work.zoneNames ?? [])],
+    floorIds: [...(work.floorIds ?? [])],
+    floorNames: [...(work.floorNames ?? [])],
+    componentTypes: (work.componentTypes ?? []).map((componentTypeGroup) => ({
+      ...componentTypeGroup,
+      componentTypeIds: [...(componentTypeGroup.componentTypeIds ?? [])],
+    })),
+    photos: work.photos?.map((photo) => ({ ...photo })),
+  };
+}
+
+function cloneWorkDepResponse(workDep: DesktopScheduleWorkDepResponse): DesktopScheduleWorkDepResponse {
+  return { ...workDep };
+}
+
+function cloneMilestoneResponse(
+  milestone: DesktopScheduleMilestoneResponse,
+): DesktopScheduleMilestoneResponse {
+  return { ...milestone };
+}
+
 function cloneScheduleData(data: DesktopScheduleBootstrapData): DesktopScheduleBootstrapData {
   return {
     ...data,
@@ -315,45 +378,78 @@ function cloneScheduleData(data: DesktopScheduleBootstrapData): DesktopScheduleB
       ...data.calendar,
       dates: data.calendar.dates.map((date) => ({ ...date })),
     },
-    workHierarchy: data.workHierarchy.map((item) => ({ ...item })),
-    works: data.works.map((work) => ({
-      ...work,
-      zoneIds: [...(work.zoneIds ?? [])],
-      zoneNames: [...(work.zoneNames ?? [])],
-      floorIds: [...(work.floorIds ?? [])],
-      floorNames: [...(work.floorNames ?? [])],
-      componentTypes: (work.componentTypes ?? []).map((componentTypeGroup) => ({
-        ...componentTypeGroup,
-        componentTypeIds: [...(componentTypeGroup.componentTypeIds ?? [])],
-      })),
-      photos: work.photos?.map((photo) => ({ ...photo })),
-    })),
-    workDeps: data.workDeps.map((workDep) => ({ ...workDep })),
+    workHierarchy: data.workHierarchy.map(cloneWorkHierarchyItem),
+    works: data.works.map(cloneWorkResponse),
+    workDeps: data.workDeps.map(cloneWorkDepResponse),
+    milestones: (data.milestones ?? []).map(cloneMilestoneResponse),
+  };
+}
+
+function cloneRow(row: DesktopScheduleRow): DesktopScheduleRow {
+  return {
+    ...row,
+    source: { ...row.source },
   };
 }
 
 function cloneRows(rows: DesktopScheduleRow[]) {
-  return rows.map((row) => ({
-    ...row,
-    source: { ...row.source },
-  }));
+  return rows.map(cloneRow);
 }
 
-function cloneItems(items: DesktopScheduleItem[]) {
-  return items.map((item) => ({
+function cloneItem(item: DesktopScheduleItem): DesktopScheduleItem {
+  return {
     ...item,
     zoneIds: [...(item.zoneIds ?? [])],
     floorIds: [...(item.floorIds ?? [])],
     componentTypeIds: [...(item.componentTypeIds ?? [])],
-  }));
+  };
+}
+
+function cloneItems(items: DesktopScheduleItem[]) {
+  return items.map(cloneItem);
+}
+
+function cloneWorkConnection(workConnection: DesktopScheduleWorkConnection): DesktopScheduleWorkConnection {
+  return { ...workConnection };
 }
 
 function cloneWorkConnections(workConnections: DesktopScheduleWorkConnection[]) {
-  return workConnections.map((workConnection) => ({ ...workConnection }));
+  return workConnections.map(cloneWorkConnection);
+}
+
+function cloneMilestone(milestone: DesktopScheduleMilestone): DesktopScheduleMilestone {
+  return { ...milestone };
 }
 
 function cloneMilestones(milestones: DesktopScheduleMilestone[]) {
-  return milestones.map((milestone) => ({ ...milestone }));
+  return milestones.map(cloneMilestone);
+}
+
+function createMilestoneModelFromApi(
+  milestone: DesktopScheduleMilestoneResponse,
+): DesktopScheduleMilestone {
+  return {
+    id: `milestone:${milestone.id}`,
+    apiId: milestone.id,
+    date: milestone.date,
+    label: milestone.name,
+    rowId: null,
+  };
+}
+
+function getMilestoneApiId(milestone: DesktopScheduleMilestone | null | undefined) {
+  if (!milestone) {
+    return null;
+  }
+
+  if (typeof milestone.apiId === "number") {
+    return milestone.apiId;
+  }
+
+  const idMatch = milestone.id.match(/^milestone:(\d+)$/);
+  const apiId = idMatch ? Number(idMatch[1]) : Number.NaN;
+
+  return Number.isFinite(apiId) ? apiId : null;
 }
 
 function cloneSelectionState(selection: ReturnType<typeof createEmptyDesktopScheduleSelectionState>) {
@@ -404,6 +500,8 @@ function createDesktopScheduleViewModel() {
   const workTypeColumnWidth = ref(DEFAULT_WORK_TYPE_COLUMN_WIDTH);
   const chartScrollTop = ref(0);
   const chartScrollLeft = ref(0);
+  const localHistoryUndoStack = ref<DesktopScheduleLocalHistoryEntry[]>([]);
+  const localHistoryRedoStack = ref<DesktopScheduleLocalHistoryEntry[]>([]);
   const lanePreferenceByItemId = ref<Record<string, number>>({});
   const interactionSession = ref<MoveSession | ResizeSession | SummaryResizeSession | null>(null);
   const interactionCancelVersion = ref(0);
@@ -484,6 +582,8 @@ function createDesktopScheduleViewModel() {
   const scheduleLoadErrorMessage = computed(
     () => scheduleLoadState.value.error?.message ?? "공정표 데이터를 불러오지 못했습니다.",
   );
+  const canUndoLocalHistory = computed(() => localHistoryUndoStack.value.length > 0);
+  const canRedoLocalHistory = computed(() => localHistoryRedoStack.value.length > 0);
 
   function closeContextMenu() {
     contextMenuState.value = createClosedDesktopScheduleContextMenuState();
@@ -604,6 +704,331 @@ function createDesktopScheduleViewModel() {
     renamingMilestoneId.value = null;
     closeContextMenu();
     closeColorPalette();
+  }
+
+  function areHistoryEntitiesEqual<TEntity>(before: TEntity | null, after: TEntity | null) {
+    return JSON.stringify(before) === JSON.stringify(after);
+  }
+
+  function createHistoryCollectionPatch<TEntity, TKey extends string | number>(
+    before: TEntity[],
+    after: TEntity[],
+    getKey: (entity: TEntity) => TKey,
+    cloneEntity: (entity: TEntity) => TEntity,
+  ): DesktopScheduleHistoryCollectionPatch<TEntity, TKey> {
+    const beforeByKey = new Map(before.map((entity) => [getKey(entity), entity] as const));
+    const afterByKey = new Map(after.map((entity) => [getKey(entity), entity] as const));
+    const keys = [
+      ...before.map(getKey),
+      ...after.map(getKey).filter((key) => !beforeByKey.has(key)),
+    ];
+
+    return {
+      beforeOrder: before.map(getKey),
+      afterOrder: after.map(getKey),
+      changes: keys
+        .map((key) => {
+          const beforeEntity = beforeByKey.get(key) ?? null;
+          const afterEntity = afterByKey.get(key) ?? null;
+
+          if (areHistoryEntitiesEqual(beforeEntity, afterEntity)) {
+            return null;
+          }
+
+          return {
+            key,
+            before: beforeEntity ? cloneEntity(beforeEntity) : null,
+            after: afterEntity ? cloneEntity(afterEntity) : null,
+          };
+        })
+        .filter(
+          (
+            change,
+          ): change is DesktopScheduleHistoryEntityChange<TEntity, TKey> => change !== null,
+        ),
+    };
+  }
+
+  function hasHistoryCollectionPatchChange<TEntity, TKey extends string | number>(
+    patch: DesktopScheduleHistoryCollectionPatch<TEntity, TKey>,
+  ) {
+    return (
+      patch.changes.length > 0 ||
+      JSON.stringify(patch.beforeOrder) !== JSON.stringify(patch.afterOrder)
+    );
+  }
+
+  function createLoadedDataHistoryPatch(
+    beforeData: DesktopScheduleBootstrapData | null,
+    afterData: DesktopScheduleBootstrapData | null,
+  ): DesktopScheduleLoadedDataHistoryPatch | null {
+    if (!beforeData || !afterData) {
+      return null;
+    }
+
+    const patch: DesktopScheduleLoadedDataHistoryPatch = {
+      workHierarchy: createHistoryCollectionPatch(
+        beforeData.workHierarchy,
+        afterData.workHierarchy,
+        (item) => item.subWorkTypeId,
+        cloneWorkHierarchyItem,
+      ),
+      works: createHistoryCollectionPatch(
+        beforeData.works,
+        afterData.works,
+        (work) => work.workId,
+        cloneWorkResponse,
+      ),
+      workDeps: createHistoryCollectionPatch(
+        beforeData.workDeps,
+        afterData.workDeps,
+        (workDep) => workDep.id,
+        cloneWorkDepResponse,
+      ),
+      milestones: createHistoryCollectionPatch(
+        beforeData.milestones ?? [],
+        afterData.milestones ?? [],
+        (milestone) => milestone.id,
+        cloneMilestoneResponse,
+      ),
+    };
+
+    return hasHistoryCollectionPatchChange(patch.workHierarchy) ||
+      hasHistoryCollectionPatchChange(patch.works) ||
+      hasHistoryCollectionPatchChange(patch.workDeps) ||
+      hasHistoryCollectionPatchChange(patch.milestones)
+      ? patch
+      : null;
+  }
+
+  function createLocalHistoryEntry(
+    previousSnapshot: DesktopScheduleLocalSnapshot,
+    nextSnapshot: DesktopScheduleLocalSnapshot,
+  ): DesktopScheduleLocalHistoryEntry | null {
+    const entry: DesktopScheduleLocalHistoryEntry = {
+      rows: createHistoryCollectionPatch(
+        previousSnapshot.rows,
+        nextSnapshot.rows,
+        (row) => row.id,
+        cloneRow,
+      ),
+      items: createHistoryCollectionPatch(
+        previousSnapshot.items,
+        nextSnapshot.items,
+        (item) => item.id,
+        cloneItem,
+      ),
+      workConnections: createHistoryCollectionPatch(
+        previousSnapshot.workConnections,
+        nextSnapshot.workConnections,
+        (workConnection) => workConnection.id,
+        cloneWorkConnection,
+      ),
+      milestones: createHistoryCollectionPatch(
+        previousSnapshot.milestones,
+        nextSnapshot.milestones,
+        (milestone) => milestone.id,
+        cloneMilestone,
+      ),
+      loadedData: createLoadedDataHistoryPatch(previousSnapshot.loadedData, nextSnapshot.loadedData),
+    };
+    const didChange =
+      hasHistoryCollectionPatchChange(entry.rows) ||
+      hasHistoryCollectionPatchChange(entry.items) ||
+      hasHistoryCollectionPatchChange(entry.workConnections) ||
+      hasHistoryCollectionPatchChange(entry.milestones) ||
+      entry.loadedData !== null;
+
+    return didChange ? entry : null;
+  }
+
+  function applyHistoryCollectionPatch<TEntity, TKey extends string | number>(
+    current: TEntity[],
+    patch: DesktopScheduleHistoryCollectionPatch<TEntity, TKey>,
+    direction: "undo" | "redo",
+    getKey: (entity: TEntity) => TKey,
+    cloneEntity: (entity: TEntity) => TEntity,
+  ) {
+    const entityByKey = new Map(current.map((entity) => [getKey(entity), cloneEntity(entity)] as const));
+
+    patch.changes.forEach((change) => {
+      const nextEntity = direction === "undo" ? change.before : change.after;
+
+      if (!nextEntity) {
+        entityByKey.delete(change.key);
+        return;
+      }
+
+      entityByKey.set(change.key, cloneEntity(nextEntity));
+    });
+
+    const targetOrder = direction === "undo" ? patch.beforeOrder : patch.afterOrder;
+    const orderedEntities: TEntity[] = [];
+    const usedKeys = new Set<TKey>();
+
+    targetOrder.forEach((key) => {
+      const entity = entityByKey.get(key);
+
+      if (!entity) {
+        return;
+      }
+
+      orderedEntities.push(entity);
+      usedKeys.add(key);
+    });
+
+    current.forEach((entity) => {
+      const key = getKey(entity);
+      const nextEntity = entityByKey.get(key);
+
+      if (usedKeys.has(key) || !nextEntity) {
+        return;
+      }
+
+      orderedEntities.push(nextEntity);
+      usedKeys.add(key);
+    });
+
+    return orderedEntities;
+  }
+
+  function applyLoadedDataHistoryPatch(
+    currentData: DesktopScheduleBootstrapData | null,
+    patch: DesktopScheduleLoadedDataHistoryPatch | null,
+    direction: "undo" | "redo",
+  ) {
+    if (!currentData || !patch) {
+      return currentData;
+    }
+
+    return {
+      ...currentData,
+      workHierarchy: applyHistoryCollectionPatch(
+        currentData.workHierarchy,
+        patch.workHierarchy,
+        direction,
+        (item) => item.subWorkTypeId,
+        cloneWorkHierarchyItem,
+      ),
+      works: applyHistoryCollectionPatch(
+        currentData.works,
+        patch.works,
+        direction,
+        (work) => work.workId,
+        cloneWorkResponse,
+      ),
+      workDeps: applyHistoryCollectionPatch(
+        currentData.workDeps,
+        patch.workDeps,
+        direction,
+        (workDep) => workDep.id,
+        cloneWorkDepResponse,
+      ),
+      milestones: applyHistoryCollectionPatch(
+        currentData.milestones ?? [],
+        patch.milestones,
+        direction,
+        (milestone) => milestone.id,
+        cloneMilestoneResponse,
+      ),
+    };
+  }
+
+  function applyLocalHistoryEntry(
+    entry: DesktopScheduleLocalHistoryEntry,
+    direction: "undo" | "redo",
+  ) {
+    workingRows.value = applyHistoryCollectionPatch(
+      workingRows.value,
+      entry.rows,
+      direction,
+      (row) => row.id,
+      cloneRow,
+    );
+    workingItems.value = applyHistoryCollectionPatch(
+      workingItems.value,
+      entry.items,
+      direction,
+      (item) => item.id,
+      cloneItem,
+    );
+    workingWorkConnections.value = applyHistoryCollectionPatch(
+      workingWorkConnections.value,
+      entry.workConnections,
+      direction,
+      (workConnection) => workConnection.id,
+      cloneWorkConnection,
+    );
+    workingMilestones.value = applyHistoryCollectionPatch(
+      workingMilestones.value,
+      entry.milestones,
+      direction,
+      (milestone) => milestone.id,
+      cloneMilestone,
+    );
+    scheduleLoadState.value = {
+      ...scheduleLoadState.value,
+      data: applyLoadedDataHistoryPatch(scheduleLoadState.value.data, entry.loadedData, direction),
+    };
+    selectionState.value = createEmptyDesktopScheduleSelectionState();
+    interactionSession.value = null;
+    connectionCreationState.value = null;
+    renamingDivisionId.value = null;
+    renamingWorkTypeId.value = null;
+    renamingSubWorkTypeId.value = null;
+    renamingItemId.value = null;
+    renamingMilestoneId.value = null;
+    closeContextMenu();
+    closeColorPalette();
+  }
+
+  function pushLocalHistoryEntry(previousSnapshot: DesktopScheduleLocalSnapshot) {
+    const entry = createLocalHistoryEntry(previousSnapshot, captureWorkingSnapshot());
+
+    if (!entry) {
+      return;
+    }
+
+    localHistoryUndoStack.value = [
+      ...localHistoryUndoStack.value.slice(-(LOCAL_HISTORY_MAX_ENTRIES - 1)),
+      entry,
+    ];
+    localHistoryRedoStack.value = [];
+  }
+
+  function clearLocalHistory() {
+    localHistoryUndoStack.value = [];
+    localHistoryRedoStack.value = [];
+  }
+
+  function undoLocalHistory() {
+    const entry = localHistoryUndoStack.value[localHistoryUndoStack.value.length - 1];
+
+    if (!entry || interactionSession.value) {
+      return;
+    }
+
+    localHistoryUndoStack.value = localHistoryUndoStack.value.slice(0, -1);
+    localHistoryRedoStack.value = [
+      ...localHistoryRedoStack.value.slice(-(LOCAL_HISTORY_MAX_ENTRIES - 1)),
+      entry,
+    ];
+    applyLocalHistoryEntry(entry, "undo");
+  }
+
+  function redoLocalHistory() {
+    const entry = localHistoryRedoStack.value[localHistoryRedoStack.value.length - 1];
+
+    if (!entry || interactionSession.value) {
+      return;
+    }
+
+    localHistoryRedoStack.value = localHistoryRedoStack.value.slice(0, -1);
+    localHistoryUndoStack.value = [
+      ...localHistoryUndoStack.value.slice(-(LOCAL_HISTORY_MAX_ENTRIES - 1)),
+      entry,
+    ];
+    applyLocalHistoryEntry(entry, "redo");
   }
 
   function updateLoadedScheduleData(
@@ -768,6 +1193,87 @@ function createDesktopScheduleViewModel() {
     }));
   }
 
+  function syncLoadedSubWorkTypeColor(subWorkTypeId: number, colorHex: string | null) {
+    updateLoadedScheduleData((currentData) => ({
+      ...currentData,
+      workHierarchy: currentData.workHierarchy.map((item) =>
+        item.subWorkTypeId === subWorkTypeId
+          ? {
+              ...item,
+              subWorkTypeColor: colorHex,
+            }
+          : item,
+      ),
+    }));
+  }
+
+  function upsertLoadedMilestone(milestone: DesktopScheduleMilestoneResponse) {
+    updateLoadedScheduleData((currentData) => {
+      const milestoneById = new Map(
+        (currentData.milestones ?? []).map((currentMilestone) => [
+          currentMilestone.id,
+          cloneMilestoneResponse(currentMilestone),
+        ] as const),
+      );
+      milestoneById.set(milestone.id, cloneMilestoneResponse(milestone));
+
+      return {
+        ...currentData,
+        milestones: Array.from(milestoneById.values()).sort((a, b) =>
+          a.date === b.date ? a.id - b.id : a.date.localeCompare(b.date),
+        ),
+      };
+    });
+  }
+
+  function syncLoadedMilestoneFromModel(milestone: DesktopScheduleMilestone) {
+    const apiId = getMilestoneApiId(milestone);
+
+    if (apiId === null) {
+      return;
+    }
+
+    upsertLoadedMilestone({
+      id: apiId,
+      date: milestone.date,
+      name: milestone.label,
+    });
+  }
+
+  function removeLoadedMilestones(milestoneApiIds: number[]) {
+    if (milestoneApiIds.length === 0) {
+      return;
+    }
+
+    const milestoneApiIdSet = new Set(milestoneApiIds);
+    updateLoadedScheduleData((currentData) => ({
+      ...currentData,
+      milestones: (currentData.milestones ?? []).filter(
+        (milestone) => !milestoneApiIdSet.has(milestone.id),
+      ),
+    }));
+  }
+
+  function replaceWorkingMilestoneWithApiMilestone(
+    localMilestoneId: string,
+    apiMilestone: DesktopScheduleMilestoneResponse,
+  ) {
+    const milestone = createMilestoneModelFromApi(apiMilestone);
+    workingMilestones.value = workingMilestones.value.map((currentMilestone) =>
+      currentMilestone.id === localMilestoneId ? milestone : currentMilestone,
+    );
+    selectionState.value = {
+      ...selectionState.value,
+      milestoneIds: selectionState.value.milestoneIds.map((milestoneId) =>
+        milestoneId === localMilestoneId ? milestone.id : milestoneId,
+      ),
+    };
+    if (renamingMilestoneId.value === localMilestoneId) {
+      renamingMilestoneId.value = milestone.id;
+    }
+    upsertLoadedMilestone(apiMilestone);
+  }
+
   function rebuildScheduleFromLoadedData() {
     const currentData = scheduleLoadState.value.data;
 
@@ -921,7 +1427,7 @@ function createDesktopScheduleViewModel() {
 
   function replaceReferenceSubWorkTypeId(
     tempSubWorkTypeId: number,
-    subWorkType: { id: number; name: string },
+    subWorkType: { id: number; name: string; color?: string | null },
   ) {
     updateLoadedScheduleData((currentData) => ({
       ...currentData,
@@ -931,6 +1437,7 @@ function createDesktopScheduleViewModel() {
               ...item,
               subWorkTypeId: subWorkType.id,
               subWorkTypeName: subWorkType.name,
+              subWorkTypeColor: subWorkType.color ?? item.subWorkTypeColor ?? null,
             }
           : item,
       ),
@@ -1038,6 +1545,7 @@ function createDesktopScheduleViewModel() {
       const scheduleData = await desktopScheduleApi.loadCurrentProjectSchedule();
       timelineCalendarState.value = createTimelineCalendarState(scheduleData);
       applyScheduleSnapshot(createDesktopScheduleSnapshotFromApiData(scheduleData));
+      clearLocalHistory();
       scheduleLoadState.value = {
         status: "success",
         data: scheduleData,
@@ -1046,6 +1554,7 @@ function createDesktopScheduleViewModel() {
     } catch (error) {
       timelineCalendarState.value = createEmptyTimelineCalendarState();
       applyScheduleSnapshot(createEmptyScheduleSnapshot());
+      clearLocalHistory();
       scheduleLoadState.value = {
         status: "error",
         data: null,
@@ -1124,6 +1633,90 @@ function createDesktopScheduleViewModel() {
     return request;
   }
 
+  function orderWorkUpdateItemsByDependency(
+    updateItems: DesktopScheduleWorkUpdateItem[],
+    nextItems: DesktopScheduleItem[],
+    workConnections: DesktopScheduleWorkConnection[],
+  ) {
+    if (updateItems.length <= 1 || workConnections.length === 0) {
+      return updateItems;
+    }
+
+    const itemById = new Map(nextItems.map((item) => [item.id, item] as const));
+    const updateItemByWorkId = new Map(updateItems.map((item) => [item.workId, item] as const));
+    const originalIndexByWorkId = new Map(
+      updateItems.map((item, index) => [item.workId, index] as const),
+    );
+    const outgoingWorkIdsByWorkId = new Map<number, Set<number>>();
+    const incomingCountByWorkId = new Map<number, number>(
+      updateItems.map((item) => [item.workId, 0] as const),
+    );
+
+    workConnections.forEach((workConnection) => {
+      const sourceItem = itemById.get(workConnection.sourceItemId);
+      const targetItem = itemById.get(workConnection.targetItemId);
+
+      if (
+        !sourceItem ||
+        !targetItem ||
+        !updateItemByWorkId.has(sourceItem.workId) ||
+        !updateItemByWorkId.has(targetItem.workId) ||
+        sourceItem.workId === targetItem.workId
+      ) {
+        return;
+      }
+
+      const outgoingWorkIds = outgoingWorkIdsByWorkId.get(sourceItem.workId) ?? new Set<number>();
+
+      if (outgoingWorkIds.has(targetItem.workId)) {
+        return;
+      }
+
+      outgoingWorkIds.add(targetItem.workId);
+      outgoingWorkIdsByWorkId.set(sourceItem.workId, outgoingWorkIds);
+      incomingCountByWorkId.set(targetItem.workId, (incomingCountByWorkId.get(targetItem.workId) ?? 0) + 1);
+    });
+
+    const orderedWorkIds: number[] = [];
+    let availableWorkIds = updateItems
+      .map((item) => item.workId)
+      .filter((workId) => (incomingCountByWorkId.get(workId) ?? 0) === 0);
+
+    while (availableWorkIds.length > 0) {
+      availableWorkIds = availableWorkIds.sort(
+        (a, b) => (originalIndexByWorkId.get(a) ?? 0) - (originalIndexByWorkId.get(b) ?? 0),
+      );
+
+      const workId = availableWorkIds.shift();
+
+      if (workId === undefined) {
+        continue;
+      }
+
+      orderedWorkIds.push(workId);
+
+      (outgoingWorkIdsByWorkId.get(workId) ?? new Set<number>()).forEach((targetWorkId) => {
+        const nextIncomingCount = (incomingCountByWorkId.get(targetWorkId) ?? 0) - 1;
+        incomingCountByWorkId.set(targetWorkId, nextIncomingCount);
+
+        if (nextIncomingCount === 0) {
+          availableWorkIds.push(targetWorkId);
+        }
+      });
+    }
+
+    updateItems
+      .map((item) => item.workId)
+      .filter((workId) => !orderedWorkIds.includes(workId))
+      .forEach((workId) => {
+        orderedWorkIds.push(workId);
+      });
+
+    return orderedWorkIds
+      .map((workId) => updateItemByWorkId.get(workId))
+      .filter((item): item is DesktopScheduleWorkUpdateItem => !!item);
+  }
+
   async function persistWorkConnectionGapChanges(
     baseWorkConnections: DesktopScheduleWorkConnection[],
     nextWorkConnections: DesktopScheduleWorkConnection[],
@@ -1157,6 +1750,7 @@ function createDesktopScheduleViewModel() {
     nextItems: DesktopScheduleItem[],
     itemIds: string[],
     changedWorkConnections: DesktopScheduleWorkConnection[],
+    workConnections: DesktopScheduleWorkConnection[],
   ) {
     const nextItemById = new Map(nextItems.map((item) => [item.id, item] as const));
     const changedWorkConnectionTargetIds = new Set(
@@ -1189,25 +1783,34 @@ function createDesktopScheduleViewModel() {
       return;
     }
 
-    await desktopScheduleApi.updateWork({ items: updateItems });
+    await desktopScheduleApi.updateWork({
+      items: orderWorkUpdateItemsByDependency(updateItems, nextItems, workConnections),
+    });
   }
 
   function addParentRow() {
+    const snapshot = captureWorkingSnapshot();
     workingRows.value = desktopScheduleService.addParentRow(workingRows.value);
+    pushLocalHistoryEntry(snapshot);
     closeContextMenu();
   }
 
   function addChildRow(parentRowId: string) {
+    const snapshot = captureWorkingSnapshot();
     workingRows.value = desktopScheduleService.addChildRow(workingRows.value, parentRowId);
+    pushLocalHistoryEntry(snapshot);
     closeContextMenu();
   }
 
   function toggleRowCollapse(rowId: string) {
+    const snapshot = captureWorkingSnapshot();
     workingRows.value = desktopScheduleService.toggleRowCollapse(workingRows.value, rowId);
+    pushLocalHistoryEntry(snapshot);
     closeContextMenu();
   }
 
   function createReferenceDivisionSet() {
+    const snapshot = captureWorkingSnapshot();
     const tempReferenceItem: DesktopScheduleReferenceHierarchyItem = {
       divisionId: createOptimisticReferenceId(),
       divisionName: DEFAULT_DIVISION_NAME,
@@ -1216,9 +1819,11 @@ function createDesktopScheduleViewModel() {
       isStructure: true,
       subWorkTypeId: createOptimisticReferenceId(),
       subWorkTypeName: DEFAULT_SUB_WORK_TYPE_NAME,
+      subWorkTypeColor: null,
     };
 
     addReferenceHierarchyItem(tempReferenceItem);
+    pushLocalHistoryEntry(snapshot);
     closeContextMenu();
   }
 
@@ -1261,7 +1866,7 @@ function createDesktopScheduleViewModel() {
     closeContextMenu();
 
     if (payload.divisionId < 0) {
-      await runScheduleMutation(
+      const didSave = await runScheduleMutation(
         async () => {
           const division = await desktopScheduleApi.createDivision({
             name: nextName,
@@ -1273,10 +1878,13 @@ function createDesktopScheduleViewModel() {
           rollback: () => restoreWorkingSnapshot(snapshot),
         },
       );
+      if (didSave) {
+        pushLocalHistoryEntry(snapshot);
+      }
       return;
     }
 
-    await runScheduleMutation(
+    const didSave = await runScheduleMutation(
       async () => {
         await desktopScheduleApi.updateDivision({ id: payload.divisionId, name: nextName });
       },
@@ -1285,6 +1893,9 @@ function createDesktopScheduleViewModel() {
         rollback: () => restoreWorkingSnapshot(snapshot),
       },
     );
+    if (didSave) {
+      pushLocalHistoryEntry(snapshot);
+    }
   }
 
   function cancelDivisionRename() {
@@ -1298,6 +1909,7 @@ function createDesktopScheduleViewModel() {
       return;
     }
 
+    const snapshot = captureWorkingSnapshot();
     const tempReferenceItem: DesktopScheduleReferenceHierarchyItem = {
       divisionId: payload.divisionId,
       divisionName: payload.divisionName,
@@ -1306,9 +1918,11 @@ function createDesktopScheduleViewModel() {
       isStructure: true,
       subWorkTypeId: createOptimisticReferenceId(),
       subWorkTypeName: DEFAULT_SUB_WORK_TYPE_NAME,
+      subWorkTypeColor: null,
     };
 
     addReferenceHierarchyItem(tempReferenceItem);
+    pushLocalHistoryEntry(snapshot);
     closeContextMenu();
   }
 
@@ -1328,6 +1942,7 @@ function createDesktopScheduleViewModel() {
       return;
     }
 
+    const snapshot = captureWorkingSnapshot();
     const tempReferenceItem: DesktopScheduleReferenceHierarchyItem = {
       divisionId: targetHierarchyItem.divisionId,
       divisionName: targetHierarchyItem.divisionName,
@@ -1336,9 +1951,11 @@ function createDesktopScheduleViewModel() {
       isStructure: targetHierarchyItem.isStructure,
       subWorkTypeId: createOptimisticReferenceId(),
       subWorkTypeName: DEFAULT_SUB_WORK_TYPE_NAME,
+      subWorkTypeColor: null,
     };
 
     addReferenceSubWorkTypeItem(tempReferenceItem);
+    pushLocalHistoryEntry(snapshot);
     closeContextMenu();
   }
 
@@ -1390,7 +2007,7 @@ function createDesktopScheduleViewModel() {
     closeContextMenu();
 
     if (payload.workTypeId < 0) {
-      await runScheduleMutation(
+      const didSave = await runScheduleMutation(
         async () => {
           const workType = await desktopScheduleApi.createWorkType({
             divisionId: targetHierarchyItem.divisionId,
@@ -1404,10 +2021,13 @@ function createDesktopScheduleViewModel() {
           rollback: () => restoreWorkingSnapshot(snapshot),
         },
       );
+      if (didSave) {
+        pushLocalHistoryEntry(snapshot);
+      }
       return;
     }
 
-    await runScheduleMutation(
+    const didSave = await runScheduleMutation(
       async () => {
         await desktopScheduleApi.updateWorkType({
           id: payload.workTypeId,
@@ -1420,6 +2040,9 @@ function createDesktopScheduleViewModel() {
         rollback: () => restoreWorkingSnapshot(snapshot),
       },
     );
+    if (didSave) {
+      pushLocalHistoryEntry(snapshot);
+    }
   }
 
   function cancelWorkTypeRename() {
@@ -1476,11 +2099,12 @@ function createDesktopScheduleViewModel() {
     closeContextMenu();
 
     if (payload.subWorkTypeId < 0) {
-      await runScheduleMutation(
+      const didSave = await runScheduleMutation(
         async () => {
           const subWorkType = await desktopScheduleApi.createSubWorkType({
             workTypeId: targetHierarchyItem.workTypeId,
             name: nextName,
+            color: targetHierarchyItem.subWorkTypeColor ?? null,
           });
           replaceReferenceSubWorkTypeId(payload.subWorkTypeId, subWorkType);
         },
@@ -1489,10 +2113,13 @@ function createDesktopScheduleViewModel() {
           rollback: () => restoreWorkingSnapshot(snapshot),
         },
       );
+      if (didSave) {
+        pushLocalHistoryEntry(snapshot);
+      }
       return;
     }
 
-    await runScheduleMutation(
+    const didSave = await runScheduleMutation(
       async () => {
         await desktopScheduleApi.updateSubWorkType({
           id: payload.subWorkTypeId,
@@ -1504,6 +2131,9 @@ function createDesktopScheduleViewModel() {
         rollback: () => restoreWorkingSnapshot(snapshot),
       },
     );
+    if (didSave) {
+      pushLocalHistoryEntry(snapshot);
+    }
   }
 
   function cancelSubWorkTypeRename() {
@@ -1524,7 +2154,7 @@ function createDesktopScheduleViewModel() {
     rebuildScheduleFromLoadedData();
     closeContextMenu();
 
-    await runScheduleMutation(
+    const didSave = await runScheduleMutation(
       async () => {
         await desktopScheduleApi.updateDivision({ ids: payload.divisionIds });
       },
@@ -1533,6 +2163,9 @@ function createDesktopScheduleViewModel() {
         rollback: () => restoreWorkingSnapshot(snapshot),
       },
     );
+    if (didSave) {
+      pushLocalHistoryEntry(snapshot);
+    }
   }
 
   async function reorderReferenceWorkTypes(payload: { divisionId: number; workTypeIds: number[] }) {
@@ -1552,7 +2185,7 @@ function createDesktopScheduleViewModel() {
     rebuildScheduleFromLoadedData();
     closeContextMenu();
 
-    await runScheduleMutation(
+    const didSave = await runScheduleMutation(
       async () => {
         await desktopScheduleApi.updateWorkType({
           parentId: payload.divisionId,
@@ -1564,6 +2197,9 @@ function createDesktopScheduleViewModel() {
         rollback: () => restoreWorkingSnapshot(snapshot),
       },
     );
+    if (didSave) {
+      pushLocalHistoryEntry(snapshot);
+    }
   }
 
   function selectBars(payload: { itemIds: string[]; rowIds: string[]; milestoneIds?: string[] }) {
@@ -1604,10 +2240,14 @@ function createDesktopScheduleViewModel() {
         selectionState.value.workConnectionIds.includes(workConnection.id),
       )
       .map((workConnection) => workConnection.pathId);
+    const milestoneIdsToDelete = [...selectionState.value.milestoneIds];
+    const milestoneApiIdsToDelete = workingMilestones.value
+      .filter((milestone) => milestoneIdsToDelete.includes(milestone.id))
+      .map(getMilestoneApiId)
+      .filter((milestoneApiId): milestoneApiId is number => milestoneApiId !== null);
+    const snapshot = captureWorkingSnapshot();
 
     if (workIdsToDelete.length > 0 || workDepIdsToDelete.length > 0) {
-      const snapshot = captureWorkingSnapshot();
-      const milestoneIdsToDelete = [...selectionState.value.milestoneIds];
       if (itemIdsToDelete.length > 0) {
         workingItems.value = desktopScheduleService.deleteItems(workingItems.value, itemIdsToDelete);
         workingWorkConnections.value = desktopScheduleService.removeWorkConnectionsForItems(
@@ -1631,16 +2271,20 @@ function createDesktopScheduleViewModel() {
       }
 
       removeLoadedWorksAndWorkDeps(workIdsToDelete, workDepIdsToDelete);
+      removeLoadedMilestones(milestoneApiIdsToDelete);
 
       selectionState.value = createEmptyDesktopScheduleSelectionState();
       connectionCreationState.value = null;
       closeContextMenu();
 
-      await runScheduleMutation(
+      const didSave = await runScheduleMutation(
         async () => {
           await Promise.all([
             ...workDepIdsToDelete.map((workDepId) => desktopScheduleApi.deleteWorkDep(workDepId)),
             ...workIdsToDelete.map((workId) => desktopScheduleApi.deleteWork(workId)),
+            ...milestoneApiIdsToDelete.map((milestoneApiId) =>
+              desktopScheduleApi.deleteMilestone(milestoneApiId),
+            ),
           ]);
         },
         "공정표 항목을 삭제하지 못했습니다.",
@@ -1648,6 +2292,9 @@ function createDesktopScheduleViewModel() {
           rollback: () => restoreWorkingSnapshot(snapshot),
         },
       );
+      if (didSave) {
+        pushLocalHistoryEntry(snapshot);
+      }
       return;
     }
 
@@ -1675,6 +2322,7 @@ function createDesktopScheduleViewModel() {
         workingMilestones.value,
         selectionState.value.milestoneIds,
       );
+      removeLoadedMilestones(milestoneApiIdsToDelete);
     }
 
     if (renamingItemId.value && itemIdsToDelete.includes(renamingItemId.value)) {
@@ -1691,6 +2339,28 @@ function createDesktopScheduleViewModel() {
     selectionState.value = createEmptyDesktopScheduleSelectionState();
     connectionCreationState.value = null;
     closeContextMenu();
+
+    if (milestoneApiIdsToDelete.length > 0) {
+      const didSave = await runScheduleMutation(
+        async () => {
+          await Promise.all(
+            milestoneApiIdsToDelete.map((milestoneApiId) =>
+              desktopScheduleApi.deleteMilestone(milestoneApiId),
+            ),
+          );
+        },
+        "마일스톤을 삭제하지 못했습니다.",
+        {
+          rollback: () => restoreWorkingSnapshot(snapshot),
+        },
+      );
+      if (didSave) {
+        pushLocalHistoryEntry(snapshot);
+      }
+      return;
+    }
+
+    pushLocalHistoryEntry(snapshot);
   }
 
   function canCreateItemOnCanvasTarget(
@@ -1843,7 +2513,7 @@ function createDesktopScheduleViewModel() {
     closeContextMenu();
   }
 
-  function applyColorSelection(colorHex: string | null) {
+  async function applyColorSelection(colorHex: string | null) {
     const target = colorPaletteState.value.target;
 
     if (!target) {
@@ -1851,17 +2521,45 @@ function createDesktopScheduleViewModel() {
       return;
     }
 
+    const snapshot = captureWorkingSnapshot();
+
     if (target.kind === "row") {
+      const targetRow = rowById.value.get(target.rowId);
+      const subWorkTypeId = targetRow?.source.subWorkTypeId ?? null;
+
       workingRows.value = desktopScheduleService.updateRowColor(
         workingRows.value,
         target.rowId,
         colorHex,
       );
+      if (typeof subWorkTypeId === "number" && subWorkTypeId > 0) {
+        syncLoadedSubWorkTypeColor(subWorkTypeId, colorHex);
+      }
       selectionState.value = {
         ...createEmptyDesktopScheduleSelectionState(),
         rowIds: [target.rowId],
       };
       closeColorPalette();
+      if (typeof subWorkTypeId === "number" && subWorkTypeId > 0) {
+        const didSave = await runScheduleMutation(
+          async () => {
+            await desktopScheduleApi.updateSubWorkType({
+              id: subWorkTypeId,
+              color: colorHex,
+            });
+          },
+          "하위 공정 색상을 저장하지 못했습니다.",
+          {
+            rollback: () => restoreWorkingSnapshot(snapshot),
+          },
+        );
+        if (didSave) {
+          pushLocalHistoryEntry(snapshot);
+        }
+        return;
+      }
+
+      pushLocalHistoryEntry(snapshot);
       return;
     }
 
@@ -1875,6 +2573,7 @@ function createDesktopScheduleViewModel() {
       ...createEmptyDesktopScheduleSelectionState(),
       itemIds: scopedItemIds,
     };
+    pushLocalHistoryEntry(snapshot);
     closeColorPalette();
   }
 
@@ -1909,7 +2608,7 @@ function createDesktopScheduleViewModel() {
     };
     closeContextMenu();
 
-    await runScheduleMutation(
+    const didSave = await runScheduleMutation(
       async () => {
         const response = await desktopScheduleApi.createWork({
           startDate: payload.startDate,
@@ -1925,6 +2624,9 @@ function createDesktopScheduleViewModel() {
         rollback: () => restoreWorkingSnapshot(snapshot),
       },
     );
+    if (didSave) {
+      pushLocalHistoryEntry(snapshot);
+    }
   }
 
   function startItemRename(itemId: string) {
@@ -1992,6 +2694,7 @@ function createDesktopScheduleViewModel() {
 
     if (didSave) {
       syncLoadedWorkName(targetItem.workId, nextName);
+      pushLocalHistoryEntry(snapshot);
     }
   }
 
@@ -2018,16 +2721,20 @@ function createDesktopScheduleViewModel() {
     closeContextMenu();
   }
 
-  function commitMilestoneRename(payload: { milestoneId: string; label: string }) {
+  async function commitMilestoneRename(payload: { milestoneId: string; label: string }) {
     const trimmedLabel = payload.label.trim();
+    const targetMilestone = workingMilestones.value.find(
+      (milestone) => milestone.id === payload.milestoneId,
+    );
 
     renamingMilestoneId.value = null;
 
-    if (!trimmedLabel) {
+    if (!targetMilestone || !trimmedLabel || targetMilestone.label === trimmedLabel) {
       closeContextMenu();
       return;
     }
 
+    const snapshot = captureWorkingSnapshot();
     workingMilestones.value = desktopScheduleService.updateMilestoneLabel(
       workingMilestones.value,
       payload.milestoneId,
@@ -2037,7 +2744,34 @@ function createDesktopScheduleViewModel() {
       ...createEmptyDesktopScheduleSelectionState(),
       milestoneIds: [payload.milestoneId],
     };
+    syncLoadedMilestoneFromModel({
+      ...targetMilestone,
+      label: trimmedLabel,
+    });
     closeContextMenu();
+
+    const apiId = getMilestoneApiId(targetMilestone);
+    if (apiId === null) {
+      pushLocalHistoryEntry(snapshot);
+      return;
+    }
+
+    const didSave = await runScheduleMutation(
+      async () => {
+        await desktopScheduleApi.updateMilestone({
+          id: apiId,
+          date: targetMilestone.date,
+          name: trimmedLabel,
+        });
+      },
+      "마일스톤 이름을 저장하지 못했습니다.",
+      {
+        rollback: () => restoreWorkingSnapshot(snapshot),
+      },
+    );
+    if (didSave) {
+      pushLocalHistoryEntry(snapshot);
+    }
   }
 
   function cancelMilestoneRename() {
@@ -2315,7 +3049,7 @@ function createDesktopScheduleViewModel() {
         removeReferenceLocally(target);
         closeContextMenu();
 
-        await runScheduleMutation(
+        const didSave = await runScheduleMutation(
           async () => {
             if (target.kind === "division-header") {
               const subWorkTypeIds = Array.from(
@@ -2358,6 +3092,9 @@ function createDesktopScheduleViewModel() {
             rollback: () => restoreWorkingSnapshot(snapshot),
           },
         );
+        if (didSave) {
+          pushLocalHistoryEntry(snapshot);
+        }
         return;
       }
     }
@@ -2368,7 +3105,7 @@ function createDesktopScheduleViewModel() {
       canCreateMilestoneOnCanvasTarget(target) &&
       target.date
     ) {
-      activateMilestone({ date: target.date });
+      await activateMilestone({ date: target.date });
       return;
     }
 
@@ -2402,11 +3139,13 @@ function createDesktopScheduleViewModel() {
       if (targetRow.kind === "parent-process" && command === "change-properties") {
         const nextName = promptForName("상위 공정명을 입력하세요.", targetRow.name);
         if (nextName) {
+          const snapshot = captureWorkingSnapshot();
           workingRows.value = desktopScheduleService.updateRowName(
             workingRows.value,
             target.rowId,
             nextName,
           );
+          pushLocalHistoryEntry(snapshot);
         }
         closeContextMenu();
         return;
@@ -2445,7 +3184,7 @@ function createDesktopScheduleViewModel() {
         selectionState.value = createEmptyDesktopScheduleSelectionState();
         removeLoadedWorksAndWorkDeps(workIdsToDelete);
         closeContextMenu();
-        await runScheduleMutation(
+        const didSave = await runScheduleMutation(
           async () => {
             await Promise.all(
               workIdsToDelete.map((workId) => desktopScheduleApi.deleteWork(workId)),
@@ -2456,6 +3195,9 @@ function createDesktopScheduleViewModel() {
             rollback: () => restoreWorkingSnapshot(snapshot),
           },
         );
+        if (didSave) {
+          pushLocalHistoryEntry(snapshot);
+        }
         return;
       }
 
@@ -2486,7 +3228,7 @@ function createDesktopScheduleViewModel() {
       selectionState.value = createEmptyDesktopScheduleSelectionState();
       removeLoadedWorkDeps([targetWorkConnection.pathId]);
 
-      await runScheduleMutation(
+      const didSave = await runScheduleMutation(
         async () => {
           await desktopScheduleApi.deleteWorkDep(targetWorkConnection.pathId);
         },
@@ -2495,19 +3237,45 @@ function createDesktopScheduleViewModel() {
           rollback: () => restoreWorkingSnapshot(snapshot),
         },
       );
+      if (didSave) {
+        pushLocalHistoryEntry(snapshot);
+      }
       return;
     }
 
     if (target.kind === "milestone" && command === "remove-milestone") {
+      const snapshot = captureWorkingSnapshot();
+      const targetMilestone = workingMilestones.value.find(
+        (milestone) => milestone.id === target.milestoneId,
+      );
+      const milestoneApiId = getMilestoneApiId(targetMilestone);
       workingMilestones.value = desktopScheduleService.removeMilestonesByIds(
         workingMilestones.value,
         [target.milestoneId],
       );
+      removeLoadedMilestones(milestoneApiId === null ? [] : [milestoneApiId]);
       if (renamingMilestoneId.value === target.milestoneId) {
         renamingMilestoneId.value = null;
       }
       selectionState.value = createEmptyDesktopScheduleSelectionState();
       closeContextMenu();
+      if (milestoneApiId === null) {
+        pushLocalHistoryEntry(snapshot);
+        return;
+      }
+
+      const didSave = await runScheduleMutation(
+        async () => {
+          await desktopScheduleApi.deleteMilestone(milestoneApiId);
+        },
+        "마일스톤을 삭제하지 못했습니다.",
+        {
+          rollback: () => restoreWorkingSnapshot(snapshot),
+        },
+      );
+      if (didSave) {
+        pushLocalHistoryEntry(snapshot);
+      }
       return;
     }
 
@@ -2592,7 +3360,7 @@ function createDesktopScheduleViewModel() {
         return;
       }
 
-      await runScheduleMutation(
+      const didSave = await runScheduleMutation(
         async () => {
           await Promise.all(
             overridingWorkDepIds.map((workDepId) => desktopScheduleApi.deleteWorkDep(workDepId)),
@@ -2618,6 +3386,9 @@ function createDesktopScheduleViewModel() {
           rollback: () => restoreWorkingSnapshot(snapshot),
         },
       );
+      if (didSave) {
+        pushLocalHistoryEntry(snapshot);
+      }
       return;
     }
 
@@ -2625,8 +3396,9 @@ function createDesktopScheduleViewModel() {
     closeContextMenu();
   }
 
-  function activateMilestone(payload: { date: string; milestoneId?: string }) {
+  async function activateMilestone(payload: { date: string; milestoneId?: string }) {
     closeContextMenu();
+    const snapshot = captureWorkingSnapshot();
 
     if (payload.milestoneId) {
       const existingMilestone = workingMilestones.value.find(
@@ -2642,13 +3414,18 @@ function createDesktopScheduleViewModel() {
         label: existingMilestone.label,
         rowId: null,
       });
+      pushLocalHistoryEntry(snapshot);
       return;
     }
 
     const previousMilestoneIds = new Set(workingMilestones.value.map((milestone) => milestone.id));
+    const defaultMilestoneLabel = createUniqueReferenceName(
+      "마일스톤",
+      workingMilestones.value.map((milestone) => milestone.label),
+    );
     workingMilestones.value = desktopScheduleService.createMilestone(workingMilestones.value, {
       date: payload.date,
-      label: "마일스톤",
+      label: defaultMilestoneLabel,
       rowId: null,
     });
     const createdMilestone = workingMilestones.value.find(
@@ -2658,6 +3435,28 @@ function createDesktopScheduleViewModel() {
       ...createEmptyDesktopScheduleSelectionState(),
       milestoneIds: createdMilestone ? [createdMilestone.id] : [],
     };
+
+    if (!createdMilestone) {
+      closeContextMenu();
+      return;
+    }
+
+    const didSave = await runScheduleMutation(
+      async () => {
+        const apiMilestone = await desktopScheduleApi.createMilestone({
+          date: createdMilestone.date,
+          name: createdMilestone.label,
+        });
+        replaceWorkingMilestoneWithApiMilestone(createdMilestone.id, apiMilestone);
+      },
+      "마일스톤을 생성하지 못했습니다.",
+      {
+        rollback: () => restoreWorkingSnapshot(snapshot),
+      },
+    );
+    if (didSave) {
+      pushLocalHistoryEntry(snapshot);
+    }
   }
 
   function startMoveSession(
@@ -2827,12 +3626,69 @@ function createDesktopScheduleViewModel() {
     }
 
     if (session.anchor === "milestone") {
+      const snapshot = {
+        ...captureWorkingSnapshot(),
+        milestones: cloneMilestones(session.baseMilestones),
+      };
+      const baseMilestoneById = new Map(
+        session.baseMilestones.map((milestone) => [milestone.id, milestone] as const),
+      );
+      const movedMilestones = workingMilestones.value.filter((milestone) => {
+        if (!session.milestoneIds.includes(milestone.id)) {
+          return false;
+        }
+
+        const baseMilestone = baseMilestoneById.get(milestone.id);
+        return !!baseMilestone && baseMilestone.date !== milestone.date;
+      });
+
+      movedMilestones.forEach(syncLoadedMilestoneFromModel);
       interactionSession.value = null;
+      if (movedMilestones.length === 0) {
+        pushLocalHistoryEntry(snapshot);
+        return;
+      }
+
+      const didSave = await runScheduleMutation(
+        async () => {
+          await Promise.all(
+            movedMilestones.map((milestone) => {
+              const apiId = getMilestoneApiId(milestone);
+
+              if (apiId === null) {
+                return Promise.resolve();
+              }
+
+              return desktopScheduleApi.updateMilestone({
+                id: apiId,
+                date: milestone.date,
+                name: milestone.label,
+              });
+            }),
+          );
+        },
+        "마일스톤 위치를 저장하지 못했습니다.",
+        {
+          rollback: () => restoreWorkingSnapshot(snapshot),
+        },
+      );
+      if (didSave) {
+        pushLocalHistoryEntry(snapshot);
+      }
       return;
     }
 
     if (session.itemIds.length === 0) {
+      const snapshot = session.anchor === "summary"
+        ? {
+            ...captureWorkingSnapshot(),
+            rows: cloneRows(session.baseRows),
+          }
+        : null;
       interactionSession.value = null;
+      if (snapshot) {
+        pushLocalHistoryEntry(snapshot);
+      }
       return;
     }
 
@@ -2858,6 +3714,12 @@ function createDesktopScheduleViewModel() {
     const nextWorkConnections = workingWorkConnections.value.map((workConnection) => ({
       ...workConnection,
     }));
+    const snapshot = {
+      ...captureWorkingSnapshot(),
+      rows: cloneRows(session.baseRows),
+      items: cloneItems(baseItems),
+      workConnections: cloneWorkConnections(baseWorkConnections),
+    };
 
     const didSave = await runScheduleMutation(
       async () => {
@@ -2870,6 +3732,7 @@ function createDesktopScheduleViewModel() {
           nextItems,
           session.itemIds,
           changedWorkConnections,
+          nextWorkConnections,
         );
       },
       "작업 변경사항을 저장하지 못했습니다.",
@@ -2884,6 +3747,7 @@ function createDesktopScheduleViewModel() {
 
     if (didSave) {
       syncLoadedDataFromWorkingItemsAndConnections(nextItems, nextWorkConnections);
+      pushLocalHistoryEntry(snapshot);
     }
   }
 
@@ -2962,6 +3826,11 @@ function createDesktopScheduleViewModel() {
     interactionSession.value = null;
 
     if (session.target !== "item") {
+      const snapshot = {
+        ...captureWorkingSnapshot(),
+        rows: cloneRows(session.baseRows),
+      };
+      pushLocalHistoryEntry(snapshot);
       return;
     }
 
@@ -2971,6 +3840,11 @@ function createDesktopScheduleViewModel() {
     const nextWorkConnections = workingWorkConnections.value.map((workConnection) => ({
       ...workConnection,
     }));
+    const snapshot = {
+      ...captureWorkingSnapshot(),
+      items: cloneItems(baseItems),
+      workConnections: cloneWorkConnections(baseWorkConnections),
+    };
 
     const didSave = await runScheduleMutation(
       async () => {
@@ -2983,6 +3857,7 @@ function createDesktopScheduleViewModel() {
           nextItems,
           [session.itemId],
           changedWorkConnections,
+          nextWorkConnections,
         );
       },
       "작업 기간 변경사항을 저장하지 못했습니다.",
@@ -2996,6 +3871,7 @@ function createDesktopScheduleViewModel() {
 
     if (didSave) {
       syncLoadedDataFromWorkingItemsAndConnections(nextItems, nextWorkConnections);
+      pushLocalHistoryEntry(snapshot);
     }
   }
 
@@ -3060,11 +3936,15 @@ function createDesktopScheduleViewModel() {
     maxZoomIndex,
     canZoomIn,
     canZoomOut,
+    canUndoLocalHistory,
+    canRedoLocalHistory,
     loadSchedule,
     clearSelection,
     syncChartScroll,
     setRowPanelWidth,
     setWorkTypeColumnWidth,
+    undoLocalHistory,
+    redoLocalHistory,
     addParentRow,
     addChildRow,
     toggleRowCollapse,

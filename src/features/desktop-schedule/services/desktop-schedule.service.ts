@@ -28,6 +28,7 @@ interface ChildRowDraft {
   workType: string;
   subWorkType: string;
   subWorkTypeId: number;
+  colorHex?: string | null;
   minPositionY: number;
 }
 
@@ -553,6 +554,7 @@ function upsertChildDraft(
 
   existingChild.divisionId = existingChild.divisionId ?? draft.divisionId;
   existingChild.workTypeId = existingChild.workTypeId ?? draft.workTypeId;
+  existingChild.colorHex = existingChild.colorHex ?? draft.colorHex ?? null;
 }
 
 function buildRows(tasks: DesktopScheduleSourceTask[], sourceRows: DesktopScheduleSourceRow[] = []) {
@@ -567,6 +569,7 @@ function buildRows(tasks: DesktopScheduleSourceTask[], sourceRows: DesktopSchedu
       workType: sourceRow.workType || "미분류 공정",
       subWorkType: sourceRow.subWorkType || "세부공정 미분류",
       subWorkTypeId: sourceRow.subWorkTypeId,
+      colorHex: sourceRow.colorHex ?? null,
       minPositionY: index,
     });
   });
@@ -584,6 +587,7 @@ function buildRows(tasks: DesktopScheduleSourceTask[], sourceRows: DesktopSchedu
       workType,
       subWorkType,
       subWorkTypeId: task.subWorkTypeId,
+      colorHex: null,
       minPositionY: task.positionY,
     });
   });
@@ -595,7 +599,7 @@ function buildRows(tasks: DesktopScheduleSourceTask[], sourceRows: DesktopSchedu
       kind: "child-process" as const,
       parentId: null,
       name: childDraft.name,
-      colorHex: null,
+      colorHex: childDraft.colorHex ?? null,
       summaryStartDate: null,
       summaryEndDate: null,
       order: index,

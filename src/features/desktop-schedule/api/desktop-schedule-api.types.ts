@@ -5,6 +5,7 @@ export type DesktopScheduleWorkDepId = number;
 export type DesktopScheduleDivisionId = number;
 export type DesktopScheduleWorkTypeId = number;
 export type DesktopScheduleSubWorkTypeId = number;
+export type DesktopScheduleMilestoneId = number;
 
 export interface DesktopScheduleProjectResponse {
   id: DesktopScheduleProjectId;
@@ -55,6 +56,7 @@ export interface DesktopScheduleSubWorkTypeResponse {
   id: DesktopScheduleSubWorkTypeId;
   name: string;
   workTypeId: DesktopScheduleWorkTypeId;
+  color: string | null;
 }
 
 export interface DesktopScheduleReferenceHierarchyItem {
@@ -65,6 +67,7 @@ export interface DesktopScheduleReferenceHierarchyItem {
   isStructure: boolean;
   subWorkTypeId: DesktopScheduleSubWorkTypeId;
   subWorkTypeName: string;
+  subWorkTypeColor: string | null;
 }
 
 export interface DesktopScheduleDivisionCreateRequest {
@@ -80,14 +83,33 @@ export interface DesktopScheduleWorkTypeCreateRequest {
 export interface DesktopScheduleSubWorkTypeCreateRequest {
   workTypeId: DesktopScheduleWorkTypeId;
   name: string;
+  color?: string | null;
 }
 
 export interface DesktopScheduleReferenceUpdateRequest {
   id?: number;
   name?: string;
+  color?: string | null;
   isStructure?: boolean;
   parentId?: number;
   ids?: number[];
+}
+
+export interface DesktopScheduleMilestoneResponse {
+  id: DesktopScheduleMilestoneId;
+  date: string;
+  name: string;
+}
+
+export interface DesktopScheduleMilestoneCreateRequest {
+  date: string;
+  name: string;
+}
+
+export interface DesktopScheduleMilestoneUpdateRequest {
+  id: DesktopScheduleMilestoneId;
+  date: string;
+  name: string;
 }
 
 export interface DesktopScheduleComponentTypeGroup {
@@ -196,6 +218,7 @@ export interface DesktopScheduleBootstrapData {
   workHierarchy: DesktopScheduleReferenceHierarchyItem[];
   works: DesktopScheduleWorkResponse[];
   workDeps: DesktopScheduleWorkDepResponse[];
+  milestones: DesktopScheduleMilestoneResponse[];
 }
 
 export type DesktopScheduleApiLoadStatus = "idle" | "loading" | "success" | "error";

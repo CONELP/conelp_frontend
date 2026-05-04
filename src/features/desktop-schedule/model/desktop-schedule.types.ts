@@ -71,6 +71,7 @@ export interface DesktopScheduleCriticalPath {
 
 export interface DesktopScheduleMilestone {
   id: string;
+  apiId?: number;
   date: string;
   label: string;
   rowId: string | null;
@@ -104,6 +105,7 @@ export interface DesktopScheduleSourceRow {
   isStructure: boolean;
   subWorkTypeId: number;
   subWorkType: string;
+  colorHex?: string | null;
 }
 
 export interface DesktopScheduleSourceBundle {

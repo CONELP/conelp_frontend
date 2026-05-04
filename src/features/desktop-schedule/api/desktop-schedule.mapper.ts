@@ -1,10 +1,12 @@
 import type {
   DesktopScheduleBootstrapData,
+  DesktopScheduleMilestoneResponse,
   DesktopScheduleWorkDepResponse,
   DesktopScheduleWorkResponse,
 } from "@/features/desktop-schedule/api/desktop-schedule-api.types";
 import type {
   DesktopScheduleItem,
+  DesktopScheduleMilestone,
   DesktopScheduleSnapshot,
   DesktopScheduleSourceBundle,
   DesktopScheduleSourceTask,
@@ -95,6 +97,16 @@ function mapWorkDepToConnection(
   } satisfies DesktopScheduleWorkConnection;
 }
 
+function mapMilestoneToModel(milestone: DesktopScheduleMilestoneResponse): DesktopScheduleMilestone {
+  return {
+    id: `milestone:${milestone.id}`,
+    apiId: milestone.id,
+    date: milestone.date,
+    label: milestone.name,
+    rowId: null,
+  };
+}
+
 export function createDesktopScheduleSnapshotFromApiData(
   data: DesktopScheduleBootstrapData,
 ): DesktopScheduleSnapshot {
@@ -111,12 +123,14 @@ export function createDesktopScheduleSnapshotFromApiData(
       isStructure: item.isStructure,
       subWorkTypeId: item.subWorkTypeId,
       subWorkType: item.subWorkTypeName,
+      colorHex: item.subWorkTypeColor ?? null,
     })),
     tasks: data.works.map((work, index) =>
       mapWorkToSourceTask(work, index, hierarchyBySubWorkTypeId),
     ),
   };
-  const snapshot = desktopScheduleService.buildSnapshot(sourceBundle, []);
+  const milestones = (data.milestones ?? []).map(mapMilestoneToModel);
+  const snapshot = desktopScheduleService.buildSnapshot(sourceBundle, milestones);
   const itemByWorkId = new Map(snapshot.items.map((item) => [item.workId, item] as const));
   const workConnections = data.workDeps
     .map((workDep) => mapWorkDepToConnection(workDep, itemByWorkId))
@@ -142,6 +156,7 @@ export function createDesktopScheduleSnapshotFromApiData(
       rows: nextSnapshot.rows.length,
       items: nextSnapshot.items.length,
       workConnections: workConnections.length,
+      milestones: nextSnapshot.milestones.length,
     },
   });
 

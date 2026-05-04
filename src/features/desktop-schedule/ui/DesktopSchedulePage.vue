@@ -35,11 +35,15 @@ const {
   maxZoomIndex,
   canZoomIn,
   canZoomOut,
+  canUndoLocalHistory,
+  canRedoLocalHistory,
   loadSchedule,
   clearSelection,
   syncChartScroll,
   setRowPanelWidth,
   setWorkTypeColumnWidth,
+  undoLocalHistory,
+  redoLocalHistory,
   selectBars,
   selectRows,
   deleteSelection,
@@ -125,7 +129,45 @@ function handleScheduleReload() {
   void loadSchedule();
 }
 
+function isEditableKeyboardTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
+    target.isContentEditable
+  );
+}
+
+function handleHistoryShortcut(event: KeyboardEvent) {
+  if (isEditableKeyboardTarget(event.target) || (!event.metaKey && !event.ctrlKey)) {
+    return;
+  }
+
+  const key = event.key.toLowerCase();
+  const isUndo = key === "z" && !event.shiftKey;
+  const isRedo = (key === "z" && event.shiftKey) || key === "y";
+
+  if (!isUndo && !isRedo) {
+    return;
+  }
+
+  event.preventDefault();
+
+  if (isUndo) {
+    undoLocalHistory();
+    return;
+  }
+
+  redoLocalHistory();
+}
+
 onMounted(() => {
+  window.addEventListener("keydown", handleHistoryShortcut);
+
   if (shellHostRef.value) {
     resizeObserver = new ResizeObserver(() => {
       syncShellViewport();
@@ -140,6 +182,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  window.removeEventListener("keydown", handleHistoryShortcut);
   resizeObserver?.disconnect();
   resizeObserver = null;
   closeContextMenu();
@@ -239,9 +282,13 @@ watch(
               :zoom-scale="zoomScale"
               :can-zoom-in="canZoomIn"
               :can-zoom-out="canZoomOut"
+              :can-undo="canUndoLocalHistory"
+              :can-redo="canRedoLocalHistory"
               @scroll-sync="syncChartScroll"
               @row-panel-width-change="handleRowPanelWidthChange"
               @work-type-column-width-change="handleWorkTypeColumnWidthChange"
+              @undo="undoLocalHistory"
+              @redo="redoLocalHistory"
               @clear-selection="clearSelection"
               @select-bars="selectBars"
               @select-row="(rowId) => selectRows({ rowIds: [rowId] })"

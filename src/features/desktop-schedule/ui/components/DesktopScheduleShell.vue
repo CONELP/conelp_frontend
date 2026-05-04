@@ -11,6 +11,7 @@ import DesktopScheduleTimelineHeader from "@/features/desktop-schedule/ui/compon
 import "@/features/desktop-schedule/ui/components/styles/DesktopScheduleShell.css";
 
 const SHELL_HEADER_HEIGHT = 84;
+const SHELL_TOOLBAR_HEIGHT = 48;
 const ROW_PANEL_MIN_WIDTH = 180;
 const ROW_PANEL_MAX_WIDTH = 520;
 const WIDTH_RESIZE_LISTENER_OPTIONS = true;
@@ -44,6 +45,8 @@ const props = defineProps<{
   zoomScale: number;
   canZoomIn: boolean;
   canZoomOut: boolean;
+  canUndo: boolean;
+  canRedo: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -110,6 +113,8 @@ const emit = defineEmits<{
   ];
   "resize-preview": [payload: { deltaDays: number }];
   "resize-end": [];
+  undo: [];
+  redo: [];
   "zoom-in": [];
   "zoom-out": [];
   "zoom-change": [zoomIndex: number];
@@ -124,7 +129,7 @@ const scaledShellHeaderHeight = computed(() =>
   Math.round(SHELL_HEADER_HEIGHT * Math.min(Math.max(props.zoomScale, 0.68), 1.46)),
 );
 const bodyViewportHeight = computed(() =>
-  Math.max(shellHeight.value - scaledShellHeaderHeight.value, 200),
+  Math.max(shellHeight.value - scaledShellHeaderHeight.value - SHELL_TOOLBAR_HEIGHT, 200),
 );
 const zoomSliderValue = computed(() => Math.min(Math.max(props.zoomIndex, 0), props.zoomMax));
 const zoomSliderProgress = computed(() =>
@@ -243,6 +248,75 @@ onUnmounted(() => {
     :class="{ 'schedule-shell--resizing': rowPanelResizeState }"
     :style="shellStyle"
   >
+    <div class="schedule-shell__toolbar" aria-label="공정표 도구">
+      <div class="schedule-shell__toolbar-title">
+        공정표 도구
+      </div>
+
+      <div class="schedule-shell__actions" aria-label="작업 되돌리기">
+        <button
+          type="button"
+          class="schedule-shell__action schedule-shell__action--history"
+          :disabled="!canUndo"
+          aria-label="되돌리기"
+          title="되돌리기 (Ctrl/Cmd+Z)"
+          @click="emit('undo')"
+        >
+          ↶
+        </button>
+
+        <button
+          type="button"
+          class="schedule-shell__action schedule-shell__action--history"
+          :disabled="!canRedo"
+          aria-label="다시 실행"
+          title="다시 실행 (Ctrl/Cmd+Shift+Z 또는 Ctrl/Cmd+Y)"
+          @click="emit('redo')"
+        >
+          ↷
+        </button>
+      </div>
+
+      <div class="schedule-shell__toolbar-spacer" aria-hidden="true" />
+
+      <div class="schedule-shell__actions schedule-shell__actions--zoom" aria-label="공정표 확대 축소">
+        <button
+          type="button"
+          class="schedule-shell__action"
+          :disabled="!canZoomOut"
+          aria-label="축소"
+          title="축소"
+          @click="emit('zoom-out')"
+        >
+          -
+        </button>
+
+        <input
+          class="schedule-shell__zoom-slider"
+          type="range"
+          min="0"
+          :max="zoomMax"
+          step="1"
+          :value="zoomSliderValue"
+          :style="{ '--zoom-progress': `${zoomSliderProgress}%` }"
+          aria-label="확대 축소"
+          title="확대 축소"
+          @input="handleZoomSliderInput"
+        />
+
+        <button
+          type="button"
+          class="schedule-shell__action"
+          :disabled="!canZoomIn"
+          aria-label="확대"
+          title="확대"
+          @click="emit('zoom-in')"
+        >
+          +
+        </button>
+      </div>
+    </div>
+
     <div class="schedule-shell__frame" :style="frameStyle">
       <div class="schedule-shell__left-column">
         <div class="schedule-shell__left-header">
@@ -339,39 +413,6 @@ onUnmounted(() => {
           @hover-cell="handleHoverCell"
         />
 
-        <div class="schedule-shell__actions" aria-label="공정표 확대 축소">
-          <button
-            type="button"
-            class="schedule-shell__action"
-            :disabled="!canZoomOut"
-            aria-label="축소"
-            @click="emit('zoom-out')"
-          >
-            -
-          </button>
-
-          <input
-            class="schedule-shell__zoom-slider"
-            type="range"
-            min="0"
-            :max="zoomMax"
-            step="1"
-            :value="zoomSliderValue"
-            :style="{ '--zoom-progress': `${zoomSliderProgress}%` }"
-            aria-label="확대 축소"
-            @input="handleZoomSliderInput"
-          />
-
-          <button
-            type="button"
-            class="schedule-shell__action"
-            :disabled="!canZoomIn"
-            aria-label="확대"
-            @click="emit('zoom-in')"
-          >
-            +
-          </button>
-        </div>
       </div>
     </div>
   </div>

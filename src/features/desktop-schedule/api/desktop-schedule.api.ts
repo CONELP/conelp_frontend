@@ -6,6 +6,10 @@ import type {
   DesktopScheduleDivisionCreateRequest,
   DesktopScheduleDivisionId,
   DesktopScheduleDivisionResponse,
+  DesktopScheduleMilestoneCreateRequest,
+  DesktopScheduleMilestoneId,
+  DesktopScheduleMilestoneResponse,
+  DesktopScheduleMilestoneUpdateRequest,
   DesktopScheduleMutationResponse,
   DesktopScheduleProjectId,
   DesktopScheduleProjectResponse,
@@ -353,6 +357,38 @@ export const desktopScheduleApi = {
     );
   },
 
+  // Guide: backend/api/api-list/details/milestone/328_getMilestoneList.json
+  // GET /api/milestone/getMilestoneList
+  getMilestoneList() {
+    return apiFetch<DesktopScheduleMilestoneResponse[]>("/milestone/getMilestoneList");
+  },
+
+  // Guide: backend/api/api-list/details/milestone/329_createMilestone.json
+  // POST /api/milestone/createMilestone
+  createMilestone(body: DesktopScheduleMilestoneCreateRequest) {
+    return apiFetch<DesktopScheduleMilestoneResponse>("/milestone/createMilestone", {
+      method: "POST",
+      body: toApiBody(body),
+    });
+  },
+
+  // Guide: backend/api/api-list/details/milestone/330_updateMilestone.json
+  // POST /api/milestone/updateMilestone
+  updateMilestone(body: DesktopScheduleMilestoneUpdateRequest) {
+    return apiFetch<void>("/milestone/updateMilestone", {
+      method: "POST",
+      body: toApiBody(body),
+    });
+  },
+
+  // Guide: backend/api/api-list/details/milestone/331_deleteMilestone.json
+  // DELETE /api/milestone/deleteMilestone/{milestoneId}
+  deleteMilestone(milestoneId: DesktopScheduleMilestoneId) {
+    return apiFetch<void>(`/milestone/deleteMilestone/${encodePathSegment(milestoneId)}`, {
+      method: "DELETE",
+    });
+  },
+
   async getReferenceHierarchy(): Promise<DesktopScheduleReferenceHierarchyItem[]> {
     const divisions = await desktopScheduleApi.getDivisionList();
     const workTypeGroups = await Promise.all(
@@ -381,6 +417,7 @@ export const desktopScheduleApi = {
         isStructure: group.workType.isStructure,
         subWorkTypeId: subWorkType.id,
         subWorkTypeName: subWorkType.name,
+        subWorkTypeColor: subWorkType.color ?? null,
       })),
     );
   },
@@ -435,11 +472,12 @@ export const desktopScheduleApi = {
         })
       : desktopScheduleApi.getWorkListByVersion(scheduleVersionId);
 
-    const [calendar, workHierarchy, works, workDeps] = await Promise.all([
+    const [calendar, workHierarchy, works, workDeps, milestones] = await Promise.all([
       desktopScheduleApi.getProjectCalendar(selectedProject.id),
       desktopScheduleApi.getReferenceHierarchy(),
       worksPromise,
       desktopScheduleApi.getWorkDepListByVersion(scheduleVersionId),
+      desktopScheduleApi.getMilestoneList(),
     ]);
 
     console.log("[DesktopSchedule API] loaded current project schedule", {
@@ -451,6 +489,7 @@ export const desktopScheduleApi = {
       workHierarchy,
       works,
       workDeps,
+      milestones,
       counts: {
         projects: projects.length,
         scheduleVersions: scheduleVersions.length,
@@ -458,6 +497,7 @@ export const desktopScheduleApi = {
         workHierarchy: workHierarchy.length,
         works: works.length,
         workDeps: workDeps.length,
+        milestones: milestones.length,
       },
     });
 
@@ -501,6 +541,7 @@ export const desktopScheduleApi = {
       workHierarchy,
       works,
       workDeps,
+      milestones,
     };
   },
 };
