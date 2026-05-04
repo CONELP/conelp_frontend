@@ -11,6 +11,7 @@ import {
 import type {
   DesktopScheduleShellLayout,
   DesktopScheduleTimelineLayout,
+  DesktopScheduleVersionReviewState,
 } from "@/features/desktop-schedule/model/desktop-schedule.types";
 import DesktopScheduleChartBody from "@/features/desktop-schedule/ui/components/DesktopScheduleChartBody.vue";
 import DesktopScheduleRowPanel from "@/features/desktop-schedule/ui/components/DesktopScheduleRowPanel.vue";
@@ -50,6 +51,8 @@ const props = defineProps<{
   versionAccessLabel: string;
   suggestedDraftVersionName: string;
   canCreateDraftVersion: boolean;
+  canCompareScheduleVersion: boolean;
+  scheduleVersionReview: DesktopScheduleVersionReviewState;
   viewportHeight?: number;
   scrollTop: number;
   scrollLeft: number;
@@ -145,6 +148,8 @@ const emit = defineEmits<{
   "create-draft-version": [versionName: string];
   "rename-schedule-version": [payload: { scheduleVersionId: number; versionName: string }];
   "delete-schedule-version": [scheduleVersionId: number];
+  "open-schedule-version-review": [];
+  "close-schedule-version-review": [];
   "readonly-edit-attempt": [];
   "zoom-in": [];
   "zoom-out": [];
@@ -208,6 +213,19 @@ const mainScheduleVersion = computed(() =>
 const draftScheduleVersions = computed(() =>
   props.scheduleVersions.filter((version) => !version.isMain),
 );
+const isScheduleVersionReviewActive = computed(
+  () =>
+    props.scheduleVersionReview.open &&
+    props.scheduleVersionReview.status === "success" &&
+    !!props.scheduleVersionReview.summary,
+);
+const compareToggleLabel = computed(() => {
+  if (props.scheduleVersionReview.status === "loading") {
+    return "비교 중";
+  }
+
+  return isScheduleVersionReviewActive.value ? "비교 켜짐" : "비교 보기";
+});
 const activeVersionActionMenuVersion = computed(() =>
   activeVersionActionMenu.value
     ? props.scheduleVersions.find((version) => version.id === activeVersionActionMenu.value?.versionId) ??
@@ -235,6 +253,19 @@ function closeVersionOverlays() {
   activeVersionActionMenu.value = null;
   renamingScheduleVersionId.value = null;
   renamingScheduleVersionName.value = "";
+}
+
+function toggleScheduleVersionReview() {
+  if (props.scheduleVersionReview.status === "loading") {
+    return;
+  }
+
+  if (isScheduleVersionReviewActive.value) {
+    emit("close-schedule-version-review");
+    return;
+  }
+
+  emit("open-schedule-version-review");
 }
 
 function handleDocumentPointerDown(event: PointerEvent) {
@@ -671,6 +702,7 @@ onUnmounted(() => {
                 type="button"
                 class="schedule-shell__draft-chip"
                 @click="selectScheduleVersion(version)"
+                @dblclick.prevent.stop="startScheduleVersionRename(version)"
                 @contextmenu.prevent.stop="openVersionActionMenu(version, $event)"
               >
                 <span class="schedule-shell__draft-chip-name">
@@ -741,6 +773,21 @@ onUnmounted(() => {
           </div>
         </Teleport>
       </div>
+
+      <button
+        v-if="canCompareScheduleVersion"
+        type="button"
+        class="schedule-shell__compare-toggle"
+        :class="{ 'schedule-shell__compare-toggle--active': isScheduleVersionReviewActive }"
+        :aria-pressed="isScheduleVersionReviewActive"
+        :disabled="scheduleVersionReview.status === 'loading'"
+        @click="toggleScheduleVersionReview"
+      >
+        <span class="schedule-shell__compare-toggle-track" aria-hidden="true">
+          <span class="schedule-shell__compare-toggle-thumb" />
+        </span>
+        <span>{{ compareToggleLabel }}</span>
+      </button>
 
       <div class="schedule-shell__toolbar-spacer" aria-hidden="true" />
 
@@ -880,6 +927,7 @@ onUnmounted(() => {
           :connection-creation-state="connectionCreationState"
           :editing-item-id="editingItemId"
           :editing-milestone-id="editingMilestoneId"
+          :schedule-version-review="scheduleVersionReview"
           :zoom-scale="zoomScale"
           @scroll-change="handleChartScroll"
           @clear-selection="emit('clear-selection')"

@@ -19,7 +19,15 @@ import type {
   DesktopScheduleItem,
   DesktopScheduleMilestone,
   DesktopScheduleRow,
+  DesktopScheduleShellLayout,
   DesktopScheduleSnapshot,
+  DesktopScheduleTimelineLayout,
+  DesktopScheduleVersionReviewCategory,
+  DesktopScheduleVersionReviewCount,
+  DesktopScheduleVersionReviewDetail,
+  DesktopScheduleVersionReviewState,
+  DesktopScheduleVersionReviewSummary,
+  DesktopScheduleVersionReviewVisualSummary,
   DesktopScheduleWorkConnection,
 } from "@/features/desktop-schedule/model/desktop-schedule.types";
 import {
@@ -150,6 +158,36 @@ type DesktopScheduleLocalHistoryEntry = {
   loadedData: DesktopScheduleLoadedDataHistoryPatch | null;
 };
 
+type DesktopScheduleHistoryDirection = "undo" | "redo";
+
+type DesktopScheduleHistorySyncResult = {
+  workIdMap?: Map<number, number>;
+  workDepIdMap?: Map<number, number>;
+  milestoneIdMap?: Map<number, number>;
+};
+
+type DesktopScheduleHistoryIdMap = {
+  workIds: Map<number, number>;
+  workDepIds: Map<number, number>;
+  milestoneIds: Map<number, number>;
+};
+
+type ScheduleVersionReviewBaselineCache = {
+  versionId: DesktopScheduleVersionId;
+  versionName: string;
+  snapshot: DesktopScheduleSnapshot;
+};
+
+type ScheduleVersionReviewSummaryCache = {
+  baselineVersionId: DesktopScheduleVersionId;
+  baselineVersionName: string;
+  draftVersionId: DesktopScheduleVersionId;
+  draftVersionName: string;
+  draftFingerprint: string;
+  layoutFingerprint: string;
+  summary: DesktopScheduleVersionReviewSummary;
+};
+
 const DEFAULT_DIVISION_NAME = "분류 (건축공사)";
 const DEFAULT_WORK_TYPE_NAME = "상위 공사명 (철콘공사)";
 const DEFAULT_SUB_WORK_TYPE_NAME = "하위 공사명 (타설)";
@@ -161,6 +199,16 @@ const WORK_TYPE_COLUMN_MIN_WIDTH = 72;
 const WORK_TYPE_COLUMN_MAX_WIDTH = 240;
 const LOCAL_HISTORY_MAX_ENTRIES = 200;
 const MAX_DRAFT_SCHEDULE_VERSION_COUNT = 5;
+const SCHEDULE_VERSION_REVIEW_CATEGORY_LABELS: Record<
+  DesktopScheduleVersionReviewCategory,
+  string
+> = {
+  workAdded: "작업 추가",
+  workChanged: "작업 변경",
+  workDeleted: "작업 삭제",
+  connectionChanged: "작업 연결 변경",
+  milestoneChanged: "마일스톤 변경",
+};
 const DESKTOP_SCHEDULE_UI_PREFERENCES_STORAGE_KEY =
   "conelp.desktopSchedule.uiPreferences.v1";
 const DEFAULT_ZOOM_INDEX = Math.max(
@@ -241,6 +289,15 @@ function createHiddenScheduleToast(): ScheduleToastState {
     visible: false,
     message: "",
     tone: "error",
+  };
+}
+
+function createClosedScheduleVersionReviewState(): DesktopScheduleVersionReviewState {
+  return {
+    open: false,
+    status: "idle",
+    summary: null,
+    errorMessage: null,
   };
 }
 
@@ -548,6 +605,88 @@ function cloneMilestones(milestones: DesktopScheduleMilestone[]) {
   return milestones.map(cloneMilestone);
 }
 
+function createScheduleVersionReviewDraftFingerprint(
+  draftSnapshot: Pick<DesktopScheduleSnapshot, "items" | "workConnections" | "milestones">,
+) {
+  return JSON.stringify({
+    items: draftSnapshot.items
+      .map((item) => ({
+        id: item.id,
+        workId: item.workId,
+        rowId: item.rowId,
+        name: item.name,
+        startDate: item.startDate,
+        endDate: item.endDate,
+        durationDays: item.durationDays,
+        positionY: item.positionY,
+        colorHex: item.colorHex ?? null,
+        appearance: item.appearance,
+      }))
+      .sort((a, b) => a.id.localeCompare(b.id)),
+    workConnections: draftSnapshot.workConnections
+      .map((connection) => ({
+        id: connection.id,
+        pathId: connection.pathId,
+        sourceItemId: connection.sourceItemId,
+        targetItemId: connection.targetItemId,
+        gapDays: connection.gapDays,
+        color: connection.color,
+      }))
+      .sort((a, b) => a.id.localeCompare(b.id)),
+    milestones: draftSnapshot.milestones
+      .map((milestone) => ({
+        id: milestone.id,
+        apiId: milestone.apiId ?? null,
+        date: milestone.date,
+        label: milestone.label,
+        rowId: milestone.rowId,
+      }))
+      .sort((a, b) => a.id.localeCompare(b.id)),
+  });
+}
+
+function createScheduleVersionReviewLayoutFingerprint(
+  rows: DesktopScheduleRow[],
+  timeline: DesktopScheduleTimelineLayout,
+  options: {
+    rowHeight: number;
+    barHeight: number;
+    preferredLaneByItemId: Readonly<Record<string, number>>;
+  },
+) {
+  return JSON.stringify({
+    timeline: {
+      startDate: timeline.startDate,
+      endDate: timeline.endDate,
+      dayWidth: timeline.dayWidth,
+    },
+    rowHeight: options.rowHeight,
+    barHeight: options.barHeight,
+    preferredLaneByItemId: Object.entries(options.preferredLaneByItemId).sort(([a], [b]) =>
+      a.localeCompare(b),
+    ),
+    rows: rows
+      .map((row) => ({
+        id: row.id,
+        kind: row.kind,
+        parentId: row.parentId,
+        name: row.name,
+        colorHex: row.colorHex ?? null,
+        order: row.order,
+        collapsed: row.collapsed,
+        source: {
+          divisionId: row.source.divisionId ?? null,
+          workTypeId: row.source.workTypeId ?? null,
+          subWorkTypeId: row.source.subWorkTypeId ?? null,
+          division: row.source.division ?? null,
+          workType: row.source.workType ?? null,
+          subWorkType: row.source.subWorkType ?? null,
+        },
+      }))
+      .sort((a, b) => a.id.localeCompare(b.id)),
+  });
+}
+
 function createMilestoneModelFromApi(
   milestone: DesktopScheduleMilestoneResponse,
 ): DesktopScheduleMilestone {
@@ -601,6 +740,956 @@ function hasWorkConnectionGapChange(
   return baseWorkConnection.gapDays !== nextWorkConnection.gapDays;
 }
 
+type ScheduleVersionReviewWorkPair = {
+  baseline: DesktopScheduleItem;
+  draft: DesktopScheduleItem;
+};
+
+type ScheduleVersionReviewWorkMatch = {
+  pairs: ScheduleVersionReviewWorkPair[];
+  baselineByDraftWorkId: Map<number, DesktopScheduleItem>;
+  draftByBaselineWorkId: Map<number, DesktopScheduleItem>;
+  unmatchedBaselineItems: DesktopScheduleItem[];
+  unmatchedDraftItems: DesktopScheduleItem[];
+};
+
+type ScheduleVersionReviewConnectionEntity = {
+  id: string;
+  pathId: number;
+  sourceWorkId: number;
+  targetWorkId: number;
+  gapDays: number;
+  sourceName: string;
+  targetName: string;
+};
+
+function createScheduleVersionReviewCounts(
+  details: DesktopScheduleVersionReviewDetail[],
+): DesktopScheduleVersionReviewCount[] {
+  return (Object.keys(SCHEDULE_VERSION_REVIEW_CATEGORY_LABELS) as DesktopScheduleVersionReviewCategory[])
+    .map((category) => ({
+      category,
+      label: SCHEDULE_VERSION_REVIEW_CATEGORY_LABELS[category],
+      count: details.filter((detail) => detail.category === category).length,
+    }));
+}
+
+function createScheduleVersionReviewDetail(
+  category: DesktopScheduleVersionReviewCategory,
+  id: string,
+  kindLabel: string,
+  title: string,
+  description: string,
+): DesktopScheduleVersionReviewDetail {
+  return {
+    id,
+    category,
+    kindLabel,
+    title,
+    description,
+  };
+}
+
+function createEmptyScheduleVersionReviewVisualSummary(): DesktopScheduleVersionReviewVisualSummary {
+  return {
+    addedItemIds: [],
+    changedItemIds: [],
+    addedWorkConnectionIds: [],
+    changedWorkConnectionIds: [],
+    addedMilestoneIds: [],
+    changedMilestoneIds: [],
+    baselineBarOverlays: [],
+    baselineMilestoneOverlays: [],
+    baselineConnectionOverlays: [],
+  };
+}
+
+function parseReviewWorkId(value: string) {
+  const parsedValue = Number(value);
+  return Number.isFinite(parsedValue) ? parsedValue : null;
+}
+
+function splitReviewEntityPair<TBaseline extends { id: string }, TDraft extends { id: string }>(
+  payload: string,
+  baselineEntities: TBaseline[],
+  draftEntities: TDraft[],
+) {
+  const draftEntityById = new Map(draftEntities.map((entity) => [entity.id, entity] as const));
+  const sortedBaselineEntities = [...baselineEntities].sort((a, b) => b.id.length - a.id.length);
+
+  for (const baselineEntity of sortedBaselineEntities) {
+    const prefix = `${baselineEntity.id}:`;
+
+    if (!payload.startsWith(prefix)) {
+      continue;
+    }
+
+    const draftEntity = draftEntityById.get(payload.slice(prefix.length));
+
+    if (draftEntity) {
+      return {
+        baseline: baselineEntity,
+        draft: draftEntity,
+      };
+    }
+  }
+
+  return null;
+}
+
+function createDesktopScheduleVersionReviewVisualSummary(
+  details: DesktopScheduleVersionReviewDetail[],
+  baselineSnapshot: DesktopScheduleSnapshot,
+  draftSnapshot: Pick<DesktopScheduleSnapshot, "items" | "workConnections" | "milestones">,
+  baselineLayout: DesktopScheduleShellLayout,
+  draftLayout: DesktopScheduleShellLayout,
+): DesktopScheduleVersionReviewVisualSummary {
+  const visual = createEmptyScheduleVersionReviewVisualSummary();
+  const baselineItemByWorkId = new Map(
+    baselineSnapshot.items.map((item) => [item.workId, item] as const),
+  );
+  const draftItemByWorkId = new Map(draftSnapshot.items.map((item) => [item.workId, item] as const));
+  const baselineBarByItemId = new Map(
+    baselineLayout.bars
+      .filter((bar) => bar.kind === "item")
+      .map((bar) => [bar.itemId, bar] as const),
+  );
+  const baselineConnectionById = new Map(
+    baselineLayout.connections
+      .filter((connection) => connection.kind === "work-connection")
+      .map((connection) => [connection.id, connection] as const),
+  );
+  const baselineMilestoneById = new Map(
+    baselineLayout.milestones.map((milestone) => [milestone.id, milestone] as const),
+  );
+  const draftRowById = new Map(draftLayout.rows.map((row) => [row.id, row] as const));
+  const draftTopBarTopByRowId = new Map<string, number>();
+
+  draftLayout.bars.forEach((bar) => {
+    if (bar.kind !== "item") {
+      return;
+    }
+
+    const currentTop = draftTopBarTopByRowId.get(bar.rowId);
+    draftTopBarTopByRowId.set(
+      bar.rowId,
+      currentTop === undefined ? bar.top : Math.min(currentTop, bar.top),
+    );
+  });
+
+  const draftMilestoneById = new Map(
+    draftLayout.milestones.map((milestone) => [milestone.id, milestone] as const),
+  );
+  const draftMilestoneRow = draftLayout.rows.find((row) => row.kind === "milestone") ?? null;
+  const draftTopMilestoneTop = draftLayout.milestones.reduce<number | null>(
+    (top, milestone) => (top === null ? milestone.top : Math.min(top, milestone.top)),
+    null,
+  );
+  const pushedBaselineBarOverlayIds = new Set<string>();
+  const pushedBaselineConnectionOverlayIds = new Set<string>();
+  const pushedBaselineMilestoneOverlayIds = new Set<string>();
+
+  function getTopLaneFallbackOffset(overlayHeight: number) {
+    return Math.max((draftLayout.rowHeight - overlayHeight) / 2, 6);
+  }
+
+  function getTopAlignedBaselineBarOverlayTop(
+    baselineItem: DesktopScheduleItem,
+    baselineBar: DesktopScheduleShellLayout["bars"][number],
+    draftWorkId?: number,
+  ) {
+    const draftItem = draftWorkId !== undefined ? draftItemByWorkId.get(draftWorkId) : null;
+    const targetRowId = draftItem?.rowId ?? baselineItem.rowId;
+    const draftTopBarTop = draftTopBarTopByRowId.get(targetRowId);
+
+    if (draftTopBarTop !== undefined) {
+      return draftTopBarTop;
+    }
+
+    const draftRow = draftRowById.get(targetRowId);
+    if (draftRow) {
+      return draftRow.top + getTopLaneFallbackOffset(baselineBar.height);
+    }
+
+    return baselineBar.top;
+  }
+
+  function getTopAlignedBaselineMilestoneOverlayTop(
+    baselineMilestoneLayout: DesktopScheduleShellLayout["milestones"][number],
+    draftMilestoneId?: string,
+  ) {
+    const draftMilestoneLayout =
+      draftMilestoneId !== undefined ? draftMilestoneById.get(draftMilestoneId) : null;
+
+    if (draftMilestoneLayout) {
+      return draftMilestoneLayout.top;
+    }
+
+    if (draftTopMilestoneTop !== null) {
+      return draftTopMilestoneTop;
+    }
+
+    if (draftMilestoneRow) {
+      return draftMilestoneRow.top + getTopLaneFallbackOffset(baselineMilestoneLayout.height);
+    }
+
+    return baselineMilestoneLayout.top;
+  }
+
+  function pushCurrentItemId(kind: "added" | "changed", workId: number) {
+    const draftItem = draftItemByWorkId.get(workId);
+
+    if (!draftItem) {
+      return;
+    }
+
+    const targetIds = kind === "added" ? visual.addedItemIds : visual.changedItemIds;
+
+    if (!targetIds.includes(draftItem.id)) {
+      targetIds.push(draftItem.id);
+    }
+  }
+
+  function pushBaselineBarOverlay(kind: "changed" | "deleted", workId: number, draftWorkId?: number) {
+    const baselineItem = baselineItemByWorkId.get(workId);
+    const baselineBar = baselineItem ? baselineBarByItemId.get(baselineItem.id) : null;
+
+    if (!baselineItem || !baselineBar) {
+      return;
+    }
+
+    const overlayId = `review-bar:${kind}:${baselineItem.id}`;
+
+    if (pushedBaselineBarOverlayIds.has(overlayId)) {
+      return;
+    }
+
+    pushedBaselineBarOverlayIds.add(overlayId);
+    visual.baselineBarOverlays.push({
+      id: overlayId,
+      changeKind: kind,
+      itemId: baselineItem.id,
+      name: baselineItem.name,
+      colorHex: baselineBar.colorHex,
+      left: baselineBar.left,
+      top: getTopAlignedBaselineBarOverlayTop(baselineItem, baselineBar, draftWorkId),
+      width: baselineBar.width,
+      height: baselineBar.height,
+    });
+  }
+
+  function pushCurrentWorkConnectionId(kind: "added" | "changed", connectionId: string) {
+    const targetIds =
+      kind === "added" ? visual.addedWorkConnectionIds : visual.changedWorkConnectionIds;
+
+    if (!targetIds.includes(connectionId)) {
+      targetIds.push(connectionId);
+    }
+  }
+
+  function pushBaselineConnectionOverlay(kind: "changed" | "deleted", connectionId: string) {
+    const baselineConnection = baselineConnectionById.get(connectionId);
+
+    if (!baselineConnection) {
+      return;
+    }
+
+    const overlayId = `review-connection:${kind}:${baselineConnection.id}`;
+
+    if (pushedBaselineConnectionOverlayIds.has(overlayId)) {
+      return;
+    }
+
+    pushedBaselineConnectionOverlayIds.add(overlayId);
+    visual.baselineConnectionOverlays.push({
+      id: overlayId,
+      changeKind: kind,
+      connectionId: baselineConnection.id,
+      path: baselineConnection.path,
+      label: baselineConnection.label,
+      labelX: baselineConnection.labelX,
+      labelY: baselineConnection.labelY,
+    });
+  }
+
+  function pushCurrentMilestoneId(kind: "added" | "changed", milestoneId: string) {
+    const targetIds = kind === "added" ? visual.addedMilestoneIds : visual.changedMilestoneIds;
+
+    if (!targetIds.includes(milestoneId)) {
+      targetIds.push(milestoneId);
+    }
+  }
+
+  function pushBaselineMilestoneOverlay(
+    kind: "changed" | "deleted",
+    milestoneId: string,
+    draftMilestoneId?: string,
+  ) {
+    const baselineMilestone = baselineSnapshot.milestones.find(
+      (candidate) => candidate.id === milestoneId,
+    );
+    const baselineMilestoneLayout = baselineMilestoneById.get(milestoneId);
+
+    if (!baselineMilestone || !baselineMilestoneLayout) {
+      return;
+    }
+
+    const overlayId = `review-milestone:${kind}:${baselineMilestone.id}`;
+
+    if (pushedBaselineMilestoneOverlayIds.has(overlayId)) {
+      return;
+    }
+
+    pushedBaselineMilestoneOverlayIds.add(overlayId);
+    visual.baselineMilestoneOverlays.push({
+      id: overlayId,
+      changeKind: kind,
+      milestoneId: baselineMilestone.id,
+      label: baselineMilestone.label,
+      left: baselineMilestoneLayout.left,
+      top: getTopAlignedBaselineMilestoneOverlayTop(baselineMilestoneLayout, draftMilestoneId),
+      width: baselineMilestoneLayout.width,
+      height: baselineMilestoneLayout.height,
+      labelWidth: baselineMilestoneLayout.labelWidth,
+    });
+  }
+
+  for (const detail of details) {
+    if (detail.id.startsWith("work-added:")) {
+      const workId = parseReviewWorkId(detail.id.slice("work-added:".length));
+      if (workId !== null) {
+        pushCurrentItemId("added", workId);
+      }
+      continue;
+    }
+
+    if (detail.id.startsWith("work-deleted:")) {
+      const workId = parseReviewWorkId(detail.id.slice("work-deleted:".length));
+      if (workId !== null) {
+        pushBaselineBarOverlay("deleted", workId);
+      }
+      continue;
+    }
+
+    if (detail.id.startsWith("work-changed:")) {
+      const [baselineWorkIdValue, draftWorkIdValue] = detail.id
+        .slice("work-changed:".length)
+        .split(":");
+      const baselineWorkId = parseReviewWorkId(baselineWorkIdValue ?? "");
+      const draftWorkId = parseReviewWorkId(draftWorkIdValue ?? "");
+
+      if (baselineWorkId !== null) {
+        pushBaselineBarOverlay(
+          "changed",
+          baselineWorkId,
+          draftWorkId === null ? undefined : draftWorkId,
+        );
+      }
+
+      if (draftWorkId !== null) {
+        pushCurrentItemId("changed", draftWorkId);
+      }
+      continue;
+    }
+
+    if (detail.id.startsWith("connection-added:")) {
+      pushCurrentWorkConnectionId("added", detail.id.slice("connection-added:".length));
+      continue;
+    }
+
+    if (detail.id.startsWith("connection-deleted:")) {
+      pushBaselineConnectionOverlay("deleted", detail.id.slice("connection-deleted:".length));
+      continue;
+    }
+
+    if (detail.id.startsWith("connection-changed:")) {
+      const pair = splitReviewEntityPair(
+        detail.id.slice("connection-changed:".length),
+        baselineSnapshot.workConnections,
+        draftSnapshot.workConnections,
+      );
+
+      if (pair) {
+        pushBaselineConnectionOverlay("changed", pair.baseline.id);
+        pushCurrentWorkConnectionId("changed", pair.draft.id);
+      }
+      continue;
+    }
+
+    if (detail.id.startsWith("milestone-added:")) {
+      pushCurrentMilestoneId("added", detail.id.slice("milestone-added:".length));
+      continue;
+    }
+
+    if (detail.id.startsWith("milestone-deleted:")) {
+      pushBaselineMilestoneOverlay("deleted", detail.id.slice("milestone-deleted:".length));
+      continue;
+    }
+
+    if (detail.id.startsWith("milestone-changed:")) {
+      const pair = splitReviewEntityPair(
+        detail.id.slice("milestone-changed:".length),
+        baselineSnapshot.milestones,
+        draftSnapshot.milestones,
+      );
+
+      if (pair) {
+        pushBaselineMilestoneOverlay("changed", pair.baseline.id, pair.draft.id);
+        pushCurrentMilestoneId("changed", pair.draft.id);
+      }
+    }
+  }
+
+  return visual;
+}
+
+function formatReviewDate(date: string) {
+  return date.replace(/-/g, ".");
+}
+
+function formatReviewDateRange(item: DesktopScheduleItem) {
+  return `${formatReviewDate(item.startDate)} - ${formatReviewDate(item.endDate)}`;
+}
+
+function formatReviewGapDays(gapDays: number) {
+  return `${gapDays > 0 ? "+" : ""}${gapDays}일`;
+}
+
+function getItemProcessLabel(item: DesktopScheduleItem) {
+  return [item.workType, item.subWorkType].filter(Boolean).join(" / ") || "공정 미지정";
+}
+
+function getItemSignature(item: DesktopScheduleItem, mode: "exact" | "lane" | "nameRow") {
+  if (mode === "exact") {
+    return [
+      item.name,
+      item.rowId,
+      item.startDate,
+      item.endDate,
+      item.durationDays,
+      item.positionY,
+    ].join("|");
+  }
+
+  if (mode === "lane") {
+    return [item.rowId, item.positionY].join("|");
+  }
+
+  return [item.name, item.rowId].join("|");
+}
+
+function createUniqueItemSignatureMap(
+  items: DesktopScheduleItem[],
+  getSignature: (item: DesktopScheduleItem) => string,
+) {
+  const groupedItems = new Map<string, DesktopScheduleItem[]>();
+
+  for (const item of items) {
+    const signature = getSignature(item);
+    groupedItems.set(signature, [...(groupedItems.get(signature) ?? []), item]);
+  }
+
+  const uniqueItems = new Map<string, DesktopScheduleItem>();
+
+  for (const [signature, signatureItems] of groupedItems.entries()) {
+    if (signatureItems.length === 1) {
+      uniqueItems.set(signature, signatureItems[0]!);
+    }
+  }
+
+  return uniqueItems;
+}
+
+function createScheduleVersionReviewWorkMatch(
+  baselineItems: DesktopScheduleItem[],
+  draftItems: DesktopScheduleItem[],
+): ScheduleVersionReviewWorkMatch {
+  const pairs: ScheduleVersionReviewWorkPair[] = [];
+  const pairedBaselineWorkIds = new Set<number>();
+  const pairedDraftWorkIds = new Set<number>();
+  const baselineByDraftWorkId = new Map<number, DesktopScheduleItem>();
+  const draftByBaselineWorkId = new Map<number, DesktopScheduleItem>();
+
+  function pairItems(baseline: DesktopScheduleItem, draft: DesktopScheduleItem) {
+    if (pairedBaselineWorkIds.has(baseline.workId) || pairedDraftWorkIds.has(draft.workId)) {
+      return;
+    }
+
+    pairedBaselineWorkIds.add(baseline.workId);
+    pairedDraftWorkIds.add(draft.workId);
+    baselineByDraftWorkId.set(draft.workId, baseline);
+    draftByBaselineWorkId.set(baseline.workId, draft);
+    pairs.push({ baseline, draft });
+  }
+
+  const draftItemByWorkId = new Map(draftItems.map((item) => [item.workId, item] as const));
+
+  for (const baselineItem of baselineItems) {
+    const draftItem = draftItemByWorkId.get(baselineItem.workId);
+
+    if (draftItem) {
+      pairItems(baselineItem, draftItem);
+    }
+  }
+
+  for (const mode of ["exact", "lane", "nameRow"] as const) {
+    const unmatchedBaseline = baselineItems.filter(
+      (item) => !pairedBaselineWorkIds.has(item.workId),
+    );
+    const unmatchedDraft = draftItems.filter((item) => !pairedDraftWorkIds.has(item.workId));
+    const baselineBySignature = createUniqueItemSignatureMap(unmatchedBaseline, (item) =>
+      getItemSignature(item, mode),
+    );
+    const draftBySignature = createUniqueItemSignatureMap(unmatchedDraft, (item) =>
+      getItemSignature(item, mode),
+    );
+
+    for (const [signature, baselineItem] of baselineBySignature.entries()) {
+      const draftItem = draftBySignature.get(signature);
+
+      if (draftItem) {
+        pairItems(baselineItem, draftItem);
+      }
+    }
+  }
+
+  return {
+    pairs,
+    baselineByDraftWorkId,
+    draftByBaselineWorkId,
+    unmatchedBaselineItems: baselineItems.filter(
+      (item) => !pairedBaselineWorkIds.has(item.workId),
+    ),
+    unmatchedDraftItems: draftItems.filter((item) => !pairedDraftWorkIds.has(item.workId)),
+  };
+}
+
+function createWorkChangeDescription(
+  baseline: DesktopScheduleItem,
+  draft: DesktopScheduleItem,
+) {
+  const changes: string[] = [];
+
+  if (baseline.name !== draft.name) {
+    changes.push(`이름: ${baseline.name} -> ${draft.name}`);
+  }
+
+  if (
+    baseline.startDate !== draft.startDate ||
+    baseline.endDate !== draft.endDate ||
+    baseline.durationDays !== draft.durationDays
+  ) {
+    changes.push(`날짜/기간: ${formatReviewDateRange(baseline)} -> ${formatReviewDateRange(draft)}`);
+  }
+
+  if (baseline.rowId !== draft.rowId || baseline.subWorkType !== draft.subWorkType) {
+    changes.push(`row 이동: ${getItemProcessLabel(baseline)} -> ${getItemProcessLabel(draft)}`);
+  }
+
+  if (baseline.positionY !== draft.positionY) {
+    changes.push(`줄 위치: ${baseline.positionY + 1} -> ${draft.positionY + 1}`);
+  }
+
+  return changes;
+}
+
+function getWorkChangeKindLabel(baseline: DesktopScheduleItem, draft: DesktopScheduleItem) {
+  if (baseline.rowId !== draft.rowId || baseline.subWorkType !== draft.subWorkType) {
+    return "row 이동";
+  }
+
+  if (
+    baseline.startDate !== draft.startDate ||
+    baseline.endDate !== draft.endDate ||
+    baseline.durationDays !== draft.durationDays
+  ) {
+    return "날짜/기간";
+  }
+
+  if (baseline.name !== draft.name) {
+    return "이름 변경";
+  }
+
+  return "줄 변경";
+}
+
+function createConnectionEntity(
+  connection: DesktopScheduleWorkConnection,
+  itemById: Map<string, DesktopScheduleItem>,
+): ScheduleVersionReviewConnectionEntity | null {
+  const sourceItem = itemById.get(connection.sourceItemId);
+  const targetItem = itemById.get(connection.targetItemId);
+
+  if (!sourceItem || !targetItem) {
+    return null;
+  }
+
+  return {
+    id: connection.id,
+    pathId: connection.pathId,
+    sourceWorkId: sourceItem.workId,
+    targetWorkId: targetItem.workId,
+    gapDays: connection.gapDays,
+    sourceName: sourceItem.name,
+    targetName: targetItem.name,
+  };
+}
+
+function createConnectionTitle(connection: ScheduleVersionReviewConnectionEntity) {
+  return `${connection.sourceName} -> ${connection.targetName}`;
+}
+
+function createConnectionChangeDescription(
+  baseline: ScheduleVersionReviewConnectionEntity,
+  draft: ScheduleVersionReviewConnectionEntity,
+  draftByBaselineWorkId: Map<number, DesktopScheduleItem>,
+) {
+  const changes: string[] = [];
+  const expectedDraftSourceWorkId =
+    draftByBaselineWorkId.get(baseline.sourceWorkId)?.workId ?? baseline.sourceWorkId;
+  const expectedDraftTargetWorkId =
+    draftByBaselineWorkId.get(baseline.targetWorkId)?.workId ?? baseline.targetWorkId;
+
+  if (expectedDraftSourceWorkId !== draft.sourceWorkId) {
+    changes.push(`선행: ${baseline.sourceName} -> ${draft.sourceName}`);
+  }
+
+  if (expectedDraftTargetWorkId !== draft.targetWorkId) {
+    changes.push(`후행: ${baseline.targetName} -> ${draft.targetName}`);
+  }
+
+  if (baseline.gapDays !== draft.gapDays) {
+    changes.push(`간격: ${formatReviewGapDays(baseline.gapDays)} -> ${formatReviewGapDays(draft.gapDays)}`);
+  }
+
+  return changes;
+}
+
+function getConnectionChangeKindLabel(
+  baseline: ScheduleVersionReviewConnectionEntity,
+  draft: ScheduleVersionReviewConnectionEntity,
+  draftByBaselineWorkId: Map<number, DesktopScheduleItem>,
+) {
+  const expectedDraftSourceWorkId =
+    draftByBaselineWorkId.get(baseline.sourceWorkId)?.workId ?? baseline.sourceWorkId;
+  const expectedDraftTargetWorkId =
+    draftByBaselineWorkId.get(baseline.targetWorkId)?.workId ?? baseline.targetWorkId;
+
+  if (
+    expectedDraftSourceWorkId !== draft.sourceWorkId ||
+    expectedDraftTargetWorkId !== draft.targetWorkId
+  ) {
+    return "선후행 변경";
+  }
+
+  return "간격 변경";
+}
+
+function createConnectionComparisonKey(
+  connection: ScheduleVersionReviewConnectionEntity,
+  getWorkKey: (workId: number) => string,
+) {
+  return `${getWorkKey(connection.sourceWorkId)}->${getWorkKey(connection.targetWorkId)}`;
+}
+
+function createMilestoneChangeDescription(
+  baseline: DesktopScheduleMilestone,
+  draft: DesktopScheduleMilestone,
+) {
+  const changes: string[] = [];
+
+  if (baseline.label !== draft.label) {
+    changes.push(`이름: ${baseline.label} -> ${draft.label}`);
+  }
+
+  if (baseline.date !== draft.date) {
+    changes.push(`날짜: ${formatReviewDate(baseline.date)} -> ${formatReviewDate(draft.date)}`);
+  }
+
+  return changes;
+}
+
+function getMilestoneChangeKindLabel(
+  baseline: DesktopScheduleMilestone,
+  draft: DesktopScheduleMilestone,
+) {
+  if (baseline.date !== draft.date && baseline.label === draft.label) {
+    return "이동";
+  }
+
+  if (baseline.label !== draft.label && baseline.date === draft.date) {
+    return "이름 변경";
+  }
+
+  return "변경";
+}
+
+function createDesktopScheduleVersionReviewSummary(
+  baselineSnapshot: DesktopScheduleSnapshot,
+  draftSnapshot: {
+    items: DesktopScheduleItem[];
+    workConnections: DesktopScheduleWorkConnection[];
+    milestones: DesktopScheduleMilestone[];
+  },
+  baselineVersionName: string,
+  draftVersionName: string,
+): DesktopScheduleVersionReviewSummary {
+  const details: DesktopScheduleVersionReviewDetail[] = [];
+  const workMatch = createScheduleVersionReviewWorkMatch(
+    baselineSnapshot.items,
+    draftSnapshot.items,
+  );
+
+  for (const item of workMatch.unmatchedDraftItems) {
+    details.push(
+      createScheduleVersionReviewDetail(
+        "workAdded",
+        `work-added:${item.workId}`,
+        "생성",
+        item.name,
+        `${getItemProcessLabel(item)} · ${formatReviewDateRange(item)}`,
+      ),
+    );
+  }
+
+  for (const item of workMatch.unmatchedBaselineItems) {
+    details.push(
+      createScheduleVersionReviewDetail(
+        "workDeleted",
+        `work-deleted:${item.workId}`,
+        "삭제",
+        item.name,
+        `${getItemProcessLabel(item)} · ${formatReviewDateRange(item)}`,
+      ),
+    );
+  }
+
+  for (const { baseline, draft } of workMatch.pairs) {
+    const changes = createWorkChangeDescription(baseline, draft);
+
+    if (changes.length > 0) {
+      details.push(
+        createScheduleVersionReviewDetail(
+          "workChanged",
+          `work-changed:${baseline.workId}:${draft.workId}`,
+          getWorkChangeKindLabel(baseline, draft),
+          draft.name,
+          changes.join(" · "),
+        ),
+      );
+    }
+  }
+
+  const baselineItemById = new Map(baselineSnapshot.items.map((item) => [item.id, item] as const));
+  const draftItemById = new Map(draftSnapshot.items.map((item) => [item.id, item] as const));
+  const baselineConnections = baselineSnapshot.workConnections
+    .map((connection) => createConnectionEntity(connection, baselineItemById))
+    .filter(
+      (connection): connection is ScheduleVersionReviewConnectionEntity => connection !== null,
+    );
+  const draftConnections = draftSnapshot.workConnections
+    .map((connection) => createConnectionEntity(connection, draftItemById))
+    .filter(
+      (connection): connection is ScheduleVersionReviewConnectionEntity => connection !== null,
+    );
+  const pairedBaselineConnectionIds = new Set<string>();
+  const pairedDraftConnectionIds = new Set<string>();
+  const draftConnectionByPathId = new Map(
+    draftConnections.map((connection) => [connection.pathId, connection] as const),
+  );
+
+  function addConnectionChangeDetail(
+    baselineConnection: ScheduleVersionReviewConnectionEntity,
+    draftConnection: ScheduleVersionReviewConnectionEntity,
+  ) {
+    const changes = createConnectionChangeDescription(
+      baselineConnection,
+      draftConnection,
+      workMatch.draftByBaselineWorkId,
+    );
+
+    if (changes.length === 0) {
+      return;
+    }
+
+    details.push(
+      createScheduleVersionReviewDetail(
+        "connectionChanged",
+        `connection-changed:${baselineConnection.id}:${draftConnection.id}`,
+        getConnectionChangeKindLabel(
+          baselineConnection,
+          draftConnection,
+          workMatch.draftByBaselineWorkId,
+        ),
+        createConnectionTitle(draftConnection),
+        changes.join(" · "),
+      ),
+    );
+  }
+
+  for (const baselineConnection of baselineConnections) {
+    const draftConnection = draftConnectionByPathId.get(baselineConnection.pathId);
+
+    if (!draftConnection) {
+      continue;
+    }
+
+    pairedBaselineConnectionIds.add(baselineConnection.id);
+    pairedDraftConnectionIds.add(draftConnection.id);
+    addConnectionChangeDetail(baselineConnection, draftConnection);
+  }
+
+  const baselineConnectionByKey = new Map<string, ScheduleVersionReviewConnectionEntity>();
+  const draftConnectionByKey = new Map<string, ScheduleVersionReviewConnectionEntity>();
+
+  for (const baselineConnection of baselineConnections) {
+    if (pairedBaselineConnectionIds.has(baselineConnection.id)) {
+      continue;
+    }
+
+    baselineConnectionByKey.set(
+      createConnectionComparisonKey(baselineConnection, (workId) => {
+        const draftItem = workMatch.draftByBaselineWorkId.get(workId);
+        return draftItem ? `draft:${draftItem.workId}` : `baseline:${workId}`;
+      }),
+      baselineConnection,
+    );
+  }
+
+  for (const draftConnection of draftConnections) {
+    if (pairedDraftConnectionIds.has(draftConnection.id)) {
+      continue;
+    }
+
+    draftConnectionByKey.set(
+      createConnectionComparisonKey(draftConnection, (workId) => `draft:${workId}`),
+      draftConnection,
+    );
+  }
+
+  for (const [key, baselineConnection] of baselineConnectionByKey.entries()) {
+    const draftConnection = draftConnectionByKey.get(key);
+
+    if (!draftConnection) {
+      continue;
+    }
+
+    pairedBaselineConnectionIds.add(baselineConnection.id);
+    pairedDraftConnectionIds.add(draftConnection.id);
+    addConnectionChangeDetail(baselineConnection, draftConnection);
+  }
+
+  for (const draftConnection of draftConnections) {
+    if (pairedDraftConnectionIds.has(draftConnection.id)) {
+      continue;
+    }
+
+    details.push(
+      createScheduleVersionReviewDetail(
+        "connectionChanged",
+        `connection-added:${draftConnection.id}`,
+        "생성",
+        createConnectionTitle(draftConnection),
+        `간격 ${formatReviewGapDays(draftConnection.gapDays)} 작업 연결이 추가됐어요.`,
+      ),
+    );
+  }
+
+  for (const baselineConnection of baselineConnections) {
+    if (pairedBaselineConnectionIds.has(baselineConnection.id)) {
+      continue;
+    }
+
+    details.push(
+      createScheduleVersionReviewDetail(
+        "connectionChanged",
+        `connection-deleted:${baselineConnection.id}`,
+        "삭제",
+        createConnectionTitle(baselineConnection),
+        `간격 ${formatReviewGapDays(baselineConnection.gapDays)} 작업 연결이 삭제됐어요.`,
+      ),
+    );
+  }
+
+  const draftMilestoneByApiId = new Map(
+    draftSnapshot.milestones
+      .filter((milestone) => typeof milestone.apiId === "number")
+      .map((milestone) => [milestone.apiId!, milestone] as const),
+  );
+  const pairedBaselineMilestoneIds = new Set<string>();
+  const pairedDraftMilestoneIds = new Set<string>();
+
+  for (const baselineMilestone of baselineSnapshot.milestones) {
+    const draftMilestone =
+      typeof baselineMilestone.apiId === "number"
+        ? draftMilestoneByApiId.get(baselineMilestone.apiId)
+        : undefined;
+
+    if (!draftMilestone) {
+      continue;
+    }
+
+    pairedBaselineMilestoneIds.add(baselineMilestone.id);
+    pairedDraftMilestoneIds.add(draftMilestone.id);
+    const changes = createMilestoneChangeDescription(baselineMilestone, draftMilestone);
+
+    if (changes.length > 0) {
+      details.push(
+        createScheduleVersionReviewDetail(
+          "milestoneChanged",
+          `milestone-changed:${baselineMilestone.id}:${draftMilestone.id}`,
+          getMilestoneChangeKindLabel(baselineMilestone, draftMilestone),
+          draftMilestone.label,
+          changes.join(" · "),
+        ),
+      );
+    }
+  }
+
+  for (const draftMilestone of draftSnapshot.milestones) {
+    if (pairedDraftMilestoneIds.has(draftMilestone.id)) {
+      continue;
+    }
+
+    details.push(
+      createScheduleVersionReviewDetail(
+        "milestoneChanged",
+        `milestone-added:${draftMilestone.id}`,
+        "생성",
+        draftMilestone.label,
+        `${formatReviewDate(draftMilestone.date)} 마일스톤이 추가됐어요.`,
+      ),
+    );
+  }
+
+  for (const baselineMilestone of baselineSnapshot.milestones) {
+    if (pairedBaselineMilestoneIds.has(baselineMilestone.id)) {
+      continue;
+    }
+
+    details.push(
+      createScheduleVersionReviewDetail(
+        "milestoneChanged",
+        `milestone-deleted:${baselineMilestone.id}`,
+        "삭제",
+        baselineMilestone.label,
+        `${formatReviewDate(baselineMilestone.date)} 마일스톤이 삭제됐어요.`,
+      ),
+    );
+  }
+
+  const counts = createScheduleVersionReviewCounts(details);
+
+  return {
+    baselineVersionName,
+    draftVersionName,
+    generatedAt: new Date().toISOString(),
+    totalCount: details.length,
+    counts,
+    details,
+  };
+}
+
 function createDesktopScheduleViewModel() {
   const storedUiPreferences = loadDesktopScheduleUiPreferences();
   let currentUiPreferences: DesktopScheduleUiPreferences = { ...storedUiPreferences };
@@ -631,6 +1720,7 @@ function createDesktopScheduleViewModel() {
   const chartScrollLeft = ref(0);
   const localHistoryUndoStack = ref<DesktopScheduleLocalHistoryEntry[]>([]);
   const localHistoryRedoStack = ref<DesktopScheduleLocalHistoryEntry[]>([]);
+  const isLocalHistorySyncInFlight = ref(false);
   const lanePreferenceByItemId = ref<Record<string, number>>({});
   const interactionSession = ref<MoveSession | ResizeSession | SummaryResizeSession | null>(null);
   const interactionCancelVersion = ref(0);
@@ -641,6 +1731,11 @@ function createDesktopScheduleViewModel() {
   const renamingItemId = ref<string | null>(null);
   const renamingMilestoneId = ref<string | null>(null);
   const scheduleToast = ref<ScheduleToastState>(createHiddenScheduleToast());
+  const scheduleVersionReviewState = ref<DesktopScheduleVersionReviewState>(
+    createClosedScheduleVersionReviewState(),
+  );
+  const scheduleVersionReviewBaselineCache = ref<ScheduleVersionReviewBaselineCache | null>(null);
+  const scheduleVersionReviewSummaryCache = ref<ScheduleVersionReviewSummaryCache | null>(null);
   let scheduleToastTimer: number | null = null;
 
   const rowById = computed(() => new Map(workingRows.value.map((row) => [row.id, row])));
@@ -735,12 +1830,22 @@ function createDesktopScheduleViewModel() {
       selectedScheduleVersion.value !== null &&
       draftScheduleVersionCount.value < MAX_DRAFT_SCHEDULE_VERSION_COUNT,
   );
+  const canCompareScheduleVersion = computed(
+    () =>
+      selectedScheduleVersion.value !== null &&
+      selectedScheduleVersion.value.isMain === false &&
+      scheduleVersions.value.some((version) => version.isMain),
+  );
   const scheduleLoadStatus = computed(() => scheduleLoadState.value.status);
   const scheduleLoadErrorMessage = computed(
     () => scheduleLoadState.value.error?.message ?? "공정표 데이터를 불러오지 못했습니다.",
   );
-  const canUndoLocalHistory = computed(() => localHistoryUndoStack.value.length > 0);
-  const canRedoLocalHistory = computed(() => localHistoryRedoStack.value.length > 0);
+  const canUndoLocalHistory = computed(
+    () => !isLocalHistorySyncInFlight.value && localHistoryUndoStack.value.length > 0,
+  );
+  const canRedoLocalHistory = computed(
+    () => !isLocalHistorySyncInFlight.value && localHistoryRedoStack.value.length > 0,
+  );
 
   function closeContextMenu() {
     contextMenuState.value = createClosedDesktopScheduleContextMenuState();
@@ -1145,7 +2250,7 @@ function createDesktopScheduleViewModel() {
 
   function applyLocalHistoryEntry(
     entry: DesktopScheduleLocalHistoryEntry,
-    direction: "undo" | "redo",
+    direction: DesktopScheduleHistoryDirection,
   ) {
     workingRows.value = applyHistoryCollectionPatch(
       workingRows.value,
@@ -1191,6 +2296,718 @@ function createDesktopScheduleViewModel() {
     closeColorPalette();
   }
 
+  function getHistoryChangeTarget<TEntity, TKey extends string | number>(
+    change: DesktopScheduleHistoryEntityChange<TEntity, TKey>,
+    direction: DesktopScheduleHistoryDirection,
+  ) {
+    return direction === "undo" ? change.before : change.after;
+  }
+
+  function getHistoryChangeSource<TEntity, TKey extends string | number>(
+    change: DesktopScheduleHistoryEntityChange<TEntity, TKey>,
+    direction: DesktopScheduleHistoryDirection,
+  ) {
+    return direction === "undo" ? change.after : change.before;
+  }
+
+  function remapIdValue(value: number, idMap: Map<number, number>) {
+    return idMap.get(value) ?? value;
+  }
+
+  function remapStringId(value: string, prefix: string, idMap: Map<number, number>) {
+    const rawId = value.startsWith(prefix) ? value.slice(prefix.length) : "";
+    const numericId = Number(rawId);
+
+    if (!Number.isFinite(numericId)) {
+      return value;
+    }
+
+    const nextId = idMap.get(numericId);
+    return nextId === undefined ? value : `${prefix}${nextId}`;
+  }
+
+  function remapItemId(value: string, idMap: Map<number, number>) {
+    return remapStringId(value, "item:", idMap);
+  }
+
+  function remapWorkConnectionId(value: string, idMap: Map<number, number>) {
+    return remapStringId(value, "work-connection:", idMap);
+  }
+
+  function remapMilestoneModelId(value: string, idMap: Map<number, number>) {
+    return remapStringId(value, "milestone:", idMap);
+  }
+
+  function remapHistoryEntityChange<TEntity, TKey extends string | number>(
+    change: DesktopScheduleHistoryEntityChange<TEntity, TKey>,
+    mapEntity: (entity: TEntity) => TEntity,
+    mapKey: (key: TKey) => TKey,
+  ): DesktopScheduleHistoryEntityChange<TEntity, TKey> {
+    return {
+      key: mapKey(change.key),
+      before: change.before ? mapEntity(change.before) : null,
+      after: change.after ? mapEntity(change.after) : null,
+    };
+  }
+
+  function remapHistoryCollectionPatch<TEntity, TKey extends string | number>(
+    patch: DesktopScheduleHistoryCollectionPatch<TEntity, TKey>,
+    mapEntity: (entity: TEntity) => TEntity,
+    mapKey: (key: TKey) => TKey,
+  ): DesktopScheduleHistoryCollectionPatch<TEntity, TKey> {
+    return {
+      changes: patch.changes.map((change) => remapHistoryEntityChange(change, mapEntity, mapKey)),
+      beforeOrder: patch.beforeOrder.map(mapKey),
+      afterOrder: patch.afterOrder.map(mapKey),
+    };
+  }
+
+  function remapHistoryWorkResponse(
+    work: DesktopScheduleWorkResponse,
+    idMap: DesktopScheduleHistoryIdMap,
+  ): DesktopScheduleWorkResponse {
+    return {
+      ...work,
+      workId: remapIdValue(work.workId, idMap.workIds),
+    };
+  }
+
+  function remapHistoryWorkDepResponse(
+    workDep: DesktopScheduleWorkDepResponse,
+    idMap: DesktopScheduleHistoryIdMap,
+  ): DesktopScheduleWorkDepResponse {
+    return {
+      ...workDep,
+      id: remapIdValue(workDep.id, idMap.workDepIds),
+      sourceWorkId: remapIdValue(workDep.sourceWorkId, idMap.workIds),
+      targetWorkId: remapIdValue(workDep.targetWorkId, idMap.workIds),
+    };
+  }
+
+  function remapHistoryMilestoneResponse(
+    milestone: DesktopScheduleMilestoneResponse,
+    idMap: DesktopScheduleHistoryIdMap,
+  ): DesktopScheduleMilestoneResponse {
+    return {
+      ...milestone,
+      id: remapIdValue(milestone.id, idMap.milestoneIds),
+    };
+  }
+
+  function remapHistoryItem(
+    item: DesktopScheduleItem,
+    idMap: DesktopScheduleHistoryIdMap,
+  ): DesktopScheduleItem {
+    return {
+      ...item,
+      id: remapItemId(item.id, idMap.workIds),
+      workId: remapIdValue(item.workId, idMap.workIds),
+    };
+  }
+
+  function remapHistoryWorkConnection(
+    workConnection: DesktopScheduleWorkConnection,
+    idMap: DesktopScheduleHistoryIdMap,
+  ): DesktopScheduleWorkConnection {
+    return {
+      ...workConnection,
+      id: remapWorkConnectionId(workConnection.id, idMap.workDepIds),
+      pathId: remapIdValue(workConnection.pathId, idMap.workDepIds),
+      sourceItemId: remapItemId(workConnection.sourceItemId, idMap.workIds),
+      targetItemId: remapItemId(workConnection.targetItemId, idMap.workIds),
+    };
+  }
+
+  function remapHistoryMilestone(
+    milestone: DesktopScheduleMilestone,
+    idMap: DesktopScheduleHistoryIdMap,
+  ): DesktopScheduleMilestone {
+    const apiId =
+      typeof milestone.apiId === "number"
+        ? remapIdValue(milestone.apiId, idMap.milestoneIds)
+        : milestone.apiId;
+
+    return {
+      ...milestone,
+      id: remapMilestoneModelId(milestone.id, idMap.milestoneIds),
+      apiId,
+    };
+  }
+
+  function remapLoadedDataHistoryPatch(
+    patch: DesktopScheduleLoadedDataHistoryPatch | null,
+    idMap: DesktopScheduleHistoryIdMap,
+  ): DesktopScheduleLoadedDataHistoryPatch | null {
+    if (!patch) {
+      return null;
+    }
+
+    return {
+      ...patch,
+      works: remapHistoryCollectionPatch(
+        patch.works,
+        (work) => remapHistoryWorkResponse(work, idMap),
+        (workId) => remapIdValue(workId, idMap.workIds),
+      ),
+      workDeps: remapHistoryCollectionPatch(
+        patch.workDeps,
+        (workDep) => remapHistoryWorkDepResponse(workDep, idMap),
+        (workDepId) => remapIdValue(workDepId, idMap.workDepIds),
+      ),
+      milestones: remapHistoryCollectionPatch(
+        patch.milestones,
+        (milestone) => remapHistoryMilestoneResponse(milestone, idMap),
+        (milestoneId) => remapIdValue(milestoneId, idMap.milestoneIds),
+      ),
+    };
+  }
+
+  function remapLocalHistoryEntry(
+    entry: DesktopScheduleLocalHistoryEntry,
+    idMap: DesktopScheduleHistoryIdMap,
+  ): DesktopScheduleLocalHistoryEntry {
+    return {
+      ...entry,
+      items: remapHistoryCollectionPatch(
+        entry.items,
+        (item) => remapHistoryItem(item, idMap),
+        (itemId) => remapItemId(itemId, idMap.workIds),
+      ),
+      workConnections: remapHistoryCollectionPatch(
+        entry.workConnections,
+        (workConnection) => remapHistoryWorkConnection(workConnection, idMap),
+        (workConnectionId) => remapWorkConnectionId(workConnectionId, idMap.workDepIds),
+      ),
+      milestones: remapHistoryCollectionPatch(
+        entry.milestones,
+        (milestone) => remapHistoryMilestone(milestone, idMap),
+        (milestoneId) => remapMilestoneModelId(milestoneId, idMap.milestoneIds),
+      ),
+      loadedData: remapLoadedDataHistoryPatch(entry.loadedData, idMap),
+    };
+  }
+
+  function remapLocalHistoryStacks(idMap: DesktopScheduleHistoryIdMap) {
+    if (
+      idMap.workIds.size === 0 &&
+      idMap.workDepIds.size === 0 &&
+      idMap.milestoneIds.size === 0
+    ) {
+      return;
+    }
+
+    localHistoryUndoStack.value = localHistoryUndoStack.value.map((entry) =>
+      remapLocalHistoryEntry(entry, idMap),
+    );
+    localHistoryRedoStack.value = localHistoryRedoStack.value.map((entry) =>
+      remapLocalHistoryEntry(entry, idMap),
+    );
+  }
+
+  function remapCurrentSelectionState(idMap: DesktopScheduleHistoryIdMap) {
+    selectionState.value = {
+      ...selectionState.value,
+      itemIds: selectionState.value.itemIds.map((itemId) => remapItemId(itemId, idMap.workIds)),
+      workConnectionIds: selectionState.value.workConnectionIds.map((workConnectionId) =>
+        remapWorkConnectionId(workConnectionId, idMap.workDepIds),
+      ),
+      milestoneIds: selectionState.value.milestoneIds.map((milestoneId) =>
+        remapMilestoneModelId(milestoneId, idMap.milestoneIds),
+      ),
+    };
+  }
+
+  function remapLanePreference(idMap: DesktopScheduleHistoryIdMap) {
+    const nextLanePreferenceByItemId: Record<string, number> = {};
+
+    Object.entries(lanePreferenceByItemId.value).forEach(([itemId, laneIndex]) => {
+      nextLanePreferenceByItemId[remapItemId(itemId, idMap.workIds)] = laneIndex;
+    });
+
+    lanePreferenceByItemId.value = nextLanePreferenceByItemId;
+  }
+
+  function remapCurrentLoadedData(idMap: DesktopScheduleHistoryIdMap) {
+    const currentData = scheduleLoadState.value.data;
+
+    if (!currentData) {
+      return;
+    }
+
+    scheduleLoadState.value = {
+      ...scheduleLoadState.value,
+      data: {
+        ...currentData,
+        works: currentData.works.map((work) => remapHistoryWorkResponse(work, idMap)),
+        workDeps: currentData.workDeps.map((workDep) =>
+          remapHistoryWorkDepResponse(workDep, idMap),
+        ),
+        milestones: (currentData.milestones ?? []).map((milestone) =>
+          remapHistoryMilestoneResponse(milestone, idMap),
+        ),
+      },
+    };
+  }
+
+  function remapCurrentScheduleState(idMap: DesktopScheduleHistoryIdMap) {
+    if (
+      idMap.workIds.size === 0 &&
+      idMap.workDepIds.size === 0 &&
+      idMap.milestoneIds.size === 0
+    ) {
+      return;
+    }
+
+    workingItems.value = workingItems.value.map((item) => remapHistoryItem(item, idMap));
+    workingWorkConnections.value = workingWorkConnections.value.map((workConnection) =>
+      remapHistoryWorkConnection(workConnection, idMap),
+    );
+    workingMilestones.value = workingMilestones.value.map((milestone) =>
+      remapHistoryMilestone(milestone, idMap),
+    );
+    remapCurrentLoadedData(idMap);
+    remapCurrentSelectionState(idMap);
+    remapLanePreference(idMap);
+    renamingItemId.value = renamingItemId.value
+      ? remapItemId(renamingItemId.value, idMap.workIds)
+      : null;
+    renamingMilestoneId.value = renamingMilestoneId.value
+      ? remapMilestoneModelId(renamingMilestoneId.value, idMap.milestoneIds)
+      : null;
+
+    if (connectionCreationState.value) {
+      connectionCreationState.value = {
+        ...connectionCreationState.value,
+        sourceItemId: remapItemId(connectionCreationState.value.sourceItemId, idMap.workIds),
+      };
+    }
+  }
+
+  function createWorkUpdateItemFromResponse(
+    work: DesktopScheduleWorkResponse,
+  ): DesktopScheduleWorkUpdateItem {
+    return {
+      workId: work.workId,
+      workName: work.workName,
+      startDate: work.startDate,
+      workLeadTime: work.workLeadTime,
+      subWorkTypeId: work.subWorkTypeId,
+      positionY: work.positionY ?? undefined,
+      zoneIds: [...(work.zoneIds ?? [])],
+      floorIds: [...(work.floorIds ?? [])],
+      componentTypes: (work.componentTypes ?? []).map((componentTypeGroup) => ({
+        ...componentTypeGroup,
+        componentTypeIds: [...(componentTypeGroup.componentTypeIds ?? [])],
+      })),
+      annotation: work.annotation ?? "",
+    };
+  }
+
+  function getDivisionOrderFromHierarchy(items: DesktopScheduleReferenceHierarchyItem[]) {
+    return Array.from(new Set(items.map((item) => item.divisionId)));
+  }
+
+  function getWorkTypeOrderByDivisionFromHierarchy(
+    items: DesktopScheduleReferenceHierarchyItem[],
+  ) {
+    const workTypeIdsByDivisionId = new Map<number, number[]>();
+    const seenWorkTypeIdsByDivisionId = new Map<number, Set<number>>();
+
+    items.forEach((item) => {
+      const workTypeIds = workTypeIdsByDivisionId.get(item.divisionId) ?? [];
+      const seenWorkTypeIds = seenWorkTypeIdsByDivisionId.get(item.divisionId) ?? new Set<number>();
+
+      if (!seenWorkTypeIds.has(item.workTypeId)) {
+        workTypeIds.push(item.workTypeId);
+        seenWorkTypeIds.add(item.workTypeId);
+      }
+
+      workTypeIdsByDivisionId.set(item.divisionId, workTypeIds);
+      seenWorkTypeIdsByDivisionId.set(item.divisionId, seenWorkTypeIds);
+    });
+
+    return workTypeIdsByDivisionId;
+  }
+
+  async function persistReferenceHistoryPatchToServer(
+    patch: DesktopScheduleLoadedDataHistoryPatch["workHierarchy"],
+    direction: DesktopScheduleHistoryDirection,
+  ) {
+    const referenceUpdateRequests: Array<Promise<unknown>> = [];
+    const updatedDivisionIds = new Set<number>();
+    const updatedWorkTypeIds = new Set<number>();
+    const updatedSubWorkTypeIds = new Set<number>();
+
+    patch.changes.forEach((change) => {
+      const source = getHistoryChangeSource(change, direction);
+      const target = getHistoryChangeTarget(change, direction);
+
+      if (!source || !target) {
+        return;
+      }
+
+      if (
+        source.divisionName !== target.divisionName &&
+        !updatedDivisionIds.has(target.divisionId)
+      ) {
+        updatedDivisionIds.add(target.divisionId);
+        referenceUpdateRequests.push(
+          desktopScheduleApi.updateDivision({
+            id: target.divisionId,
+            name: target.divisionName,
+          }),
+        );
+      }
+
+      if (
+        (source.workTypeName !== target.workTypeName ||
+          source.isStructure !== target.isStructure) &&
+        !updatedWorkTypeIds.has(target.workTypeId)
+      ) {
+        updatedWorkTypeIds.add(target.workTypeId);
+        referenceUpdateRequests.push(
+          desktopScheduleApi.updateWorkType({
+            id: target.workTypeId,
+            name: target.workTypeName,
+            isStructure: target.isStructure,
+          }),
+        );
+      }
+
+      if (
+        (source.subWorkTypeName !== target.subWorkTypeName ||
+          source.subWorkTypeColor !== target.subWorkTypeColor) &&
+        !updatedSubWorkTypeIds.has(target.subWorkTypeId)
+      ) {
+        updatedSubWorkTypeIds.add(target.subWorkTypeId);
+        referenceUpdateRequests.push(
+          desktopScheduleApi.updateSubWorkType({
+            id: target.subWorkTypeId,
+            name: target.subWorkTypeName,
+            color: target.subWorkTypeColor,
+          }),
+        );
+      }
+    });
+
+    const sourceOrder = direction === "undo" ? patch.afterOrder : patch.beforeOrder;
+    const targetOrder = direction === "undo" ? patch.beforeOrder : patch.afterOrder;
+
+    if (JSON.stringify(sourceOrder) !== JSON.stringify(targetOrder)) {
+      const targetItems = scheduleLoadState.value.data?.workHierarchy ?? [];
+      const sourceItems = applyHistoryCollectionPatch(
+        targetItems,
+        patch,
+        direction === "undo" ? "redo" : "undo",
+        (item) => item.subWorkTypeId,
+        cloneWorkHierarchyItem,
+      );
+      const targetDivisionIds = getDivisionOrderFromHierarchy(targetItems);
+      const sourceDivisionIds = getDivisionOrderFromHierarchy(sourceItems);
+
+      if (
+        targetDivisionIds.length > 1 &&
+        JSON.stringify(targetDivisionIds) !== JSON.stringify(sourceDivisionIds)
+      ) {
+        referenceUpdateRequests.push(desktopScheduleApi.updateDivision({ ids: targetDivisionIds }));
+      }
+
+      const targetWorkTypeIdsByDivisionId =
+        getWorkTypeOrderByDivisionFromHierarchy(targetItems);
+      const sourceWorkTypeIdsByDivisionId =
+        getWorkTypeOrderByDivisionFromHierarchy(sourceItems);
+
+      targetWorkTypeIdsByDivisionId.forEach((targetWorkTypeIds, divisionId) => {
+        if (targetWorkTypeIds.length < 2) {
+          return;
+        }
+
+        const sourceWorkTypeIds = sourceWorkTypeIdsByDivisionId.get(divisionId) ?? [];
+
+        if (JSON.stringify(targetWorkTypeIds) === JSON.stringify(sourceWorkTypeIds)) {
+          return;
+        }
+
+        referenceUpdateRequests.push(
+          desktopScheduleApi.updateWorkType({
+            parentId: divisionId,
+            ids: targetWorkTypeIds,
+          }),
+        );
+      });
+    }
+
+    await Promise.all(referenceUpdateRequests);
+  }
+
+  async function persistWorkHistoryPatchToServer(
+    patch: DesktopScheduleLoadedDataHistoryPatch["works"],
+    direction: DesktopScheduleHistoryDirection,
+    scheduleVersionId: DesktopScheduleVersionId,
+  ): Promise<DesktopScheduleHistorySyncResult> {
+    const updateItems: DesktopScheduleWorkUpdateItem[] = [];
+    const workIdsToDelete: number[] = [];
+    const worksToCreate: DesktopScheduleWorkResponse[] = [];
+    const workIdMap = new Map<number, number>();
+
+    patch.changes.forEach((change) => {
+      const source = getHistoryChangeSource(change, direction);
+      const target = getHistoryChangeTarget(change, direction);
+
+      if (source && target) {
+        updateItems.push(createWorkUpdateItemFromResponse(target));
+        return;
+      }
+
+      if (source && !target) {
+        workIdsToDelete.push(source.workId);
+        return;
+      }
+
+      if (!source && target) {
+        worksToCreate.push(target);
+      }
+    });
+
+    if (workIdsToDelete.length > 0) {
+      await Promise.all(workIdsToDelete.map((workId) => desktopScheduleApi.deleteWork(workId)));
+    }
+
+    if (updateItems.length > 0) {
+      const response = await desktopScheduleApi.updateWork({ items: updateItems });
+      applyServerMutationPatch(response);
+    }
+
+    for (const work of worksToCreate) {
+      const response = await desktopScheduleApi.createWork({
+        startDate: work.startDate,
+        workLeadTime: work.workLeadTime,
+        subWorkTypeId: work.subWorkTypeId,
+        scheduleVersionId,
+        annotation: work.annotation ?? "",
+      });
+      const createdWork = response.updatedWorks?.[0];
+
+      if (createdWork) {
+        workIdMap.set(work.workId, createdWork.workId);
+      } else {
+        throw new Error("생성된 작업 ID를 확인하지 못했습니다.");
+      }
+
+      if (
+        createdWork &&
+        (createdWork.workName !== work.workName ||
+          createdWork.positionY !== work.positionY ||
+          createdWork.zoneIds.join(",") !== (work.zoneIds ?? []).join(",") ||
+          createdWork.floorIds.join(",") !== (work.floorIds ?? []).join(","))
+      ) {
+        await desktopScheduleApi.updateWork({
+          items: [
+            {
+              ...createWorkUpdateItemFromResponse(work),
+              workId: createdWork.workId,
+            },
+          ],
+        });
+      }
+    }
+
+    return { workIdMap };
+  }
+
+  async function persistDeletedWorkDepsForHistoryToServer(
+    patch: DesktopScheduleLoadedDataHistoryPatch["workDeps"],
+    direction: DesktopScheduleHistoryDirection,
+  ) {
+    const workDepIdsToDelete = patch.changes
+      .map((change) => {
+        const source = getHistoryChangeSource(change, direction);
+        const target = getHistoryChangeTarget(change, direction);
+
+        if (!source) {
+          return null;
+        }
+
+        if (!target) {
+          return source.id;
+        }
+
+        return source.sourceWorkId !== target.sourceWorkId ||
+          source.targetWorkId !== target.targetWorkId
+          ? source.id
+          : null;
+      })
+      .filter((workDepId): workDepId is number => workDepId !== null);
+
+    await Promise.all(
+      Array.from(new Set(workDepIdsToDelete)).map((workDepId) =>
+        desktopScheduleApi.deleteWorkDep(workDepId),
+      ),
+    );
+  }
+
+  async function persistWorkDepHistoryPatchToServer(
+    patch: DesktopScheduleLoadedDataHistoryPatch["workDeps"],
+    direction: DesktopScheduleHistoryDirection,
+    scheduleVersionId: DesktopScheduleVersionId,
+    options: { workIdMap?: Map<number, number> } = {},
+  ): Promise<DesktopScheduleHistorySyncResult> {
+    const workDepsToCreate: DesktopScheduleWorkDepResponse[] = [];
+    const workDepsToUpdate: DesktopScheduleWorkDepResponse[] = [];
+    const workDepIdMap = new Map<number, number>();
+
+    patch.changes.forEach((change) => {
+      const source = getHistoryChangeSource(change, direction);
+      const target = getHistoryChangeTarget(change, direction);
+
+      if (source && target) {
+        if (
+          source.sourceWorkId === target.sourceWorkId &&
+          source.targetWorkId === target.targetWorkId
+        ) {
+          workDepsToUpdate.push(target);
+        } else {
+          workDepsToCreate.push(target);
+        }
+        return;
+      }
+
+      if (!source && target) {
+        workDepsToCreate.push(target);
+      }
+    });
+
+    if (workDepsToUpdate.length > 0) {
+      await Promise.all(
+        workDepsToUpdate.map((workDep) =>
+          desktopScheduleApi.updateWorkDep(workDep.id, {
+            lagDays: workDep.lagDays,
+          }),
+        ),
+      );
+    }
+
+    for (const workDep of workDepsToCreate) {
+      const response = await desktopScheduleApi.createWorkDep({
+        sourceWorkId: options.workIdMap?.get(workDep.sourceWorkId) ?? workDep.sourceWorkId,
+        targetWorkId: options.workIdMap?.get(workDep.targetWorkId) ?? workDep.targetWorkId,
+        lagDays: workDep.lagDays,
+        scheduleVersionId,
+      });
+      const createdWorkDep = response.updatedWorkDeps?.[0];
+
+      if (createdWorkDep) {
+        workDepIdMap.set(workDep.id, createdWorkDep.id);
+      } else {
+        throw new Error("생성된 작업 연결 ID를 확인하지 못했습니다.");
+      }
+    }
+
+    return { workDepIdMap };
+  }
+
+  async function persistMilestoneHistoryPatchToServer(
+    patch: DesktopScheduleLoadedDataHistoryPatch["milestones"],
+    direction: DesktopScheduleHistoryDirection,
+  ): Promise<DesktopScheduleHistorySyncResult> {
+    const milestoneIdsToDelete: number[] = [];
+    const milestonesToCreate: DesktopScheduleMilestoneResponse[] = [];
+    const milestonesToUpdate: DesktopScheduleMilestoneResponse[] = [];
+    const milestoneIdMap = new Map<number, number>();
+
+    patch.changes.forEach((change) => {
+      const source = getHistoryChangeSource(change, direction);
+      const target = getHistoryChangeTarget(change, direction);
+
+      if (source && target) {
+        milestonesToUpdate.push(target);
+        return;
+      }
+
+      if (source && !target) {
+        milestoneIdsToDelete.push(source.id);
+        return;
+      }
+
+      if (!source && target) {
+        milestonesToCreate.push(target);
+      }
+    });
+
+    if (milestoneIdsToDelete.length > 0) {
+      await Promise.all(
+        milestoneIdsToDelete.map((milestoneId) =>
+          desktopScheduleApi.deleteMilestone(milestoneId),
+        ),
+      );
+    }
+
+    if (milestonesToUpdate.length > 0) {
+      await Promise.all(
+        milestonesToUpdate.map((milestone) =>
+          desktopScheduleApi.updateMilestone({
+            id: milestone.id,
+            date: milestone.date,
+            name: milestone.name,
+          }),
+        ),
+      );
+    }
+
+    if (milestonesToCreate.length > 0) {
+      const createdMilestones = await Promise.all(
+        milestonesToCreate.map(async (milestone) => ({
+          sourceId: milestone.id,
+          milestone: await desktopScheduleApi.createMilestone({
+            date: milestone.date,
+            name: milestone.name,
+          }),
+        })),
+      );
+
+      createdMilestones.forEach(({ sourceId, milestone }) => {
+        milestoneIdMap.set(sourceId, milestone.id);
+      });
+    }
+
+    return { milestoneIdMap };
+  }
+
+  async function persistLocalHistoryEntryToServer(
+    entry: DesktopScheduleLocalHistoryEntry,
+    direction: DesktopScheduleHistoryDirection,
+  ): Promise<DesktopScheduleHistorySyncResult> {
+    const scheduleVersionId = getSelectedScheduleVersionId();
+
+    if (!entry.loadedData || !scheduleVersionId) {
+      return {};
+    }
+
+    await persistReferenceHistoryPatchToServer(entry.loadedData.workHierarchy, direction);
+    await persistDeletedWorkDepsForHistoryToServer(entry.loadedData.workDeps, direction);
+    const workResult = await persistWorkHistoryPatchToServer(
+      entry.loadedData.works,
+      direction,
+      scheduleVersionId,
+    );
+    const workDepResult = await persistWorkDepHistoryPatchToServer(
+      entry.loadedData.workDeps,
+      direction,
+      scheduleVersionId,
+      { workIdMap: workResult.workIdMap },
+    );
+    const milestoneResult = await persistMilestoneHistoryPatchToServer(
+      entry.loadedData.milestones,
+      direction,
+    );
+
+    return {
+      workIdMap: workResult.workIdMap,
+      workDepIdMap: workDepResult.workDepIdMap,
+      milestoneIdMap: milestoneResult.milestoneIdMap,
+    };
+  }
+
   function pushLocalHistoryEntry(previousSnapshot: DesktopScheduleLocalSnapshot) {
     const entry = createLocalHistoryEntry(previousSnapshot, captureWorkingSnapshot());
 
@@ -1210,34 +3027,75 @@ function createDesktopScheduleViewModel() {
     localHistoryRedoStack.value = [];
   }
 
-  function undoLocalHistory() {
-    const entry = localHistoryUndoStack.value[localHistoryUndoStack.value.length - 1];
+  async function moveLocalHistoryStackAndPersist(
+    direction: DesktopScheduleHistoryDirection,
+    entry: DesktopScheduleLocalHistoryEntry,
+    sourceStack: "undo" | "redo",
+  ) {
+    const previousSnapshot = captureWorkingSnapshot();
+    const previousUndoStack = [...localHistoryUndoStack.value];
+    const previousRedoStack = [...localHistoryRedoStack.value];
 
-    if (!entry || interactionSession.value) {
-      return;
+    if (sourceStack === "undo") {
+      localHistoryUndoStack.value = localHistoryUndoStack.value.slice(0, -1);
+      localHistoryRedoStack.value = [
+        ...localHistoryRedoStack.value.slice(-(LOCAL_HISTORY_MAX_ENTRIES - 1)),
+        entry,
+      ];
+    } else {
+      localHistoryRedoStack.value = localHistoryRedoStack.value.slice(0, -1);
+      localHistoryUndoStack.value = [
+        ...localHistoryUndoStack.value.slice(-(LOCAL_HISTORY_MAX_ENTRIES - 1)),
+        entry,
+      ];
     }
 
-    localHistoryUndoStack.value = localHistoryUndoStack.value.slice(0, -1);
-    localHistoryRedoStack.value = [
-      ...localHistoryRedoStack.value.slice(-(LOCAL_HISTORY_MAX_ENTRIES - 1)),
-      entry,
-    ];
-    applyLocalHistoryEntry(entry, "undo");
+    applyLocalHistoryEntry(entry, direction);
+    isLocalHistorySyncInFlight.value = true;
+
+    try {
+      const result = await persistLocalHistoryEntryToServer(entry, direction);
+      const idMap = {
+        workIds: result.workIdMap ?? new Map<number, number>(),
+        workDepIds: result.workDepIdMap ?? new Map<number, number>(),
+        milestoneIds: result.milestoneIdMap ?? new Map<number, number>(),
+      };
+
+      remapCurrentScheduleState(idMap);
+      remapLocalHistoryStacks(idMap);
+    } catch (error) {
+      restoreWorkingSnapshot(previousSnapshot);
+      localHistoryUndoStack.value = previousUndoStack;
+      localHistoryRedoStack.value = previousRedoStack;
+      handleMutationError(
+        error,
+        direction === "undo"
+          ? "되돌리기를 서버에 저장하지 못했습니다."
+          : "다시 실행을 서버에 저장하지 못했습니다.",
+      );
+    } finally {
+      isLocalHistorySyncInFlight.value = false;
+    }
   }
 
-  function redoLocalHistory() {
-    const entry = localHistoryRedoStack.value[localHistoryRedoStack.value.length - 1];
+  async function undoLocalHistory() {
+    const entry = localHistoryUndoStack.value[localHistoryUndoStack.value.length - 1];
 
-    if (!entry || interactionSession.value) {
+    if (!entry || interactionSession.value || isLocalHistorySyncInFlight.value) {
       return;
     }
 
-    localHistoryRedoStack.value = localHistoryRedoStack.value.slice(0, -1);
-    localHistoryUndoStack.value = [
-      ...localHistoryUndoStack.value.slice(-(LOCAL_HISTORY_MAX_ENTRIES - 1)),
-      entry,
-    ];
-    applyLocalHistoryEntry(entry, "redo");
+    await moveLocalHistoryStackAndPersist("undo", entry, "undo");
+  }
+
+  async function redoLocalHistory() {
+    const entry = localHistoryRedoStack.value[localHistoryRedoStack.value.length - 1];
+
+    if (!entry || interactionSession.value || isLocalHistorySyncInFlight.value) {
+      return;
+    }
+
+    await moveLocalHistoryStackAndPersist("redo", entry, "redo");
   }
 
   function updateLoadedScheduleData(
@@ -1744,6 +3602,7 @@ function createDesktopScheduleViewModel() {
   }
 
   async function loadSchedule(options: { scheduleVersionId?: DesktopScheduleVersionId } = {}) {
+    scheduleVersionReviewState.value = createClosedScheduleVersionReviewState();
     scheduleLoadState.value = {
       status: "loading",
       data: scheduleLoadState.value.data,
@@ -1752,14 +3611,23 @@ function createDesktopScheduleViewModel() {
 
     try {
       const scheduleData = await desktopScheduleApi.loadCurrentProjectSchedule(options);
+      const nextSnapshot = createDesktopScheduleSnapshotFromApiData(scheduleData);
       timelineCalendarState.value = createTimelineCalendarState(scheduleData);
-      applyScheduleSnapshot(createDesktopScheduleSnapshotFromApiData(scheduleData));
+      applyScheduleSnapshot(nextSnapshot);
       clearLocalHistory();
       scheduleLoadState.value = {
         status: "success",
         data: scheduleData,
         error: null,
       };
+      if (scheduleData.selectedScheduleVersion.isMain) {
+        scheduleVersionReviewBaselineCache.value = {
+          versionId: scheduleData.selectedScheduleVersion.id,
+          versionName: scheduleData.selectedScheduleVersion.versionName,
+          snapshot: nextSnapshot,
+        };
+        scheduleVersionReviewSummaryCache.value = null;
+      }
     } catch (error) {
       timelineCalendarState.value = createEmptyTimelineCalendarState();
       applyScheduleSnapshot(createEmptyScheduleSnapshot());
@@ -1928,6 +3796,210 @@ function createDesktopScheduleViewModel() {
       showScheduleToast("작업본을 삭제했어요.");
     } catch (error) {
       handleMutationError(error, "작업본을 삭제하지 못했습니다.");
+    }
+  }
+
+  function createCurrentScheduleVersionReviewDraftSnapshot() {
+    return {
+      items: cloneItems(workingItems.value),
+      workConnections: cloneWorkConnections(workingWorkConnections.value),
+      milestones: cloneMilestones(workingMilestones.value),
+    };
+  }
+
+  function createCurrentScheduleVersionReviewLayoutFingerprint() {
+    return createScheduleVersionReviewLayoutFingerprint(workingRows.value, timeline.value, {
+      rowHeight: rowHeight.value,
+      barHeight: barHeight.value,
+      preferredLaneByItemId: lanePreferenceByItemId.value,
+    });
+  }
+
+  async function getScheduleVersionReviewBaselineCache(
+    mainVersion: DesktopScheduleVersionResponse,
+  ) {
+    const currentCache = scheduleVersionReviewBaselineCache.value;
+
+    if (currentCache?.versionId === mainVersion.id) {
+      if (currentCache.versionName !== mainVersion.versionName) {
+        scheduleVersionReviewBaselineCache.value = {
+          ...currentCache,
+          versionName: mainVersion.versionName,
+        };
+      }
+
+      return scheduleVersionReviewBaselineCache.value!;
+    }
+
+    const baselineData = await desktopScheduleApi.loadCurrentProjectSchedule({
+      scheduleVersionId: mainVersion.id,
+    });
+    const baselineSnapshot = createDesktopScheduleSnapshotFromApiData(baselineData);
+    const nextCache = {
+      versionId: mainVersion.id,
+      versionName: mainVersion.versionName,
+      snapshot: baselineSnapshot,
+    };
+
+    scheduleVersionReviewBaselineCache.value = nextCache;
+    scheduleVersionReviewSummaryCache.value = null;
+
+    return nextCache;
+  }
+
+  function getCachedScheduleVersionReviewSummary(options: {
+    baselineVersion: DesktopScheduleVersionResponse;
+    draftVersion: DesktopScheduleVersionResponse;
+    draftFingerprint: string;
+    layoutFingerprint: string;
+  }) {
+    const cache = scheduleVersionReviewSummaryCache.value;
+
+    if (
+      !cache ||
+      cache.baselineVersionId !== options.baselineVersion.id ||
+      cache.baselineVersionName !== options.baselineVersion.versionName ||
+      cache.draftVersionId !== options.draftVersion.id ||
+      cache.draftVersionName !== options.draftVersion.versionName ||
+      cache.draftFingerprint !== options.draftFingerprint ||
+      cache.layoutFingerprint !== options.layoutFingerprint
+    ) {
+      return null;
+    }
+
+    return cache.summary;
+  }
+
+  function createScheduleVersionReviewSummaryFromState(options: {
+    baselineCache: ScheduleVersionReviewBaselineCache;
+    draftVersion: DesktopScheduleVersionResponse;
+    draftSnapshot: Pick<DesktopScheduleSnapshot, "items" | "workConnections" | "milestones">;
+  }) {
+    const baselineLayout = desktopScheduleService.buildShellLayout(
+      workingRows.value,
+      options.baselineCache.snapshot.items,
+      timeline.value,
+      {
+        rowHeight: rowHeight.value,
+        barHeight: barHeight.value,
+        preferredLaneByItemId: lanePreferenceByItemId.value,
+        workConnections: options.baselineCache.snapshot.workConnections,
+        milestones: options.baselineCache.snapshot.milestones,
+      },
+    );
+    const summaryBase = createDesktopScheduleVersionReviewSummary(
+      options.baselineCache.snapshot,
+      options.draftSnapshot,
+      options.baselineCache.versionName,
+      options.draftVersion.versionName,
+    );
+
+    return {
+      ...summaryBase,
+      visual: createDesktopScheduleVersionReviewVisualSummary(
+        summaryBase.details,
+        options.baselineCache.snapshot,
+        options.draftSnapshot,
+        baselineLayout,
+        shellLayout.value,
+      ),
+    };
+  }
+
+  function closeScheduleVersionReview() {
+    const currentState = scheduleVersionReviewState.value;
+
+    scheduleVersionReviewState.value = {
+      open: false,
+      status: currentState.summary ? "success" : "idle",
+      summary: currentState.summary,
+      errorMessage: null,
+    };
+  }
+
+  async function openScheduleVersionReview() {
+    const currentData = scheduleLoadState.value.data;
+    const draftVersion = selectedScheduleVersion.value;
+    const mainVersion = scheduleVersions.value.find((version) => version.isMain) ?? null;
+
+    if (!currentData || !draftVersion) {
+      showScheduleToast("비교할 공정표 데이터를 찾지 못했어요.");
+      return;
+    }
+
+    if (draftVersion.isMain) {
+      showScheduleToast("작업본에서만 기준 공정표와 비교할 수 있어요.");
+      return;
+    }
+
+    if (!mainVersion) {
+      showScheduleToast("기준 공정표가 없어 비교할 수 없어요.");
+      return;
+    }
+
+    const draftSnapshot = createCurrentScheduleVersionReviewDraftSnapshot();
+    const draftFingerprint = createScheduleVersionReviewDraftFingerprint(draftSnapshot);
+    const layoutFingerprint = createCurrentScheduleVersionReviewLayoutFingerprint();
+    const cachedSummary = getCachedScheduleVersionReviewSummary({
+      baselineVersion: mainVersion,
+      draftVersion,
+      draftFingerprint,
+      layoutFingerprint,
+    });
+
+    if (cachedSummary) {
+      scheduleVersionReviewState.value = {
+        open: true,
+        status: "success",
+        summary: cachedSummary,
+        errorMessage: null,
+      };
+      return;
+    }
+
+    if (scheduleVersionReviewBaselineCache.value?.versionId !== mainVersion.id) {
+      scheduleVersionReviewState.value = {
+        open: true,
+        status: "loading",
+        summary: scheduleVersionReviewState.value.summary,
+        errorMessage: null,
+      };
+    }
+
+    try {
+      const baselineCache = await getScheduleVersionReviewBaselineCache(mainVersion);
+      const summary = createScheduleVersionReviewSummaryFromState({
+        baselineCache,
+        draftVersion,
+        draftSnapshot,
+      });
+
+      scheduleVersionReviewSummaryCache.value = {
+        baselineVersionId: mainVersion.id,
+        baselineVersionName: mainVersion.versionName,
+        draftVersionId: draftVersion.id,
+        draftVersionName: draftVersion.versionName,
+        draftFingerprint,
+        layoutFingerprint,
+        summary,
+      };
+
+      scheduleVersionReviewState.value = {
+        open: true,
+        status: "success",
+        summary,
+        errorMessage: null,
+      };
+    } catch (error) {
+      const normalizedError = normalizeError(error);
+      console.error("[DesktopSchedule API] schedule version review failed", normalizedError);
+      showScheduleToast("변경사항을 비교하지 못했어요.");
+      scheduleVersionReviewState.value = {
+        open: false,
+        status: "error",
+        summary: null,
+        errorMessage: normalizedError.message,
+      };
     }
   }
 
@@ -4409,6 +6481,8 @@ function createDesktopScheduleViewModel() {
     scheduleVersionAccessLabel,
     suggestedDraftVersionName,
     canCreateDraftVersion,
+    canCompareScheduleVersion,
+    scheduleVersionReviewState,
     scheduleLoadStatus,
     scheduleLoadErrorMessage,
     scheduleToast,
@@ -4496,6 +6570,8 @@ function createDesktopScheduleViewModel() {
     createDraftVersionFromCurrent,
     renameScheduleVersion,
     deleteScheduleVersion,
+    openScheduleVersionReview,
+    closeScheduleVersionReview,
   };
 }
 

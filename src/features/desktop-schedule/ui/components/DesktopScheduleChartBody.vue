@@ -136,12 +136,57 @@
         :style="cellSelectionRangeStyle"
       />
 
+      <div
+        v-for="overlay in scheduleVersionReviewVisual?.baselineBarOverlays ?? []"
+        :key="overlay.id"
+        class="schedule-chart-body__review-bar-overlay"
+        :style="{
+          left: `${overlay.left}px`,
+          top: `${overlay.top}px`,
+          width: `${overlay.width}px`,
+          height: `${overlay.height}px`,
+        }"
+        :title="overlay.name"
+      >
+        <span>{{ overlay.name }}</span>
+      </div>
+
       <svg
         class="schedule-chart-body__connections"
         :width="timeline.chartWidth"
         :height="shellLayout.chartHeight"
         :viewBox="`0 0 ${timeline.chartWidth} ${shellLayout.chartHeight}`"
       >
+        <g
+          v-for="connection in scheduleVersionReviewVisual?.baselineConnectionOverlays ?? []"
+          :key="connection.id"
+          class="schedule-chart-body__review-connection"
+        >
+          <path
+            :d="connection.path"
+            fill="none"
+            pointer-events="none"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+
+          <text
+            v-if="connection.label"
+            :x="connection.labelX"
+            :y="connection.labelY"
+            pointer-events="none"
+            text-anchor="middle"
+            dominant-baseline="central"
+            :font-size="connectionLabelFontSize"
+            font-weight="850"
+            stroke="rgba(255,255,255,0.96)"
+            :stroke-width="connectionLabelStrokeWidth"
+            paint-order="stroke"
+          >
+            {{ connection.label }}
+          </text>
+        </g>
+
         <path
           v-if="previewConnectionPath"
           :d="previewConnectionPath"
@@ -299,6 +344,30 @@
       </template>
 
       <div
+        v-for="milestone in scheduleVersionReviewVisual?.baselineMilestoneOverlays ?? []"
+        :key="milestone.id"
+        class="schedule-chart-body__review-milestone"
+        :style="{
+          left: `${milestone.left}px`,
+          top: '0px',
+          width: `${milestone.width}px`,
+          height: `${shellLayout.chartHeight}px`,
+        }"
+        :title="milestone.label"
+      >
+        <span
+          class="schedule-chart-body__review-milestone-label"
+          :style="{
+            top: `${milestone.top}px`,
+            width: `${milestone.labelWidth}px`,
+            height: `${milestone.height}px`,
+          }"
+        >
+          {{ milestone.label }}
+        </span>
+      </div>
+
+      <div
         v-for="bar in shellLayout.bars"
         :key="bar.id"
         class="schedule-chart-body__bar"
@@ -393,6 +462,7 @@ import type {
   DesktopScheduleConnectionLayout,
   DesktopScheduleShellLayout,
   DesktopScheduleTimelineLayout,
+  DesktopScheduleVersionReviewState,
 } from "@/features/desktop-schedule/model/desktop-schedule.types";
 
 type MarqueeState = {
@@ -461,6 +531,7 @@ const props = defineProps<{
   connectionCreationState: ConnectionCreationState | null;
   editingItemId: string | null;
   editingMilestoneId: string | null;
+  scheduleVersionReview: DesktopScheduleVersionReviewState;
   zoomScale: number;
 }>();
 
@@ -544,6 +615,11 @@ const selectedRowIdSet = computed(() => new Set(props.selectedRowIds));
 const selectedWorkConnectionIdSet = computed(() => new Set(props.selectedWorkConnectionIds));
 const selectedMilestoneIdSet = computed(() => new Set(props.selectedMilestoneIds));
 const selectedCriticalPathIdSet = computed(() => new Set(props.selectedCriticalPathIds ?? []));
+const scheduleVersionReviewVisual = computed(() =>
+  props.scheduleVersionReview.open && props.scheduleVersionReview.status === "success"
+    ? props.scheduleVersionReview.summary?.visual ?? null
+    : null,
+);
 const timelineDayByDate = computed(
   () => new Map(props.timeline.days.map((day) => [day.date, day] as const)),
 );

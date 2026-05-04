@@ -242,3 +242,89 @@ export interface DesktopScheduleShellLayout {
   chartHeight: number;
   rowHeight: number;
 }
+
+export type DesktopScheduleVersionReviewCategory =
+  | "workAdded"
+  | "workChanged"
+  | "workDeleted"
+  | "connectionChanged"
+  | "milestoneChanged";
+
+export interface DesktopScheduleVersionReviewCount {
+  category: DesktopScheduleVersionReviewCategory;
+  label: string;
+  count: number;
+}
+
+export interface DesktopScheduleVersionReviewDetail {
+  id: string;
+  category: DesktopScheduleVersionReviewCategory;
+  kindLabel: string;
+  title: string;
+  description: string;
+}
+
+export type DesktopScheduleVersionReviewVisualChangeKind = "added" | "changed" | "deleted";
+
+export interface DesktopScheduleVersionReviewBarOverlayLayout {
+  id: string;
+  changeKind: Exclude<DesktopScheduleVersionReviewVisualChangeKind, "added">;
+  itemId: string;
+  name: string;
+  colorHex?: string | null;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+export interface DesktopScheduleVersionReviewMilestoneOverlayLayout {
+  id: string;
+  changeKind: Exclude<DesktopScheduleVersionReviewVisualChangeKind, "added">;
+  milestoneId: string;
+  label: string;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  labelWidth: number;
+}
+
+export interface DesktopScheduleVersionReviewConnectionOverlayLayout {
+  id: string;
+  changeKind: Exclude<DesktopScheduleVersionReviewVisualChangeKind, "added">;
+  connectionId: string;
+  path: string;
+  label: string | null;
+  labelX: number;
+  labelY: number;
+}
+
+export interface DesktopScheduleVersionReviewVisualSummary {
+  addedItemIds: string[];
+  changedItemIds: string[];
+  addedWorkConnectionIds: string[];
+  changedWorkConnectionIds: string[];
+  addedMilestoneIds: string[];
+  changedMilestoneIds: string[];
+  baselineBarOverlays: DesktopScheduleVersionReviewBarOverlayLayout[];
+  baselineMilestoneOverlays: DesktopScheduleVersionReviewMilestoneOverlayLayout[];
+  baselineConnectionOverlays: DesktopScheduleVersionReviewConnectionOverlayLayout[];
+}
+
+export interface DesktopScheduleVersionReviewSummary {
+  baselineVersionName: string;
+  draftVersionName: string;
+  generatedAt: string;
+  totalCount: number;
+  counts: DesktopScheduleVersionReviewCount[];
+  details: DesktopScheduleVersionReviewDetail[];
+  visual?: DesktopScheduleVersionReviewVisualSummary;
+}
+
+export interface DesktopScheduleVersionReviewState {
+  open: boolean;
+  status: "idle" | "loading" | "success" | "error";
+  summary: DesktopScheduleVersionReviewSummary | null;
+  errorMessage: string | null;
+}

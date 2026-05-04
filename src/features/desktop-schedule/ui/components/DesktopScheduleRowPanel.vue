@@ -112,6 +112,7 @@ const containerRef = ref<HTMLElement | null>(null);
 const divisionRenameInputRef = ref<HTMLInputElement | null>(null);
 const workTypeRenameInputRef = ref<HTMLInputElement | null>(null);
 const subWorkTypeRenameInputRef = ref<HTMLInputElement | null>(null);
+const panelContentWidth = ref(0);
 const divisionRenameDraft = ref("");
 const workTypeRenameDraft = ref("");
 const subWorkTypeRenameDraft = ref("");
@@ -120,6 +121,7 @@ const shouldCommitWorkTypeRenameOnBlur = ref(true);
 const shouldCommitSubWorkTypeRenameOnBlur = ref(true);
 const referenceDragState = ref<ReferenceDragState | null>(null);
 const workTypeColumnResizeState = ref<{ startClientX: number; startWidth: number } | null>(null);
+let panelResizeObserver: ResizeObserver | null = null;
 let syncingFromProp = false;
 const selectedRowIdSet = computed(() => new Set(props.selectedRowIds));
 const panelStyle = computed(() => ({
@@ -221,6 +223,9 @@ const contentHeight = computed(() => {
   const lastRow = props.rows[props.rows.length - 1];
   return lastRow ? lastRow.top + lastRow.height : 0;
 });
+const rowGridWidth = computed(() =>
+  Math.max(panelContentWidth.value, props.workTypeColumnWidth + 1),
+);
 
 const referenceDropIndicatorStyle = computed(() => {
   const dragState = referenceDragState.value;
@@ -374,15 +379,29 @@ function syncContainerScrollFromProps() {
   });
 }
 
+function syncPanelContentWidth() {
+  panelContentWidth.value = containerRef.value?.clientWidth ?? 0;
+}
+
 watch(() => props.scrollTop, syncContainerScrollFromProps);
 
 onMounted(() => {
   void nextTick(() => {
+    syncPanelContentWidth();
     syncContainerScrollFromProps();
   });
+
+  if (typeof ResizeObserver !== "undefined" && containerRef.value) {
+    panelResizeObserver = new ResizeObserver(() => {
+      syncPanelContentWidth();
+    });
+    panelResizeObserver.observe(containerRef.value);
+  }
 });
 
 onUnmounted(() => {
+  panelResizeObserver?.disconnect();
+  panelResizeObserver = null;
   removeReferenceDragWindowListeners();
   removeWorkTypeColumnResizeListeners();
 });
@@ -1211,9 +1230,9 @@ function handleSubWorkTypeRenameEscape() {
 
       <svg
         class="schedule-row-panel__row-grid"
-        :width="workTypeColumnWidth + 100"
+        :width="rowGridWidth"
         :height="contentHeight"
-        :viewBox="`0 0 ${workTypeColumnWidth + 100} ${contentHeight}`"
+        :viewBox="`0 0 ${rowGridWidth} ${contentHeight}`"
         preserveAspectRatio="none"
         aria-hidden="true"
       >
@@ -1223,7 +1242,7 @@ function handleSubWorkTypeRenameEscape() {
           class="schedule-row-panel__row-grid-line"
           :x1="workTypeColumnWidth"
           :y1="entry.row.top + entry.row.height"
-          :x2="workTypeColumnWidth + 100"
+          :x2="rowGridWidth"
           :y2="entry.row.top + entry.row.height"
         />
         <line
@@ -1232,8 +1251,17 @@ function handleSubWorkTypeRenameEscape() {
           class="schedule-row-panel__row-grid-line"
           x1="0"
           :y1="entry.row.top + entry.row.height"
-          :x2="workTypeColumnWidth + 100"
+          :x2="rowGridWidth"
           :y2="entry.row.top + entry.row.height"
+        />
+        <line
+          v-for="group in workTypeGroups"
+          :key="`row-panel-work-type-end-${group.key}`"
+          class="schedule-row-panel__row-grid-line"
+          x1="0"
+          :y1="group.top + group.height"
+          :x2="workTypeColumnWidth"
+          :y2="group.top + group.height"
         />
         <line
           v-for="entry in panelEntries.filter((candidate) => candidate.row.kind === 'division')"
@@ -1241,14 +1269,14 @@ function handleSubWorkTypeRenameEscape() {
           class="schedule-row-panel__row-grid-line schedule-row-panel__row-grid-line--strong"
           x1="0"
           :y1="entry.row.top"
-          :x2="workTypeColumnWidth + 100"
+          :x2="rowGridWidth"
           :y2="entry.row.top"
         />
         <rect
           class="schedule-row-panel__row-grid-bottom-divider"
           x="0"
           :y="Math.max(contentHeight - 2, 0)"
-          :width="workTypeColumnWidth + 100"
+          :width="rowGridWidth"
           height="2"
         />
       </svg>

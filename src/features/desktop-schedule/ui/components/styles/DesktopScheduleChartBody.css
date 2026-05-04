@@ -50,6 +50,8 @@
 .schedule-chart-body__today-column-overlay,
 .schedule-chart-body__today-division-border,
 .schedule-chart-body__bar,
+.schedule-chart-body__review-bar-overlay,
+.schedule-chart-body__review-milestone,
 .schedule-chart-body__milestone-deadline,
 .schedule-chart-body__milestone-cell,
 .schedule-chart-body__marquee,
@@ -205,6 +207,18 @@
   z-index: 5;
 }
 
+.schedule-chart-body__review-connection path {
+  stroke: #64748b;
+  stroke-width: 2.4;
+  stroke-dasharray: 6 4;
+  opacity: 0.32;
+}
+
+.schedule-chart-body__review-connection text {
+  fill: #475569;
+  opacity: 0.42;
+}
+
 .schedule-chart-body__connection-hit {
   cursor: pointer;
 }
@@ -237,6 +251,48 @@
   width: 3px;
   background: #b45309;
   box-shadow: 0 0 0 1px rgba(180, 83, 9, 0.16), 0 0 10px rgba(217, 119, 6, 0.24);
+}
+
+.schedule-chart-body__review-milestone {
+  z-index: 9;
+  pointer-events: none;
+}
+
+.schedule-chart-body__review-milestone::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(71, 85, 105, 0.44) 0,
+    rgba(71, 85, 105, 0.44) 6px,
+    transparent 6px,
+    transparent 10px
+  );
+  content: "";
+  opacity: 1;
+  transform: translateX(-50%);
+}
+
+.schedule-chart-body__review-milestone-label {
+  position: absolute;
+  box-sizing: border-box;
+  right: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 0.42rem;
+  border: 1px dashed rgba(71, 85, 105, 0.34);
+  border-radius: calc(0.18rem * var(--schedule-zoom-scale, 1));
+  background: rgba(248, 250, 252, 0.68);
+  color: #475569;
+  font-size: clamp(0.58rem, calc(0.78rem * var(--schedule-zoom-scale, 1)), 1.05rem);
+  font-weight: 800;
+  line-height: 1;
+  opacity: 0.62;
+  transform: translateX(-0.12rem);
 }
 
 .schedule-chart-body__milestone-cell {
@@ -350,6 +406,30 @@
   z-index: 10;
   border: 2px solid var(--schedule-bar-accent-color, #64748b);
   box-shadow: 0 0 0 2px var(--schedule-bar-focus-shadow, rgba(100, 116, 139, 0.16));
+}
+
+.schedule-chart-body__review-bar-overlay {
+  z-index: 8;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  padding: 0 calc(0.54rem * var(--schedule-zoom-scale, 1));
+  border-radius: calc(0.42rem * var(--schedule-zoom-scale, 1));
+  border: 1px dashed rgba(71, 85, 105, 0.34);
+  background: rgba(148, 163, 184, 0.22);
+  color: #475569;
+  opacity: 0.58;
+  pointer-events: none;
+}
+
+.schedule-chart-body__review-bar-overlay span {
+  overflow: hidden;
+  font-size: clamp(0.56rem, calc(0.76rem * var(--schedule-zoom-scale, 1)), 1.02rem);
+  font-weight: 850;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .schedule-chart-body__summary-title,

@@ -21,6 +21,8 @@ const {
   scheduleVersionAccessLabel,
   suggestedDraftVersionName,
   canCreateDraftVersion,
+  canCompareScheduleVersion,
+  scheduleVersionReviewState,
   selectionState,
   contextMenuState,
   contextMenuItems,
@@ -99,6 +101,8 @@ const {
   createDraftVersionFromCurrent,
   renameScheduleVersion,
   deleteScheduleVersion,
+  openScheduleVersionReview,
+  closeScheduleVersionReview,
 } = useDesktopScheduleViewModel();
 
 const shellHostRef = ref<HTMLElement | null>(null);
@@ -282,6 +286,8 @@ watch(
               :version-access-label="scheduleVersionAccessLabel"
               :suggested-draft-version-name="suggestedDraftVersionName"
               :can-create-draft-version="canCreateDraftVersion"
+              :can-compare-schedule-version="canCompareScheduleVersion"
+              :schedule-version-review="scheduleVersionReviewState"
               :viewport-height="shellViewportHeight"
               :scroll-top="chartScrollTop"
               :scroll-left="chartScrollLeft"
@@ -314,6 +320,8 @@ watch(
               @select-schedule-version="selectScheduleVersion"
               @rename-schedule-version="renameScheduleVersion"
               @delete-schedule-version="deleteScheduleVersion"
+              @open-schedule-version-review="openScheduleVersionReview"
+              @close-schedule-version-review="closeScheduleVersionReview"
               @readonly-edit-attempt="notifyReadOnlyScheduleAction"
               @clear-selection="clearSelection"
               @select-bars="selectBars"
