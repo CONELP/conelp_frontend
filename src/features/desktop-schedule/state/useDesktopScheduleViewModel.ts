@@ -158,10 +158,79 @@ const ROW_PANEL_MAX_WIDTH = 520;
 const WORK_TYPE_COLUMN_MIN_WIDTH = 72;
 const WORK_TYPE_COLUMN_MAX_WIDTH = 240;
 const LOCAL_HISTORY_MAX_ENTRIES = 200;
+const DESKTOP_SCHEDULE_UI_PREFERENCES_STORAGE_KEY =
+  "conelp.desktopSchedule.uiPreferences.v1";
+const DEFAULT_ZOOM_INDEX = Math.max(
+  DESKTOP_SCHEDULE_TIMELINE_ZOOM_LEVELS.findIndex(
+    (level) => level === DESKTOP_SCHEDULE_TIMELINE_DEFAULTS.dayWidth,
+  ),
+  0,
+);
 let optimisticReferenceIdSeed = -1;
+
+type DesktopScheduleUiPreferences = {
+  zoomIndex?: number;
+  rowPanelWidth?: number;
+  workTypeColumnWidth?: number;
+};
 
 function clampNumber(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+function clampZoomIndex(value: number) {
+  return clampNumber(
+    Math.round(value),
+    0,
+    DESKTOP_SCHEDULE_TIMELINE_ZOOM_LEVELS.length - 1,
+  );
+}
+
+function getDayWidthForZoomIndex(zoomIndex: number) {
+  return DESKTOP_SCHEDULE_TIMELINE_ZOOM_LEVELS[clampZoomIndex(zoomIndex)]!;
+}
+
+function readFiniteNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function loadDesktopScheduleUiPreferences(): DesktopScheduleUiPreferences {
+  if (typeof window === "undefined") {
+    return {};
+  }
+
+  try {
+    const rawPreferences = window.localStorage.getItem(
+      DESKTOP_SCHEDULE_UI_PREFERENCES_STORAGE_KEY,
+    );
+
+    if (!rawPreferences) {
+      return {};
+    }
+
+    const parsedPreferences = JSON.parse(rawPreferences) as Record<string, unknown>;
+    const zoomIndex = readFiniteNumber(parsedPreferences.zoomIndex);
+    const rowPanelWidth = readFiniteNumber(parsedPreferences.rowPanelWidth);
+    const workTypeColumnWidth = readFiniteNumber(parsedPreferences.workTypeColumnWidth);
+
+    return {
+      zoomIndex: zoomIndex === null ? undefined : clampZoomIndex(zoomIndex),
+      rowPanelWidth:
+        rowPanelWidth === null
+          ? undefined
+          : clampNumber(Math.round(rowPanelWidth), ROW_PANEL_MIN_WIDTH, ROW_PANEL_MAX_WIDTH),
+      workTypeColumnWidth:
+        workTypeColumnWidth === null
+          ? undefined
+          : clampNumber(
+              Math.round(workTypeColumnWidth),
+              WORK_TYPE_COLUMN_MIN_WIDTH,
+              WORK_TYPE_COLUMN_MAX_WIDTH,
+            ),
+    };
+  } catch {
+    return {};
+  }
 }
 
 function createHiddenScheduleToast(): ScheduleToastState {
@@ -492,6 +561,9 @@ function hasWorkConnectionGapChange(
 }
 
 function createDesktopScheduleViewModel() {
+  const storedUiPreferences = loadDesktopScheduleUiPreferences();
+  let currentUiPreferences: DesktopScheduleUiPreferences = { ...storedUiPreferences };
+  let uiPreferencesSaveTimer: number | null = null;
   const initialSnapshot = createEmptyScheduleSnapshot();
   const scheduleMetadata = ref(initialSnapshot.metadata);
   const scheduleLoadState =
@@ -508,9 +580,13 @@ function createDesktopScheduleViewModel() {
   const selectionState = ref(createEmptyDesktopScheduleSelectionState());
   const contextMenuState = ref(createClosedDesktopScheduleContextMenuState());
   const colorPaletteState = ref(createClosedColorPaletteState());
-  const dayWidth = ref<number>(DESKTOP_SCHEDULE_TIMELINE_DEFAULTS.dayWidth);
-  const rowPanelWidth = ref(DEFAULT_ROW_PANEL_WIDTH);
-  const workTypeColumnWidth = ref(DEFAULT_WORK_TYPE_COLUMN_WIDTH);
+  const dayWidth = ref<number>(
+    getDayWidthForZoomIndex(storedUiPreferences.zoomIndex ?? DEFAULT_ZOOM_INDEX),
+  );
+  const rowPanelWidth = ref(storedUiPreferences.rowPanelWidth ?? DEFAULT_ROW_PANEL_WIDTH);
+  const workTypeColumnWidth = ref(
+    storedUiPreferences.workTypeColumnWidth ?? DEFAULT_WORK_TYPE_COLUMN_WIDTH,
+  );
   const chartScrollTop = ref(0);
   const chartScrollLeft = ref(0);
   const localHistoryUndoStack = ref<DesktopScheduleLocalHistoryEntry[]>([]);
@@ -606,6 +682,55 @@ function createDesktopScheduleViewModel() {
     colorPaletteState.value = createClosedColorPaletteState();
   }
 
+  function writeUiPreferencesToStorage() {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    uiPreferencesSaveTimer = null;
+    try {
+      window.localStorage.setItem(
+        DESKTOP_SCHEDULE_UI_PREFERENCES_STORAGE_KEY,
+        JSON.stringify(currentUiPreferences),
+      );
+    } catch {
+      // Preferences are a convenience layer; storage failures should not block schedule editing.
+    }
+  }
+
+  function persistUiPreferences(
+    patch: DesktopScheduleUiPreferences,
+    options: { defer?: boolean } = {},
+  ) {
+    currentUiPreferences = {
+      ...currentUiPreferences,
+      ...patch,
+    };
+
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (uiPreferencesSaveTimer !== null) {
+      window.clearTimeout(uiPreferencesSaveTimer);
+      uiPreferencesSaveTimer = null;
+    }
+
+    if (options.defer) {
+      uiPreferencesSaveTimer = window.setTimeout(writeUiPreferencesToStorage, 160);
+      return;
+    }
+
+    writeUiPreferencesToStorage();
+  }
+
+  function flushUiPreferences() {
+    if (typeof window !== "undefined" && uiPreferencesSaveTimer !== null) {
+      window.clearTimeout(uiPreferencesSaveTimer);
+    }
+    writeUiPreferencesToStorage();
+  }
+
   function showScheduleToast(message: string) {
     scheduleToast.value = {
       visible: true,
@@ -638,21 +763,25 @@ function createDesktopScheduleViewModel() {
   }
 
   function setRowPanelWidth(nextWidth: number) {
-    rowPanelWidth.value = clampNumber(
+    const clampedWidth = clampNumber(
       Math.round(nextWidth),
       ROW_PANEL_MIN_WIDTH,
       ROW_PANEL_MAX_WIDTH,
     );
+    rowPanelWidth.value = clampedWidth;
+    persistUiPreferences({ rowPanelWidth: clampedWidth });
     closeContextMenu();
     closeColorPalette();
   }
 
   function setWorkTypeColumnWidth(nextWidth: number) {
-    workTypeColumnWidth.value = clampNumber(
+    const clampedWidth = clampNumber(
       Math.round(nextWidth),
       WORK_TYPE_COLUMN_MIN_WIDTH,
       WORK_TYPE_COLUMN_MAX_WIDTH,
     );
+    workTypeColumnWidth.value = clampedWidth;
+    persistUiPreferences({ workTypeColumnWidth: clampedWidth });
     closeContextMenu();
     closeColorPalette();
   }
@@ -3897,6 +4026,7 @@ function createDesktopScheduleViewModel() {
       viewportWidth,
     );
     dayWidth.value = nextDayWidth;
+    persistUiPreferences({ zoomIndex: currentZoomIndex.value });
     closeContextMenu();
   }
 
@@ -3949,6 +4079,7 @@ function createDesktopScheduleViewModel() {
     canUndoLocalHistory,
     canRedoLocalHistory,
     loadSchedule,
+    flushUiPreferences,
     clearSelection,
     syncChartScroll,
     setRowPanelWidth,

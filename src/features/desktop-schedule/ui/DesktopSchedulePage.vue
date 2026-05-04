@@ -38,6 +38,7 @@ const {
   canUndoLocalHistory,
   canRedoLocalHistory,
   loadSchedule,
+  flushUiPreferences,
   clearSelection,
   syncChartScroll,
   setRowPanelWidth,
@@ -165,8 +166,13 @@ function handleHistoryShortcut(event: KeyboardEvent) {
   redoLocalHistory();
 }
 
+function handleBeforeUnload() {
+  flushUiPreferences();
+}
+
 onMounted(() => {
   window.addEventListener("keydown", handleHistoryShortcut);
+  window.addEventListener("beforeunload", handleBeforeUnload);
 
   if (shellHostRef.value) {
     resizeObserver = new ResizeObserver(() => {
@@ -183,6 +189,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener("keydown", handleHistoryShortcut);
+  window.removeEventListener("beforeunload", handleBeforeUnload);
+  flushUiPreferences();
   resizeObserver?.disconnect();
   resizeObserver = null;
   closeContextMenu();
