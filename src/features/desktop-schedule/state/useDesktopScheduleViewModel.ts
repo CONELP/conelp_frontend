@@ -563,7 +563,6 @@ function hasWorkConnectionGapChange(
 function createDesktopScheduleViewModel() {
   const storedUiPreferences = loadDesktopScheduleUiPreferences();
   let currentUiPreferences: DesktopScheduleUiPreferences = { ...storedUiPreferences };
-  let uiPreferencesSaveTimer: number | null = null;
   const initialSnapshot = createEmptyScheduleSnapshot();
   const scheduleMetadata = ref(initialSnapshot.metadata);
   const scheduleLoadState =
@@ -687,7 +686,6 @@ function createDesktopScheduleViewModel() {
       return;
     }
 
-    uiPreferencesSaveTimer = null;
     try {
       window.localStorage.setItem(
         DESKTOP_SCHEDULE_UI_PREFERENCES_STORAGE_KEY,
@@ -698,36 +696,12 @@ function createDesktopScheduleViewModel() {
     }
   }
 
-  function persistUiPreferences(
-    patch: DesktopScheduleUiPreferences,
-    options: { defer?: boolean } = {},
-  ) {
+  function persistUiPreferences(patch: DesktopScheduleUiPreferences) {
     currentUiPreferences = {
       ...currentUiPreferences,
       ...patch,
     };
 
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    if (uiPreferencesSaveTimer !== null) {
-      window.clearTimeout(uiPreferencesSaveTimer);
-      uiPreferencesSaveTimer = null;
-    }
-
-    if (options.defer) {
-      uiPreferencesSaveTimer = window.setTimeout(writeUiPreferencesToStorage, 160);
-      return;
-    }
-
-    writeUiPreferencesToStorage();
-  }
-
-  function flushUiPreferences() {
-    if (typeof window !== "undefined" && uiPreferencesSaveTimer !== null) {
-      window.clearTimeout(uiPreferencesSaveTimer);
-    }
     writeUiPreferencesToStorage();
   }
 
@@ -4079,7 +4053,6 @@ function createDesktopScheduleViewModel() {
     canUndoLocalHistory,
     canRedoLocalHistory,
     loadSchedule,
-    flushUiPreferences,
     clearSelection,
     syncChartScroll,
     setRowPanelWidth,
