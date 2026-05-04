@@ -319,6 +319,10 @@
   stroke-width: 2;
 }
 
+.schedule-row-panel__row-grid-bottom-divider {
+  fill: rgba(0, 0, 0, 0.16);
+}
+
 .schedule-row-panel__work-type-group {
   position: absolute;
   left: 0;

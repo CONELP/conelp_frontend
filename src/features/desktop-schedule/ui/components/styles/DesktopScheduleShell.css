@@ -1,4 +1,5 @@
 .schedule-shell {
+  position: relative;
   display: flex;
   height: 100%;
   min-height: 0;
@@ -35,15 +36,15 @@
   align-items: center;
   gap: 0.55rem;
   padding: 0.28rem 0.6rem;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 0.8rem;
   background: #fff;
 }
 
 .schedule-shell__toolbar-spacer {
-  flex: 1 1 auto;
-  min-width: 1rem;
+  flex: 0 0 auto;
+  min-width: 0.35rem;
 }
 
 .schedule-shell__toolbar-divider {
@@ -54,7 +55,9 @@
 }
 
 .schedule-shell__version {
+  position: relative;
   display: inline-flex;
+  flex: 1 1 auto;
   min-width: 0;
   align-items: center;
   gap: 0.45rem;
@@ -75,14 +78,28 @@
 
 .schedule-shell__version-chip {
   gap: 0.42rem;
-  max-width: min(34rem, 48vw);
+  flex: 0 0 auto;
   padding: 0 0.62rem;
   overflow: hidden;
   border: 1px solid rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  font-family: inherit;
 }
 
 .schedule-shell__version-chip--readonly {
   background: #f8fafc;
+}
+
+.schedule-shell__version-chip:hover,
+.schedule-shell__version-chip--selected {
+  border-color: rgba(37, 99, 235, 0.28);
+  background: #f8fafc;
+}
+
+.schedule-shell__version-chip--selected {
+  border-width: 2px;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
 }
 
 .schedule-shell__version-mode {
@@ -114,11 +131,107 @@
   background: rgba(0, 0, 0, 0.16);
 }
 
+.schedule-shell__draft-rail {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  cursor: grab;
+  scrollbar-width: none;
+}
+
+.schedule-shell__draft-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.schedule-shell__draft-rail--dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.schedule-shell__draft-list {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  min-width: max-content;
+}
+
+.schedule-shell__draft-chip-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 0.5rem;
+  background: #fff;
+}
+
+.schedule-shell__draft-chip-wrap--selected {
+  border-width: 2px;
+  border-color: var(--primary);
+  background: #f8fafc;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+
+.schedule-shell__draft-chip-wrap--renaming {
+  border-color: rgba(37, 99, 235, 0.45);
+  background: #fff;
+}
+
+.schedule-shell__draft-chip {
+  display: inline-flex;
+  min-height: 1.9rem;
+  max-width: 15rem;
+  min-width: 0;
+  align-items: center;
+  gap: 0.38rem;
+  padding: 0 0.66rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: #111827;
+  font-family: inherit;
+  font-size: 0.78rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.schedule-shell__draft-chip--editing {
+  cursor: text;
+}
+
+.schedule-shell__draft-chip-name {
+  min-width: 0;
+  overflow: hidden;
+  color: #475569;
+  font-weight: 650;
+  text-overflow: ellipsis;
+}
+
+.schedule-shell__draft-chip-name--editing {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  outline: none;
+  color: #111827;
+  text-overflow: clip;
+  cursor: text;
+  user-select: text;
+  caret-color: currentColor;
+}
+
+.schedule-shell__draft-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .schedule-shell__draft-button {
+  flex: 0 0 auto;
   padding: 0 0.72rem;
-  border: 1px solid var(--primary);
-  background: var(--primary);
-  color: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: #f8fafc;
+  color: #475569;
   font-weight: 700;
   transition:
     border-color 140ms ease,
@@ -128,9 +241,15 @@
 
 .schedule-shell__draft-button:hover,
 .schedule-shell__draft-button:focus-visible {
-  border-color: var(--primary-hover);
-  background: var(--primary-hover);
-  color: #fff;
+  border-color: rgba(0, 0, 0, 0.18);
+  background: #f1f5f9;
+  color: #111827;
+}
+
+.schedule-shell__draft-button:disabled:hover {
+  border-color: rgba(0, 0, 0, 0.12);
+  background: #f8fafc;
+  color: #475569;
 }
 
 .schedule-shell__draft-button:focus-visible {

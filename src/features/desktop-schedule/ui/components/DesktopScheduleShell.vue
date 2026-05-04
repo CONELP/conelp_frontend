@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref } from "vue";
+import {
+  computed,
+  nextTick,
+  onMounted,
+  onUnmounted,
+  ref,
+  type ComponentPublicInstance,
+} from "vue";
 
 import type {
   DesktopScheduleShellLayout,
@@ -10,6 +17,7 @@ import DesktopScheduleRowPanel from "@/features/desktop-schedule/ui/components/D
 import DesktopScheduleTimelineHeader from "@/features/desktop-schedule/ui/components/DesktopScheduleTimelineHeader.vue";
 import redoIcon from "@fluentui/svg-icons/icons/arrow_redo_20_regular.svg";
 import undoIcon from "@fluentui/svg-icons/icons/arrow_undo_20_regular.svg";
+import "@/features/desktop-schedule/ui/components/styles/DesktopScheduleContextMenu.css";
 import "@/features/desktop-schedule/ui/components/styles/DesktopScheduleShell.css";
 
 const SHELL_HEADER_HEIGHT = 84;
@@ -25,13 +33,23 @@ type ConnectionCreationState = {
   sourceItemId: string;
 };
 
+type ScheduleVersionOption = {
+  id: number;
+  versionName: string;
+  isMain: boolean;
+};
+
 const props = defineProps<{
   timeline: DesktopScheduleTimelineLayout;
   shellLayout: DesktopScheduleShellLayout;
   readOnly: boolean;
+  scheduleVersions: ScheduleVersionOption[];
+  selectedScheduleVersionId: number | null;
   versionName: string;
   versionModeLabel: string;
   versionAccessLabel: string;
+  suggestedDraftVersionName: string;
+  canCreateDraftVersion: boolean;
   viewportHeight?: number;
   scrollTop: number;
   scrollLeft: number;
@@ -123,7 +141,10 @@ const emit = defineEmits<{
   "resize-end": [];
   undo: [];
   redo: [];
-  "create-draft-version": [];
+  "select-schedule-version": [scheduleVersionId: number];
+  "create-draft-version": [versionName: string];
+  "rename-schedule-version": [payload: { scheduleVersionId: number; versionName: string }];
+  "delete-schedule-version": [scheduleVersionId: number];
   "readonly-edit-attempt": [];
   "zoom-in": [];
   "zoom-out": [];
@@ -133,6 +154,21 @@ const emit = defineEmits<{
 const hoveredRowId = ref<string | null>(null);
 const hoveredDate = ref<string | null>(null);
 const rowPanelResizeState = ref<{ startClientX: number; startWidth: number } | null>(null);
+const versionMenuRootRef = ref<HTMLElement | null>(null);
+const versionActionMenuRef = ref<HTMLElement | null>(null);
+const scheduleVersionRenameEditorRef = ref<HTMLElement | null>(null);
+const draftRailRef = ref<HTMLElement | null>(null);
+const activeVersionActionMenu = ref<{ versionId: number; x: number; y: number } | null>(null);
+const renamingScheduleVersionId = ref<number | null>(null);
+const renamingScheduleVersionName = ref("");
+const shouldCommitScheduleVersionRenameOnBlur = ref(true);
+const draftRailDragState = ref<{
+  pointerId: number;
+  startClientX: number;
+  startScrollLeft: number;
+  hasMoved: boolean;
+} | null>(null);
+const shouldSuppressNextDraftClick = ref(false);
 
 const shellHeight = computed(() => Math.max(props.viewportHeight ?? 640, 320));
 const scaledShellHeaderHeight = computed(() =>
@@ -166,8 +202,18 @@ const zoomSliderProgress = computed(() =>
 const leftHeaderVersionLabel = computed(() =>
   props.readOnly ? props.versionModeLabel : props.versionName,
 );
-const shouldShowVersionNameInToolbar = computed(() => !props.readOnly && props.versionName.trim().length > 0);
-const shouldShowVersionAccessInToolbar = computed(() => !props.readOnly);
+const mainScheduleVersion = computed(() =>
+  props.scheduleVersions.find((version) => version.isMain) ?? null,
+);
+const draftScheduleVersions = computed(() =>
+  props.scheduleVersions.filter((version) => !version.isMain),
+);
+const activeVersionActionMenuVersion = computed(() =>
+  activeVersionActionMenu.value
+    ? props.scheduleVersions.find((version) => version.id === activeVersionActionMenu.value?.versionId) ??
+      null
+    : null,
+);
 const frameStyle = computed(() => ({
   gridTemplateColumns: `${props.rowPanelWidth}px minmax(0, 1fr)`,
 }));
@@ -183,6 +229,282 @@ const shellStyle = computed(() => ({
 
 function clampWidth(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+function closeVersionOverlays() {
+  activeVersionActionMenu.value = null;
+  renamingScheduleVersionId.value = null;
+  renamingScheduleVersionName.value = "";
+}
+
+function handleDocumentPointerDown(event: PointerEvent) {
+  const target = event.target;
+
+  if (
+    !(target instanceof Node) ||
+    versionMenuRootRef.value?.contains(target) ||
+    versionActionMenuRef.value?.contains(target)
+  ) {
+    return;
+  }
+
+  if (renamingScheduleVersionId.value !== null) {
+    commitActiveScheduleVersionRename();
+    return;
+  }
+
+  closeVersionOverlays();
+}
+
+function handleDocumentKeyDown(event: KeyboardEvent) {
+  if (event.key === "Escape") {
+    closeVersionOverlays();
+  }
+}
+
+function selectScheduleVersion(version: ScheduleVersionOption) {
+  if (shouldSuppressNextDraftClick.value) {
+    shouldSuppressNextDraftClick.value = false;
+    return;
+  }
+
+  if (renamingScheduleVersionId.value !== null) {
+    return;
+  }
+
+  closeVersionOverlays();
+
+  if (version.id !== props.selectedScheduleVersionId) {
+    emit("select-schedule-version", version.id);
+  }
+}
+
+function createDraftVersionWithDefaultName() {
+  if (!props.canCreateDraftVersion) {
+    return;
+  }
+
+  const trimmedVersionName = props.suggestedDraftVersionName.trim();
+
+  if (!trimmedVersionName) {
+    return;
+  }
+
+  closeVersionOverlays();
+  emit("create-draft-version", trimmedVersionName);
+}
+
+function openVersionActionMenu(version: ScheduleVersionOption, event: MouseEvent) {
+  if (shouldSuppressNextDraftClick.value) {
+    shouldSuppressNextDraftClick.value = false;
+    return;
+  }
+
+  if (version.isMain) {
+    return;
+  }
+
+  activeVersionActionMenu.value = {
+    versionId: version.id,
+    x: event.clientX,
+    y: event.clientY,
+  };
+}
+
+function startActiveScheduleVersionRename() {
+  const version = activeVersionActionMenuVersion.value;
+
+  if (version) {
+    startScheduleVersionRename(version);
+  }
+}
+
+function requestActiveScheduleVersionDelete() {
+  const version = activeVersionActionMenuVersion.value;
+
+  if (version) {
+    requestScheduleVersionDelete(version);
+  }
+}
+
+async function startScheduleVersionRename(version: ScheduleVersionOption) {
+  if (version.isMain) {
+    return;
+  }
+
+  activeVersionActionMenu.value = null;
+  shouldCommitScheduleVersionRenameOnBlur.value = true;
+  renamingScheduleVersionId.value = version.id;
+  renamingScheduleVersionName.value = version.versionName;
+
+  await nextTick();
+  requestAnimationFrame(() => {
+    const editor = scheduleVersionRenameEditorRef.value;
+
+    if (!editor) {
+      return;
+    }
+
+    editor.textContent = renamingScheduleVersionName.value;
+    editor.focus();
+
+    const selection = window.getSelection();
+    if (!selection) {
+      return;
+    }
+
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    range.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  });
+}
+
+function cancelScheduleVersionRename() {
+  renamingScheduleVersionId.value = null;
+  renamingScheduleVersionName.value = "";
+}
+
+function commitScheduleVersionRename(version: ScheduleVersionOption) {
+  const trimmedVersionName = renamingScheduleVersionName.value.trim();
+
+  if (!trimmedVersionName) {
+    cancelScheduleVersionRename();
+    return;
+  }
+
+  if (trimmedVersionName !== version.versionName) {
+    emit("rename-schedule-version", {
+      scheduleVersionId: version.id,
+      versionName: trimmedVersionName,
+    });
+  }
+
+  cancelScheduleVersionRename();
+}
+
+function commitActiveScheduleVersionRename() {
+  const version = props.scheduleVersions.find(
+    (scheduleVersion) => scheduleVersion.id === renamingScheduleVersionId.value,
+  );
+
+  if (!version) {
+    cancelScheduleVersionRename();
+    return;
+  }
+
+  commitScheduleVersionRename(version);
+}
+
+function handleScheduleVersionRenameEditableInput(event: Event) {
+  const target = event.target as HTMLElement | null;
+  renamingScheduleVersionName.value = target?.textContent?.replace(/\n/g, "") ?? "";
+}
+
+function handleScheduleVersionRenameEditableBlur(version: ScheduleVersionOption) {
+  if (shouldCommitScheduleVersionRenameOnBlur.value) {
+    commitScheduleVersionRename(version);
+  } else {
+    cancelScheduleVersionRename();
+  }
+
+  shouldCommitScheduleVersionRenameOnBlur.value = true;
+}
+
+function handleScheduleVersionRenameEditableEnter() {
+  shouldCommitScheduleVersionRenameOnBlur.value = true;
+  scheduleVersionRenameEditorRef.value?.blur();
+}
+
+function handleScheduleVersionRenameEditableEscape() {
+  shouldCommitScheduleVersionRenameOnBlur.value = false;
+  scheduleVersionRenameEditorRef.value?.blur();
+}
+
+function setScheduleVersionRenameEditorRef(
+  element: Element | ComponentPublicInstance | null,
+  _refs?: Record<string, unknown>,
+) {
+  scheduleVersionRenameEditorRef.value = element instanceof HTMLElement ? element : null;
+}
+
+function requestScheduleVersionDelete(version: ScheduleVersionOption) {
+  if (version.isMain || typeof window === "undefined") {
+    return;
+  }
+
+  activeVersionActionMenu.value = null;
+  const confirmed = window.confirm(
+    `'${version.versionName}' 작업본을 삭제할까요?\n삭제하면 이 작업본의 공정표 데이터도 함께 정리됩니다.`,
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  if (renamingScheduleVersionId.value === version.id) {
+    cancelScheduleVersionRename();
+  }
+
+  emit("delete-schedule-version", version.id);
+}
+
+function handleDraftRailPointerDown(event: PointerEvent) {
+  if (event.button !== 0 || !draftRailRef.value) {
+    return;
+  }
+
+  const target = event.target;
+
+  if (target instanceof HTMLElement && target.closest("input, form, [contenteditable='true']")) {
+    return;
+  }
+
+  draftRailDragState.value = {
+    pointerId: event.pointerId,
+    startClientX: event.clientX,
+    startScrollLeft: draftRailRef.value.scrollLeft,
+    hasMoved: false,
+  };
+}
+
+function handleDraftRailPointerMove(event: PointerEvent) {
+  const dragState = draftRailDragState.value;
+
+  if (!dragState || !draftRailRef.value || dragState.pointerId !== event.pointerId) {
+    return;
+  }
+
+  const deltaX = event.clientX - dragState.startClientX;
+
+  if (Math.abs(deltaX) > 4) {
+    dragState.hasMoved = true;
+  }
+
+  if (!dragState.hasMoved) {
+    return;
+  }
+
+  event.preventDefault();
+  draftRailRef.value.scrollLeft = dragState.startScrollLeft - deltaX;
+}
+
+function endDraftRailPointerDrag(event: PointerEvent) {
+  const dragState = draftRailDragState.value;
+
+  if (!dragState || dragState.pointerId !== event.pointerId) {
+    return;
+  }
+
+  shouldSuppressNextDraftClick.value = dragState.hasMoved;
+  draftRailDragState.value = null;
+
+  if (dragState.hasMoved && typeof window !== "undefined") {
+    window.setTimeout(() => {
+      shouldSuppressNextDraftClick.value = false;
+    }, 0);
+  }
 }
 
 function handleRowPanelScroll(scrollTop: number) {
@@ -270,7 +592,20 @@ function startRowPanelResize(event: PointerEvent) {
   );
 }
 
+onMounted(() => {
+  document.addEventListener("pointerdown", handleDocumentPointerDown, true);
+  document.addEventListener("keydown", handleDocumentKeyDown, true);
+  document.addEventListener("pointermove", handleDraftRailPointerMove, true);
+  document.addEventListener("pointerup", endDraftRailPointerDrag, true);
+  document.addEventListener("pointercancel", endDraftRailPointerDrag, true);
+});
+
 onUnmounted(() => {
+  document.removeEventListener("pointerdown", handleDocumentPointerDown, true);
+  document.removeEventListener("keydown", handleDocumentKeyDown, true);
+  document.removeEventListener("pointermove", handleDraftRailPointerMove, true);
+  document.removeEventListener("pointerup", endDraftRailPointerDrag, true);
+  document.removeEventListener("pointercancel", endDraftRailPointerDrag, true);
   removeRowPanelResizeListeners();
 });
 </script>
@@ -284,40 +619,127 @@ onUnmounted(() => {
     }"
     :style="shellStyle"
   >
+    <p v-if="readOnly" class="schedule-shell__readonly-notice" role="note">
+      <span class="schedule-shell__readonly-notice-chip">읽기 전용</span>
+      <span>기준 공정표는 직접 수정할 수 없어요. 작업본을 만들어 수정해 주세요.</span>
+    </p>
+
     <div class="schedule-shell__toolbar" aria-label="공정표 도구">
-      <div class="schedule-shell__version">
-        <div
+      <div ref="versionMenuRootRef" class="schedule-shell__version">
+        <button
+          v-if="mainScheduleVersion"
+          type="button"
           class="schedule-shell__version-chip"
-          :class="{ 'schedule-shell__version-chip--readonly': readOnly }"
-          aria-label="현재 공정표 버전"
+          :class="{
+            'schedule-shell__version-chip--readonly': readOnly,
+            'schedule-shell__version-chip--selected':
+              mainScheduleVersion.id === selectedScheduleVersionId,
+          }"
+          aria-label="기준 공정표 선택"
+          @click="selectScheduleVersion(mainScheduleVersion)"
         >
-          <span class="schedule-shell__version-mode">{{ versionModeLabel }}</span>
-          <span v-if="shouldShowVersionNameInToolbar" class="schedule-shell__version-name">
-            {{ versionName }}
-          </span>
-          <span
-            v-if="shouldShowVersionAccessInToolbar"
-            class="schedule-shell__version-access"
-            :class="{ 'schedule-shell__version-access--separated': shouldShowVersionNameInToolbar }"
-          >
-            {{ versionAccessLabel }}
-          </span>
-        </div>
+          <span class="schedule-shell__version-mode">기준 공정표</span>
+        </button>
 
         <span
-          v-if="readOnly"
+          v-if="mainScheduleVersion"
           class="schedule-shell__version-divider"
           aria-hidden="true"
         />
 
-        <button
-          v-if="readOnly"
-          type="button"
-          class="schedule-shell__draft-button"
-          @click="emit('create-draft-version')"
+        <div
+          ref="draftRailRef"
+          class="schedule-shell__draft-rail"
+          :class="{ 'schedule-shell__draft-rail--dragging': draftRailDragState }"
+          aria-label="작업본 목록"
+          @pointerdown="handleDraftRailPointerDown"
         >
-          + 작업본 만들기
-        </button>
+          <div class="schedule-shell__draft-list">
+            <div
+              v-for="version in draftScheduleVersions"
+              :key="version.id"
+              class="schedule-shell__draft-chip-wrap"
+              :class="{
+                'schedule-shell__draft-chip-wrap--selected':
+                  version.id === selectedScheduleVersionId,
+                'schedule-shell__draft-chip-wrap--renaming':
+                  renamingScheduleVersionId === version.id,
+              }"
+            >
+              <button
+                v-if="renamingScheduleVersionId !== version.id"
+                type="button"
+                class="schedule-shell__draft-chip"
+                @click="selectScheduleVersion(version)"
+                @contextmenu.prevent.stop="openVersionActionMenu(version, $event)"
+              >
+                <span class="schedule-shell__draft-chip-name">
+                  {{ version.versionName }}
+                </span>
+              </button>
+
+              <span
+                v-else
+                class="schedule-shell__draft-chip schedule-shell__draft-chip--editing"
+                role="textbox"
+                aria-label="작업본 이름"
+              >
+                <span
+                  :ref="setScheduleVersionRenameEditorRef"
+                  class="schedule-shell__draft-chip-name schedule-shell__draft-chip-name--editing"
+                  contenteditable="true"
+                  spellcheck="false"
+                  @pointerdown.stop
+                  @click.stop
+                  @dblclick.stop
+                  @input="handleScheduleVersionRenameEditableInput"
+                  @blur="handleScheduleVersionRenameEditableBlur(version)"
+                  @keydown.enter.prevent="handleScheduleVersionRenameEditableEnter"
+                  @keydown.escape.prevent="handleScheduleVersionRenameEditableEscape"
+                />
+              </span>
+            </div>
+
+            <button
+              type="button"
+              class="schedule-shell__draft-button"
+              :disabled="!canCreateDraftVersion"
+              @click="createDraftVersionWithDefaultName"
+            >
+              + 작업본 만들기
+            </button>
+          </div>
+        </div>
+
+        <Teleport to="body">
+          <div
+            v-if="activeVersionActionMenu && activeVersionActionMenuVersion"
+            ref="versionActionMenuRef"
+            class="schedule-context-menu schedule-shell__version-context-menu"
+            :style="{ left: `${activeVersionActionMenu.x}px`, top: `${activeVersionActionMenu.y}px` }"
+            role="menu"
+          >
+            <button
+              type="button"
+              class="schedule-context-menu__item"
+              role="menuitem"
+              @click="startActiveScheduleVersionRename"
+            >
+              <span class="schedule-context-menu__icon" aria-hidden="true">✎</span>
+              이름 변경
+            </button>
+
+            <button
+              type="button"
+              class="schedule-context-menu__item schedule-context-menu__item--danger"
+              role="menuitem"
+              @click="requestActiveScheduleVersionDelete"
+            >
+              <span class="schedule-context-menu__icon" aria-hidden="true">−</span>
+              삭제
+            </button>
+          </div>
+        </Teleport>
       </div>
 
       <div class="schedule-shell__toolbar-spacer" aria-hidden="true" />
@@ -385,11 +807,6 @@ onUnmounted(() => {
         </button>
       </div>
     </div>
-
-    <p v-if="readOnly" class="schedule-shell__readonly-notice" role="note">
-      <span class="schedule-shell__readonly-notice-chip">읽기 전용</span>
-      <span>기준 공정표는 직접 수정할 수 없어요. 작업본을 만들어 수정해 주세요.</span>
-    </p>
 
     <div class="schedule-shell__frame" :style="frameStyle">
       <div class="schedule-shell__left-column">

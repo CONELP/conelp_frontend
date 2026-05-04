@@ -18,8 +18,10 @@ import type {
   DesktopScheduleSubWorkTypeCreateRequest,
   DesktopScheduleSubWorkTypeId,
   DesktopScheduleSubWorkTypeResponse,
+  DesktopScheduleVersionCreateRequest,
   DesktopScheduleVersionId,
   DesktopScheduleVersionResponse,
+  DesktopScheduleVersionUpdateRequest,
   DesktopScheduleWorkCreateRequest,
   DesktopScheduleWorkDepCreateRequest,
   DesktopScheduleWorkDepId,
@@ -105,6 +107,25 @@ export function clearSelectedDesktopScheduleProjectId() {
 
 export function findMainScheduleVersion(versions: DesktopScheduleVersionResponse[]) {
   return versions.find((version) => version.isMain) ?? null;
+}
+
+function resolveScheduleVersion(
+  versions: DesktopScheduleVersionResponse[],
+  preferredScheduleVersionId?: DesktopScheduleVersionId,
+) {
+  const matchedVersion =
+    typeof preferredScheduleVersionId === "number"
+      ? versions.find((version) => version.id === preferredScheduleVersionId) ?? null
+      : null;
+
+  if (preferredScheduleVersionId !== undefined && !matchedVersion) {
+    console.warn("[DesktopSchedule API] requested schedule version was not found; falling back", {
+      preferredScheduleVersionId,
+      versions,
+    });
+  }
+
+  return matchedVersion ?? findMainScheduleVersion(versions);
 }
 
 function resolveSelectedProject(
@@ -254,6 +275,56 @@ export const desktopScheduleApi = {
   getScheduleVersionList() {
     return apiFetch<DesktopScheduleVersionResponse[]>(
       "/scheduleVersion/getScheduleVersionList",
+    );
+  },
+
+  // Guide: backend/api/gantt-chart/gantt-chart-core-api.md
+  // POST /api/scheduleVersion/createScheduleVersion
+  createScheduleVersion(body: DesktopScheduleVersionCreateRequest) {
+    return apiFetch<DesktopScheduleVersionResponse>("/scheduleVersion/createScheduleVersion", {
+      method: "POST",
+      body: toApiBody(body),
+    });
+  },
+
+  // Guide: backend/api/gantt-chart/gantt-chart-core-api.md
+  // PUT /api/scheduleVersion/updateScheduleVersion/{scheduleVersionId}
+  updateScheduleVersion(
+    scheduleVersionId: DesktopScheduleVersionId,
+    body: DesktopScheduleVersionUpdateRequest,
+  ) {
+    return apiFetch<DesktopScheduleVersionResponse>(
+      `/scheduleVersion/updateScheduleVersion/${encodePathSegment(scheduleVersionId)}`,
+      {
+        method: "PUT",
+        body: toApiBody(body),
+      },
+    );
+  },
+
+  // Guide: backend/api/gantt-chart/gantt-chart-core-api.md
+  // POST /api/scheduleVersion/duplicateScheduleVersion/{scheduleVersionId}
+  duplicateScheduleVersion(
+    scheduleVersionId: DesktopScheduleVersionId,
+    body: DesktopScheduleVersionCreateRequest,
+  ) {
+    return apiFetch<DesktopScheduleVersionResponse>(
+      `/scheduleVersion/duplicateScheduleVersion/${encodePathSegment(scheduleVersionId)}`,
+      {
+        method: "POST",
+        body: toApiBody(body),
+      },
+    );
+  },
+
+  // Guide: backend/api/gantt-chart/gantt-chart-core-api.md
+  // DELETE /api/scheduleVersion/deleteScheduleVersion/{scheduleVersionId}
+  deleteScheduleVersion(scheduleVersionId: DesktopScheduleVersionId) {
+    return apiFetch<void>(
+      `/scheduleVersion/deleteScheduleVersion/${encodePathSegment(scheduleVersionId)}`,
+      {
+        method: "DELETE",
+      },
     );
   },
 
@@ -448,7 +519,10 @@ export const desktopScheduleApi = {
       },
     });
 
-    const selectedScheduleVersion = findMainScheduleVersion(scheduleVersions);
+    const selectedScheduleVersion = resolveScheduleVersion(
+      scheduleVersions,
+      options.scheduleVersionId,
+    );
 
     if (!selectedScheduleVersion) {
       console.warn("[DesktopSchedule API] no main schedule version", {

@@ -14,9 +14,13 @@ const {
   scheduleLoadErrorMessage,
   scheduleToast,
   isScheduleReadOnly,
+  scheduleVersions,
+  selectedScheduleVersionId,
   scheduleVersionDisplayName,
   scheduleVersionModeLabel,
   scheduleVersionAccessLabel,
+  suggestedDraftVersionName,
+  canCreateDraftVersion,
   selectionState,
   contextMenuState,
   contextMenuItems,
@@ -91,7 +95,10 @@ const {
   zoomIn,
   zoomOut,
   notifyReadOnlyScheduleAction,
+  selectScheduleVersion,
   createDraftVersionFromCurrent,
+  renameScheduleVersion,
+  deleteScheduleVersion,
 } = useDesktopScheduleViewModel();
 
 const shellHostRef = ref<HTMLElement | null>(null);
@@ -268,9 +275,13 @@ watch(
               :timeline="timeline"
               :shell-layout="shellLayout"
               :read-only="isScheduleReadOnly"
+              :schedule-versions="scheduleVersions"
+              :selected-schedule-version-id="selectedScheduleVersionId"
               :version-name="scheduleVersionDisplayName"
               :version-mode-label="scheduleVersionModeLabel"
               :version-access-label="scheduleVersionAccessLabel"
+              :suggested-draft-version-name="suggestedDraftVersionName"
+              :can-create-draft-version="canCreateDraftVersion"
               :viewport-height="shellViewportHeight"
               :scroll-top="chartScrollTop"
               :scroll-left="chartScrollLeft"
@@ -300,6 +311,9 @@ watch(
               @undo="undoLocalHistory"
               @redo="redoLocalHistory"
               @create-draft-version="createDraftVersionFromCurrent"
+              @select-schedule-version="selectScheduleVersion"
+              @rename-schedule-version="renameScheduleVersion"
+              @delete-schedule-version="deleteScheduleVersion"
               @readonly-edit-attempt="notifyReadOnlyScheduleAction"
               @clear-selection="clearSelection"
               @select-bars="selectBars"

@@ -1244,6 +1244,13 @@ function handleSubWorkTypeRenameEscape() {
           :x2="workTypeColumnWidth + 100"
           :y2="entry.row.top"
         />
+        <rect
+          class="schedule-row-panel__row-grid-bottom-divider"
+          x="0"
+          :y="Math.max(contentHeight - 2, 0)"
+          :width="workTypeColumnWidth + 100"
+          height="2"
+        />
       </svg>
 
       <div

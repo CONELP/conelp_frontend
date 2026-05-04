@@ -20,6 +20,15 @@ export interface DesktopScheduleVersionResponse {
   isMain: boolean;
 }
 
+export interface DesktopScheduleVersionCreateRequest {
+  versionName: string;
+}
+
+export interface DesktopScheduleVersionUpdateRequest {
+  versionName?: string | null;
+  isMain?: boolean | null;
+}
+
 export interface DesktopScheduleCalendarDateResponse {
   date: string;
   dayOfWeek: number;
@@ -203,6 +212,7 @@ export interface DesktopScheduleWorkPeriodQuery {
 
 export interface DesktopScheduleBootstrapOptions {
   projectId?: DesktopScheduleProjectId;
+  scheduleVersionId?: DesktopScheduleVersionId;
   period?: {
     startDate: string;
     endDate: string;

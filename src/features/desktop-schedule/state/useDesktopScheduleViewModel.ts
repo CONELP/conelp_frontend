@@ -8,6 +8,8 @@ import type {
   DesktopScheduleMilestoneResponse,
   DesktopScheduleMutationResponse,
   DesktopScheduleReferenceHierarchyItem,
+  DesktopScheduleVersionId,
+  DesktopScheduleVersionResponse,
   DesktopScheduleWorkDepResponse,
   DesktopScheduleWorkResponse,
   DesktopScheduleWorkUpdateItem,
@@ -158,6 +160,7 @@ const ROW_PANEL_MAX_WIDTH = 520;
 const WORK_TYPE_COLUMN_MIN_WIDTH = 72;
 const WORK_TYPE_COLUMN_MAX_WIDTH = 240;
 const LOCAL_HISTORY_MAX_ENTRIES = 200;
+const MAX_DRAFT_SCHEDULE_VERSION_COUNT = 5;
 const DESKTOP_SCHEDULE_UI_PREFERENCES_STORAGE_KEY =
   "conelp.desktopSchedule.uiPreferences.v1";
 const DEFAULT_ZOOM_INDEX = Math.max(
@@ -418,6 +421,44 @@ function createUniqueReferenceName(baseName: string, existingNames: string[]) {
   return nextName;
 }
 
+function sortScheduleVersionsForWorkflow(
+  versions: DesktopScheduleVersionResponse[],
+): DesktopScheduleVersionResponse[] {
+  return [...versions].sort((a, b) => {
+    if (a.isMain !== b.isMain) {
+      return a.isMain ? -1 : 1;
+    }
+
+    return a.id - b.id;
+  });
+}
+
+function formatDraftVersionDatePrefix(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    year: "2-digit",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value ?? "00";
+  const month = parts.find((part) => part.type === "month")?.value ?? "00";
+  const day = parts.find((part) => part.type === "day")?.value ?? "00";
+
+  return `${year}${month}${day}`;
+}
+
+function createSuggestedDraftVersionName(versions: DesktopScheduleVersionResponse[]) {
+  const prefix = `${formatDraftVersionDatePrefix()}_작업본`;
+  const versionNameSet = new Set(versions.map((version) => version.versionName));
+  let draftNumber = 1;
+
+  while (versionNameSet.has(`${prefix}${draftNumber}`)) {
+    draftNumber += 1;
+  }
+
+  return `${prefix}${draftNumber}`;
+}
+
 function cloneWorkHierarchyItem(
   item: DesktopScheduleReferenceHierarchyItem,
 ): DesktopScheduleReferenceHierarchyItem {
@@ -669,6 +710,13 @@ function createDesktopScheduleViewModel() {
   const selectedScheduleVersion = computed(
     () => scheduleLoadState.value.data?.selectedScheduleVersion ?? null,
   );
+  const selectedScheduleVersionId = computed(() => selectedScheduleVersion.value?.id ?? null);
+  const scheduleVersions = computed(() =>
+    sortScheduleVersionsForWorkflow(scheduleLoadState.value.data?.scheduleVersions ?? []),
+  );
+  const draftScheduleVersionCount = computed(
+    () => scheduleVersions.value.filter((version) => !version.isMain).length,
+  );
   const isScheduleReadOnly = computed(() => selectedScheduleVersion.value?.isMain === true);
   const scheduleVersionDisplayName = computed(
     () => selectedScheduleVersion.value?.versionName ?? "공정표",
@@ -678,6 +726,14 @@ function createDesktopScheduleViewModel() {
   );
   const scheduleVersionAccessLabel = computed(() =>
     isScheduleReadOnly.value ? "읽기 전용" : "수정 가능",
+  );
+  const suggestedDraftVersionName = computed(() =>
+    createSuggestedDraftVersionName(scheduleVersions.value),
+  );
+  const canCreateDraftVersion = computed(
+    () =>
+      selectedScheduleVersion.value !== null &&
+      draftScheduleVersionCount.value < MAX_DRAFT_SCHEDULE_VERSION_COUNT,
   );
   const scheduleLoadStatus = computed(() => scheduleLoadState.value.status);
   const scheduleLoadErrorMessage = computed(
@@ -764,10 +820,6 @@ function createDesktopScheduleViewModel() {
 
     notifyReadOnlyScheduleAction();
     return false;
-  }
-
-  function createDraftVersionFromCurrent() {
-    showScheduleToast("작업본 만들기는 다음 단계에서 연결할게요. 지금은 기준 공정표를 안전하게 잠가두었어요.");
   }
 
   function syncChartScroll(position: { left: number; top: number }) {
@@ -1691,7 +1743,7 @@ function createDesktopScheduleViewModel() {
     rebuildScheduleFromLoadedData();
   }
 
-  async function loadSchedule() {
+  async function loadSchedule(options: { scheduleVersionId?: DesktopScheduleVersionId } = {}) {
     scheduleLoadState.value = {
       status: "loading",
       data: scheduleLoadState.value.data,
@@ -1699,7 +1751,7 @@ function createDesktopScheduleViewModel() {
     };
 
     try {
-      const scheduleData = await desktopScheduleApi.loadCurrentProjectSchedule();
+      const scheduleData = await desktopScheduleApi.loadCurrentProjectSchedule(options);
       timelineCalendarState.value = createTimelineCalendarState(scheduleData);
       applyScheduleSnapshot(createDesktopScheduleSnapshotFromApiData(scheduleData));
       clearLocalHistory();
@@ -1724,6 +1776,161 @@ function createDesktopScheduleViewModel() {
     return scheduleLoadState.value.data?.selectedScheduleVersion.id ?? null;
   }
 
+  function updateScheduleVersionsInLoadedData(
+    updater: (versions: DesktopScheduleVersionResponse[]) => DesktopScheduleVersionResponse[],
+  ) {
+    const currentData = scheduleLoadState.value.data;
+
+    if (!currentData) {
+      return;
+    }
+
+    const nextVersions = updater(currentData.scheduleVersions.map((version) => ({ ...version })));
+    const currentSelectedVersion = currentData.selectedScheduleVersion;
+    const nextSelectedVersion =
+      nextVersions.find((version) => version.id === currentSelectedVersion.id) ??
+      currentSelectedVersion;
+
+    scheduleLoadState.value = {
+      ...scheduleLoadState.value,
+      data: {
+        ...currentData,
+        scheduleVersions: nextVersions,
+        selectedScheduleVersion: { ...nextSelectedVersion },
+      },
+    };
+  }
+
+  function upsertScheduleVersionInLoadedData(version: DesktopScheduleVersionResponse) {
+    updateScheduleVersionsInLoadedData((versions) => {
+      const hasVersion = versions.some((currentVersion) => currentVersion.id === version.id);
+      const nextVersions = hasVersion
+        ? versions.map((currentVersion) =>
+            currentVersion.id === version.id ? { ...version } : currentVersion,
+          )
+        : [...versions, { ...version }];
+
+      return sortScheduleVersionsForWorkflow(nextVersions);
+    });
+  }
+
+  async function selectScheduleVersion(scheduleVersionId: DesktopScheduleVersionId) {
+    if (scheduleVersionId === getSelectedScheduleVersionId()) {
+      return;
+    }
+
+    await loadSchedule({ scheduleVersionId });
+  }
+
+  async function createDraftVersionFromCurrent(versionName: string) {
+    const sourceScheduleVersionId = getSelectedScheduleVersionId();
+    const trimmedVersionName = versionName.trim();
+
+    if (!sourceScheduleVersionId) {
+      showScheduleToast("작업본을 만들 공정표 버전이 없습니다.");
+      return;
+    }
+
+    if (!trimmedVersionName) {
+      showScheduleToast("작업본 이름을 입력해 주세요.");
+      return;
+    }
+
+    if (!canCreateDraftVersion.value) {
+      showScheduleToast(`작업본은 최대 ${MAX_DRAFT_SCHEDULE_VERSION_COUNT}개까지 만들 수 있어요.`);
+      return;
+    }
+
+    try {
+      const createdVersion = await desktopScheduleApi.duplicateScheduleVersion(
+        sourceScheduleVersionId,
+        { versionName: trimmedVersionName },
+      );
+      await loadSchedule({ scheduleVersionId: createdVersion.id });
+      showScheduleToast("작업본을 만들었어요.");
+    } catch (error) {
+      handleMutationError(error, "작업본을 만들지 못했습니다.");
+    }
+  }
+
+  async function renameScheduleVersion(payload: {
+    scheduleVersionId: DesktopScheduleVersionId;
+    versionName: string;
+  }) {
+    const trimmedVersionName = payload.versionName.trim();
+    const targetVersion =
+      scheduleVersions.value.find((version) => version.id === payload.scheduleVersionId) ?? null;
+
+    if (!targetVersion || targetVersion.isMain) {
+      showScheduleToast("기준 공정표 이름은 여기서 변경할 수 없어요.");
+      return;
+    }
+
+    if (!trimmedVersionName) {
+      showScheduleToast("작업본 이름을 입력해 주세요.");
+      return;
+    }
+
+    if (targetVersion.versionName === trimmedVersionName) {
+      return;
+    }
+
+    try {
+      const updatedVersion = await desktopScheduleApi.updateScheduleVersion(
+        payload.scheduleVersionId,
+        {
+          versionName: trimmedVersionName,
+          isMain: null,
+        },
+      );
+      upsertScheduleVersionInLoadedData(updatedVersion);
+      showScheduleToast("작업본 이름을 변경했어요.");
+    } catch (error) {
+      handleMutationError(error, "작업본 이름을 변경하지 못했습니다.");
+    }
+  }
+
+  async function deleteScheduleVersion(scheduleVersionId: DesktopScheduleVersionId) {
+    const targetVersion = scheduleVersions.value.find((version) => version.id === scheduleVersionId);
+
+    if (!targetVersion) {
+      return;
+    }
+
+    if (targetVersion.isMain) {
+      showScheduleToast("기준 공정표는 삭제할 수 없어요.");
+      return;
+    }
+
+    if (scheduleVersions.value.length <= 1) {
+      showScheduleToast("공정표 버전은 최소 1개가 필요해요.");
+      return;
+    }
+
+    const isDeletingSelectedVersion = scheduleVersionId === getSelectedScheduleVersionId();
+    const fallbackScheduleVersionId =
+      scheduleVersions.value.find((version) => version.isMain && version.id !== scheduleVersionId)
+        ?.id ?? scheduleVersions.value.find((version) => version.id !== scheduleVersionId)?.id;
+
+    try {
+      await desktopScheduleApi.deleteScheduleVersion(scheduleVersionId);
+
+      if (isDeletingSelectedVersion) {
+        await loadSchedule({ scheduleVersionId: fallbackScheduleVersionId });
+      } else {
+        updateScheduleVersionsInLoadedData((versions) =>
+          sortScheduleVersionsForWorkflow(
+            versions.filter((version) => version.id !== scheduleVersionId),
+          ),
+        );
+      }
+
+      showScheduleToast("작업본을 삭제했어요.");
+    } catch (error) {
+      handleMutationError(error, "작업본을 삭제하지 못했습니다.");
+    }
+  }
+
   function getWorkConnectionById(workConnectionId: string) {
     return (
       workingWorkConnections.value.find(
@@ -1740,7 +1947,8 @@ function createDesktopScheduleViewModel() {
   }
 
   async function reloadAfterMutation() {
-    await loadSchedule();
+    const scheduleVersionId = getSelectedScheduleVersionId() ?? undefined;
+    await loadSchedule({ scheduleVersionId });
   }
 
   async function runScheduleMutation(
@@ -4194,9 +4402,13 @@ function createDesktopScheduleViewModel() {
   return {
     scheduleMeta,
     isScheduleReadOnly,
+    scheduleVersions,
+    selectedScheduleVersionId,
     scheduleVersionDisplayName,
     scheduleVersionModeLabel,
     scheduleVersionAccessLabel,
+    suggestedDraftVersionName,
+    canCreateDraftVersion,
     scheduleLoadStatus,
     scheduleLoadErrorMessage,
     scheduleToast,
@@ -4280,7 +4492,10 @@ function createDesktopScheduleViewModel() {
     zoomIn,
     zoomOut,
     notifyReadOnlyScheduleAction,
+    selectScheduleVersion,
     createDraftVersionFromCurrent,
+    renameScheduleVersion,
+    deleteScheduleVersion,
   };
 }
 
