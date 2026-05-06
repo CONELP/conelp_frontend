@@ -11,6 +11,7 @@ import {
 import type {
   DesktopScheduleShellLayout,
   DesktopScheduleTimelineLayout,
+  DesktopScheduleVersionPromotionState,
   DesktopScheduleVersionReviewState,
 } from "@/features/desktop-schedule/model/desktop-schedule.types";
 import DesktopScheduleChartBody from "@/features/desktop-schedule/ui/components/DesktopScheduleChartBody.vue";
@@ -21,7 +22,9 @@ import undoIcon from "@fluentui/svg-icons/icons/arrow_undo_20_regular.svg";
 import "@/features/desktop-schedule/ui/components/styles/DesktopScheduleContextMenu.css";
 import "@/features/desktop-schedule/ui/components/styles/DesktopScheduleShell.css";
 
-const SHELL_HEADER_HEIGHT = 84;
+const SHELL_HEADER_HEIGHT = 116;
+const SHELL_HEADER_MONTH_HEIGHT = 32;
+const SHELL_HEADER_WEEK_HEIGHT = 28;
 const SHELL_TOOLBAR_HEIGHT = 48;
 const SHELL_STACK_GAP = 8;
 const READONLY_NOTICE_HEIGHT = 40;
@@ -52,7 +55,9 @@ const props = defineProps<{
   suggestedDraftVersionName: string;
   canCreateDraftVersion: boolean;
   canCompareScheduleVersion: boolean;
+  canPromoteScheduleVersion: boolean;
   scheduleVersionReview: DesktopScheduleVersionReviewState;
+  scheduleVersionPromotion: DesktopScheduleVersionPromotionState;
   viewportHeight?: number;
   scrollTop: number;
   scrollLeft: number;
@@ -150,6 +155,9 @@ const emit = defineEmits<{
   "delete-schedule-version": [scheduleVersionId: number];
   "open-schedule-version-review": [];
   "close-schedule-version-review": [];
+  "request-schedule-version-promotion": [];
+  "confirm-schedule-version-promotion": [];
+  "close-schedule-version-promotion": [];
   "readonly-edit-attempt": [];
   "zoom-in": [];
   "zoom-out": [];
@@ -177,13 +185,13 @@ const shouldSuppressNextDraftClick = ref(false);
 
 const shellHeight = computed(() => Math.max(props.viewportHeight ?? 640, 320));
 const scaledShellHeaderHeight = computed(() =>
-  Math.round(SHELL_HEADER_HEIGHT * Math.min(Math.max(props.zoomScale, 0.68), 1.46)),
+  Math.round(SHELL_HEADER_HEIGHT * Math.min(Math.max(props.zoomScale, 0.5), 1.46)),
 );
 const scaledHeaderMonthHeight = computed(() =>
-  Math.round((scaledShellHeaderHeight.value * 24) / SHELL_HEADER_HEIGHT),
+  Math.round((scaledShellHeaderHeight.value * SHELL_HEADER_MONTH_HEIGHT) / SHELL_HEADER_HEIGHT),
 );
 const scaledHeaderWeekHeight = computed(() =>
-  Math.round((scaledShellHeaderHeight.value * 20) / SHELL_HEADER_HEIGHT),
+  Math.round((scaledShellHeaderHeight.value * SHELL_HEADER_WEEK_HEIGHT) / SHELL_HEADER_HEIGHT),
 );
 const scaledHeaderDayHeight = computed(() =>
   scaledShellHeaderHeight.value - scaledHeaderMonthHeight.value - scaledHeaderWeekHeight.value,
@@ -213,6 +221,11 @@ const mainScheduleVersion = computed(() =>
 const draftScheduleVersions = computed(() =>
   props.scheduleVersions.filter((version) => !version.isMain),
 );
+const isMainScheduleVersionSelected = computed(
+  () =>
+    mainScheduleVersion.value !== null &&
+    mainScheduleVersion.value.id === props.selectedScheduleVersionId,
+);
 const isScheduleVersionReviewActive = computed(
   () =>
     props.scheduleVersionReview.open &&
@@ -224,8 +237,20 @@ const compareToggleLabel = computed(() => {
     return "비교 중";
   }
 
-  return isScheduleVersionReviewActive.value ? "비교 켜짐" : "비교 보기";
+  return isScheduleVersionReviewActive.value ? "비교 끄기" : "비교 보기";
 });
+const promotionSummaryCounts = computed(
+  () => props.scheduleVersionPromotion.summary?.counts.filter((count) => count.count > 0) ?? [],
+);
+const promotionConfirmDisabled = computed(
+  () =>
+    props.scheduleVersionPromotion.status === "preparing" ||
+    props.scheduleVersionPromotion.status === "promoting" ||
+    !props.scheduleVersionPromotion.summary,
+);
+const promotionConfirmLabel = computed(() =>
+  props.scheduleVersionPromotion.status === "promoting" ? "반영 중" : "기준 공정표로 반영",
+);
 const activeVersionActionMenuVersion = computed(() =>
   activeVersionActionMenu.value
     ? props.scheduleVersions.find((version) => version.id === activeVersionActionMenu.value?.versionId) ??
@@ -268,6 +293,23 @@ function toggleScheduleVersionReview() {
   emit("open-schedule-version-review");
 }
 
+function requestScheduleVersionPromotion() {
+  if (!props.canPromoteScheduleVersion || props.scheduleVersionPromotion.status === "promoting") {
+    return;
+  }
+
+  closeVersionOverlays();
+  emit("request-schedule-version-promotion");
+}
+
+function closeScheduleVersionPromotionDialog() {
+  if (props.scheduleVersionPromotion.status === "promoting") {
+    return;
+  }
+
+  emit("close-schedule-version-promotion");
+}
+
 function handleDocumentPointerDown(event: PointerEvent) {
   const target = event.target;
 
@@ -289,6 +331,11 @@ function handleDocumentPointerDown(event: PointerEvent) {
 
 function handleDocumentKeyDown(event: KeyboardEvent) {
   if (event.key === "Escape") {
+    if (props.scheduleVersionPromotion.open) {
+      closeScheduleVersionPromotionDialog();
+      return;
+    }
+
     closeVersionOverlays();
   }
 }
@@ -663,8 +710,7 @@ onUnmounted(() => {
           class="schedule-shell__version-chip"
           :class="{
             'schedule-shell__version-chip--readonly': readOnly,
-            'schedule-shell__version-chip--selected':
-              mainScheduleVersion.id === selectedScheduleVersionId,
+            'schedule-shell__version-chip--selected': isMainScheduleVersionSelected,
           }"
           aria-label="기준 공정표 선택"
           @click="selectScheduleVersion(mainScheduleVersion)"
@@ -732,16 +778,18 @@ onUnmounted(() => {
               </span>
             </div>
 
-            <button
-              type="button"
-              class="schedule-shell__draft-button"
-              :disabled="!canCreateDraftVersion"
-              @click="createDraftVersionWithDefaultName"
-            >
-              + 작업본 만들기
-            </button>
           </div>
         </div>
+
+        <button
+          v-if="readOnly"
+          type="button"
+          class="schedule-shell__draft-button"
+          :disabled="!canCreateDraftVersion"
+          @click="createDraftVersionWithDefaultName"
+        >
+          + 작업본 만들기
+        </button>
 
         <Teleport to="body">
           <div
@@ -783,10 +831,20 @@ onUnmounted(() => {
         :disabled="scheduleVersionReview.status === 'loading'"
         @click="toggleScheduleVersionReview"
       >
-        <span class="schedule-shell__compare-toggle-track" aria-hidden="true">
-          <span class="schedule-shell__compare-toggle-thumb" />
-        </span>
         <span>{{ compareToggleLabel }}</span>
+      </button>
+
+      <button
+        v-if="canPromoteScheduleVersion"
+        type="button"
+        class="schedule-shell__promote-button"
+        :disabled="
+          scheduleVersionPromotion.status === 'preparing' ||
+          scheduleVersionPromotion.status === 'promoting'
+        "
+        @click="requestScheduleVersionPromotion"
+      >
+        기준 공정표로 반영
       </button>
 
       <div class="schedule-shell__toolbar-spacer" aria-hidden="true" />
@@ -854,6 +912,99 @@ onUnmounted(() => {
         </button>
       </div>
     </div>
+
+    <Teleport to="body">
+      <Transition name="schedule-shell__promotion-dialog-transition">
+        <div
+          v-if="scheduleVersionPromotion.open"
+          class="schedule-shell__promotion-dialog-backdrop"
+          role="presentation"
+          @click.self="closeScheduleVersionPromotionDialog"
+        >
+          <section
+            class="schedule-shell__promotion-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="schedule-version-promotion-title"
+          >
+            <header class="schedule-shell__promotion-dialog-header">
+              <h2 id="schedule-version-promotion-title">
+                이 작업본을 기준 공정표로 반영할까요?
+              </h2>
+              <p>
+                기존 공정표는 더 이상 기준으로 쓰이지 않아요.<br />
+                반영 후에는 이 작업본이 기준 공정표로 표시됩니다.
+              </p>
+            </header>
+
+            <div class="schedule-shell__promotion-dialog-body">
+              <p
+                v-if="scheduleVersionPromotion.status === 'preparing'"
+                class="schedule-shell__promotion-dialog-loading"
+              >
+                변경사항을 준비하는 중이에요.
+              </p>
+
+              <template v-else>
+                <div class="schedule-shell__promotion-route" aria-label="반영 대상">
+                  <span>{{ scheduleVersionPromotion.baselineVersionName }}</span>
+                  <span aria-hidden="true">→</span>
+                  <strong>{{ scheduleVersionPromotion.draftVersionName }}</strong>
+                </div>
+
+                <div
+                  v-if="scheduleVersionPromotion.summary"
+                  class="schedule-shell__promotion-summary"
+                >
+                  <strong>{{ scheduleVersionPromotion.summary.totalCount }}건 변경</strong>
+                  <div
+                    v-if="promotionSummaryCounts.length > 0"
+                    class="schedule-shell__promotion-summary-chips"
+                  >
+                    <span
+                      v-for="count in promotionSummaryCounts"
+                      :key="count.category"
+                      class="schedule-shell__promotion-summary-chip"
+                    >
+                      {{ count.label }} {{ count.count }}
+                    </span>
+                  </div>
+                  <span v-else class="schedule-shell__promotion-summary-empty">
+                    변경사항 없음
+                  </span>
+                </div>
+              </template>
+
+              <p
+                v-if="scheduleVersionPromotion.status === 'error'"
+                class="schedule-shell__promotion-dialog-error"
+              >
+                {{ scheduleVersionPromotion.errorMessage }}
+              </p>
+            </div>
+
+            <footer class="schedule-shell__promotion-dialog-footer">
+              <button
+                type="button"
+                class="schedule-shell__promotion-dialog-secondary"
+                :disabled="scheduleVersionPromotion.status === 'promoting'"
+                @click="closeScheduleVersionPromotionDialog"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                class="schedule-shell__promotion-dialog-primary"
+                :disabled="promotionConfirmDisabled"
+                @click="emit('confirm-schedule-version-promotion')"
+              >
+                {{ promotionConfirmLabel }}
+              </button>
+            </footer>
+          </section>
+        </div>
+      </Transition>
+    </Teleport>
 
     <div class="schedule-shell__frame" :style="frameStyle">
       <div class="schedule-shell__left-column">

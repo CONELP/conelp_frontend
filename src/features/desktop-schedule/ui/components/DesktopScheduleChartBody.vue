@@ -66,6 +66,20 @@
         />
       </svg>
 
+      <div
+        v-for="row in shellLayout.rows.filter((candidate) => candidate.kind === 'division')"
+        :key="`division-grid-mask-${row.id}`"
+        class="schedule-chart-body__division-grid-mask"
+        :class="{
+          'schedule-chart-body__division-grid-mask--selected': selectedRowIdSet.has(row.id),
+        }"
+        :style="{
+          top: `${row.top}px`,
+          width: `${timeline.chartWidth}px`,
+          height: `${row.height}px`,
+        }"
+      />
+
       <svg
         class="schedule-chart-body__row-grid"
         :width="timeline.chartWidth"
@@ -102,13 +116,6 @@
           width: `${todayTimelineDay.width}px`,
           height: `${shellLayout.chartHeight}px`,
         }"
-      />
-
-      <div
-        v-for="border in divisionTodayBorderStyles"
-        :key="border.key"
-        class="schedule-chart-body__today-division-border"
-        :style="border.style"
       />
 
       <div
@@ -724,29 +731,6 @@ const cellSelectionRangeKey = computed(() => {
     cellSelectionFocus.value.date,
   ].join(":");
 });
-const divisionTodayBorderStyles = computed(() => {
-  const today = todayTimelineDay.value;
-
-  if (!today) {
-    return [];
-  }
-
-  return props.shellLayout.rows
-    .filter((row) => row.kind === "division")
-    .map((row) => {
-      const leftOffset = today.left > 0 ? 1 : 0;
-
-      return {
-        key: `today-division-border-${row.id}`,
-        style: {
-          left: `${today.left - leftOffset}px`,
-          top: `${row.top}px`,
-          width: `${today.width + leftOffset}px`,
-          height: `${row.height}px`,
-        },
-      };
-    });
-});
 const hoveredShellRow = computed(() =>
   hoveredCell.value.rowId
     ? props.shellLayout.rows.find((row) => row.id === hoveredCell.value.rowId) ?? null
@@ -765,7 +749,7 @@ const editingMilestone = computed(() =>
       null
     : null,
 );
-const normalizedZoomScale = computed(() => Math.min(Math.max(props.zoomScale, 0.68), 1.46));
+const normalizedZoomScale = computed(() => Math.min(Math.max(props.zoomScale, 0.5), 1.46));
 const connectionLabelFontSize = computed(() => Math.round(14 * normalizedZoomScale.value));
 const connectionLabelStrokeWidth = computed(() => Math.max(2.25, 3.5 * normalizedZoomScale.value));
 

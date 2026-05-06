@@ -43,12 +43,12 @@
 .schedule-chart-body__vertical-grid,
 .schedule-chart-body__row-grid,
 .schedule-chart-body__row,
+.schedule-chart-body__division-grid-mask,
 .schedule-chart-body__hover-day,
 .schedule-chart-body__hover-row,
 .schedule-chart-body__hover-cell,
 .schedule-chart-body__cell-selection,
 .schedule-chart-body__today-column-overlay,
-.schedule-chart-body__today-division-border,
 .schedule-chart-body__bar,
 .schedule-chart-body__review-bar-overlay,
 .schedule-chart-body__review-milestone,
@@ -118,6 +118,18 @@
 
 .schedule-chart-body__row--division {
   background: #fff;
+}
+
+.schedule-chart-body__division-grid-mask {
+  left: 0;
+  z-index: 2;
+  background: #fff;
+  pointer-events: none;
+}
+
+.schedule-chart-body__division-grid-mask--selected {
+  background: rgba(125, 211, 252, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.9);
 }
 
 .schedule-chart-body__row--selected {
@@ -190,14 +202,6 @@
   top: 0;
   z-index: 1;
   background: rgba(30, 24, 136, 0.12);
-  pointer-events: none;
-}
-
-.schedule-chart-body__today-division-border {
-  z-index: 4;
-  box-sizing: border-box;
-  border-right: 1px solid rgba(0, 0, 0, 0.08);
-  border-left: 1px solid rgba(0, 0, 0, 0.08);
   pointer-events: none;
 }
 
@@ -283,14 +287,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  padding: 0 0.42rem;
+  padding: 0 calc(0.58rem * var(--schedule-zoom-scale, 1));
   border: 1px dashed rgba(71, 85, 105, 0.34);
-  border-radius: calc(0.18rem * var(--schedule-zoom-scale, 1));
+  border-radius: calc(0.22rem * var(--schedule-zoom-scale, 1));
   background: rgba(248, 250, 252, 0.68);
   color: #475569;
-  font-size: clamp(0.58rem, calc(0.78rem * var(--schedule-zoom-scale, 1)), 1.05rem);
-  font-weight: 800;
-  line-height: 1;
+  font-size: clamp(0.54rem, calc(1.04rem * var(--schedule-zoom-scale, 1)), 1.36rem);
+  font-weight: 700;
+  line-height: 1.05;
   opacity: 0.62;
   transform: translateX(-0.12rem);
 }
@@ -313,15 +317,15 @@
   top: 50%;
   right: 50%;
   width: max-content;
-  padding: calc(0.18rem * var(--schedule-zoom-scale, 1))
-    calc(0.42rem * var(--schedule-zoom-scale, 1));
+  padding: calc(0.24rem * var(--schedule-zoom-scale, 1))
+    calc(0.58rem * var(--schedule-zoom-scale, 1));
   border: 1px solid rgba(217, 119, 6, 0.28);
-  border-radius: calc(0.16rem * var(--schedule-zoom-scale, 1));
+  border-radius: calc(0.22rem * var(--schedule-zoom-scale, 1));
   background: rgba(255, 255, 255, 0.96);
   color: #92400e;
-  font-size: clamp(0.58rem, calc(0.82rem * var(--schedule-zoom-scale, 1)), 1.12rem);
-  font-weight: 600;
-  line-height: 1;
+  font-size: clamp(0.58rem, calc(1.12rem * var(--schedule-zoom-scale, 1)), 1.46rem);
+  font-weight: 700;
+  line-height: 1.05;
   pointer-events: auto;
   text-align: right;
   transform: translateY(-50%);
@@ -351,9 +355,9 @@
   display: flex;
   align-items: center;
   overflow: visible;
-  padding: 0 calc(0.625rem * var(--schedule-zoom-scale, 1));
+  padding: 0 calc(0.72rem * var(--schedule-zoom-scale, 1));
   border: 1px solid #94a3b8;
-  border-radius: calc(0.4rem * var(--schedule-zoom-scale, 1));
+  border-radius: calc(0.46rem * var(--schedule-zoom-scale, 1));
   background: #e5e7eb;
   color: #111827;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
@@ -414,8 +418,8 @@
   display: flex;
   align-items: center;
   overflow: hidden;
-  padding: 0 calc(0.54rem * var(--schedule-zoom-scale, 1));
-  border-radius: calc(0.42rem * var(--schedule-zoom-scale, 1));
+  padding: 0 calc(0.66rem * var(--schedule-zoom-scale, 1));
+  border-radius: calc(0.46rem * var(--schedule-zoom-scale, 1));
   border: 1px dashed rgba(71, 85, 105, 0.34);
   background: rgba(148, 163, 184, 0.22);
   color: #475569;
@@ -425,9 +429,9 @@
 
 .schedule-chart-body__review-bar-overlay span {
   overflow: hidden;
-  font-size: clamp(0.56rem, calc(0.76rem * var(--schedule-zoom-scale, 1)), 1.02rem);
-  font-weight: 850;
-  line-height: 1;
+  font-size: clamp(0.58rem, calc(1.12rem * var(--schedule-zoom-scale, 1)), 1.46rem);
+  font-weight: 400;
+  line-height: 1.05;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -449,9 +453,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: clamp(0.6rem, calc(0.84rem * var(--schedule-zoom-scale, 1)), 1.14rem);
-  font-weight: 800;
-  line-height: 1;
+  font-size: clamp(0.6rem, calc(1.2rem * var(--schedule-zoom-scale, 1)), 1.56rem);
+  font-weight: 400;
+  line-height: 1.05;
 }
 
 .schedule-chart-body__item-title {
@@ -466,9 +470,9 @@
   text-overflow: clip;
   white-space: nowrap;
   text-align: left;
-  font-size: clamp(0.58rem, calc(0.82rem * var(--schedule-zoom-scale, 1)), 1.12rem);
-  font-weight: 600;
-  line-height: 1;
+  font-size: clamp(0.58rem, calc(1.18rem * var(--schedule-zoom-scale, 1)), 1.52rem);
+  font-weight: 400;
+  line-height: 1.05;
   text-shadow: 0 0 1px rgba(15, 23, 42, 0.24), 0 0 2px rgba(15, 23, 42, 0.16);
 }
 

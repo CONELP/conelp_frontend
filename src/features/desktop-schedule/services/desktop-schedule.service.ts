@@ -69,15 +69,26 @@ interface RowBarDraft {
   appearance: DesktopScheduleItem["appearance"];
 }
 
-export const DESKTOP_SCHEDULE_TIMELINE_ZOOM_LEVELS = [14, 18, 24, 32, 40, 52, 68] as const;
+export const DESKTOP_SCHEDULE_TIMELINE_ZOOM_LEVELS = [
+  12,
+  16,
+  20,
+  24,
+  32,
+  40,
+  48,
+  60,
+  76,
+  96,
+] as const;
 export const DESKTOP_SCHEDULE_TIMELINE_DEFAULTS = {
-  dayWidth: 32,
+  dayWidth: 48,
   paddingBeforeDays: 6,
   paddingAfterDays: 10,
 } as const;
 export const DESKTOP_SCHEDULE_SHELL_DEFAULTS = {
   rowHeight: 44,
-  barHeight: 24,
+  barHeight: 34,
 } as const;
 export const DESKTOP_SCHEDULE_MILESTONE_ROW_ID = "row:milestones";
 const WORK_CONNECTION_COLOR = "#64748b";
@@ -94,12 +105,12 @@ const CRITICAL_PATH_COLORS = [
 ] as const;
 
 const MILESTONE_MARKER_SIZE = 10;
-const MILESTONE_BADGE_HEIGHT = 22;
-const MILESTONE_BADGE_GAP = 5;
-const MILESTONE_ROW_EXTRA_HEIGHT = 8;
-const MILESTONE_BADGE_HORIZONTAL_GAP = 8;
-const MILESTONE_BADGE_HORIZONTAL_PADDING = 10;
-const MILESTONE_MIN_LABEL_WIDTH = 52;
+const MILESTONE_BADGE_HEIGHT = 32;
+const MILESTONE_BADGE_GAP = 6;
+const MILESTONE_ROW_EXTRA_HEIGHT = 10;
+const MILESTONE_BADGE_HORIZONTAL_GAP = 10;
+const MILESTONE_BADGE_HORIZONTAL_PADDING = 14;
+const MILESTONE_MIN_LABEL_WIDTH = 68;
 const ITEM_BAR_HORIZONTAL_PADDING = 20;
 let localPathIdCounter = Date.now();
 
@@ -221,18 +232,18 @@ function getCriticalPathColor(pathId: number) {
 function estimateMilestoneLabelWidth(label: string, dayWidth: number) {
   const textWidth = Array.from(label).reduce((width, character) => {
     if (/[가-힣]/.test(character)) {
-      return width + 13;
+      return width + 15;
     }
 
     if (/[A-Z0-9]/.test(character)) {
-      return width + 8.5;
+      return width + 10;
     }
 
     if (/\s/.test(character)) {
-      return width + 4;
+      return width + 5;
     }
 
-    return width + 7.5;
+    return width + 9;
   }, 0);
 
   return Math.max(
@@ -847,8 +858,8 @@ function buildShellLayout(
   const rowTopById = new Map<string, number>();
   const layoutScale = rowHeight / DESKTOP_SCHEDULE_SHELL_DEFAULTS.rowHeight;
   const divisionRowHeight = Math.max(Math.round(rowHeight * 0.77), 24);
-  const laneGap = Math.max(Math.round(rowHeight * 0.14), 4);
-  const verticalPadding = Math.max((rowHeight - barHeight) / 2, 6);
+  const laneGap = Math.max(Math.round(rowHeight * 0.1), 4);
+  const verticalPadding = Math.max((rowHeight - barHeight) / 2, 4);
   const itemBarHorizontalPadding = ITEM_BAR_HORIZONTAL_PADDING * layoutScale;
   const preferredLaneByItemId = options.preferredLaneByItemId ?? {};
   const pinnedLaneByItemId = options.pinnedLaneByItemId ?? {};

@@ -22,6 +22,7 @@ import type {
   DesktopScheduleShellLayout,
   DesktopScheduleSnapshot,
   DesktopScheduleTimelineLayout,
+  DesktopScheduleVersionPromotionState,
   DesktopScheduleVersionReviewCategory,
   DesktopScheduleVersionReviewCount,
   DesktopScheduleVersionReviewDetail,
@@ -211,6 +212,7 @@ const SCHEDULE_VERSION_REVIEW_CATEGORY_LABELS: Record<
 };
 const DESKTOP_SCHEDULE_UI_PREFERENCES_STORAGE_KEY =
   "conelp.desktopSchedule.uiPreferences.v1";
+const LEGACY_DESKTOP_SCHEDULE_TIMELINE_ZOOM_LEVELS = [24, 32, 40, 48, 60, 76, 96] as const;
 const DEFAULT_ZOOM_INDEX = Math.max(
   DESKTOP_SCHEDULE_TIMELINE_ZOOM_LEVELS.findIndex(
     (level) => level === DESKTOP_SCHEDULE_TIMELINE_DEFAULTS.dayWidth,
@@ -221,6 +223,7 @@ let optimisticReferenceIdSeed = -1;
 
 type DesktopScheduleUiPreferences = {
   zoomIndex?: number;
+  zoomDayWidth?: number;
   rowPanelWidth?: number;
   workTypeColumnWidth?: number;
 };
@@ -239,6 +242,14 @@ function clampZoomIndex(value: number) {
 
 function getDayWidthForZoomIndex(zoomIndex: number) {
   return DESKTOP_SCHEDULE_TIMELINE_ZOOM_LEVELS[clampZoomIndex(zoomIndex)]!;
+}
+
+function getClosestZoomIndexForDayWidth(dayWidth: number) {
+  return DESKTOP_SCHEDULE_TIMELINE_ZOOM_LEVELS.reduce((closestIndex, level, index, levels) => {
+    return Math.abs(level - dayWidth) < Math.abs(levels[closestIndex]! - dayWidth)
+      ? index
+      : closestIndex;
+  }, 0);
 }
 
 function readFiniteNumber(value: unknown) {
@@ -261,11 +272,31 @@ function loadDesktopScheduleUiPreferences(): DesktopScheduleUiPreferences {
 
     const parsedPreferences = JSON.parse(rawPreferences) as Record<string, unknown>;
     const zoomIndex = readFiniteNumber(parsedPreferences.zoomIndex);
+    const zoomDayWidth = readFiniteNumber(parsedPreferences.zoomDayWidth);
     const rowPanelWidth = readFiniteNumber(parsedPreferences.rowPanelWidth);
     const workTypeColumnWidth = readFiniteNumber(parsedPreferences.workTypeColumnWidth);
+    const legacyZoomIndex =
+      zoomIndex === null
+        ? null
+        : clampNumber(
+            Math.round(zoomIndex),
+            0,
+            LEGACY_DESKTOP_SCHEDULE_TIMELINE_ZOOM_LEVELS.length - 1,
+          );
+    const resolvedZoomIndex =
+      zoomDayWidth === null
+        ? legacyZoomIndex === null
+          ? undefined
+          : getClosestZoomIndexForDayWidth(
+              LEGACY_DESKTOP_SCHEDULE_TIMELINE_ZOOM_LEVELS[legacyZoomIndex]!,
+            )
+        : getClosestZoomIndexForDayWidth(zoomDayWidth);
+    const resolvedZoomDayWidth =
+      resolvedZoomIndex === undefined ? undefined : getDayWidthForZoomIndex(resolvedZoomIndex);
 
     return {
-      zoomIndex: zoomIndex === null ? undefined : clampZoomIndex(zoomIndex),
+      zoomIndex: resolvedZoomIndex,
+      zoomDayWidth: resolvedZoomDayWidth,
       rowPanelWidth:
         rowPanelWidth === null
           ? undefined
@@ -296,6 +327,17 @@ function createClosedScheduleVersionReviewState(): DesktopScheduleVersionReviewS
   return {
     open: false,
     status: "idle",
+    summary: null,
+    errorMessage: null,
+  };
+}
+
+function createClosedScheduleVersionPromotionState(): DesktopScheduleVersionPromotionState {
+  return {
+    open: false,
+    status: "idle",
+    baselineVersionName: null,
+    draftVersionName: null,
     summary: null,
     errorMessage: null,
   };
@@ -562,6 +604,41 @@ function cloneScheduleData(data: DesktopScheduleBootstrapData): DesktopScheduleB
     works: data.works.map(cloneWorkResponse),
     workDeps: data.workDeps.map(cloneWorkDepResponse),
     milestones: (data.milestones ?? []).map(cloneMilestoneResponse),
+  };
+}
+
+function normalizePromotedScheduleData(
+  data: DesktopScheduleBootstrapData,
+  promotedVersion: DesktopScheduleVersionResponse,
+  removedScheduleVersionIds: DesktopScheduleVersionId[] = [],
+): DesktopScheduleBootstrapData {
+  const removedScheduleVersionIdSet = new Set(removedScheduleVersionIds);
+  const normalizedVersions = data.scheduleVersions.filter(
+    (version) => version.id === promotedVersion.id || !removedScheduleVersionIdSet.has(version.id),
+  );
+  const hasPromotedVersion = normalizedVersions.some(
+    (version) => version.id === promotedVersion.id,
+  );
+  const nextVersions = sortScheduleVersionsForWorkflow([
+    ...normalizedVersions.map((version) => ({
+      ...version,
+      versionName:
+        version.id === promotedVersion.id ? promotedVersion.versionName : version.versionName,
+      isMain: version.id === promotedVersion.id,
+    })),
+    ...(hasPromotedVersion ? [] : [{ ...promotedVersion, isMain: true }]),
+  ]);
+  const selectedScheduleVersion =
+    nextVersions.find((version) => version.id === promotedVersion.id) ?? promotedVersion;
+
+  return {
+    ...data,
+    scheduleVersions: nextVersions,
+    selectedScheduleVersion: {
+      ...selectedScheduleVersion,
+      versionName: promotedVersion.versionName,
+      isMain: true,
+    },
   };
 }
 
@@ -1734,9 +1811,14 @@ function createDesktopScheduleViewModel() {
   const scheduleVersionReviewState = ref<DesktopScheduleVersionReviewState>(
     createClosedScheduleVersionReviewState(),
   );
+  const scheduleVersionPromotionState = ref<DesktopScheduleVersionPromotionState>(
+    createClosedScheduleVersionPromotionState(),
+  );
+  const excludedScheduleVersionIds = ref<Set<DesktopScheduleVersionId>>(new Set());
   const scheduleVersionReviewBaselineCache = ref<ScheduleVersionReviewBaselineCache | null>(null);
   const scheduleVersionReviewSummaryCache = ref<ScheduleVersionReviewSummaryCache | null>(null);
   let scheduleToastTimer: number | null = null;
+  let scheduleVersionPromotionRequestId = 0;
 
   const rowById = computed(() => new Map(workingRows.value.map((row) => [row.id, row])));
   const currentZoomIndex = computed(() => {
@@ -1761,7 +1843,7 @@ function createDesktopScheduleViewModel() {
   const maxZoomIndex = computed(() => DESKTOP_SCHEDULE_TIMELINE_ZOOM_LEVELS.length - 1);
   const zoomScale = computed(() => {
     const rawScale = Math.sqrt(dayWidth.value / DESKTOP_SCHEDULE_TIMELINE_DEFAULTS.dayWidth);
-    return Math.min(Math.max(rawScale, 0.68), 1.46);
+    return Math.min(Math.max(rawScale, 0.5), 1.46);
   });
   const rowHeight = computed(() =>
     Math.round(DESKTOP_SCHEDULE_SHELL_DEFAULTS.rowHeight * zoomScale.value),
@@ -1807,7 +1889,11 @@ function createDesktopScheduleViewModel() {
   );
   const selectedScheduleVersionId = computed(() => selectedScheduleVersion.value?.id ?? null);
   const scheduleVersions = computed(() =>
-    sortScheduleVersionsForWorkflow(scheduleLoadState.value.data?.scheduleVersions ?? []),
+    sortScheduleVersionsForWorkflow(
+      (scheduleLoadState.value.data?.scheduleVersions ?? []).filter(
+        (version) => version.isMain || !excludedScheduleVersionIds.value.has(version.id),
+      ),
+    ),
   );
   const draftScheduleVersionCount = computed(
     () => scheduleVersions.value.filter((version) => !version.isMain).length,
@@ -1831,6 +1917,12 @@ function createDesktopScheduleViewModel() {
       draftScheduleVersionCount.value < MAX_DRAFT_SCHEDULE_VERSION_COUNT,
   );
   const canCompareScheduleVersion = computed(
+    () =>
+      selectedScheduleVersion.value !== null &&
+      selectedScheduleVersion.value.isMain === false &&
+      scheduleVersions.value.some((version) => version.isMain),
+  );
+  const canPromoteScheduleVersion = computed(
     () =>
       selectedScheduleVersion.value !== null &&
       selectedScheduleVersion.value.isMain === false &&
@@ -3601,8 +3693,16 @@ function createDesktopScheduleViewModel() {
     rebuildScheduleFromLoadedData();
   }
 
-  async function loadSchedule(options: { scheduleVersionId?: DesktopScheduleVersionId } = {}) {
+  async function loadSchedule(
+    options: {
+      scheduleVersionId?: DesktopScheduleVersionId;
+      promotedScheduleVersion?: DesktopScheduleVersionResponse;
+      removedScheduleVersionIds?: DesktopScheduleVersionId[];
+    } = {},
+  ) {
     scheduleVersionReviewState.value = createClosedScheduleVersionReviewState();
+    scheduleVersionPromotionRequestId += 1;
+    scheduleVersionPromotionState.value = createClosedScheduleVersionPromotionState();
     scheduleLoadState.value = {
       status: "loading",
       data: scheduleLoadState.value.data,
@@ -3610,7 +3710,16 @@ function createDesktopScheduleViewModel() {
     };
 
     try {
-      const scheduleData = await desktopScheduleApi.loadCurrentProjectSchedule(options);
+      const loadedScheduleData = await desktopScheduleApi.loadCurrentProjectSchedule({
+        scheduleVersionId: options.scheduleVersionId,
+      });
+      const scheduleData = options.promotedScheduleVersion
+        ? normalizePromotedScheduleData(
+            loadedScheduleData,
+            options.promotedScheduleVersion,
+            options.removedScheduleVersionIds,
+          )
+        : loadedScheduleData;
       const nextSnapshot = createDesktopScheduleSnapshotFromApiData(scheduleData);
       timelineCalendarState.value = createTimelineCalendarState(scheduleData);
       applyScheduleSnapshot(nextSnapshot);
@@ -3682,6 +3791,77 @@ function createDesktopScheduleViewModel() {
     });
   }
 
+  function replaceScheduleVersionInLoadedData(version: DesktopScheduleVersionResponse) {
+    updateScheduleVersionsInLoadedData((versions) =>
+      sortScheduleVersionsForWorkflow(
+        versions.map((currentVersion) =>
+          currentVersion.id === version.id ? { ...version } : currentVersion,
+        ),
+      ),
+    );
+  }
+
+  function excludeScheduleVersionsFromWorkflow(scheduleVersionIds: DesktopScheduleVersionId[]) {
+    if (scheduleVersionIds.length === 0) {
+      return;
+    }
+
+    excludedScheduleVersionIds.value = new Set([
+      ...excludedScheduleVersionIds.value,
+      ...scheduleVersionIds,
+    ]);
+  }
+
+  function promoteScheduleVersionInLoadedData(
+    version: DesktopScheduleVersionResponse,
+    removedScheduleVersionIds: DesktopScheduleVersionId[] = [],
+  ) {
+    const currentData = scheduleLoadState.value.data;
+
+    if (!currentData) {
+      return;
+    }
+
+    const normalizedVersion = { ...version, isMain: true };
+    const removedScheduleVersionIdSet = new Set(removedScheduleVersionIds);
+    const filteredVersions = currentData.scheduleVersions.filter(
+      (currentVersion) =>
+        currentVersion.id === normalizedVersion.id ||
+        !removedScheduleVersionIdSet.has(currentVersion.id),
+    );
+    const hasVersion = filteredVersions.some(
+      (currentVersion) => currentVersion.id === normalizedVersion.id,
+    );
+    const nextVersions = sortScheduleVersionsForWorkflow([
+      ...filteredVersions.map((currentVersion) =>
+        currentVersion.id === normalizedVersion.id
+          ? { ...normalizedVersion }
+          : { ...currentVersion, isMain: false },
+      ),
+      ...(hasVersion ? [] : [{ ...normalizedVersion }]),
+    ]);
+
+    scheduleLoadState.value = {
+      ...scheduleLoadState.value,
+      data: {
+        ...currentData,
+        scheduleVersions: nextVersions,
+        selectedScheduleVersion: { ...normalizedVersion },
+      },
+    };
+  }
+
+  async function deleteReplacedMainScheduleVersions(
+    scheduleVersionIds: DesktopScheduleVersionId[],
+  ) {
+    for (const scheduleVersionId of scheduleVersionIds) {
+      await desktopScheduleApi.updateScheduleVersion(scheduleVersionId, {
+        isMain: false,
+      });
+      await desktopScheduleApi.deleteScheduleVersion(scheduleVersionId);
+    }
+  }
+
   async function selectScheduleVersion(scheduleVersionId: DesktopScheduleVersionId) {
     if (scheduleVersionId === getSelectedScheduleVersionId()) {
       return;
@@ -3743,6 +3923,14 @@ function createDesktopScheduleViewModel() {
       return;
     }
 
+    const previousVersion = { ...targetVersion };
+    const optimisticVersion = {
+      ...targetVersion,
+      versionName: trimmedVersionName,
+    };
+
+    replaceScheduleVersionInLoadedData(optimisticVersion);
+
     try {
       const updatedVersion = await desktopScheduleApi.updateScheduleVersion(
         payload.scheduleVersionId,
@@ -3751,9 +3939,13 @@ function createDesktopScheduleViewModel() {
           isMain: null,
         },
       );
-      upsertScheduleVersionInLoadedData(updatedVersion);
+      replaceScheduleVersionInLoadedData({
+        ...updatedVersion,
+        versionName: updatedVersion.versionName || trimmedVersionName,
+      });
       showScheduleToast("작업본 이름을 변경했어요.");
     } catch (error) {
+      replaceScheduleVersionInLoadedData(previousVersion);
       handleMutationError(error, "작업본 이름을 변경하지 못했습니다.");
     }
   }
@@ -3906,6 +4098,44 @@ function createDesktopScheduleViewModel() {
     };
   }
 
+  async function resolveScheduleVersionReviewSummary(options: {
+    baselineVersion: DesktopScheduleVersionResponse;
+    draftVersion: DesktopScheduleVersionResponse;
+  }) {
+    const draftSnapshot = createCurrentScheduleVersionReviewDraftSnapshot();
+    const draftFingerprint = createScheduleVersionReviewDraftFingerprint(draftSnapshot);
+    const layoutFingerprint = createCurrentScheduleVersionReviewLayoutFingerprint();
+    const cachedSummary = getCachedScheduleVersionReviewSummary({
+      baselineVersion: options.baselineVersion,
+      draftVersion: options.draftVersion,
+      draftFingerprint,
+      layoutFingerprint,
+    });
+
+    if (cachedSummary) {
+      return cachedSummary;
+    }
+
+    const baselineCache = await getScheduleVersionReviewBaselineCache(options.baselineVersion);
+    const summary = createScheduleVersionReviewSummaryFromState({
+      baselineCache,
+      draftVersion: options.draftVersion,
+      draftSnapshot,
+    });
+
+    scheduleVersionReviewSummaryCache.value = {
+      baselineVersionId: options.baselineVersion.id,
+      baselineVersionName: options.baselineVersion.versionName,
+      draftVersionId: options.draftVersion.id,
+      draftVersionName: options.draftVersion.versionName,
+      draftFingerprint,
+      layoutFingerprint,
+      summary,
+    };
+
+    return summary;
+  }
+
   function closeScheduleVersionReview() {
     const currentState = scheduleVersionReviewState.value;
 
@@ -4000,6 +4230,139 @@ function createDesktopScheduleViewModel() {
         summary: null,
         errorMessage: normalizedError.message,
       };
+    }
+  }
+
+  function closeScheduleVersionPromotionDialog() {
+    scheduleVersionPromotionRequestId += 1;
+    scheduleVersionPromotionState.value = createClosedScheduleVersionPromotionState();
+  }
+
+  async function requestScheduleVersionPromotion() {
+    const currentData = scheduleLoadState.value.data;
+    const draftVersion = selectedScheduleVersion.value;
+    const mainVersion = scheduleVersions.value.find((version) => version.isMain) ?? null;
+
+    if (!currentData || !draftVersion) {
+      showScheduleToast("반영할 공정표 데이터를 찾지 못했어요.");
+      return;
+    }
+
+    if (draftVersion.isMain) {
+      showScheduleToast("작업본에서만 기준 공정표로 반영할 수 있어요.");
+      return;
+    }
+
+    if (!mainVersion) {
+      showScheduleToast("기준 공정표가 없어 반영할 수 없어요.");
+      return;
+    }
+
+    const requestId = (scheduleVersionPromotionRequestId += 1);
+
+    scheduleVersionPromotionState.value = {
+      open: true,
+      status: "preparing",
+      baselineVersionName: mainVersion.versionName,
+      draftVersionName: draftVersion.versionName,
+      summary: null,
+      errorMessage: null,
+    };
+
+    try {
+      const summary = await resolveScheduleVersionReviewSummary({
+        baselineVersion: mainVersion,
+        draftVersion,
+      });
+
+      if (
+        requestId !== scheduleVersionPromotionRequestId ||
+        selectedScheduleVersion.value?.id !== draftVersion.id
+      ) {
+        return;
+      }
+
+      scheduleVersionPromotionState.value = {
+        open: true,
+        status: "idle",
+        baselineVersionName: mainVersion.versionName,
+        draftVersionName: draftVersion.versionName,
+        summary,
+        errorMessage: null,
+      };
+    } catch (error) {
+      if (requestId !== scheduleVersionPromotionRequestId) {
+        return;
+      }
+
+      const normalizedError = normalizeError(error);
+      console.error("[DesktopSchedule API] schedule version promotion summary failed", normalizedError);
+      scheduleVersionPromotionState.value = {
+        open: true,
+        status: "error",
+        baselineVersionName: mainVersion.versionName,
+        draftVersionName: draftVersion.versionName,
+        summary: null,
+        errorMessage: normalizedError.message,
+      };
+      showScheduleToast("반영 전 변경사항을 불러오지 못했어요.");
+    }
+  }
+
+  async function confirmScheduleVersionPromotion() {
+    const draftVersion = selectedScheduleVersion.value;
+    const mainVersion = scheduleVersions.value.find((version) => version.isMain) ?? null;
+    const promotionState = scheduleVersionPromotionState.value;
+    const summary = promotionState.summary;
+
+    if (!draftVersion || draftVersion.isMain || !mainVersion || !summary) {
+      showScheduleToast("반영할 작업본 정보를 다시 확인해 주세요.");
+      return;
+    }
+
+    scheduleVersionPromotionState.value = {
+      ...promotionState,
+      status: "promoting",
+      errorMessage: null,
+    };
+
+    try {
+      const promotedVersion = await desktopScheduleApi.updateScheduleVersion(draftVersion.id, {
+        isMain: true,
+      });
+      const promotedScheduleVersion = {
+        ...promotedVersion,
+        versionName: promotedVersion.versionName || draftVersion.versionName,
+        isMain: true,
+      };
+      const removedScheduleVersionIds = [draftVersion.id, mainVersion.id].filter(
+        (scheduleVersionId) => scheduleVersionId !== promotedScheduleVersion.id,
+      );
+
+      await deleteReplacedMainScheduleVersions(removedScheduleVersionIds);
+      excludeScheduleVersionsFromWorkflow(removedScheduleVersionIds);
+      promoteScheduleVersionInLoadedData(promotedScheduleVersion, removedScheduleVersionIds);
+
+      scheduleVersionReviewState.value = createClosedScheduleVersionReviewState();
+      scheduleVersionReviewBaselineCache.value = null;
+      scheduleVersionReviewSummaryCache.value = null;
+      scheduleVersionPromotionState.value = createClosedScheduleVersionPromotionState();
+
+      await loadSchedule({
+        scheduleVersionId: promotedScheduleVersion.id,
+        promotedScheduleVersion: promotedScheduleVersion,
+        removedScheduleVersionIds,
+      });
+      showScheduleToast("기준 공정표로 반영했어요.");
+    } catch (error) {
+      const normalizedError = normalizeError(error);
+      console.error("[DesktopSchedule API] schedule version promotion failed", normalizedError);
+      scheduleVersionPromotionState.value = {
+        ...promotionState,
+        status: "error",
+        errorMessage: normalizedError.message,
+      };
+      showScheduleToast("기준 공정표로 반영하지 못했어요.");
     }
   }
 
@@ -6448,7 +6811,7 @@ function createDesktopScheduleViewModel() {
       viewportWidth,
     );
     dayWidth.value = nextDayWidth;
-    persistUiPreferences({ zoomIndex: currentZoomIndex.value });
+    persistUiPreferences({ zoomIndex: currentZoomIndex.value, zoomDayWidth: nextDayWidth });
     closeContextMenu();
   }
 
@@ -6482,7 +6845,9 @@ function createDesktopScheduleViewModel() {
     suggestedDraftVersionName,
     canCreateDraftVersion,
     canCompareScheduleVersion,
+    canPromoteScheduleVersion,
     scheduleVersionReviewState,
+    scheduleVersionPromotionState,
     scheduleLoadStatus,
     scheduleLoadErrorMessage,
     scheduleToast,
@@ -6572,6 +6937,9 @@ function createDesktopScheduleViewModel() {
     deleteScheduleVersion,
     openScheduleVersionReview,
     closeScheduleVersionReview,
+    requestScheduleVersionPromotion,
+    confirmScheduleVersionPromotion,
+    closeScheduleVersionPromotionDialog,
   };
 }
 

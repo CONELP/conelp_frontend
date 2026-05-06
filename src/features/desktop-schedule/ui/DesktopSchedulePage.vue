@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
 import { desktopScheduleService } from "@/features/desktop-schedule/services/desktop-schedule.service";
@@ -22,7 +22,9 @@ const {
   suggestedDraftVersionName,
   canCreateDraftVersion,
   canCompareScheduleVersion,
+  canPromoteScheduleVersion,
   scheduleVersionReviewState,
+  scheduleVersionPromotionState,
   selectionState,
   contextMenuState,
   contextMenuItems,
@@ -103,6 +105,9 @@ const {
   deleteScheduleVersion,
   openScheduleVersionReview,
   closeScheduleVersionReview,
+  requestScheduleVersionPromotion,
+  confirmScheduleVersionPromotion,
+  closeScheduleVersionPromotionDialog,
 } = useDesktopScheduleViewModel();
 
 const shellHostRef = ref<HTMLElement | null>(null);
@@ -110,6 +115,10 @@ const shellViewportHeight = ref(640);
 const chartViewportWidth = ref(0);
 const shouldApplyInitialTimelineScroll = ref(scheduleLoadStatus.value !== "success");
 let resizeObserver: ResizeObserver | null = null;
+
+const isScheduleRefreshing = computed(
+  () => scheduleLoadStatus.value === "loading" && selectedScheduleVersionId.value !== null,
+);
 
 function syncShellViewport() {
   if (!shellHostRef.value) {
@@ -251,7 +260,7 @@ watch(
       <section class="desktop-schedule-page__workspace">
         <div ref="shellHostRef" class="desktop-schedule-page__workspace-host">
           <div
-            v-if="scheduleLoadStatus === 'idle' || scheduleLoadStatus === 'loading'"
+            v-if="scheduleLoadStatus === 'idle' || (scheduleLoadStatus === 'loading' && !isScheduleRefreshing)"
             class="desktop-schedule-page__state"
           >
             <p class="desktop-schedule-page__state-title">공정표 데이터를 불러오는 중이에요.</p>
@@ -287,7 +296,9 @@ watch(
               :suggested-draft-version-name="suggestedDraftVersionName"
               :can-create-draft-version="canCreateDraftVersion"
               :can-compare-schedule-version="canCompareScheduleVersion"
+              :can-promote-schedule-version="canPromoteScheduleVersion"
               :schedule-version-review="scheduleVersionReviewState"
+              :schedule-version-promotion="scheduleVersionPromotionState"
               :viewport-height="shellViewportHeight"
               :scroll-top="chartScrollTop"
               :scroll-left="chartScrollLeft"
@@ -322,6 +333,9 @@ watch(
               @delete-schedule-version="deleteScheduleVersion"
               @open-schedule-version-review="openScheduleVersionReview"
               @close-schedule-version-review="closeScheduleVersionReview"
+              @request-schedule-version-promotion="requestScheduleVersionPromotion"
+              @confirm-schedule-version-promotion="confirmScheduleVersionPromotion"
+              @close-schedule-version-promotion="closeScheduleVersionPromotionDialog"
               @readonly-edit-attempt="notifyReadOnlyScheduleAction"
               @clear-selection="clearSelection"
               @select-bars="selectBars"
@@ -381,6 +395,20 @@ watch(
               @close="closeColorPalette"
               @select="applyColorSelection"
             />
+
+            <Transition name="desktop-schedule-refresh">
+              <div
+                v-if="isScheduleRefreshing"
+                class="desktop-schedule-page__refresh-overlay"
+                role="status"
+                aria-live="polite"
+              >
+                <div class="desktop-schedule-page__refresh-card">
+                  <span class="desktop-schedule-page__refresh-indicator" aria-hidden="true" />
+                  <span>공정표를 새로고침하는 중이에요.</span>
+                </div>
+              </div>
+            </Transition>
           </template>
         </div>
       </section>

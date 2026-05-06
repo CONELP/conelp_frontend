@@ -328,3 +328,12 @@ export interface DesktopScheduleVersionReviewState {
   summary: DesktopScheduleVersionReviewSummary | null;
   errorMessage: string | null;
 }
+
+export interface DesktopScheduleVersionPromotionState {
+  open: boolean;
+  status: "idle" | "preparing" | "promoting" | "error";
+  baselineVersionName: string | null;
+  draftVersionName: string | null;
+  summary: DesktopScheduleVersionReviewSummary | null;
+  errorMessage: string | null;
+}
