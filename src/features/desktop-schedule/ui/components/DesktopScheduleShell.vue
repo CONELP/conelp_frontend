@@ -109,6 +109,7 @@ const emit = defineEmits<{
   "header-context-menu": [
     payload: {
       target:
+        | { kind: "reference-header" }
         | { kind: "division-header"; divisionId: number; name: string }
         | { kind: "work-type-header"; divisionId: number; workTypeId: number; name: string }
         | {
@@ -1041,6 +1042,7 @@ onUnmounted(() => {
           @work-type-column-width-change="emit('work-type-column-width-change', $event)"
           @header-context-menu="emit('header-context-menu', $event)"
           @row-context-menu="emit('row-context-menu', $event)"
+          @readonly-edit-attempt="emit('readonly-edit-attempt')"
         />
       </div>
 

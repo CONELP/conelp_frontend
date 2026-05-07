@@ -92,6 +92,7 @@ const emit = defineEmits<{
   "header-context-menu": [
     payload: {
       target:
+        | { kind: "reference-header" }
         | { kind: "division-header"; divisionId: number; name: string }
         | { kind: "work-type-header"; divisionId: number; workTypeId: number; name: string }
         | {
@@ -106,6 +107,7 @@ const emit = defineEmits<{
     },
   ];
   "row-context-menu": [payload: { rowId: string; x: number; y: number }];
+  "readonly-edit-attempt": [];
 }>();
 
 const containerRef = ref<HTMLElement | null>(null);
@@ -489,6 +491,7 @@ function handleRowContextMenu(row: DesktopScheduleShellRow, event: MouseEvent) {
   event.preventDefault();
 
   if (props.readOnly) {
+    emit("readonly-edit-attempt");
     return;
   }
 
@@ -537,6 +540,7 @@ function handleWorkTypeContextMenu(group: WorkTypeGroupEntry, event: MouseEvent)
   event.preventDefault();
 
   if (props.readOnly) {
+    emit("readonly-edit-attempt");
     return;
   }
 
@@ -551,6 +555,21 @@ function handleWorkTypeContextMenu(group: WorkTypeGroupEntry, event: MouseEvent)
       workTypeId: group.workTypeId,
       name: group.label,
     },
+    x: event.clientX,
+    y: event.clientY,
+  });
+}
+
+function handleEmptyHeaderContextMenu(event: MouseEvent) {
+  event.preventDefault();
+
+  if (props.readOnly) {
+    emit("readonly-edit-attempt");
+    return;
+  }
+
+  emit("header-context-menu", {
+    target: { kind: "reference-header" },
     x: event.clientX,
     y: event.clientY,
   });
@@ -1070,8 +1089,13 @@ function handleSubWorkTypeRenameEscape() {
     }"
     :style="panelStyle"
     @scroll="handleScroll"
+    @contextmenu.self="handleEmptyHeaderContextMenu"
   >
-    <div class="schedule-row-panel__content" :style="{ height: `${contentHeight}px` }">
+    <div
+      class="schedule-row-panel__content"
+      :style="{ height: `${contentHeight}px` }"
+      @contextmenu.self="handleEmptyHeaderContextMenu"
+    >
       <div
         v-for="entry in panelEntries"
         :key="entry.key"

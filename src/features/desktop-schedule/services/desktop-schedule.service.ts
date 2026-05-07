@@ -32,6 +32,24 @@ interface ChildRowDraft {
   minPositionY: number;
 }
 
+interface DivisionRowDraft {
+  id: string;
+  name: string;
+  divisionId?: number;
+  division: string;
+  minPositionY: number;
+}
+
+interface WorkTypeRowDraft {
+  id: string;
+  name: string;
+  divisionId?: number;
+  division: string;
+  workTypeId?: number;
+  workType: string;
+  minPositionY: number;
+}
+
 interface TimelineOptions {
   dayWidth?: number;
   paddingBeforeDays?: number;
@@ -124,6 +142,22 @@ function makeParentRowId(workType: string) {
 
 function makeDivisionShellRowId(division: string) {
   return `division:${toStableIdPart(division)}`;
+}
+
+function makeReferenceDivisionRowId(divisionId: number | undefined, division: string) {
+  return divisionId
+    ? `reference-division:${divisionId}`
+    : `reference-${makeDivisionShellRowId(division)}`;
+}
+
+function makeReferenceWorkTypeRowId(
+  workTypeId: number | undefined,
+  division: string,
+  workType: string,
+) {
+  return workTypeId
+    ? `reference-work-type:${workTypeId}`
+    : `reference-${makeChildRowId(division, workType, 0, "")}`;
 }
 
 function makeChildRowId(
@@ -576,16 +610,103 @@ function upsertChildDraft(
   existingChild.colorHex = existingChild.colorHex ?? draft.colorHex ?? null;
 }
 
+function upsertDivisionDraft(
+  divisionDrafts: Map<string, DivisionRowDraft>,
+  draft: Omit<DivisionRowDraft, "id">,
+) {
+  const divisionId = draft.divisionId;
+  const divisionIdKey = divisionId === undefined ? "name" : String(divisionId);
+  const divisionKey = `${divisionIdKey}:${toStableIdPart(draft.division)}`;
+  const existingDivision = divisionDrafts.get(divisionKey);
+
+  if (!existingDivision) {
+    divisionDrafts.set(divisionKey, {
+      ...draft,
+      id: makeReferenceDivisionRowId(divisionId, draft.division),
+    });
+    return;
+  }
+
+  existingDivision.name = existingDivision.name || draft.name;
+  existingDivision.divisionId = existingDivision.divisionId ?? draft.divisionId;
+  existingDivision.minPositionY = Math.min(existingDivision.minPositionY, draft.minPositionY);
+}
+
+function makeWorkTypeDraftKey(
+  divisionId: number | undefined,
+  division: string,
+  workTypeId: number | undefined,
+  workType: string,
+) {
+  const divisionIdKey = divisionId === undefined ? "name" : String(divisionId);
+  const workTypeIdKey = workTypeId === undefined ? "name" : String(workTypeId);
+  return `${divisionIdKey}:${toStableIdPart(division)}:${workTypeIdKey}:${toStableIdPart(workType)}`;
+}
+
+function upsertWorkTypeDraft(
+  workTypeDrafts: Map<string, WorkTypeRowDraft>,
+  draft: Omit<WorkTypeRowDraft, "id">,
+) {
+  const workTypeKey = makeWorkTypeDraftKey(
+    draft.divisionId,
+    draft.division,
+    draft.workTypeId,
+    draft.workType,
+  );
+  const existingWorkType = workTypeDrafts.get(workTypeKey);
+
+  if (!existingWorkType) {
+    workTypeDrafts.set(workTypeKey, {
+      ...draft,
+      id: makeReferenceWorkTypeRowId(draft.workTypeId, draft.division, draft.workType),
+    });
+    return;
+  }
+
+  existingWorkType.name = existingWorkType.name || draft.name;
+  existingWorkType.divisionId = existingWorkType.divisionId ?? draft.divisionId;
+  existingWorkType.workTypeId = existingWorkType.workTypeId ?? draft.workTypeId;
+  existingWorkType.minPositionY = Math.min(existingWorkType.minPositionY, draft.minPositionY);
+}
+
 function buildRows(tasks: DesktopScheduleSourceTask[], sourceRows: DesktopScheduleSourceRow[] = []) {
   const childDrafts = new Map<string, ChildRowDraft>();
+  const divisionDrafts = new Map<string, DivisionRowDraft>();
+  const workTypeDrafts = new Map<string, WorkTypeRowDraft>();
 
   sourceRows.forEach((sourceRow, index) => {
+    const division = sourceRow.division || "미분류";
+
+    if (sourceRow.workTypeId === 0) {
+      upsertDivisionDraft(divisionDrafts, {
+        name: division,
+        divisionId: sourceRow.divisionId,
+        division,
+        minPositionY: index,
+      });
+      return;
+    }
+
+    const workType = sourceRow.workType || "미분류 공정";
+
+    if (sourceRow.subWorkTypeId === 0) {
+      upsertWorkTypeDraft(workTypeDrafts, {
+        name: workType,
+        divisionId: sourceRow.divisionId,
+        division,
+        workTypeId: sourceRow.workTypeId,
+        workType,
+        minPositionY: index,
+      });
+      return;
+    }
+
     upsertChildDraft(childDrafts, {
       name: sourceRow.subWorkType,
       divisionId: sourceRow.divisionId,
-      division: sourceRow.division || "미분류",
+      division,
       workTypeId: sourceRow.workTypeId,
-      workType: sourceRow.workType || "미분류 공정",
+      workType,
       subWorkType: sourceRow.subWorkType || "세부공정 미분류",
       subWorkTypeId: sourceRow.subWorkTypeId,
       colorHex: sourceRow.colorHex ?? null,
@@ -611,29 +732,95 @@ function buildRows(tasks: DesktopScheduleSourceTask[], sourceRows: DesktopSchedu
     });
   });
 
-  return Array.from(childDrafts.values())
-    .sort(compareByPosition)
-    .map((childDraft, index) => ({
-      id: childDraft.id,
+  const divisionKeysWithChildRows = new Set(
+    Array.from(childDrafts.values()).map((childDraft) => {
+      const divisionIdKey =
+        childDraft.divisionId === undefined ? "name" : String(childDraft.divisionId);
+      return `${divisionIdKey}:${toStableIdPart(childDraft.division)}`;
+    }),
+  );
+  const workTypeKeysWithChildRows = new Set(
+    Array.from(childDrafts.values()).map((childDraft) =>
+      makeWorkTypeDraftKey(
+        childDraft.divisionId,
+        childDraft.division,
+        childDraft.workTypeId,
+        childDraft.workType,
+      ),
+    ),
+  );
+  const divisionOnlyRows = Array.from(divisionDrafts.entries())
+    .filter(([divisionKey]) => !divisionKeysWithChildRows.has(divisionKey))
+    .map(([, divisionDraft]) => ({
+      id: divisionDraft.id,
       kind: "child-process" as const,
       parentId: null,
-      name: childDraft.name,
-      colorHex: childDraft.colorHex ?? null,
+      name: divisionDraft.name,
+      colorHex: null,
       summaryStartDate: null,
       summaryEndDate: null,
-      order: index,
+      order: divisionDraft.minPositionY,
       depth: 0,
       collapsed: false,
       source: {
-        kind: "sub-work-type" as const,
-        derivedFrom: `${childDraft.division} / ${childDraft.workType} / ${childDraft.subWorkType}`,
-        divisionId: childDraft.divisionId,
-        division: childDraft.division,
-        workTypeId: childDraft.workTypeId,
-        workType: childDraft.workType,
-        subWorkType: childDraft.subWorkType,
-        subWorkTypeId: childDraft.subWorkTypeId,
+        kind: "division" as const,
+        derivedFrom: divisionDraft.division,
+        divisionId: divisionDraft.divisionId,
+        division: divisionDraft.division,
       },
+    }));
+  const workTypeOnlyRows = Array.from(workTypeDrafts.entries())
+    .filter(([workTypeKey]) => !workTypeKeysWithChildRows.has(workTypeKey))
+    .map(([, workTypeDraft]) => ({
+      id: workTypeDraft.id,
+      kind: "child-process" as const,
+      parentId: null,
+      name: workTypeDraft.name,
+      colorHex: null,
+      summaryStartDate: null,
+      summaryEndDate: null,
+      order: workTypeDraft.minPositionY,
+      depth: 0,
+      collapsed: false,
+      source: {
+        kind: "work-type" as const,
+        derivedFrom: `${workTypeDraft.division} / ${workTypeDraft.workType}`,
+        divisionId: workTypeDraft.divisionId,
+        division: workTypeDraft.division,
+        workTypeId: workTypeDraft.workTypeId,
+        workType: workTypeDraft.workType,
+        subWorkType: "",
+        subWorkTypeId: 0,
+      },
+    }));
+  const childRows = Array.from(childDrafts.values()).map((childDraft) => ({
+    id: childDraft.id,
+    kind: "child-process" as const,
+    parentId: null,
+    name: childDraft.name,
+    colorHex: childDraft.colorHex ?? null,
+    summaryStartDate: null,
+    summaryEndDate: null,
+    order: childDraft.minPositionY,
+    depth: 0,
+    collapsed: false,
+    source: {
+      kind: "sub-work-type" as const,
+      derivedFrom: `${childDraft.division} / ${childDraft.workType} / ${childDraft.subWorkType}`,
+      divisionId: childDraft.divisionId,
+      division: childDraft.division,
+      workTypeId: childDraft.workTypeId,
+      workType: childDraft.workType,
+      subWorkType: childDraft.subWorkType,
+      subWorkTypeId: childDraft.subWorkTypeId,
+    },
+  }));
+
+  return [...divisionOnlyRows, ...workTypeOnlyRows, ...childRows]
+    .sort((a, b) => a.order - b.order)
+    .map((row, index) => ({
+      ...row,
+      order: index,
     }));
 }
 
@@ -1096,6 +1283,10 @@ function buildShellLayout(
       accumulatedTop += divisionRowHeight;
       currentDivision = division;
       currentDivisionId = divisionId;
+    }
+
+    if (row.source.kind === "division") {
+      return;
     }
 
     const nextRowHeight = rowHeightById.get(row.id) ?? rowHeight;

@@ -7,7 +7,7 @@ export type DesktopScheduleConnectionKind =
   | "critical-path";
 
 export interface DesktopScheduleRowSource {
-  kind: "work-type" | "sub-work-type" | "mock";
+  kind: "division" | "work-type" | "sub-work-type" | "mock";
   derivedFrom: string;
   divisionId?: number;
   division?: string;

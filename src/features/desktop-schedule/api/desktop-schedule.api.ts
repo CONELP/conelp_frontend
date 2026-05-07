@@ -118,13 +118,6 @@ function resolveScheduleVersion(
       ? versions.find((version) => version.id === preferredScheduleVersionId) ?? null
       : null;
 
-  if (preferredScheduleVersionId !== undefined && !matchedVersion) {
-    console.warn("[DesktopSchedule API] requested schedule version was not found; falling back", {
-      preferredScheduleVersionId,
-      versions,
-    });
-  }
-
   return matchedVersion ?? findMainScheduleVersion(versions);
 }
 
@@ -134,13 +127,6 @@ function resolveSelectedProject(
 ) {
   const selectedProjectId = preferredProjectId ?? getSelectedDesktopScheduleProjectId();
   const matchedProject = projects.find((project) => project.id === selectedProjectId) ?? null;
-
-  if (selectedProjectId && !matchedProject) {
-    console.warn("[DesktopSchedule API] selected project id was not found; falling back", {
-      selectedProjectId,
-      projects,
-    });
-  }
 
   const selectedProject =
     matchedProject ?? projects[0] ?? null;
@@ -479,8 +465,23 @@ export const desktopScheduleApi = {
       ),
     );
 
-    return hierarchyGroups.flatMap((group) =>
-      group.subWorkTypes.map((subWorkType) => ({
+    const hierarchyItems = hierarchyGroups.flatMap((group) => {
+      if (group.subWorkTypes.length === 0) {
+        return [
+          {
+            divisionId: group.division.id,
+            divisionName: group.division.name,
+            workTypeId: group.workType.id,
+            workTypeName: group.workType.name,
+            isStructure: group.workType.isStructure,
+            subWorkTypeId: 0,
+            subWorkTypeName: "",
+            subWorkTypeColor: null,
+          },
+        ];
+      }
+
+      return group.subWorkTypes.map((subWorkType) => ({
         divisionId: group.division.id,
         divisionName: group.division.name,
         workTypeId: group.workType.id,
@@ -489,8 +490,23 @@ export const desktopScheduleApi = {
         subWorkTypeId: subWorkType.id,
         subWorkTypeName: subWorkType.name,
         subWorkTypeColor: subWorkType.color ?? null,
-      })),
-    );
+      }));
+    });
+    const divisionIdsWithRows = new Set(hierarchyItems.map((item) => item.divisionId));
+    const divisionOnlyItems = divisions
+      .filter((division) => !divisionIdsWithRows.has(division.id))
+      .map((division) => ({
+        divisionId: division.id,
+        divisionName: division.name,
+        workTypeId: 0,
+        workTypeName: "",
+        isStructure: false,
+        subWorkTypeId: 0,
+        subWorkTypeName: "",
+        subWorkTypeColor: null,
+      }));
+
+    return [...hierarchyItems, ...divisionOnlyItems];
   },
 
   async loadCurrentProjectSchedule(
@@ -499,25 +515,7 @@ export const desktopScheduleApi = {
     const projects = await desktopScheduleApi.getProjectList();
     const selectedProject = resolveSelectedProject(projects, options.projectId);
 
-    console.log("[DesktopSchedule API] resolved project", {
-      requestedProjectId: options.projectId,
-      storedProjectId: getSelectedDesktopScheduleProjectId(),
-      selectedProject,
-      projects,
-      counts: {
-        projects: projects.length,
-      },
-    });
-
     const scheduleVersions = await desktopScheduleApi.getScheduleVersionList();
-
-    console.log("[DesktopSchedule API] loaded schedule versions", {
-      selectedProject,
-      scheduleVersions,
-      counts: {
-        scheduleVersions: scheduleVersions.length,
-      },
-    });
 
     const selectedScheduleVersion = resolveScheduleVersion(
       scheduleVersions,
@@ -525,12 +523,6 @@ export const desktopScheduleApi = {
     );
 
     if (!selectedScheduleVersion) {
-      console.warn("[DesktopSchedule API] no main schedule version", {
-        selectedProject,
-        scheduleVersions,
-        message: "isMain=true인 공정표 버전이 없습니다.",
-      });
-
       throw new DesktopScheduleApiError(
         "NO_MAIN_SCHEDULE_VERSION",
         "메인 공정표 버전이 없습니다.",
@@ -553,58 +545,6 @@ export const desktopScheduleApi = {
       desktopScheduleApi.getWorkDepListByVersion(scheduleVersionId),
       desktopScheduleApi.getMilestoneList(),
     ]);
-
-    console.log("[DesktopSchedule API] loaded current project schedule", {
-      projects,
-      selectedProject,
-      scheduleVersions,
-      selectedScheduleVersion,
-      calendar,
-      workHierarchy,
-      works,
-      workDeps,
-      milestones,
-      counts: {
-        projects: projects.length,
-        scheduleVersions: scheduleVersions.length,
-        calendarDates: calendar.dates.length,
-        workHierarchy: workHierarchy.length,
-        works: works.length,
-        workDeps: workDeps.length,
-        milestones: milestones.length,
-      },
-    });
-
-    if (works.length === 0 && scheduleVersions.length > 0) {
-      const versionDiagnostics = await Promise.all(
-        scheduleVersions.map(async (scheduleVersion) => {
-          try {
-            const [versionWorks, versionWorkDeps] = await Promise.all([
-              desktopScheduleApi.getWorkListByVersion(scheduleVersion.id),
-              desktopScheduleApi.getWorkDepListByVersion(scheduleVersion.id),
-            ]);
-
-            return {
-              scheduleVersion,
-              worksCount: versionWorks.length,
-              workDepsCount: versionWorkDeps.length,
-              sampleWorks: versionWorks.slice(0, 3),
-              sampleWorkDeps: versionWorkDeps.slice(0, 3),
-            };
-          } catch (error) {
-            return {
-              scheduleVersion,
-              error,
-            };
-          }
-        }),
-      );
-
-      console.log("[DesktopSchedule API] schedule version data diagnostics", {
-        selectedScheduleVersion,
-        versionDiagnostics,
-      });
-    }
 
     return {
       projects,

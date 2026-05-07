@@ -1525,7 +1525,18 @@ function handleResizePointerDown(
   };
 }
 
+function notifyReadOnlyContextMenuAttempt(event: MouseEvent) {
+  event.preventDefault();
+  event.stopPropagation();
+  emit("readonly-edit-attempt");
+}
+
 function handlePaneContextMenu(event: MouseEvent) {
+  if (props.readOnly) {
+    notifyReadOnlyContextMenuAttempt(event);
+    return;
+  }
+
   const point = getContentPoint(event);
   emit("canvas-context-menu", {
     x: event.clientX,
@@ -1536,6 +1547,11 @@ function handlePaneContextMenu(event: MouseEvent) {
 }
 
 function handleRowContextMenu(row: DesktopScheduleShellLayout["rows"][number], event: MouseEvent) {
+  if (props.readOnly) {
+    notifyReadOnlyContextMenuAttempt(event);
+    return;
+  }
+
   if (row.kind === "division") {
     return;
   }
@@ -1655,6 +1671,11 @@ function handleMilestonePointerLeave(milestoneId: string, event: PointerEvent) {
 }
 
 function handleMilestoneContextMenu(milestoneId: string, event: MouseEvent) {
+  if (props.readOnly) {
+    notifyReadOnlyContextMenuAttempt(event);
+    return;
+  }
+
   hoveredMilestoneId.value = milestoneId;
   emit("milestone-context-menu", {
     milestoneId,
@@ -1664,6 +1685,11 @@ function handleMilestoneContextMenu(milestoneId: string, event: MouseEvent) {
 }
 
 function handleBarContextMenu(bar: DesktopScheduleBarLayout, event: MouseEvent) {
+  if (props.readOnly) {
+    notifyReadOnlyContextMenuAttempt(event);
+    return;
+  }
+
   if (bar.kind === "summary") {
     emit("row-context-menu", {
       rowId: bar.rowId,
@@ -1984,6 +2010,11 @@ function handleWorkConnectionContextMenu(workConnectionId: string, event: MouseE
   event.preventDefault();
   event.stopPropagation();
 
+  if (props.readOnly) {
+    emit("readonly-edit-attempt");
+    return;
+  }
+
   hoveredWorkConnectionId.value = workConnectionId;
   emit("work-connection-context-menu", {
     workConnectionId,
@@ -2013,6 +2044,12 @@ function handleCriticalPathPointerLeave(pathId: number) {
 function handleCriticalPathContextMenu(criticalPathId: string, event: MouseEvent) {
   event.preventDefault();
   event.stopPropagation();
+
+  if (props.readOnly) {
+    emit("readonly-edit-attempt");
+    return;
+  }
+
   const criticalPathConnection = props.shellLayout.connections.find(
     (connection) => connection.kind === "critical-path" && connection.id === criticalPathId,
   );

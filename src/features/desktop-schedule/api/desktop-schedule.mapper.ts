@@ -111,7 +111,9 @@ export function createDesktopScheduleSnapshotFromApiData(
   data: DesktopScheduleBootstrapData,
 ): DesktopScheduleSnapshot {
   const hierarchyBySubWorkTypeId = new Map(
-    data.workHierarchy.map((item) => [item.subWorkTypeId, item] as const),
+    data.workHierarchy
+      .filter((item) => item.subWorkTypeId > 0)
+      .map((item) => [item.subWorkTypeId, item] as const),
   );
   const sourceBundle: DesktopScheduleSourceBundle = {
     source: "work-api",
@@ -143,22 +145,6 @@ export function createDesktopScheduleSnapshotFromApiData(
       workCount: snapshot.items.length,
     },
   };
-
-  console.log("[DesktopSchedule Mapper] mapped API data to chart snapshot", {
-    sourceBundle,
-    rows: nextSnapshot.rows,
-    items: nextSnapshot.items,
-    workConnections,
-    milestones: nextSnapshot.milestones,
-    metadata: nextSnapshot.metadata,
-    counts: {
-      sourceTasks: sourceBundle.tasks.length,
-      rows: nextSnapshot.rows.length,
-      items: nextSnapshot.items.length,
-      workConnections: workConnections.length,
-      milestones: nextSnapshot.milestones.length,
-    },
-  });
 
   return nextSnapshot;
 }

@@ -9,6 +9,7 @@ export interface DesktopScheduleSelectionState {
 
 export type DesktopScheduleContextMenuTarget =
   | { kind: "row"; rowId: string }
+  | { kind: "reference-header" }
   | { kind: "division-header"; divisionId: number; name: string }
   | { kind: "work-type-header"; divisionId: number; workTypeId: number; name: string }
   | { kind: "sub-work-type-header"; workTypeId: number; subWorkTypeId: number; rowId: string; name: string }

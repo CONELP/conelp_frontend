@@ -111,7 +111,7 @@ type TimelineCalendarState = {
 type ScheduleToastState = {
   visible: boolean;
   message: string;
-  tone: "error";
+  tone: "neutral" | "warning";
 };
 
 type ScheduleMutationOptions = {
@@ -144,7 +144,7 @@ type DesktopScheduleHistoryCollectionPatch<TEntity, TKey extends string | number
 type DesktopScheduleLoadedDataHistoryPatch = {
   workHierarchy: DesktopScheduleHistoryCollectionPatch<
     DesktopScheduleReferenceHierarchyItem,
-    number
+    string
   >;
   works: DesktopScheduleHistoryCollectionPatch<DesktopScheduleWorkResponse, number>;
   workDeps: DesktopScheduleHistoryCollectionPatch<DesktopScheduleWorkDepResponse, number>;
@@ -319,7 +319,7 @@ function createHiddenScheduleToast(): ScheduleToastState {
   return {
     visible: false,
     message: "",
-    tone: "error",
+    tone: "neutral",
   };
 }
 
@@ -562,6 +562,18 @@ function cloneWorkHierarchyItem(
   item: DesktopScheduleReferenceHierarchyItem,
 ): DesktopScheduleReferenceHierarchyItem {
   return { ...item };
+}
+
+function getWorkHierarchyItemHistoryKey(item: DesktopScheduleReferenceHierarchyItem) {
+  if (item.subWorkTypeId !== 0) {
+    return `sub-work-type:${item.subWorkTypeId}`;
+  }
+
+  if (item.workTypeId !== 0) {
+    return `work-type:${item.workTypeId}`;
+  }
+
+  return `division:${item.divisionId}`;
 }
 
 function cloneWorkResponse(work: DesktopScheduleWorkResponse): DesktopScheduleWorkResponse {
@@ -1971,11 +1983,14 @@ function createDesktopScheduleViewModel() {
     writeUiPreferencesToStorage();
   }
 
-  function showScheduleToast(message: string) {
+  function showScheduleToast(
+    message: string,
+    tone: ScheduleToastState["tone"] = "neutral",
+  ) {
     scheduleToast.value = {
       visible: true,
       message,
-      tone: "error",
+      tone,
     };
 
     if (typeof window === "undefined") {
@@ -2007,7 +2022,10 @@ function createDesktopScheduleViewModel() {
     renamingMilestoneId.value = null;
     closeContextMenu();
     closeColorPalette();
-    showScheduleToast("기준 공정표는 직접 수정할 수 없어요. 작업본을 만들어 수정해 주세요.");
+    showScheduleToast(
+      "기준 공정표는 직접 수정할 수 없어요. 작업본을 만들어 수정해 주세요.",
+      "warning",
+    );
   }
 
   function ensureScheduleEditable() {
@@ -2176,7 +2194,7 @@ function createDesktopScheduleViewModel() {
       workHierarchy: createHistoryCollectionPatch(
         beforeData.workHierarchy,
         afterData.workHierarchy,
-        (item) => item.subWorkTypeId,
+        getWorkHierarchyItemHistoryKey,
         cloneWorkHierarchyItem,
       ),
       works: createHistoryCollectionPatch(
@@ -2313,7 +2331,7 @@ function createDesktopScheduleViewModel() {
         currentData.workHierarchy,
         patch.workHierarchy,
         direction,
-        (item) => item.subWorkTypeId,
+        getWorkHierarchyItemHistoryKey,
         cloneWorkHierarchyItem,
       ),
       works: applyHistoryCollectionPatch(
@@ -2706,6 +2724,10 @@ function createDesktopScheduleViewModel() {
     const seenWorkTypeIdsByDivisionId = new Map<number, Set<number>>();
 
     items.forEach((item) => {
+      if (item.workTypeId === 0) {
+        return;
+      }
+
       const workTypeIds = workTypeIdsByDivisionId.get(item.divisionId) ?? [];
       const seenWorkTypeIds = seenWorkTypeIdsByDivisionId.get(item.divisionId) ?? new Set<number>();
 
@@ -2754,6 +2776,7 @@ function createDesktopScheduleViewModel() {
       if (
         (source.workTypeName !== target.workTypeName ||
           source.isStructure !== target.isStructure) &&
+        target.workTypeId > 0 &&
         !updatedWorkTypeIds.has(target.workTypeId)
       ) {
         updatedWorkTypeIds.add(target.workTypeId);
@@ -2769,6 +2792,7 @@ function createDesktopScheduleViewModel() {
       if (
         (source.subWorkTypeName !== target.subWorkTypeName ||
           source.subWorkTypeColor !== target.subWorkTypeColor) &&
+        target.subWorkTypeId > 0 &&
         !updatedSubWorkTypeIds.has(target.subWorkTypeId)
       ) {
         updatedSubWorkTypeIds.add(target.subWorkTypeId);
@@ -2791,7 +2815,7 @@ function createDesktopScheduleViewModel() {
         targetItems,
         patch,
         direction === "undo" ? "redo" : "undo",
-        (item) => item.subWorkTypeId,
+        getWorkHierarchyItemHistoryKey,
         cloneWorkHierarchyItem,
       );
       const targetDivisionIds = getDivisionOrderFromHierarchy(targetItems);
@@ -4222,7 +4246,6 @@ function createDesktopScheduleViewModel() {
       };
     } catch (error) {
       const normalizedError = normalizeError(error);
-      console.error("[DesktopSchedule API] schedule version review failed", normalizedError);
       showScheduleToast("변경사항을 비교하지 못했어요.");
       scheduleVersionReviewState.value = {
         open: false,
@@ -4296,7 +4319,6 @@ function createDesktopScheduleViewModel() {
       }
 
       const normalizedError = normalizeError(error);
-      console.error("[DesktopSchedule API] schedule version promotion summary failed", normalizedError);
       scheduleVersionPromotionState.value = {
         open: true,
         status: "error",
@@ -4356,7 +4378,6 @@ function createDesktopScheduleViewModel() {
       showScheduleToast("기준 공정표로 반영했어요.");
     } catch (error) {
       const normalizedError = normalizeError(error);
-      console.error("[DesktopSchedule API] schedule version promotion failed", normalizedError);
       scheduleVersionPromotionState.value = {
         ...promotionState,
         status: "error",
@@ -4376,7 +4397,6 @@ function createDesktopScheduleViewModel() {
 
   function handleMutationError(error: unknown, fallbackMessage: string) {
     const normalizedError = normalizeError(error);
-    console.error("[DesktopSchedule API] mutation failed", normalizedError);
 
     showScheduleToast(getMutationErrorToastMessage(normalizedError, fallbackMessage));
   }
@@ -5316,6 +5336,7 @@ function createDesktopScheduleViewModel() {
 
   function openScheduleHeaderContextMenu(payload: {
     target:
+      | { kind: "reference-header" }
       | { kind: "division-header"; divisionId: number; name: string }
       | { kind: "work-type-header"; divisionId: number; workTypeId: number; name: string }
       | {
@@ -5689,31 +5710,34 @@ function createDesktopScheduleViewModel() {
     }
 
     if (
+      target.kind === "reference-header" ||
       target.kind === "division-header" ||
       target.kind === "work-type-header" ||
       target.kind === "sub-work-type-header"
     ) {
       const createItem =
-        target.kind === "division-header"
+        target.kind === "reference-header"
           ? {
               id: "create-division-reference",
-              label: "새 분류 생성",
+              label: "분류 생성",
               command: "create-division-reference" as const,
               icon: "plus" as const,
             }
-          : target.kind === "work-type-header"
-            ? {
+          : target.kind === "division-header"
+              ? {
                 id: "create-work-type-reference",
-                label: "상위공정 생성",
+                label: "상위 공정 생성",
                 command: "create-work-type-reference" as const,
                 icon: "plus" as const,
               }
-            : {
+            : target.kind === "work-type-header"
+              ? {
                 id: "create-sub-work-type-reference",
-                label: "하위공정 생성",
+                label: "하위 공정 생성",
                 command: "create-sub-work-type-reference" as const,
                 icon: "plus" as const,
-              };
+              }
+              : null;
 
       const colorItem =
         target.kind === "sub-work-type-header"
@@ -5728,21 +5752,25 @@ function createDesktopScheduleViewModel() {
           : [];
 
       return [
-        createItem,
+        ...(createItem ? [createItem] : []),
         ...colorItem,
-        {
-          id: "rename-reference",
-          label: "이름 변경",
-          command: "rename-reference",
-          icon: "pencil",
-        },
-        {
-          id: "delete-reference",
-          label: "삭제",
-          command: "delete-reference",
-          icon: "trash",
-          danger: true,
-        },
+        ...(target.kind === "reference-header"
+          ? []
+          : [
+              {
+                id: "rename-reference",
+                label: "이름 변경",
+                command: "rename-reference" as const,
+                icon: "pencil" as const,
+              },
+              {
+                id: "delete-reference",
+                label: "삭제",
+                command: "delete-reference" as const,
+                icon: "trash" as const,
+                danger: true,
+              },
+            ]),
       ];
     }
 
@@ -5867,6 +5895,7 @@ function createDesktopScheduleViewModel() {
     }
 
     if (
+      target.kind === "reference-header" ||
       target.kind === "division-header" ||
       target.kind === "work-type-header" ||
       target.kind === "sub-work-type-header"
@@ -5883,24 +5912,24 @@ function createDesktopScheduleViewModel() {
         return;
       }
 
-      if (command === "create-division-reference" && target.kind === "division-header") {
+      if (command === "create-division-reference" && target.kind === "reference-header") {
         createReferenceDivisionSet();
         return;
       }
 
-      if (command === "create-work-type-reference" && target.kind === "work-type-header") {
+      if (command === "create-work-type-reference" && target.kind === "division-header") {
         const targetHierarchyItem = scheduleLoadState.value.data?.workHierarchy.find(
           (item) => item.divisionId === target.divisionId,
         );
 
         createReferenceWorkTypeSet({
           divisionId: target.divisionId,
-          divisionName: targetHierarchyItem?.divisionName ?? "",
+          divisionName: targetHierarchyItem?.divisionName ?? target.name,
         });
         return;
       }
 
-      if (command === "create-sub-work-type-reference" && target.kind === "sub-work-type-header") {
+      if (command === "create-sub-work-type-reference" && target.kind === "work-type-header") {
         createReferenceSubWorkTypeSet({
           workTypeId: target.workTypeId,
         });
@@ -5918,11 +5947,13 @@ function createDesktopScheduleViewModel() {
           return;
         }
 
-        startSubWorkTypeRename(target.subWorkTypeId);
+        if (target.kind === "sub-work-type-header") {
+          startSubWorkTypeRename(target.subWorkTypeId);
+        }
         return;
       }
 
-      if (command === "delete-reference") {
+      if (command === "delete-reference" && target.kind !== "reference-header") {
         if (typeof window !== "undefined") {
           const confirmed = window.confirm(
             `${target.name}을(를) 삭제할까요?\n하위 항목이 있으면 함께 삭제를 시도합니다.`,
@@ -5946,10 +5977,18 @@ function createDesktopScheduleViewModel() {
           async () => {
             if (target.kind === "division-header") {
               const subWorkTypeIds = Array.from(
-                new Set(divisionHierarchy.map((item) => item.subWorkTypeId)),
+                new Set(
+                  divisionHierarchy
+                    .map((item) => item.subWorkTypeId)
+                    .filter((subWorkTypeId) => subWorkTypeId > 0),
+                ),
               );
               const workTypeIds = Array.from(
-                new Set(divisionHierarchy.map((item) => item.workTypeId)),
+                new Set(
+                  divisionHierarchy
+                    .map((item) => item.workTypeId)
+                    .filter((workTypeId) => workTypeId > 0),
+                ),
               );
 
               await Promise.all(
@@ -5966,7 +6005,11 @@ function createDesktopScheduleViewModel() {
 
             if (target.kind === "work-type-header") {
               const subWorkTypeIds = Array.from(
-                new Set(workTypeHierarchy.map((item) => item.subWorkTypeId)),
+                new Set(
+                  workTypeHierarchy
+                    .map((item) => item.subWorkTypeId)
+                    .filter((subWorkTypeId) => subWorkTypeId > 0),
+                ),
               );
 
               await Promise.all(
@@ -5978,7 +6021,9 @@ function createDesktopScheduleViewModel() {
               return;
             }
 
-            await desktopScheduleApi.deleteSubWorkType(target.subWorkTypeId);
+            if (target.kind === "sub-work-type-header") {
+              await desktopScheduleApi.deleteSubWorkType(target.subWorkTypeId);
+            }
           },
           "공정 항목을 삭제하지 못했습니다.",
           {

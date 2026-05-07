@@ -126,6 +126,13 @@
   letter-spacing: -0.02em;
 }
 
+.desktop-schedule-page__toast--warning {
+  border-color: rgba(239, 68, 68, 0.18);
+  background: rgba(254, 242, 242, 0.96);
+  box-shadow: 0 18px 42px rgba(185, 28, 28, 0.12);
+  color: #991b1b;
+}
+
 .desktop-schedule-toast-enter-active,
 .desktop-schedule-toast-leave-active {
   transition:

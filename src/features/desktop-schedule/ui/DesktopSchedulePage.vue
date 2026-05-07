@@ -113,11 +113,15 @@ const {
 const shellHostRef = ref<HTMLElement | null>(null);
 const shellViewportHeight = ref(640);
 const chartViewportWidth = ref(0);
-const shouldApplyInitialTimelineScroll = ref(scheduleLoadStatus.value !== "success");
+const shouldApplyInitialTimelineScroll = ref(
+  scheduleLoadStatus.value !== "success",
+);
 let resizeObserver: ResizeObserver | null = null;
 
 const isScheduleRefreshing = computed(
-  () => scheduleLoadStatus.value === "loading" && selectedScheduleVersionId.value !== null,
+  () =>
+    scheduleLoadStatus.value === "loading" &&
+    selectedScheduleVersionId.value !== null,
 );
 
 function syncShellViewport() {
@@ -126,7 +130,10 @@ function syncShellViewport() {
   }
 
   shellViewportHeight.value = Math.max(shellHostRef.value.clientHeight, 320);
-  chartViewportWidth.value = Math.max(shellHostRef.value.clientWidth - rowPanelWidth.value, 0);
+  chartViewportWidth.value = Math.max(
+    shellHostRef.value.clientWidth - rowPanelWidth.value,
+    0,
+  );
 }
 
 function handleRowPanelWidthChange(width: number) {
@@ -169,7 +176,10 @@ function isEditableKeyboardTarget(target: EventTarget | null) {
 }
 
 function handleHistoryShortcut(event: KeyboardEvent) {
-  if (isEditableKeyboardTarget(event.target) || (!event.metaKey && !event.ctrlKey)) {
+  if (
+    isEditableKeyboardTarget(event.target) ||
+    (!event.metaKey && !event.ctrlKey)
+  ) {
     return;
   }
 
@@ -217,7 +227,12 @@ onUnmounted(() => {
 });
 
 watch(
-  () => [scheduleLoadStatus.value, timeline.value, chartViewportWidth.value] as const,
+  () =>
+    [
+      scheduleLoadStatus.value,
+      timeline.value,
+      chartViewportWidth.value,
+    ] as const,
   async ([nextScheduleLoadStatus, nextTimeline, nextChartViewportWidth]) => {
     if (
       nextScheduleLoadStatus !== "success" ||
@@ -249,6 +264,7 @@ watch(
       <div
         v-if="scheduleToast.visible"
         class="desktop-schedule-page__toast"
+        :class="`desktop-schedule-page__toast--${scheduleToast.tone}`"
         role="status"
         aria-live="polite"
       >
@@ -260,17 +276,24 @@ watch(
       <section class="desktop-schedule-page__workspace">
         <div ref="shellHostRef" class="desktop-schedule-page__workspace-host">
           <div
-            v-if="scheduleLoadStatus === 'idle' || (scheduleLoadStatus === 'loading' && !isScheduleRefreshing)"
+            v-if="
+              scheduleLoadStatus === 'idle' ||
+              (scheduleLoadStatus === 'loading' && !isScheduleRefreshing)
+            "
             class="desktop-schedule-page__state"
           >
-            <p class="desktop-schedule-page__state-title">공정표 데이터를 불러오는 중이에요.</p>
+            <p class="desktop-schedule-page__state-title">
+              공정표 데이터를 불러오는 중이에요.
+            </p>
           </div>
 
           <div
             v-else-if="scheduleLoadStatus === 'error'"
             class="desktop-schedule-page__state"
           >
-            <p class="desktop-schedule-page__state-title">공정표 데이터를 불러오지 못했어요.</p>
+            <p class="desktop-schedule-page__state-title">
+              공정표 데이터를 불러오지 못했어요.
+            </p>
             <p class="desktop-schedule-page__state-description">
               {{ scheduleLoadErrorMessage }}
             </p>
@@ -333,9 +356,15 @@ watch(
               @delete-schedule-version="deleteScheduleVersion"
               @open-schedule-version-review="openScheduleVersionReview"
               @close-schedule-version-review="closeScheduleVersionReview"
-              @request-schedule-version-promotion="requestScheduleVersionPromotion"
-              @confirm-schedule-version-promotion="confirmScheduleVersionPromotion"
-              @close-schedule-version-promotion="closeScheduleVersionPromotionDialog"
+              @request-schedule-version-promotion="
+                requestScheduleVersionPromotion
+              "
+              @confirm-schedule-version-promotion="
+                confirmScheduleVersionPromotion
+              "
+              @close-schedule-version-promotion="
+                closeScheduleVersionPromotionDialog
+              "
               @readonly-edit-attempt="notifyReadOnlyScheduleAction"
               @clear-selection="clearSelection"
               @select-bars="selectBars"
@@ -404,8 +433,11 @@ watch(
                 aria-live="polite"
               >
                 <div class="desktop-schedule-page__refresh-card">
-                  <span class="desktop-schedule-page__refresh-indicator" aria-hidden="true" />
-                  <span>공정표를 새로고침하는 중이에요.</span>
+                  <span
+                    class="desktop-schedule-page__refresh-indicator"
+                    aria-hidden="true"
+                  />
+                  <span>공정표를 불러오는 중이에요.</span>
                 </div>
               </div>
             </Transition>
