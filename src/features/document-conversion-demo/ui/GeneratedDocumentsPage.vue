@@ -19,7 +19,15 @@
         <h1 class="generated-intro__title">생성된 문서</h1>
       </section>
 
-      <section class="generated-list">
+      <section v-if="isGeneratedDocumentsLoading" class="generated-empty">
+        생성된 문서를 불러오고 있어요
+      </section>
+
+      <section v-else-if="generatedDocumentsErrorMessage" class="generated-empty">
+        {{ generatedDocumentsErrorMessage }}
+      </section>
+
+      <section v-else-if="generatedDocumentGroups.length > 0" class="generated-list">
         <section
           v-for="group in generatedDocumentGroups"
           :key="group.dateKey"
@@ -37,12 +45,13 @@
             >
               <div class="generated-row__content">
                 <span class="generated-row__file">
-                  <img
-                    class="generated-row__file-icon"
-                    :src="pdfIcon"
-                    alt=""
-                    aria-hidden="true"
-                  />
+                  <span class="generated-row__file-icon-frame" aria-hidden="true">
+                    <img
+                      class="generated-row__file-icon"
+                      :src="documentIcon"
+                      alt=""
+                    />
+                  </span>
 
                   <span class="generated-row__file-body">
                     <span class="generated-row__file-name">{{ document.title }}</span>
@@ -56,6 +65,8 @@
                   class="generated-row__download"
                   type="button"
                   aria-label="생성된 문서 다운로드"
+                  :disabled="downloadingDocumentId === document.id"
+                  @click="handleDownloadGeneratedDocument(document)"
                 >
                   <img
                     class="generated-row__download-icon"
@@ -69,20 +80,97 @@
           </div>
         </section>
       </section>
+
+      <section v-else class="generated-empty">
+        생성된 문서가 없어요
+      </section>
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref } from "vue";
 import { RouterLink } from "vue-router";
 import downloadIcon from "@fluentui/svg-icons/icons/arrow_download_20_regular.svg";
 import backIcon from "@fluentui/svg-icons/icons/chevron_left_24_regular.svg";
-import pdfIcon from "@fluentui/svg-icons/icons/document_pdf_20_regular.svg";
+import documentIcon from "@fluentui/svg-icons/icons/document_20_regular.svg";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
+import { materialInspectionRequestApi } from "@/features/document-conversion-demo/api/material-inspection-request.api";
 import { useGeneratedDocumentsDemoViewModel } from "@/features/document-conversion-demo/state/useGeneratedDocumentsDemoViewModel";
+import type { GeneratedDocumentListItem } from "@/features/document-conversion-demo/state/useGeneratedDocumentsDemoViewModel";
 
-const { generatedDocumentGroups } = useGeneratedDocumentsDemoViewModel();
+const {
+  generatedDocumentGroups,
+  isGeneratedDocumentsLoading,
+  generatedDocumentsErrorMessage,
+} = useGeneratedDocumentsDemoViewModel();
+
+const downloadingDocumentId = ref<string | null>(null);
+
+function isStorageObjectKey(value: string) {
+  return value.startsWith("gs://") || !/^https?:\/\//i.test(value);
+}
+
+async function fetchExternalGeneratedDocument(value: string) {
+  const response = await fetch(value, {
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    throw new Error("다운로드 요청 실패");
+  }
+
+  return response.blob();
+}
+
+async function downloadGeneratedDocumentBlob(document: GeneratedDocumentListItem) {
+  const sourceUrl = document.resultUrl ?? document.pdfUrl;
+
+  if (sourceUrl) {
+    if (isStorageObjectKey(sourceUrl)) {
+      return materialInspectionRequestApi.downloadDocumentFile(sourceUrl);
+    }
+
+    return fetchExternalGeneratedDocument(sourceUrl);
+  }
+
+  return materialInspectionRequestApi.downloadDocumentJob(document.jobId);
+}
+
+function saveGeneratedDocumentBlob(
+  generatedDocument: GeneratedDocumentListItem,
+  blob: Blob,
+) {
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = objectUrl;
+  link.download = generatedDocument.downloadFileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(objectUrl);
+}
+
+async function handleDownloadGeneratedDocument(document: GeneratedDocumentListItem) {
+  if (downloadingDocumentId.value === document.id) {
+    return;
+  }
+
+  downloadingDocumentId.value = document.id;
+
+  try {
+    saveGeneratedDocumentBlob(
+      document,
+      await downloadGeneratedDocumentBlob(document),
+    );
+  } catch {
+    window.alert("문서 다운로드에 실패했습니다.");
+  } finally {
+    downloadingDocumentId.value = null;
+  }
+}
 </script>
 
 <style scoped src="./styles/GeneratedDocumentsPage.css"></style>

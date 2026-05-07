@@ -6,12 +6,17 @@ import {
   uploadFeedbackPageCopy,
   uploadPageCopy,
 } from "@/features/document-conversion-demo/data/document-conversion-demo.seed";
+import { materialInspectionRequestApi } from "@/features/document-conversion-demo/api/material-inspection-request.api";
+import type { WorkTypeReferenceResponse } from "@/features/document-conversion-demo/api/material-inspection-request-api.types";
 import type {
   UploadDocumentPreset,
   UploadFeedbackItem,
   UploadSampleFile,
 } from "@/features/document-conversion-demo/model/document-conversion-demo.types";
 import { useDocumentConversionDemoStore } from "@/features/document-conversion-demo/state/useDocumentConversionDemoStore";
+
+const IMAGE_UPLOAD_LIMIT = 10;
+const CAT_MIN_IMAGE_UPLOAD_COUNT = 2;
 
 function createUploadPreviewFile(
   file: File,
@@ -95,11 +100,21 @@ function createMaterialRegistrationOcrLines(
   );
 }
 
+function createAnalysisPhotoPreviewUrl(mimeType: string, data: string) {
+  return `data:${mimeType || "image/jpeg"};base64,${data}`;
+}
+
 export function useDocumentUploadDemoViewModel() {
   const store = useDocumentConversionDemoStore();
   const guideInspectionState = ref<"idle" | "inspecting" | "done">("idle");
   const guideInspectionCount = ref(0);
+  const workTypeSuggestions = ref<WorkTypeReferenceResponse[]>([]);
+  const isWorkTypeSuggestionsLoading = ref(false);
+  const workTypeSuggestionsErrorMessage = ref("");
+  const isWorkTypeSuggestionListOpen = ref(false);
   let guideInspectionTimer: ReturnType<typeof setTimeout> | null = null;
+  let workTypeSuggestionCloseTimer: ReturnType<typeof setTimeout> | null = null;
+  let workTypeSuggestionRequestId = 0;
   const previewUrlMap = ref<Record<string, string>>({});
 
   const selectedDocument = computed(
@@ -107,11 +122,26 @@ export function useDocumentUploadDemoViewModel() {
   );
 
   const hasSelectedDocument = computed(() => Boolean(store.selectedDocument));
-  const autoProceedAfterUpload = computed(
+  const isMaterialInspectionRequest = computed(
     () => selectedDocument.value.type === "material_registration",
   );
+  const isConcreteDeliveryTest = computed(
+    () => selectedDocument.value.type === "concrete_delivery_csi",
+  );
+  const requiresWorkContext = computed(
+    () => isMaterialInspectionRequest.value || isConcreteDeliveryTest.value,
+  );
+  const mirUploadApplication = computed({
+    get: () => store.mirUploadApplication,
+    set: store.setMirUploadApplication,
+  });
+  const mirUploadWorkTypeName = computed({
+    get: () => store.mirUploadWorkTypeName,
+    set: store.setMirUploadWorkTypeName,
+  });
+  const mirUploadWorkTypeId = computed(() => store.mirUploadWorkTypeId);
   const needsOcrValidation = computed(
-    () => selectedDocument.value.type === "material_registration",
+    () => isMaterialInspectionRequest.value || isConcreteDeliveryTest.value,
   );
 
   const selectedPreset = computed<UploadDocumentPreset>(() => {
@@ -141,12 +171,22 @@ export function useDocumentUploadDemoViewModel() {
       return [];
     }
 
-    return uploadedFiles.value.map((file, index) => ({
-      id: file.id,
-      label: selectedPreset.value.guideItems[index] ?? `업로드 이미지 ${index + 1}`,
-      fileName: file.name,
-      previewUrl: file.thumbnail ?? "",
-      textLines: createMaterialRegistrationOcrLines(index, file.name),
+    const analysisPhotos = isConcreteDeliveryTest.value && store.catAnalysisResult
+      ? [
+          ...store.catAnalysisResult.photos,
+          ...store.catAnalysisResult.batches.flatMap((batch) => batch.photos),
+        ]
+      : store.mirAnalysisResult?.photos ?? [];
+
+    return analysisPhotos.map((photo, index) => ({
+      id: photo.photoKey,
+      label: photo.description || `분석 이미지 ${index + 1}`,
+      fileName: photo.description || `분석 이미지 ${index + 1}`,
+      previewUrl: createAnalysisPhotoPreviewUrl(photo.mimeType, photo.data),
+      textLines: createMaterialRegistrationOcrLines(
+        index,
+        photo.description || `분석 이미지 ${index + 1}`,
+      ),
     }));
   });
 
@@ -189,7 +229,27 @@ export function useDocumentUploadDemoViewModel() {
     () => feedbackItems.value.filter((item) => item.status === "missing").length,
   );
 
-  const canReview = computed(() => uploadedFiles.value.length > 0);
+  const hasRequiredUploadInputs = computed(() => {
+    if (!requiresWorkContext.value) {
+      return true;
+    }
+
+    const hasRequiredImageCount = isConcreteDeliveryTest.value
+      ? uploadedFiles.value.length >= CAT_MIN_IMAGE_UPLOAD_COUNT
+      : uploadedFiles.value.length > 0;
+
+    return Boolean(
+      mirUploadApplication.value.trim() &&
+        mirUploadWorkTypeName.value.trim() &&
+        hasRequiredImageCount &&
+        uploadedFiles.value.length <= IMAGE_UPLOAD_LIMIT,
+    );
+  });
+
+  const canReview = computed(() =>
+    uploadedFiles.value.length > 0 &&
+    hasRequiredUploadInputs.value,
+  );
   const canProceed = computed(() => uploadedFiles.value.length > 0);
 
   const primaryFeedbackActionLabel = computed(() =>
@@ -207,6 +267,104 @@ export function useDocumentUploadDemoViewModel() {
       clearTimeout(guideInspectionTimer);
       guideInspectionTimer = null;
     }
+  }
+
+  function clearWorkTypeSuggestionCloseTimer() {
+    if (workTypeSuggestionCloseTimer) {
+      clearTimeout(workTypeSuggestionCloseTimer);
+      workTypeSuggestionCloseTimer = null;
+    }
+  }
+
+  function clearWorkTypeSuggestions() {
+    workTypeSuggestions.value = [];
+    workTypeSuggestionsErrorMessage.value = "";
+    isWorkTypeSuggestionsLoading.value = false;
+    isWorkTypeSuggestionListOpen.value = false;
+  }
+
+  async function loadWorkTypeSuggestions(workTypeName: string) {
+    const query = workTypeName.trim();
+    const requestId = ++workTypeSuggestionRequestId;
+
+    if (!requiresWorkContext.value || !query) {
+      clearWorkTypeSuggestions();
+      return;
+    }
+
+    isWorkTypeSuggestionsLoading.value = true;
+    workTypeSuggestionsErrorMessage.value = "";
+    isWorkTypeSuggestionListOpen.value = true;
+
+    try {
+      const suggestions =
+        await materialInspectionRequestApi.getWorkTypeListByName(query);
+
+      if (requestId !== workTypeSuggestionRequestId) {
+        return;
+      }
+
+      workTypeSuggestions.value = suggestions;
+    } catch (error) {
+      if (requestId !== workTypeSuggestionRequestId) {
+        return;
+      }
+
+      workTypeSuggestions.value = [];
+      workTypeSuggestionsErrorMessage.value =
+        error instanceof Error
+          ? error.message
+          : "공종명을 불러오지 못했습니다.";
+    } finally {
+      if (requestId === workTypeSuggestionRequestId) {
+        isWorkTypeSuggestionsLoading.value = false;
+      }
+    }
+  }
+
+  function openWorkTypeSuggestionList() {
+    clearWorkTypeSuggestionCloseTimer();
+
+    const query = mirUploadWorkTypeName.value.trim();
+
+    if (query && mirUploadWorkTypeId.value === null) {
+      isWorkTypeSuggestionListOpen.value = true;
+
+      if (!isWorkTypeSuggestionsLoading.value && workTypeSuggestions.value.length === 0) {
+        void loadWorkTypeSuggestions(query);
+      }
+
+      return;
+    }
+
+    if (workTypeSuggestions.value.length > 0 || isWorkTypeSuggestionsLoading.value) {
+      isWorkTypeSuggestionListOpen.value = true;
+    }
+  }
+
+  function scheduleCloseWorkTypeSuggestionList() {
+    clearWorkTypeSuggestionCloseTimer();
+    workTypeSuggestionCloseTimer = setTimeout(() => {
+      isWorkTypeSuggestionListOpen.value = false;
+      workTypeSuggestionCloseTimer = null;
+    }, 120);
+  }
+
+  function selectWorkTypeSuggestion(suggestion: WorkTypeReferenceResponse) {
+    clearWorkTypeSuggestionCloseTimer();
+    workTypeSuggestionRequestId += 1;
+    store.selectMirUploadWorkType({
+      id: suggestion.id,
+      name: suggestion.name,
+    });
+    workTypeSuggestions.value = [];
+    workTypeSuggestionsErrorMessage.value = "";
+    isWorkTypeSuggestionListOpen.value = false;
+  }
+
+  function updateMirUploadWorkTypeName(value: string) {
+    store.setMirUploadWorkTypeName(value);
+    void loadWorkTypeSuggestions(value);
   }
 
   function revokePreviewUrls() {
@@ -271,6 +429,8 @@ export function useDocumentUploadDemoViewModel() {
 
   onBeforeUnmount(() => {
     clearGuideInspectionTimer();
+    clearWorkTypeSuggestionCloseTimer();
+    workTypeSuggestionRequestId += 1;
     revokePreviewUrls();
   });
 
@@ -279,7 +439,16 @@ export function useDocumentUploadDemoViewModel() {
     uploadFeedbackPageCopy,
     selectedDocument,
     hasSelectedDocument,
-    autoProceedAfterUpload,
+    isMaterialInspectionRequest,
+    isConcreteDeliveryTest,
+    requiresWorkContext,
+    mirUploadApplication,
+    mirUploadWorkTypeName,
+    mirUploadWorkTypeId,
+    workTypeSuggestions,
+    isWorkTypeSuggestionsLoading,
+    workTypeSuggestionsErrorMessage,
+    isWorkTypeSuggestionListOpen,
     needsOcrValidation,
     selectedPreset,
     requiresUpload,
@@ -291,6 +460,7 @@ export function useDocumentUploadDemoViewModel() {
     missingCount,
     canReview,
     canProceed,
+    uploadErrorMessage: computed(() => store.mirAnalysisErrorMessage),
     primaryFeedbackActionLabel,
     primaryFeedbackRoute,
     backToSelectionRoute: "/preview/documents",
@@ -299,5 +469,9 @@ export function useDocumentUploadDemoViewModel() {
     removeUploadedImageFile: store.removeUploadedImageFile,
     clearUpload: store.clearUpload,
     selectUploadDocument,
+    updateMirUploadWorkTypeName,
+    openWorkTypeSuggestionList,
+    scheduleCloseWorkTypeSuggestionList,
+    selectWorkTypeSuggestion,
   };
 }

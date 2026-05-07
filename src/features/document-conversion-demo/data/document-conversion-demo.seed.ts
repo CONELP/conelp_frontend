@@ -61,24 +61,12 @@ export const documentCatalog: DocumentDemoCard[] = [
   },
   {
     type: "material_registration",
-    label: "반입 자재 등록",
-    chipLabel: "반입 자재 등록",
-    iconSrc: clipboardTaskIcon,
-    description: "반입 자재 정보와 거래 명세 내용을 등록하는 문서",
-    uploadGuide: "송장 사진과 거래 명세서 사진을 올려 주세요.",
-    resultLabel: "반입 자재 등록 결과 시안",
-    status: "available",
-    accentLabel: "즉시 데모 가능",
-    generationMode: "upload_required",
-  },
-  {
-    type: "material_inspection_rebar",
     label: "자재 반입 검수요청",
     chipLabel: "자재 반입 검수요청",
     iconSrc: clipboardTaskIcon,
-    description: "철근 반입 수량과 규격 확인 내용을 작성하는 검수 요청 문서",
-    uploadGuide: "철근 표기 사진과 검수 대상 자재 사진을 올려 주세요.",
-    resultLabel: "철근 검수요청서 결과 시안",
+    description: "반입 자재 정보와 검수 요청에 필요한 항목을 정리하는 문서",
+    uploadGuide: "송장 사진과 거래 명세서 사진을 올려 주세요.",
+    resultLabel: "자재 반입 검수요청 결과 시안",
     status: "available",
     accentLabel: "즉시 데모 가능",
     generationMode: "upload_required",
@@ -181,7 +169,7 @@ export const uploadDocumentPresets: UploadDocumentPreset[] = [
   },
   {
     documentType: "material_registration",
-    guideItems: ["송장사진", "자재반입사진", "밀시트 사진"],
+    guideItems: ["송장 사진", "자재 반입 사진", "밀시트 사진"],
     sampleFiles: [
       {
         id: "material-registration-1",
@@ -202,12 +190,12 @@ export const uploadDocumentPresets: UploadDocumentPreset[] = [
     feedbackItems: [
       {
         id: "material-registration-check-1",
-        label: "송장사진",
+        label: "송장 사진",
         status: "matched",
       },
       {
         id: "material-registration-check-2",
-        label: "자재반입사진",
+        label: "자재 반입 사진",
         status: "matched",
       },
       {
@@ -218,36 +206,13 @@ export const uploadDocumentPresets: UploadDocumentPreset[] = [
     ],
   },
   {
-    documentType: "material_inspection_rebar",
-    guideItems: ["송장 사진", "자재 반입 사진", "밀시트 사진"],
-    sampleFiles: [
-      {
-        id: "rebar-1",
-        name: "IMG_2410_철근표기.jpg",
-        previewType: "image",
-      },
-      {
-        id: "rebar-2",
-        name: "IMG_2411_반입전경.jpg",
-        previewType: "image",
-      },
-    ],
-    feedbackItems: [
-      { id: "rebar-check-1", label: "송장 사진", status: "matched" },
-      { id: "rebar-check-2", label: "자재 반입 사진", status: "matched" },
-      {
-        id: "rebar-check-3",
-        label: "밀시트 사진",
-        status: "missing",
-      },
-    ],
-  },
-  {
     documentType: "concrete_delivery_csi",
     guideItems: [
-      "반입 차량 전경 사진",
-      "레미콘 출하증명서 사진",
-      "반입시험 기록지 사진",
+      "송장 사진",
+      "슬럼프 시험 전경 사진",
+      "보드판 사진",
+      "염화물 사진",
+      "함수율 사진",
     ],
     sampleFiles: [
       {
@@ -264,17 +229,27 @@ export const uploadDocumentPresets: UploadDocumentPreset[] = [
     feedbackItems: [
       {
         id: "delivery-check-1",
-        label: "반입 차량 전경 사진",
+        label: "송장 사진",
         status: "matched",
       },
       {
         id: "delivery-check-2",
-        label: "레미콘 출하증명서 사진",
+        label: "슬럼프 시험 전경 사진",
         status: "matched",
       },
       {
         id: "delivery-check-3",
-        label: "반입시험 기록지 사진",
+        label: "보드판 사진",
+        status: "missing",
+      },
+      {
+        id: "delivery-check-4",
+        label: "염화물 사진",
+        status: "missing",
+      },
+      {
+        id: "delivery-check-5",
+        label: "함수율 사진",
         status: "missing",
       },
     ],

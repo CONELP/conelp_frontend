@@ -6,7 +6,7 @@
       <section class="material-result-shell material-result-card">
         <header class="material-result-hero">
           <h1 class="material-result-title">
-            자재를 성공적으로 등록했어요.
+            자재 반입 정보를 확인했어요.
           </h1>
         </header>
 
@@ -43,7 +43,7 @@
               >
                 <div
                   v-for="row in registeredMaterialRows"
-                  :key="row.id"
+                  :key="row.lineKey"
                   class="material-result-row"
                 >
                   <span class="material-result-row__name">
@@ -71,7 +71,7 @@
             type="button"
             @click="handleCreateInspectionRequest"
           >
-            자재 반입 검수 요청서 생성하기
+            자재 반입 검수요청서 생성하기
           </button>
         </footer>
       </section>
@@ -90,10 +90,10 @@ import { useDocumentConversionDemoStore } from "@/features/document-conversion-d
 const documentStore = useDocumentConversionDemoStore();
 const router = useRouter();
 const registeredMaterialRows = computed(
-  () => documentStore.materialRegistrationResult?.rows ?? [],
+  () => documentStore.mirAnalysisResult?.lines ?? [],
 );
 const materialReview = computed(
-  () => documentStore.materialRegistrationResult?.review,
+  () => documentStore.mirAnalysisResult,
 );
 const materialSummaryTitle = computed(() => {
   if (registeredMaterialRows.value.length === 0) {
@@ -109,26 +109,25 @@ const materialSummaryTitle = computed(() => {
   return totalQuantity > 0 ? `철근 총량 ${totalQuantity}t` : "철근 총량";
 });
 const materialSummaryMeta = computed(() => {
-  const location = materialReview.value?.location || "사용부위 미입력";
+  const location = materialReview.value?.application || "사용 위치 미입력";
   const supplier = materialReview.value?.supplier || "공급업체 미입력";
 
   return `${location} · ${supplier}`;
 });
 
 function handleCreateInspectionRequest() {
-  documentStore.selectDocument("material_inspection_rebar");
-  void router.push({
-    path: "/preview/upload",
-    query: { documentType: "material_inspection_rebar" },
-  });
+  void router.push("/preview/result");
 }
 
-function formatMaterialName(row: { manufacturer: string; spec: string }) {
-  return [row.manufacturer, row.spec].filter(Boolean).join(" ") || "등록된 자재";
+function formatMaterialName(row: {
+  manufacturer: string | null;
+  materialSpecName: string;
+}) {
+  return [row.manufacturer, row.materialSpecName].filter(Boolean).join(" ") || "등록된 자재";
 }
 
-function formatMaterialQuantity(row: { quantity: string }) {
-  return row.quantity ? `${row.quantity} m2` : "수량 미입력";
+function formatMaterialQuantity(row: { quantity: string | number | null }) {
+  return row.quantity ? String(row.quantity) : "수량 미입력";
 }
 </script>
 

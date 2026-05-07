@@ -1,8 +1,17 @@
-interface GeneratedDocumentListItem {
+import { computed, onMounted, ref } from "vue";
+
+import { materialInspectionRequestApi } from "@/features/document-conversion-demo/api/material-inspection-request.api";
+import type { DocumentJobResponse } from "@/features/document-conversion-demo/api/material-inspection-request-api.types";
+
+export interface GeneratedDocumentListItem {
   id: string;
+  jobId: number;
   title: string;
   subtitle: string;
   createdAt: string;
+  resultUrl: string | null;
+  pdfUrl: string | null;
+  downloadFileName: string;
 }
 
 interface GeneratedDocumentDateGroup {
@@ -11,18 +20,19 @@ interface GeneratedDocumentDateGroup {
   documents: GeneratedDocumentListItem[];
 }
 
-interface GeneratedDocumentSeedItem {
-  id: string;
-  fileName: string;
-  documentLabel: string;
-  documentNumber?: string;
-  createdAt: string;
-}
-
 const KOREAN_WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"] as const;
+const SUCCESS_STATUS = "SUCCEEDED";
+const DOCUMENT_LABEL_BY_TYPE: Record<string, string> = {
+  MIR: "자재 반입 검수요청",
+};
 
 function formatGeneratedDocumentDate(value: string) {
   const createdAt = new Date(value);
+
+  if (Number.isNaN(createdAt.getTime())) {
+    return "";
+  }
+
   const year = createdAt.getFullYear();
   const month = String(createdAt.getMonth() + 1).padStart(2, "0");
   const day = String(createdAt.getDate()).padStart(2, "0");
@@ -32,6 +42,11 @@ function formatGeneratedDocumentDate(value: string) {
 
 function formatGeneratedDocumentTime(value: string) {
   const createdAt = new Date(value);
+
+  if (Number.isNaN(createdAt.getTime())) {
+    return "";
+  }
+
   const hours = String(createdAt.getHours()).padStart(2, "0");
   const minutes = String(createdAt.getMinutes()).padStart(2, "0");
 
@@ -40,6 +55,14 @@ function formatGeneratedDocumentTime(value: string) {
 
 function formatGeneratedDocumentDateGroup(value: string) {
   const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return {
+      key: "unknown",
+      label: "날짜 없음",
+    };
+  }
+
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
@@ -59,101 +82,144 @@ function formatGeneratedDocumentDateKey(value: Date) {
   return `${year}-${month}-${day}`;
 }
 
-const generatedDocumentSeeds: GeneratedDocumentSeedItem[] = [
-  {
-    id: "generated-daily-report",
-    fileName: "2026.04.21 공사일보.pdf",
-    documentLabel: "공사일보",
-    documentNumber: "DR-2026-0421-01",
-    createdAt: "2026-04-22T14:32:00+09:00",
-  },
-  {
-    id: "generated-material-inspection",
-    fileName: "2026.04.20 자재반입 검수요청.pdf",
-    documentLabel: "자재반입 검수요청",
-    documentNumber: "MI-2026-0420-03",
-    createdAt: "2026-04-22T11:08:00+09:00",
-  },
-  {
-    id: "generated-concrete-delivery",
-    fileName: "2026.04.20 콘크리트 반입시험.pdf",
-    documentLabel: "콘크리트 반입시험",
-    createdAt: "2026-04-22T09:24:00+09:00",
-  },
-  {
-    id: "generated-concrete-strength",
-    fileName: "2026.04.20 콘크리트 압축강도.pdf",
-    documentLabel: "콘크리트 압축강도",
-    documentNumber: "CS-2026-0420-11",
-    createdAt: "2026-04-20T09:16:00+09:00",
-  },
-  {
-    id: "generated-inspection-request",
-    fileName: "2026.04.18 검측 요청서.pdf",
-    documentLabel: "검측 요청서",
-    documentNumber: "IR-2026-0418-02",
-    createdAt: "2026-04-18T09:41:00+09:00",
-  },
-  {
-    id: "generated-daily-report-0417-1",
-    fileName: "2026.04.17 공사일보.pdf",
-    documentLabel: "공사일보",
-    createdAt: "2026-04-17T18:22:00+09:00",
-  },
-  {
-    id: "generated-material-inspection-0417-1",
-    fileName: "2026.04.17 자재반입 검수요청.pdf",
-    documentLabel: "자재반입 검수요청",
-    createdAt: "2026-04-17T17:46:00+09:00",
-  },
-];
+function resolveGeneratedDocumentFileExtension(value: string | null | undefined) {
+  if (!value) {
+    return "";
+  }
+
+  const [pathname] = value.split("?");
+  let decodedPathname = pathname;
+
+  try {
+    decodedPathname = decodeURIComponent(pathname);
+  } catch {
+    decodedPathname = pathname;
+  }
+
+  const match = decodedPathname.toLowerCase().match(/\.(pdf|xlsx|xls|hwp|docx)$/);
+
+  return match ? `.${match[1]}` : "";
+}
+
+function removeWhitespace(value: string) {
+  return value.replace(/\s+/g, "");
+}
+
+function resolveGeneratedDocumentDate(document: DocumentJobResponse) {
+  return document.createdAt ?? document.completedAt ?? document.startedAt ?? "";
+}
+
+function resolveGeneratedDocumentTitle(document: DocumentJobResponse) {
+  return DOCUMENT_LABEL_BY_TYPE[document.docType] ?? document.docType;
+}
+
+function toGeneratedDocumentListItem(
+  document: DocumentJobResponse,
+): GeneratedDocumentListItem {
+  const createdAt = resolveGeneratedDocumentDate(document);
+  const timeLabel = formatGeneratedDocumentTime(createdAt);
+  const fallbackDateLabel = formatGeneratedDocumentDate(createdAt);
+  const subtitleBase = document.docNo ?? fallbackDateLabel;
+  const title = resolveGeneratedDocumentTitle(document);
+  const documentName = removeWhitespace(title);
+  const docNo = removeWhitespace(document.docNo ?? String(document.id));
+  const sourceUrl = document.resultUrl ?? document.pdfUrl;
+
+  return {
+    id: String(document.id),
+    jobId: document.id,
+    title,
+    subtitle: [subtitleBase, timeLabel].filter(Boolean).join(", "),
+    createdAt,
+    resultUrl: document.resultUrl,
+    pdfUrl: document.pdfUrl,
+    downloadFileName: `${documentName}_${docNo}${resolveGeneratedDocumentFileExtension(sourceUrl)}`,
+  };
+}
+
+function sortGeneratedDocuments(
+  documents: GeneratedDocumentListItem[],
+) {
+  return [...documents].sort(
+    (left, right) =>
+      new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+  );
+}
 
 export function useGeneratedDocumentsDemoViewModel() {
-  const generatedDocumentGroups = generatedDocumentSeeds.reduce<GeneratedDocumentDateGroup[]>(
-    (groups, document) => {
-      const dateGroup = formatGeneratedDocumentDateGroup(document.createdAt);
-      const existingGroup = groups.find((group) => group.dateKey === dateGroup.key);
-      const listItem: GeneratedDocumentListItem = {
-        id: document.id,
-        title: document.documentLabel,
-        subtitle: `${
-          document.documentNumber ?? formatGeneratedDocumentDate(document.createdAt)
-        }, ${formatGeneratedDocumentTime(document.createdAt)}`,
-        createdAt: document.createdAt,
-      };
+  const generatedDocumentItems = ref<GeneratedDocumentListItem[]>([]);
+  const isGeneratedDocumentsLoading = ref(false);
+  const generatedDocumentsErrorMessage = ref("");
 
-      if (existingGroup) {
-        existingGroup.documents.push(listItem);
+  const generatedDocumentGroups = computed(() =>
+    generatedDocumentItems.value.reduce<GeneratedDocumentDateGroup[]>(
+      (groups, document) => {
+        const dateGroup = formatGeneratedDocumentDateGroup(document.createdAt);
+        const existingGroup = groups.find((group) => group.dateKey === dateGroup.key);
+
+        if (existingGroup) {
+          existingGroup.documents.push(document);
+          return groups;
+        }
+
+        groups.push({
+          dateKey: dateGroup.key,
+          dateLabel: dateGroup.label,
+          documents: [document],
+        });
+
         return groups;
-      }
-
-      groups.push({
-        dateKey: dateGroup.key,
-        dateLabel: dateGroup.label,
-        documents: [listItem],
-      });
-
-      return groups;
-    },
-    [],
+      },
+      [],
+    ),
   );
 
-  const recentGeneratedDocuments = [...generatedDocumentGroups]
-    .flatMap((group) => group.documents)
-    .sort(
-      (left, right) =>
-        new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
-    )
-    .slice(0, 5);
+  const recentGeneratedDocuments = computed(() =>
+    sortGeneratedDocuments(
+      generatedDocumentGroups.value.flatMap((group) => group.documents),
+    ).slice(0, 5),
+  );
 
   const todayDateKey = formatGeneratedDocumentDateKey(new Date());
-  const todayGeneratedDocuments =
-    generatedDocumentGroups.find((group) => group.dateKey === todayDateKey)
-      ?.documents ?? [];
+  const todayGeneratedDocuments = computed(
+    () =>
+      generatedDocumentGroups.value.find((group) => group.dateKey === todayDateKey)
+        ?.documents ?? [],
+  );
+
+  async function refreshGeneratedDocuments() {
+    isGeneratedDocumentsLoading.value = true;
+    generatedDocumentsErrorMessage.value = "";
+
+    try {
+      const documents = await materialInspectionRequestApi.getMirDocumentList();
+
+      generatedDocumentItems.value = sortGeneratedDocuments(
+        documents
+          .filter((document) => document.status === SUCCESS_STATUS)
+          .map(toGeneratedDocumentListItem),
+      );
+    } catch (error) {
+      generatedDocumentsErrorMessage.value =
+        error instanceof Error
+          ? error.message
+          : "생성된 문서 목록을 불러오지 못했습니다.";
+      generatedDocumentItems.value = [];
+    } finally {
+      isGeneratedDocumentsLoading.value = false;
+    }
+  }
+
+  onMounted(() => {
+    void refreshGeneratedDocuments();
+  });
 
   return {
     generatedDocumentGroups,
     recentGeneratedDocuments,
     todayGeneratedDocuments,
+    isGeneratedDocumentsLoading,
+    generatedDocumentsErrorMessage,
+    refreshGeneratedDocuments,
   };
 }

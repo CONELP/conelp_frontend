@@ -60,7 +60,15 @@
             </div>
 
             <div class="selection-panel__generated-list">
-              <template v-if="todayGeneratedDocuments.length > 0">
+              <p v-if="isGeneratedDocumentsLoading" class="selection-panel__empty">
+                생성된 문서를 불러오고 있어요
+              </p>
+
+              <p v-else-if="generatedDocumentsErrorMessage" class="selection-panel__empty">
+                {{ generatedDocumentsErrorMessage }}
+              </p>
+
+              <template v-else-if="todayGeneratedDocuments.length > 0">
                 <article
                   v-for="document in todayGeneratedDocuments"
                   :key="document.id"
@@ -69,7 +77,7 @@
                   <span class="selection-panel__generated-icon-wrap" aria-hidden="true">
                     <img
                       class="selection-panel__generated-icon"
-                      :src="pdfIcon"
+                      :src="documentIcon"
                       alt=""
                     />
                   </span>
@@ -108,7 +116,7 @@
 <script setup lang="ts">
 import { RouterLink, useRouter } from "vue-router";
 import documentsIcon from "@fluentui/svg-icons/icons/chevron_right_20_regular.svg";
-import pdfIcon from "@fluentui/svg-icons/icons/document_pdf_20_regular.svg";
+import documentIcon from "@fluentui/svg-icons/icons/document_20_regular.svg";
 import menuIcon from "@fluentui/svg-icons/icons/text_align_justify_24_regular.svg";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
@@ -123,7 +131,11 @@ const {
   clearSelectedDocument,
   selectDocument,
 } = useDocumentConversionDemoViewModel();
-const { todayGeneratedDocuments } = useGeneratedDocumentsDemoViewModel();
+const {
+  todayGeneratedDocuments,
+  isGeneratedDocumentsLoading,
+  generatedDocumentsErrorMessage,
+} = useGeneratedDocumentsDemoViewModel();
 const router = useRouter();
 
 clearSelectedDocument();

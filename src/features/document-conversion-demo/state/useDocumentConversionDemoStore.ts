@@ -1,7 +1,19 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 
+import type {
+  CatAnalysisResponse,
+  CreateCatDocumentRequest,
+  CreateCatDocumentResponse,
+  CreateMirDocumentRequest,
+  CreateMirDocumentResponse,
+  MirAnalysisResponse,
+  UpdateCatDataRequest,
+  UpdateMirDataRequest,
+} from "@/features/document-conversion-demo/api/material-inspection-request-api.types";
 import { documentCatalog } from "@/features/document-conversion-demo/data/document-conversion-demo.seed";
+
+const MIR_IMAGE_UPLOAD_LIMIT = 10;
 
 function createUploadFileKey(file: File) {
   return `${file.name}:${file.size}:${file.lastModified}`;
@@ -21,24 +33,14 @@ interface UploadedImageFileEntry {
   fileKey: string;
 }
 
-interface MaterialRegistrationReview {
-  trade: string;
-  workType: string;
-  supplier: string;
-  deliveryDate: string;
-  location: string;
+interface MirDocumentSubmissionDraft {
+  createRequest: CreateMirDocumentRequest | null;
+  updateRequest: UpdateMirDataRequest | null;
 }
 
-interface MaterialRegistrationRow {
-  id: string;
-  manufacturer: string;
-  spec: string;
-  quantity: string;
-}
-
-interface MaterialRegistrationResult {
-  review: MaterialRegistrationReview;
-  rows: MaterialRegistrationRow[];
+interface CatDocumentSubmissionDraft {
+  createRequest: CreateCatDocumentRequest | null;
+  updateRequest: UpdateCatDataRequest | null;
 }
 
 export const useDocumentConversionDemoStore = defineStore(
@@ -47,23 +49,48 @@ export const useDocumentConversionDemoStore = defineStore(
     const selectedDocumentType = ref("");
     const uploadMode = ref<"uploaded" | "empty">("empty");
     const uploadedImageFiles = ref<UploadedImageFileEntry[]>([]);
-    const materialRegistrationResult =
-      ref<MaterialRegistrationResult | null>(null);
+    const mirUploadApplication = ref("");
+    const mirUploadWorkTypeName = ref("");
+    const mirUploadWorkTypeId = ref<number | null>(null);
+    const mirAnalysisResult = ref<MirAnalysisResponse | null>(null);
+    const mirCreateResult = ref<CreateMirDocumentResponse | null>(null);
+    const catAnalysisResult = ref<CatAnalysisResponse | null>(null);
+    const catCreateResult = ref<CreateCatDocumentResponse | null>(null);
+    const mirAnalysisErrorMessage = ref("");
+    const mirDocumentSubmissionDraft =
+      ref<MirDocumentSubmissionDraft | null>(null);
+    const catDocumentSubmissionDraft =
+      ref<CatDocumentSubmissionDraft | null>(null);
 
     const selectedDocument = computed(() =>
       documentCatalog.find((document) => document.type === selectedDocumentType.value),
     );
 
+    function clearMirResult() {
+      mirAnalysisResult.value = null;
+      mirCreateResult.value = null;
+      catAnalysisResult.value = null;
+      catCreateResult.value = null;
+      mirAnalysisErrorMessage.value = "";
+      mirDocumentSubmissionDraft.value = null;
+      catDocumentSubmissionDraft.value = null;
+    }
+
     function selectDocument(type: string) {
       selectedDocumentType.value = type;
       uploadMode.value = "empty";
       uploadedImageFiles.value = [];
+      clearMirResult();
     }
 
     function clearSelectedDocument() {
       selectedDocumentType.value = "";
       uploadMode.value = "empty";
       uploadedImageFiles.value = [];
+      mirUploadApplication.value = "";
+      mirUploadWorkTypeName.value = "";
+      mirUploadWorkTypeId.value = null;
+      clearMirResult();
     }
 
     function addUploadedImageFiles(files: File[]) {
@@ -71,8 +98,12 @@ export const useDocumentConversionDemoStore = defineStore(
       const existingKeys = new Set(
         uploadedImageFiles.value.map((entry) => entry.fileKey),
       );
+      const remainingSlots = Math.max(
+        MIR_IMAGE_UPLOAD_LIMIT - uploadedImageFiles.value.length,
+        0,
+      );
 
-      nextFiles.forEach((file) => {
+      nextFiles.slice(0, remainingSlots).forEach((file) => {
         const fileKey = createUploadFileKey(file);
 
         if (!existingKeys.has(fileKey)) {
@@ -87,6 +118,7 @@ export const useDocumentConversionDemoStore = defineStore(
 
       uploadMode.value =
         uploadedImageFiles.value.length > 0 ? "uploaded" : "empty";
+      clearMirResult();
     }
 
     function removeUploadedImageFile(fileIdToRemove: string) {
@@ -96,15 +128,78 @@ export const useDocumentConversionDemoStore = defineStore(
 
       uploadMode.value =
         uploadedImageFiles.value.length > 0 ? "uploaded" : "empty";
+      clearMirResult();
     }
 
     function clearUpload() {
       uploadMode.value = "empty";
       uploadedImageFiles.value = [];
+      clearMirResult();
     }
 
-    function saveMaterialRegistrationResult(result: MaterialRegistrationResult) {
-      materialRegistrationResult.value = result;
+    function setMirUploadApplication(value: string) {
+      mirUploadApplication.value = value;
+      clearMirResult();
+    }
+
+    function setMirUploadWorkTypeName(value: string) {
+      mirUploadWorkTypeName.value = value;
+      mirUploadWorkTypeId.value = null;
+      clearMirResult();
+    }
+
+    function selectMirUploadWorkType(workType: { id: number; name: string }) {
+      mirUploadWorkTypeName.value = workType.name;
+      mirUploadWorkTypeId.value = workType.id;
+      clearMirResult();
+    }
+
+    function saveMirAnalysisResult(result: MirAnalysisResponse) {
+      mirAnalysisResult.value = result;
+      mirCreateResult.value = null;
+      mirAnalysisErrorMessage.value = "";
+      mirUploadApplication.value = result.application ?? mirUploadApplication.value;
+      mirUploadWorkTypeName.value = result.workTypeName ?? mirUploadWorkTypeName.value;
+      mirUploadWorkTypeId.value = result.workTypeId ?? mirUploadWorkTypeId.value;
+    }
+
+    function saveMirCreateResult(result: CreateMirDocumentResponse) {
+      mirCreateResult.value = result;
+      mirDocumentSubmissionDraft.value = null;
+    }
+
+    function saveCatAnalysisResult(result: CatAnalysisResponse) {
+      catAnalysisResult.value = result;
+      catCreateResult.value = null;
+      mirAnalysisErrorMessage.value = "";
+      mirUploadApplication.value = result.application ?? mirUploadApplication.value;
+      mirUploadWorkTypeName.value = result.workTypeName ?? mirUploadWorkTypeName.value;
+      mirUploadWorkTypeId.value = result.workTypeId ?? mirUploadWorkTypeId.value;
+    }
+
+    function saveCatCreateResult(result: CreateCatDocumentResponse) {
+      catCreateResult.value = result;
+      catDocumentSubmissionDraft.value = null;
+    }
+
+    function setMirAnalysisErrorMessage(message: string) {
+      mirAnalysisErrorMessage.value = message;
+    }
+
+    function saveMirDocumentSubmissionDraft(draft: MirDocumentSubmissionDraft) {
+      mirDocumentSubmissionDraft.value = draft;
+    }
+
+    function clearMirDocumentSubmissionDraft() {
+      mirDocumentSubmissionDraft.value = null;
+    }
+
+    function saveCatDocumentSubmissionDraft(draft: CatDocumentSubmissionDraft) {
+      catDocumentSubmissionDraft.value = draft;
+    }
+
+    function clearCatDocumentSubmissionDraft() {
+      catDocumentSubmissionDraft.value = null;
     }
 
     return {
@@ -112,13 +207,33 @@ export const useDocumentConversionDemoStore = defineStore(
       selectedDocument,
       uploadMode,
       uploadedImageFiles,
-      materialRegistrationResult,
+      mirUploadApplication,
+      mirUploadWorkTypeName,
+      mirUploadWorkTypeId,
+      mirAnalysisResult,
+      mirCreateResult,
+      catAnalysisResult,
+      catCreateResult,
+      mirAnalysisErrorMessage,
+      mirDocumentSubmissionDraft,
+      catDocumentSubmissionDraft,
       selectDocument,
       clearSelectedDocument,
       addUploadedImageFiles,
       removeUploadedImageFile,
       clearUpload,
-      saveMaterialRegistrationResult,
+      setMirUploadApplication,
+      setMirUploadWorkTypeName,
+      selectMirUploadWorkType,
+      saveMirAnalysisResult,
+      saveMirCreateResult,
+      saveCatAnalysisResult,
+      saveCatCreateResult,
+      setMirAnalysisErrorMessage,
+      saveMirDocumentSubmissionDraft,
+      clearMirDocumentSubmissionDraft,
+      saveCatDocumentSubmissionDraft,
+      clearCatDocumentSubmissionDraft,
     };
   },
 );

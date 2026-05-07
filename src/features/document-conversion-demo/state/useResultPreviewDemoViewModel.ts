@@ -16,19 +16,126 @@ function formatResultFileName(label: string, date: Date) {
   return `${year}.${month}.${day} ${label}.pdf`;
 }
 
+function resolveResultFileExtension(value: string | null | undefined) {
+  if (!value) {
+    return "";
+  }
+
+  const [pathname] = value.split("?");
+  let decodedPathname = pathname;
+
+  try {
+    decodedPathname = decodeURIComponent(pathname);
+  } catch {
+    decodedPathname = pathname;
+  }
+
+  decodedPathname = decodedPathname.toLowerCase();
+  const match = decodedPathname.match(/\.(pdf|xlsx|xls|hwp|docx)$/);
+
+  return match ? `.${match[1]}` : "";
+}
+
+function removeWhitespace(value: string) {
+  return value.replace(/\s+/g, "");
+}
+
+function formatResultTime(value: string | null | undefined) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+
+  return `${hours}:${minutes}`;
+}
+
 export function useResultPreviewDemoViewModel() {
   const store = useDocumentConversionDemoStore();
 
   const selectedDocument = computed(
     () => store.selectedDocument ?? documentCatalog[0],
   );
+  const activeCreateResult = computed(
+    () => store.catCreateResult ?? store.mirCreateResult,
+  );
 
   const resultFileName = computed(() =>
-    formatResultFileName(selectedDocument.value.label, new Date()),
+    activeCreateResult.value?.docNo
+      ? activeCreateResult.value.docNo
+      : formatResultFileName(selectedDocument.value.label, new Date()),
+  );
+
+  const resultDownloadUrl = computed(
+    () => activeCreateResult.value?.resultUrl ?? activeCreateResult.value?.pdfUrl ?? "",
+  );
+
+  const resultDownloadJobId = computed(
+    () => activeCreateResult.value?.jobId ?? null,
+  );
+
+  const resultDocumentTitle = computed(() => {
+    if (store.catCreateResult) {
+      return "콘크리트 반입시험";
+    }
+
+    if (store.mirCreateResult) {
+      return "자재 반입 검수요청";
+    }
+
+    return selectedDocument.value.label;
+  });
+
+  const resultDocumentSubtitle = computed(() => {
+    if (!activeCreateResult.value) {
+      return resultFileName.value;
+    }
+
+    const createdTime = formatResultTime(
+      activeCreateResult.value.completedAt ??
+        activeCreateResult.value.createdAt ??
+        activeCreateResult.value.startedAt,
+    );
+
+    return [activeCreateResult.value.docNo, createdTime].filter(Boolean).join(", ");
+  });
+
+  const resultDownloadFileName = computed(() => {
+    if (!activeCreateResult.value?.docNo) {
+      return resultFileName.value;
+    }
+
+    const documentName = removeWhitespace(resultDocumentTitle.value);
+    const docNo = removeWhitespace(activeCreateResult.value.docNo);
+
+    return `${documentName}_${docNo}${resolveResultFileExtension(resultDownloadUrl.value)}`;
+  });
+
+  const isResultDownloadAvailable = computed(() =>
+    Boolean(resultDownloadUrl.value || resultDownloadJobId.value),
+  );
+
+  const reviewItems = computed(() =>
+    activeCreateResult.value
+      ? []
+      : DEFAULT_REVIEW_ITEMS,
   );
 
   return {
     resultFileName,
-    reviewItems: DEFAULT_REVIEW_ITEMS,
+    resultDownloadUrl,
+    resultDownloadJobId,
+    resultDownloadFileName,
+    resultDocumentTitle,
+    resultDocumentSubtitle,
+    isResultDownloadAvailable,
+    reviewItems,
   };
 }
