@@ -5,9 +5,18 @@ import type {
   TokenResponse,
   User,
 } from "@/features/auth/model/auth.types";
-import { getAccessToken, setAccessToken } from "@/shared/network/access-token";
+import {
+  clearRefreshTokenCookieMarker,
+  getAccessToken,
+  markRefreshTokenCookieAvailable,
+  setAccessToken,
+} from "@/shared/network/access-token";
 import { toApiUrl } from "@/shared/network/api-config";
 import { importPublicKey, rsaEncrypt } from "@/shared/utils/rsa-encrypt";
+
+interface AuthFetchOptions extends RequestInit {
+  includeAuthorization?: boolean;
+}
 
 export class ValidationError extends Error {
   fieldErrors: FieldErrors;
@@ -64,20 +73,21 @@ function toRequestError(status: number, body: unknown) {
   return new Error(message);
 }
 
-async function authFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const headers = new Headers(init?.headers);
+async function authFetch<T>(path: string, init?: AuthFetchOptions): Promise<T> {
+  const { includeAuthorization = false, ...requestInit } = init ?? {};
+  const headers = new Headers(requestInit.headers);
   const token = getAccessToken();
 
   if (!headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
-  if (token) {
+  if (includeAuthorization && token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
 
   const response = await fetch(toApiUrl(`/auth${path}`), {
-    ...init,
+    ...requestInit,
     credentials: "include",
     headers,
   });
@@ -116,6 +126,7 @@ export const authApi = {
     });
 
     setAccessToken(tokenData.accessToken);
+    markRefreshTokenCookieAvailable();
 
     return authApi.me();
   },
@@ -126,11 +137,14 @@ export const authApi = {
     });
 
     setAccessToken(tokenData.accessToken);
+    markRefreshTokenCookieAvailable();
     return tokenData;
   },
 
   async me() {
-    return authFetch<User>("/me");
+    return authFetch<User>("/me", {
+      includeAuthorization: true,
+    });
   },
 
   async logout() {
@@ -138,5 +152,6 @@ export const authApi = {
       method: "POST",
     });
     setAccessToken(null);
+    clearRefreshTokenCookieMarker();
   },
 };

@@ -53,7 +53,7 @@
 완료 기준:
 구현자가 이번 시연에서 무엇을 실제 연동하지 않고, 무엇을 화면 흐름으로 반드시 보여 줘야 하는지 바로 구분할 수 있다.
 
-## Stage 2. 현장 변경 흐름 구현
+## Stage 2. 현장 변경 흐름 구현 [completed]
 
 목표:
 사용자가 데모 첫 화면이나 상단 컨텍스트에서 현장을 바꾸면, 이후 문서 생성과 공정표 생성 화면이 같은 현장 기준으로 이어지게 만든다.
@@ -62,19 +62,27 @@
 `feat: add demo site switching flow`
 
 결과물:
-- 현장 선택 UI
+- 헤더 현장 dropdown 선택 UI
 - selected site store
 - git tracked 현장별 demo manifest
 - 선택 현장 session state
 
 체크포인트:
-- [ ] `선혜원`, `청운교회` 현장 카드를 만든다
-- [ ] 현재 선택 현장을 전역 demo context로 저장한다
-- [ ] 현장 id는 git tracked manifest에서만 가져오게 한다
-- [ ] 새로고침 시 기본 현장은 git tracked seed의 `defaultSiteId`로 복원한다
-- [ ] 현장 변경 시 문서 목록과 공정표 seed가 선택 현장 기준으로 바뀌게 한다
-- [ ] 현장 변경 후 이전 현장의 생성 결과와 섞이지 않게 demo state를 `siteId` 기준으로 분리한다
-- [ ] 선택 현장이 없을 때는 현장 선택 화면으로 먼저 보낸다
+- [x] `선혜원`, `청운교회` 현장 dropdown 항목을 만든다
+- [x] 현재 선택 현장을 전역 demo context로 저장한다
+- [x] 현장 id는 git tracked manifest에서만 가져오게 한다
+- [x] 새로고침 시 기본 현장은 git tracked seed의 `defaultSiteId`로 복원한다
+- [x] 현장 변경 시 문서 목록과 공정표 seed가 선택 현장 기준으로 바뀌게 한다
+- [x] 현장 변경 후 이전 현장의 생성 결과와 섞이지 않게 demo state를 `siteId` 기준으로 분리한다
+- [x] 별도 `/sites` 화면 없이 헤더 dropdown에서 현장을 전환한다
+
+진행 메모:
+- `src/features/service-presentation-demo/data/site-manifest.seed.ts`를 git 공유 현장 manifest로 추가했다.
+- `useServicePresentationDemoStore`에서 `defaultSiteId`, selected site, site-scoped documents, schedule seed id를 제공한다.
+- 헤더의 현장 chip은 아래 chevron이 있는 dropdown으로 동작하며, 같은 화면 안에서 현장을 바꾼다.
+- 현장을 바꾸면 선택 현장을 session state에 반영하고, `현장 정보를 불러오고 있어요.` overlay를 보여 준 뒤 전체 화면을 한 번 refresh한다.
+- dropdown 항목은 현장명만 보여 주고, 선택 현장은 Conelp primary blue의 두꺼운 border로만 표시한다.
+- 문서 선택 화면은 선택 현장의 manifest를 기준으로 기존 문서 카탈로그를 필터링한다.
 
 완료 기준:
 사용자가 `선혜원`과 `청운교회`를 전환하면 이후 모든 데모 화면의 문서 자료, 생성 이력, 공정표 상태가 선택한 현장 기준으로 바뀐다.

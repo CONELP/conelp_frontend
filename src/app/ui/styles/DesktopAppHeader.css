@@ -34,9 +34,14 @@
   gap: 0.58rem;
 }
 
+.desktop-app-header__site-selector {
+  position: relative;
+}
+
 .desktop-app-header__chip {
   display: inline-flex;
   align-items: center;
+  gap: 0.4rem;
   min-height: 2.2rem;
   padding: 0.48rem 0.86rem;
   border: 1px solid rgba(0, 0, 0, 0.08);
@@ -46,6 +51,97 @@
   font-size: 0.88rem;
   font-weight: 400;
   line-height: 1;
+}
+
+.desktop-app-header__chip--site {
+  transition:
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.desktop-app-header__chip--site:hover {
+  border-color: var(--primary-outline);
+  color: var(--ink);
+}
+
+.desktop-app-header__chip-icon {
+  width: 1rem;
+  height: 1rem;
+  opacity: 0.72;
+}
+
+.desktop-app-header__chevron {
+  width: 0.95rem;
+  height: 0.95rem;
+  opacity: 0.7;
+  transition: transform 160ms ease;
+}
+
+.desktop-app-header__chevron--open {
+  transform: rotate(180deg);
+}
+
+.desktop-app-header__site-menu {
+  position: absolute;
+  top: calc(100% + 0.42rem);
+  right: 0;
+  z-index: 40;
+  display: grid;
+  width: min(13rem, calc(100vw - 1.4rem));
+  padding: 0.34rem;
+  border: 1px solid var(--outline-soft);
+  border-radius: 8px;
+  background: var(--surface-1);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.14);
+}
+
+.desktop-app-header__site-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0.6rem 0.72rem;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  text-align: left;
+}
+
+.desktop-app-header__site-menu-item:hover {
+  background: #f3f4f6;
+}
+
+.desktop-app-header__site-menu-item--selected {
+  border-color: var(--primary);
+}
+
+.desktop-app-header__site-menu-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.24rem;
+}
+
+.desktop-app-header__site-menu-copy strong {
+  color: var(--ink-strong);
+  font-size: 0.92rem;
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.desktop-app-header__site-menu-transition-enter-active,
+.desktop-app-header__site-menu-transition-leave-active {
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+
+.desktop-app-header__site-menu-transition-enter-from,
+.desktop-app-header__site-menu-transition-leave-to {
+  opacity: 0;
+  transform: translateY(-0.2rem);
 }
 
 .desktop-app-header__settings {
@@ -109,4 +205,98 @@
 
 .desktop-app-header__nav-link--active::after {
   background: var(--ink);
+}
+
+.desktop-app-header__site-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(248, 250, 252, 0.62);
+  backdrop-filter: blur(3px);
+}
+
+.desktop-app-header__site-loading-overlay::before {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.34) 42%,
+    rgba(255, 255, 255, 0) 78%
+  );
+  content: "";
+  pointer-events: none;
+  transform: translateX(-100%);
+  animation: desktop-app-header-site-loading-sweep 950ms ease-in-out infinite;
+}
+
+.desktop-app-header__site-loading-card {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  min-width: 16rem;
+  justify-items: center;
+  gap: 0.85rem;
+  padding: 1.35rem 1.55rem;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 0.85rem;
+  background: #fff;
+  box-shadow: 0 22px 48px rgba(15, 23, 42, 0.16);
+  color: #334155;
+  text-align: center;
+}
+
+.desktop-app-header__site-loading-indicator {
+  width: 2.8rem;
+  height: 2.8rem;
+  flex: 0 0 auto;
+  border: 4px solid rgba(30, 24, 136, 0.16);
+  border-top-color: var(--primary);
+  border-radius: 999px;
+  animation: desktop-app-header-site-loading-spin 720ms linear infinite;
+}
+
+.desktop-app-header__site-loading-copy {
+  display: grid;
+  gap: 0.32rem;
+}
+
+.desktop-app-header__site-loading-copy span {
+  color: #334155;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.desktop-app-header__site-loading-transition-enter-active,
+.desktop-app-header__site-loading-transition-leave-active {
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.desktop-app-header__site-loading-transition-enter-from,
+.desktop-app-header__site-loading-transition-leave-to {
+  opacity: 0;
+  transform: translateY(-0.35rem);
+}
+
+@keyframes desktop-app-header-site-loading-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes desktop-app-header-site-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }

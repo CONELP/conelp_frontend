@@ -3,7 +3,12 @@ import { defineStore } from "pinia";
 
 import { authApi, RateLimitError, ValidationError } from "@/features/auth/services/auth-api";
 import type { FieldErrors, User } from "@/features/auth/model/auth.types";
-import { clearAccessToken } from "@/shared/network/access-token";
+import {
+  clearAccessToken,
+  clearRefreshTokenCookieMarker,
+  getAccessToken,
+  hasRefreshTokenCookieMarker,
+} from "@/shared/network/access-token";
 
 export const useAuthStore = defineStore("auth", () => {
   const user = ref<User | null>(null);
@@ -79,6 +84,7 @@ export const useAuthStore = defineStore("auth", () => {
       await authApi.logout();
     } catch {
       clearAccessToken();
+      clearRefreshTokenCookieMarker();
     } finally {
       user.value = null;
       localStorage.removeItem("selectedProjectId");
@@ -92,10 +98,25 @@ export const useAuthStore = defineStore("auth", () => {
     isLoading.value = true;
 
     try {
+      if (getAccessToken()) {
+        try {
+          user.value = await authApi.me();
+          return;
+        } catch {
+          clearAccessToken();
+        }
+      }
+
+      if (!hasRefreshTokenCookieMarker()) {
+        user.value = null;
+        return;
+      }
+
       await authApi.refresh();
       user.value = await authApi.me();
     } catch {
       clearAccessToken();
+      clearRefreshTokenCookieMarker();
       user.value = null;
     } finally {
       isLoading.value = false;

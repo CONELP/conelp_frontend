@@ -2,6 +2,7 @@ import { computed } from "vue";
 
 import { desktopDashboardSeed } from "@/features/desktop-dashboard/data/desktop-dashboard.seed";
 import type { DashboardTodayWorkSection } from "@/features/desktop-dashboard/model/desktop-dashboard.types";
+import { useServicePresentationDemoStore } from "@/features/service-presentation-demo/state/useServicePresentationDemoStore";
 
 function parseTodayWorkSections(rawText: string): DashboardTodayWorkSection[] {
   const sections: DashboardTodayWorkSection[] = [];
@@ -32,7 +33,20 @@ function parseTodayWorkSections(rawText: string): DashboardTodayWorkSection[] {
 }
 
 export function useDesktopDashboardViewModel() {
-  const dashboard = computed(() => desktopDashboardSeed);
+  const servicePresentationStore = useServicePresentationDemoStore();
+  const dashboard = computed(() => {
+    const selectedSite = servicePresentationStore.selectedSite;
+
+    if (!selectedSite) {
+      return desktopDashboardSeed;
+    }
+
+    return {
+      ...desktopDashboardSeed,
+      siteName: selectedSite.siteName,
+      siteChipLabel: selectedSite.siteChipLabel,
+    };
+  });
   const todayWorkSections = computed(() =>
     parseTodayWorkSections(dashboard.value.todayWorkRawText),
   );

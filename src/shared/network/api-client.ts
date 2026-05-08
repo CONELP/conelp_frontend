@@ -1,4 +1,10 @@
-import { clearAccessToken, getAccessToken, setAccessToken } from "@/shared/network/access-token";
+import {
+  clearAccessToken,
+  clearRefreshTokenCookieMarker,
+  getAccessToken,
+  markRefreshTokenCookieAvailable,
+  setAccessToken,
+} from "@/shared/network/access-token";
 import { toApiUrl } from "@/shared/network/api-config";
 import type { TokenResponse } from "@/features/auth/model/auth.types";
 
@@ -61,6 +67,7 @@ async function refreshAccessToken() {
 
   const tokenData = (await response.json()) as TokenResponse;
   setAccessToken(tokenData.accessToken);
+  markRefreshTokenCookieAvailable();
 }
 
 async function redirectToLogin() {
@@ -116,6 +123,7 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
       return apiFetch<T>(path, { ...options, retryOnUnauthorized: false });
     } catch {
       clearAccessToken();
+      clearRefreshTokenCookieMarker();
       await redirectToLogin();
       throw new Error("로그인이 필요합니다.");
     }
