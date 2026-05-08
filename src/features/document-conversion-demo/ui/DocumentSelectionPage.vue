@@ -144,7 +144,10 @@ function handleSelectDocument(type: string) {
   selectDocument(type);
   const nextRoute = resolveNextRoute(type);
 
-  if (nextRoute === "/preview/upload") {
+  if (
+    nextRoute === "/preview/upload" ||
+    nextRoute === "/preview/document-registration"
+  ) {
     void router.push({
       path: nextRoute,
       query: { documentType: type },

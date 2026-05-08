@@ -333,7 +333,10 @@ watchEffect(() => {
   }
 
   if (!requiresUpload.value) {
-    void router.replace("/preview/loading");
+    void router.replace({
+      path: "/preview/loading",
+      query: { documentType: selectedDocument.value.type },
+    });
   }
 });
 
@@ -383,7 +386,10 @@ function handleGenerate() {
     return;
   }
 
-  void router.push("/preview/loading");
+  void router.push({
+    path: "/preview/loading",
+    query: { documentType: selectedDocument.value.type },
+  });
 }
 </script>
 

@@ -87,61 +87,139 @@
 완료 기준:
 사용자가 `선혜원`과 `청운교회`를 전환하면 이후 모든 데모 화면의 문서 자료, 생성 이력, 공정표 상태가 선택한 현장 기준으로 바뀐다.
 
-## Stage 3. 문서 생성 카탈로그와 결과 저장 흐름 구현
+## Stage 3. 문서 생성 공통 기반과 문서별 실행 계약 고정 [completed]
 
 목표:
-현장별 문서 폴더의 입력 자료와 최종 Excel을 데모 manifest로 연결하고, 사용자가 문서를 생성하면 결과가 git 공유 가능한 demo state 구조에 남게 만든다.
+4종 문서를 한 번에 같은 화면으로 밀어붙이지 않고, 문서별로 다른 자료 등록 시퀀스와 input/output 연결을 구현할 수 있는 공통 기반만 먼저 만든다.
 
 커밋 메시지:
-`feat: add git seeded document generation demo`
+`feat: add document generation demo foundation`
 
 결과물:
-- 문서 생성 카탈로그
-- 문서별 입력/결과 파일 manifest
-- 생성 진행 상태 UI
-- git seed 기반 생성 이력 store
-- 생성 결과 화면
+- 문서 타입별 route 또는 mode 분기
+- 문서별 input/output manifest model
+- 문서별 자료 등록 step model
+- git seed 기반 생성 결과 model
+- 공통 생성 진행/완료 state model
 
 체크포인트:
-- [ ] 문서 타입 키를 `daily_report`, `material_inspection_request`, `concrete_receiving_test`, `concrete_compressive_strength_test`로 고정한다
-- [ ] 현장별 `data/` 폴더 구조를 참조하는 git tracked manifest를 만든다
-- [ ] 각 문서 카드에 입력 자료 종류와 최종 Excel 파일명을 보여 준다
-- [ ] `홈페이지 fetch 작업일보 생성`은 홈페이지 자료를 가져와 작업일보를 만드는 시퀀스로 표현한다
-- [ ] `자재반입검수요청서`는 송장/사진/기존 자료에서 검수 요청서를 만드는 시퀀스로 표현한다
-- [ ] `콘크리트 받아들이기 시험`은 레미콘 송장과 시험 자료를 정리하는 시퀀스로 표현한다
-- [ ] `콘크리트 압축강도 시험`은 7일/28일 강도 자료를 결과 문서로 정리하는 시퀀스로 표현한다
-- [ ] 생성 완료 상태는 `siteId` 기준 demo state model에 반영한다
-- [ ] 공유가 필요한 기본 생성 이력은 git tracked seed로 관리한다
-- [ ] 생성 이력에서 같은 문서를 다시 열 수 있게 한다
+- [x] 기존 `documentCatalog.type`인 `daily_report`, `material_registration`, `concrete_delivery_csi`, `concrete_strength_csi`를 canonical 문서 타입으로 사용한다
+- [x] 문서별 `sourceFolder`, `inputFiles`, `inputRefs`, `outputExcel`, `registrationSteps`, `generationSteps`를 분리해 담는 manifest 타입을 만든다
+- [x] 문서 선택 후 공통 업로드 화면이 아니라 문서별 자료 등록 시퀀스로 진입하게 route/mode를 나눈다
+- [x] 생성 완료 상태는 `siteId + documentType` 기준 demo state model에 반영한다
+- [x] 공유가 필요한 기본 생성 이력은 git tracked seed로 관리한다
+- [x] 생성 이력에서 같은 문서를 다시 열 수 있게 `documentType` query와 site-scoped result 조회 함수를 둔다
+- [x] 문서별 세부 입력/출력 매핑은 Stage 4~7에서 하나씩 닫는다고 명시한다
+
+진행 메모:
+- `src/features/document-conversion-demo/data/document-conversion-demo.seed.ts`의 기존 catalog type을 서비스 시연 manifest의 canonical key로 맞췄다.
+- 서비스 문서 manifest에 자료 등록 step과 input/output 참조를 추가했고, 문서 선택 후 `/preview/document-registration`에서 확인하도록 연결했다.
+- 생성 결과 seed와 runtime store는 `siteId + documentType` 기준으로 결과를 조회/갱신할 수 있게 만들었다.
 
 완료 기준:
-사용자가 선택한 현장에서 4종 문서 중 하나를 실행하면, 입력 자료 확인 -> 생성 중 -> 최종 Excel 결과 확인 -> git seed 기준 이력 확인 흐름이 끊기지 않는다.
+문서별 구현자가 같은 공통 store/model 위에서 각 문서의 자료 등록 순서와 input/output Excel 연결만 다르게 구현할 수 있다.
 
-## Stage 4. 문서별 생성 화면을 하나씩 맞추기
+## Stage 4. 홈페이지 fetch 작업일보 생성 구현
 
 목표:
-각 문서의 실제 자료와 최종 Excel 형태를 보면서, 화면 카피와 필요한 입력 확인 단계를 하나씩 데모에 맞게 조정한다.
+선택 현장의 작업일보 자료를 기준으로 홈페이지에서 데이터를 가져오고, 최종 작업일보 Excel을 생성 결과로 연결하는 시퀀스를 구현한다.
 
 커밋 메시지:
-`feat: tune document generation demos by document type`
+`feat: add daily report fetch demo flow`
 
 결과물:
-- 문서별 생성 step 정의
-- 문서별 결과 요약
-- 현장별 대표 예시 연결
+- 작업일보 자료 등록/확인 화면
+- 홈페이지 fetch 진행 상태
+- 작업일보 input/output manifest
+- 작업일보 생성 결과 화면
 
 체크포인트:
-- [ ] 작업일보 생성 화면에서 홈페이지 fetch 느낌이 나는 입력 확인 상태를 만든다
-- [ ] 자재반입검수요청서 화면에서 자재명, 반입일, 첨부 자료 요약을 보여 준다
-- [ ] 콘크리트 받아들이기 시험 화면에서 타설 위치, 시험일, 송장 자료 요약을 보여 준다
-- [ ] 콘크리트 압축강도 시험 화면에서 7일/28일 자료 구분과 결과 요약을 보여 준다
-- [ ] 선혜원과 청운교회 중 자료가 부족한 조합은 `데모 준비 중` 또는 대표 예시 fallback으로 처리한다
-- [ ] 각 문서별 결과 화면에서 최종 Excel 파일명이 바로 보이게 한다
+- [ ] `daily_report` 전용 registration step을 정의한다
+- [ ] 현장별 작업일보 `sourceFolder`와 기존 Excel input을 manifest에 연결한다
+- [ ] 홈페이지 fetch 대상 날짜/현장/작업 항목을 확인하는 화면을 만든다
+- [ ] fetch 중 상태에서 홈페이지 자료를 읽는 듯한 단계 문구를 보여 준다
+- [ ] 생성 완료 시 현장별 작업일보 `outputExcel`을 결과로 연결한다
+- [ ] 결과 화면에 최종 Excel 파일명과 주요 요약을 보여 준다
 
 완료 기준:
-4종 문서가 모두 같은 골격을 쓰되, 문서별로 실제로 어떤 자료를 읽고 어떤 결과를 만드는지 시연자가 설명하기 쉬운 화면이 된다.
+사용자가 선택 현장에서 작업일보 생성 흐름을 실행하면 홈페이지 fetch 확인 -> 생성 중 -> 작업일보 Excel 결과 확인까지 한 번에 이어진다.
 
-## Stage 5. 공정표 생성과 작업본 관리 흐름 연결
+## Stage 5. 자재반입검수요청서 생성 구현
+
+목표:
+자재반입검수요청서에 필요한 송장, 사진, 기존 문서 자료를 등록하고, 현장별 최종 검수요청서 Excel을 생성 결과로 연결한다.
+
+커밋 메시지:
+`feat: add material inspection request demo flow`
+
+결과물:
+- 자재반입검수요청서 자료 등록 화면
+- 송장/사진/기존 문서 input manifest
+- 자재 정보 확인 step
+- 자재반입검수요청서 생성 결과 화면
+
+체크포인트:
+- [ ] `material_registration` 전용 registration step을 정의한다
+- [ ] 현장별 송장, 사진, 기존 문서 input을 manifest에 연결한다
+- [ ] 자재명, 규격, 반입일, 공급처를 확인하는 화면을 만든다
+- [ ] 자료 부족 시 해당 현장 문서만 `데모 준비 중` 또는 대표 예시 fallback으로 처리한다
+- [ ] 생성 완료 시 현장별 검수요청서 `outputExcel`을 결과로 연결한다
+- [ ] 결과 화면에 최종 Excel 파일명과 자재 요약을 보여 준다
+
+완료 기준:
+사용자가 자재반입검수요청서 흐름에서 실제 현장 input 자료를 확인하고, 해당 현장의 최종 Excel 결과로 자연스럽게 도달한다.
+
+## Stage 6. 콘크리트 받아들이기 시험 생성 구현
+
+목표:
+레미콘 송장과 시험 관련 자료를 등록하고, 콘크리트 받아들이기 시험 문서의 input/output을 현장별로 다르게 연결한다.
+
+커밋 메시지:
+`feat: add concrete receiving test demo flow`
+
+결과물:
+- 콘크리트 받아들이기 시험 자료 등록 화면
+- 레미콘 송장/시험 사진 input manifest
+- 타설 위치/시험일 확인 step
+- 콘크리트 받아들이기 시험 생성 결과 화면
+
+체크포인트:
+- [ ] `concrete_delivery_csi` 전용 registration step을 정의한다
+- [ ] 현장별 레미콘 송장과 시험 자료 input을 manifest에 연결한다
+- [ ] 타설 위치, 타설일, 시험일, 업체 정보를 확인하는 화면을 만든다
+- [ ] 여러 송장 또는 업체가 있는 경우 선택/요약 UI를 둔다
+- [ ] 생성 완료 시 현장별 받아들이기 시험 `outputExcel`을 결과로 연결한다
+- [ ] 결과 화면에 최종 Excel 파일명과 시험 요약을 보여 준다
+
+완료 기준:
+사용자가 콘크리트 받아들이기 시험 흐름에서 송장/시험 자료를 확인하고, 현장별 최종 Excel 결과를 볼 수 있다.
+
+## Stage 7. 콘크리트 압축강도 시험 생성 구현
+
+목표:
+7일/28일 압축강도 자료를 구분해 등록하고, 압축강도 시험 문서의 input/output을 현장별로 다르게 연결한다.
+
+커밋 메시지:
+`feat: add concrete strength test demo flow`
+
+결과물:
+- 콘크리트 압축강도 시험 자료 등록 화면
+- 7일/28일 자료 input manifest
+- 강도 결과 확인 step
+- 콘크리트 압축강도 시험 생성 결과 화면
+
+체크포인트:
+- [ ] `concrete_strength_csi` 전용 registration step을 정의한다
+- [ ] 현장별 7일/28일 강도 자료 input을 manifest에 연결한다
+- [ ] 시험일, 재령, 타설 위치, 업체별 결과를 구분해 보여 준다
+- [ ] 7일 자료만 있거나 28일 자료만 있는 현장 상태를 명확히 표시한다
+- [ ] 생성 완료 시 현장별 압축강도 시험 `outputExcel`을 결과로 연결한다
+- [ ] 결과 화면에 최종 Excel 파일명과 강도 요약을 보여 준다
+
+완료 기준:
+사용자가 압축강도 시험 흐름에서 7일/28일 자료를 구분해 확인하고, 현장별 최종 Excel 결과를 볼 수 있다.
+
+## Stage 8. 공정표 생성과 작업본 관리 흐름 연결
 
 목표:
 선택한 현장 기준으로 기준 공정표를 보여 주고, 사용자가 작업본을 만들어 수정/검토/기준 반영까지 진행하는 시연 흐름을 만든다.
@@ -170,7 +248,7 @@
 완료 기준:
 사용자가 공정표를 생성하고, 기준 공정표를 보존한 채 작업본을 만든 뒤, 작업본을 기준 공정표로 반영하는 흐름을 backend 없이 끝까지 볼 수 있다.
 
-## Stage 6. 시연 홈과 통합 walkthrough 구성
+## Stage 9. 시연 홈과 통합 walkthrough 구성
 
 목표:
 현장 변경, 문서 생성, 공정표 생성을 하나의 서비스 시연 순서로 묶어서 본사 시연자가 길을 잃지 않고 진행할 수 있게 만든다.
@@ -196,7 +274,7 @@
 완료 기준:
 시연자가 별도 설명 자료 없이 앱 안에서 현장 선택부터 문서/공정표 결과 확인까지 한 번에 이어서 보여 줄 수 있다.
 
-## Stage 7. QA와 시연 수용 기준 검증
+## Stage 10. QA와 시연 수용 기준 검증
 
 목표:
 본사 시연회에서 보여 줄 핵심 흐름이 깨지지 않고, backend가 없어도 결과가 저장된 것처럼 자연스럽게 보이는지 검증한다.
@@ -267,7 +345,9 @@ src/features/service-presentation-demo/data/schedule-state.seed.ts
 | `label` | 화면 문서명 |
 | `sourceFolder` | 입력 자료가 있는 현장별 문서 폴더 |
 | `inputFiles` | 시연에서 보여 줄 주요 입력 자료 |
+| `inputRefs` | 자료 등록 화면에서 보여 줄 입력 자료 상세 |
 | `outputExcel` | 생성 결과로 연결할 최종 Excel 파일 |
+| `registrationSteps` | 자료 등록 화면에 보여 줄 단계 |
 | `generationSteps` | 생성 중 화면에 보여 줄 단계 문구 |
 | `status` | `available`, `needs_review`, `demo_ready` 중 하나 |
 
@@ -276,9 +356,9 @@ src/features/service-presentation-demo/data/schedule-state.seed.ts
 | documentType | label |
 | --- | --- |
 | `daily_report` | 홈페이지 fetch 작업일보 |
-| `material_inspection_request` | 자재반입검수요청서 |
-| `concrete_receiving_test` | 콘크리트 받아들이기 시험 |
-| `concrete_compressive_strength_test` | 콘크리트 압축강도 시험 |
+| `material_registration` | 자재반입검수요청서 |
+| `concrete_delivery_csi` | 콘크리트 받아들이기 시험 |
+| `concrete_strength_csi` | 콘크리트 압축강도 시험 |
 
 ## 고정 계약 D. Git 공유 데모 상태 모델
 

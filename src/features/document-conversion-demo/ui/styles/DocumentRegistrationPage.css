@@ -1,0 +1,233 @@
+.document-registration-frame {
+  min-height: 100vh;
+  min-height: 100svh;
+  background: var(--surface-1);
+}
+
+.document-registration-page__desktop-header {
+  display: none;
+}
+
+.document-registration-page {
+  --page-inline: 1.2rem;
+  --surface-radius: 0.95rem;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding: 0 var(--page-inline) 1rem;
+  background: var(--surface-1);
+}
+
+.document-registration-shell {
+  width: min(100%, 42rem);
+  margin: 0 auto;
+}
+
+.document-registration-topbar {
+  display: flex;
+  align-items: flex-end;
+  min-height: 4.15rem;
+  margin-left: calc(var(--page-inline) * -0.84);
+  padding-bottom: 0.35rem;
+}
+
+.document-registration-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  color: var(--ink);
+}
+
+.document-registration-back__icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  opacity: 0.84;
+}
+
+.document-registration-intro {
+  padding: 2.8rem 0 1.35rem;
+}
+
+.document-registration-intro__eyebrow,
+.document-registration-intro__title {
+  margin: 0;
+}
+
+.document-registration-intro__eyebrow {
+  margin-bottom: 0.72rem;
+  color: var(--primary);
+  font-size: 0.84rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.document-registration-intro__title {
+  font-family: var(--font-display);
+  font-size: clamp(1.52rem, 5vw, 2.05rem);
+  font-weight: 800;
+  line-height: 1.05;
+}
+
+.document-registration-intro__title-line {
+  display: block;
+}
+
+.document-registration-intro__title-line + .document-registration-intro__title-line {
+  margin-top: 0.92rem;
+}
+
+.document-registration-stack {
+  display: grid;
+  gap: 0.78rem;
+}
+
+.document-registration-card {
+  display: grid;
+  gap: 0.78rem;
+  padding: 1rem;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: var(--surface-radius);
+  background: #f7f7f8;
+}
+
+.document-registration-card__title,
+.document-registration-card__path,
+.document-registration-card__output {
+  margin: 0;
+}
+
+.document-registration-card__title {
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.document-registration-card__path,
+.document-registration-card__output {
+  color: var(--ink-muted);
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.document-registration-input-list,
+.document-registration-step-list {
+  display: grid;
+  gap: 0.54rem;
+  margin: 0;
+  padding: 0;
+}
+
+.document-registration-input,
+.document-registration-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.68rem;
+  min-width: 0;
+  padding: 0.72rem;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 0.78rem;
+  background: #fff;
+}
+
+.document-registration-input__icon-frame,
+.document-registration-step__index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.document-registration-input__icon {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.document-registration-input__body,
+.document-registration-step__body {
+  display: grid;
+  min-width: 0;
+  gap: 0.22rem;
+}
+
+.document-registration-input__body strong,
+.document-registration-step__body strong {
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.document-registration-input__body span,
+.document-registration-step__body span {
+  color: var(--ink-muted);
+  font-size: 0.84rem;
+  line-height: 1.42;
+  overflow-wrap: anywhere;
+}
+
+.document-registration-footer {
+  padding: 1rem 0 1.4rem;
+}
+
+.document-registration-footer__primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.34rem;
+  width: 100%;
+  min-height: 3rem;
+  border-radius: 0.86rem;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.94rem;
+  font-weight: 800;
+}
+
+.document-registration-footer__primary:disabled {
+  background: rgba(20, 24, 33, 0.16);
+  color: rgba(20, 24, 33, 0.44);
+}
+
+.document-registration-footer__icon {
+  width: 1rem;
+  height: 1rem;
+  filter: brightness(0) invert(1);
+}
+
+@media (min-width: 780px) {
+  .document-registration-frame {
+    background: var(--canvas);
+  }
+
+  .document-registration-page__desktop-header {
+    display: block;
+  }
+
+  .document-registration-page {
+    padding: 0 1.5rem 2.5rem;
+    background: transparent;
+  }
+
+  .document-registration-topbar {
+    display: none;
+  }
+
+  .document-registration-shell {
+    width: min(100%, 50rem);
+  }
+
+  .document-registration-intro {
+    padding-top: 2.2rem;
+  }
+}

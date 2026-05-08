@@ -1,7 +1,10 @@
-import { computed } from "vue";
+import { computed, onMounted, watch } from "vue";
+import { useRoute } from "vue-router";
 
 import { documentCatalog } from "@/features/document-conversion-demo/data/document-conversion-demo.seed";
+import type { DocumentCatalogType } from "@/features/document-conversion-demo/model/document-conversion-demo.types";
 import { useDocumentConversionDemoStore } from "@/features/document-conversion-demo/state/useDocumentConversionDemoStore";
+import { useServicePresentationDemoViewModel } from "@/features/service-presentation-demo/state/useServicePresentationDemoViewModel";
 
 const DEFAULT_REVIEW_ITEMS = [
   "내일 작업 내용이 없어요.",
@@ -40,6 +43,16 @@ function removeWhitespace(value: string) {
   return value.replace(/\s+/g, "");
 }
 
+function resolveFileNameFromPath(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const pathSegments = value.split("/").filter(Boolean);
+
+  return pathSegments[pathSegments.length - 1] ?? value;
+}
+
 function formatResultTime(value: string | null | undefined) {
   if (!value) {
     return "";
@@ -57,8 +70,32 @@ function formatResultTime(value: string | null | undefined) {
   return `${hours}:${minutes}`;
 }
 
+function isDocumentCatalogType(value: string): value is DocumentCatalogType {
+  return documentCatalog.some((document) => document.type === value);
+}
+
 export function useResultPreviewDemoViewModel() {
   const store = useDocumentConversionDemoStore();
+  const route = useRoute();
+  const {
+    getSelectedSiteDocumentManifest,
+    getSelectedSiteDocumentResult,
+    recordSelectedSiteDocumentGeneration,
+  } = useServicePresentationDemoViewModel();
+
+  watch(
+    () => route.query.documentType,
+    (documentType) => {
+      if (
+        typeof documentType === "string" &&
+        isDocumentCatalogType(documentType) &&
+        store.selectedDocumentType !== documentType
+      ) {
+        store.selectDocument(documentType);
+      }
+    },
+    { immediate: true },
+  );
 
   const selectedDocument = computed(
     () => store.selectedDocument ?? documentCatalog[0],
@@ -66,12 +103,24 @@ export function useResultPreviewDemoViewModel() {
   const activeCreateResult = computed(
     () => store.catCreateResult ?? store.mirCreateResult,
   );
-
-  const resultFileName = computed(() =>
-    activeCreateResult.value?.docNo
-      ? activeCreateResult.value.docNo
-      : formatResultFileName(selectedDocument.value.label, new Date()),
+  const selectedManifest = computed(() =>
+    getSelectedSiteDocumentManifest(selectedDocument.value.type),
   );
+  const selectedDemoResult = computed(() =>
+    getSelectedSiteDocumentResult(selectedDocument.value.type),
+  );
+
+  const resultFileName = computed(() => {
+    if (activeCreateResult.value?.docNo) {
+      return activeCreateResult.value.docNo;
+    }
+
+    return (
+      selectedManifest.value?.outputExcel ??
+      resolveFileNameFromPath(selectedDemoResult.value?.outputRef) ??
+      formatResultFileName(selectedDocument.value.label, new Date())
+    );
+  });
 
   const resultDownloadUrl = computed(
     () => activeCreateResult.value?.resultUrl ?? activeCreateResult.value?.pdfUrl ?? "",
@@ -123,10 +172,14 @@ export function useResultPreviewDemoViewModel() {
   );
 
   const reviewItems = computed(() =>
-    activeCreateResult.value
+    activeCreateResult.value || selectedManifest.value?.outputExcel
       ? []
       : DEFAULT_REVIEW_ITEMS,
   );
+
+  onMounted(() => {
+    recordSelectedSiteDocumentGeneration(selectedDocument.value.type);
+  });
 
   return {
     resultFileName,

@@ -4,6 +4,7 @@ import type {
   ServicePresentationSiteCard,
   ServicePresentationSiteId,
 } from "@/features/service-presentation-demo/model/service-presentation-demo.types";
+import type { DocumentCatalogType } from "@/features/document-conversion-demo/model/document-conversion-demo.types";
 import { useServicePresentationDemoStore } from "@/features/service-presentation-demo/state/useServicePresentationDemoStore";
 
 function createSiteCard(
@@ -36,17 +37,36 @@ export function useServicePresentationDemoViewModel() {
   const selectedSite = computed(() => store.selectedSite);
   const selectedSiteLabel = computed(() => store.selectedSiteLabel);
   const selectedSiteDocuments = computed(() => store.selectedSiteDocuments);
+  const selectedSiteGeneratedResults = computed(
+    () => store.selectedSiteGeneratedResults,
+  );
   const selectedScheduleSeedId = computed(() => store.selectedScheduleSeedId);
   const defaultSiteId = computed(() => store.defaultSiteId);
+
+  function getSelectedSiteDocumentManifest(documentType: DocumentCatalogType) {
+    return store.getSelectedSiteDocumentManifest(documentType);
+  }
+
+  function getSelectedSiteDocumentResult(documentType: DocumentCatalogType) {
+    return store.getSelectedSiteDocumentResult(documentType);
+  }
+
+  function recordSelectedSiteDocumentGeneration(documentType: DocumentCatalogType) {
+    return store.recordSelectedSiteDocumentGeneration(documentType);
+  }
 
   return {
     siteCards,
     selectedSite,
     selectedSiteLabel,
     selectedSiteDocuments,
+    selectedSiteGeneratedResults,
     selectedScheduleSeedId,
     defaultSiteId,
     hasSelectedSite: store.hasSelectedSite,
+    getSelectedSiteDocumentManifest,
+    getSelectedSiteDocumentResult,
+    recordSelectedSiteDocumentGeneration,
     selectSite: store.selectSite,
     resetToDefaultSite: store.resetToDefaultSite,
     clearSelectedSite: store.clearSelectedSite,

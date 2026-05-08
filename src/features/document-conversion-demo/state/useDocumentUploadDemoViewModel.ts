@@ -258,9 +258,10 @@ export function useDocumentUploadDemoViewModel() {
       : uploadFeedbackPageCopy.primaryRetryActionLabel,
   );
 
-  const primaryFeedbackRoute = computed(() =>
-    canProceed.value ? "/preview/loading" : "/preview/upload",
-  );
+  const primaryFeedbackRoute = computed(() => ({
+    path: canProceed.value ? "/preview/loading" : "/preview/upload",
+    query: { documentType: selectedDocument.value.type },
+  }));
 
   function clearGuideInspectionTimer() {
     if (guideInspectionTimer) {
@@ -375,11 +376,11 @@ export function useDocumentUploadDemoViewModel() {
   function selectUploadDocument(type: string) {
     const document = documentCatalog.find((item) => item.type === type);
 
-    if (!document) {
+    if (!document || store.selectedDocumentType === document.type) {
       return;
     }
 
-    store.selectDocument(type);
+    store.selectDocument(document.type);
   }
 
   watch(

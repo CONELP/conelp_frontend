@@ -9,6 +9,7 @@ import type {
   MirAnalysisResponse,
 } from "@/features/document-conversion-demo/api/material-inspection-request-api.types";
 import { documentCatalog } from "@/features/document-conversion-demo/data/document-conversion-demo.seed";
+import type { DocumentCatalogType } from "@/features/document-conversion-demo/model/document-conversion-demo.types";
 import { useDocumentConversionDemoStore } from "@/features/document-conversion-demo/state/useDocumentConversionDemoStore";
 
 const LOADING_TEXT_TOTAL_DURATION_MS = 5000;
@@ -70,6 +71,10 @@ const UPLOAD_DOCUMENT_ROUTE = "/preview/upload";
 const MIR_IMAGE_UPLOAD_LIMIT = 10;
 const CAT_IMAGE_UPLOAD_LIMIT = 10;
 const CAT_MIN_IMAGE_UPLOAD_COUNT = 2;
+
+function isDocumentCatalogType(value: string): value is DocumentCatalogType {
+  return documentCatalog.some((document) => document.type === value);
+}
 
 export function useConversionLoadingDemoViewModel() {
   const store = useDocumentConversionDemoStore();
@@ -140,10 +145,25 @@ export function useConversionLoadingDemoViewModel() {
     loadingStepTimers.length = 0;
   }
 
-  function scheduleRouteNavigation(route: string, delayMs: number) {
+  function createDocumentRouteLocation(path: string) {
+    const routeDocumentType = route.query.documentType;
+    const documentType =
+      typeof routeDocumentType === "string" && isDocumentCatalogType(routeDocumentType)
+        ? routeDocumentType
+        : store.selectedDocument?.type;
+
+    return documentType
+      ? {
+          path,
+          query: { documentType },
+        }
+      : path;
+  }
+
+  function scheduleRouteNavigation(path: string, delayMs: number) {
     loadingStepTimers.push(
       setTimeout(() => {
-        void router.replace(route);
+        void router.replace(createDocumentRouteLocation(path));
       }, delayMs),
     );
   }
@@ -491,6 +511,20 @@ export function useConversionLoadingDemoViewModel() {
       scheduleRouteNavigation(OCR_VALIDATION_ROUTE, 2200);
     }
   }
+
+  watch(
+    () => route.query.documentType,
+    (documentType) => {
+      if (
+        typeof documentType === "string" &&
+        isDocumentCatalogType(documentType) &&
+        store.selectedDocumentType !== documentType
+      ) {
+        store.selectDocument(documentType);
+      }
+    },
+    { immediate: true },
+  );
 
   watch(
     () => selectedDocument.value.type,

@@ -1052,7 +1052,10 @@ function handleCreateMirDocumentDraft() {
   );
   void router.push({
     path: "/preview/loading",
-    query: { phase: "mir-create" },
+    query: {
+      documentType: selectedDocument.value.type,
+      phase: "mir-create",
+    },
   });
 }
 
@@ -1096,7 +1099,10 @@ function handleCreateCatDocumentDraft() {
   );
   void router.push({
     path: "/preview/loading",
-    query: { phase: "cat-create" },
+    query: {
+      documentType: selectedDocument.value.type,
+      phase: "cat-create",
+    },
   });
 }
 

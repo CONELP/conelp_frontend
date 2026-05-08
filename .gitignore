@@ -5,3 +5,5 @@ legacy/
 backend/constructionHelperBackendMain/
 backend/api/api-list/
 data/
+!src/features/service-presentation-demo/data/
+!src/features/service-presentation-demo/data/*.ts
