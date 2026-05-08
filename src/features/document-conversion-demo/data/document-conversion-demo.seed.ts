@@ -13,6 +13,7 @@ import clipboardTaskIcon from "@fluentui/svg-icons/icons/clipboard_task_24_regul
 import beakerIcon from "@fluentui/svg-icons/icons/beaker_24_regular.svg";
 import cylinderIcon from "@fluentui/svg-icons/icons/database_24_regular.svg";
 import checkmarkIcon from "@fluentui/svg-icons/icons/checkmark_circle_24_regular.svg";
+import noteEditIcon from "@fluentui/svg-icons/icons/note_edit_24_regular.svg";
 
 export const selectionPageCopy: SelectionPageCopy = {
   eyebrow: "",
@@ -47,6 +48,18 @@ export const demoFlowStages: FlowStageSummary[] = [
 ];
 
 export const documentCatalog: DocumentDemoCard[] = [
+  {
+    type: "daily_report_write",
+    label: "공사일보 작성",
+    chipLabel: "공사일보 작성",
+    iconSrc: noteEditIcon,
+    description: "당일 작업 내용과 현장 기록을 직접 작성하는 공사일보 문서",
+    uploadGuide: "기본 입력 흐름으로 공사일보를 작성할 수 있어요.",
+    resultLabel: "공사일보 작성 결과 시안",
+    status: "available",
+    accentLabel: "즉시 데모 가능",
+    generationMode: "direct",
+  },
   {
     type: "daily_report",
     label: "홈페이지 공사일보 변환",

@@ -30,6 +30,10 @@ export function useDocumentConversionDemoViewModel() {
   function resolveNextRoute(type: string) {
     const selectedType = documentCatalog.find((document) => document.type === type);
 
+    if (selectedType?.type === "daily_report_write") {
+      return "/preview/daily-report-write";
+    }
+
     return selectedType?.generationMode === "direct"
       ? "/preview/loading"
       : "/preview/upload";

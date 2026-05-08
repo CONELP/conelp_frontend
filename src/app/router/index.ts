@@ -4,6 +4,7 @@ import DesktopDashboardPage from "@/features/desktop-dashboard/ui/DesktopDashboa
 import DesktopSchedulePage from "@/features/desktop-schedule/ui/DesktopSchedulePage.vue";
 import LoginPage from "@/features/auth/ui/LoginPage.vue";
 import ConversionLoadingPage from "@/features/document-conversion-demo/ui/ConversionLoadingPage.vue";
+import DailyReportWritePage from "@/features/document-conversion-demo/ui/DailyReportWritePage.vue";
 import DocumentSelectionPage from "@/features/document-conversion-demo/ui/DocumentSelectionPage.vue";
 import DocumentUploadPage from "@/features/document-conversion-demo/ui/DocumentUploadPage.vue";
 import GeneratedDocumentsPage from "@/features/document-conversion-demo/ui/GeneratedDocumentsPage.vue";
@@ -46,6 +47,11 @@ export const router = createRouter({
       path: "/preview/upload",
       name: "upload-preview",
       component: DocumentUploadPage,
+    },
+    {
+      path: "/preview/daily-report-write",
+      name: "daily-report-write-preview",
+      component: DailyReportWritePage,
     },
     {
       path: "/preview/upload-feedback",
