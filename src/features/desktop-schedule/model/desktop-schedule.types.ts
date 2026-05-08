@@ -102,7 +102,6 @@ export interface DesktopScheduleSourceRow {
   division: string;
   workTypeId: number;
   workType: string;
-  isStructure: boolean;
   subWorkTypeId: number;
   subWorkType: string;
   colorHex?: string | null;

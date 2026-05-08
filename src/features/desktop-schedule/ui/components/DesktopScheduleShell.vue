@@ -47,6 +47,7 @@ const props = defineProps<{
   timeline: DesktopScheduleTimelineLayout;
   shellLayout: DesktopScheduleShellLayout;
   readOnly: boolean;
+  referenceOnly?: boolean;
   scheduleVersions: ScheduleVersionOption[];
   selectedScheduleVersionId: number | null;
   versionName: string;
@@ -197,8 +198,9 @@ const scaledHeaderWeekHeight = computed(() =>
 const scaledHeaderDayHeight = computed(() =>
   scaledShellHeaderHeight.value - scaledHeaderMonthHeight.value - scaledHeaderWeekHeight.value,
 );
+const showReadonlyNotice = computed(() => props.readOnly && !props.referenceOnly);
 const readonlyNoticeStackHeight = computed(() =>
-  props.readOnly ? READONLY_NOTICE_HEIGHT + SHELL_STACK_GAP : 0,
+  showReadonlyNotice.value ? READONLY_NOTICE_HEIGHT + SHELL_STACK_GAP : 0,
 );
 const bodyViewportHeight = computed(() =>
   Math.max(
@@ -219,6 +221,7 @@ const leftHeaderVersionLabel = computed(() =>
 const mainScheduleVersion = computed(() =>
   props.scheduleVersions.find((version) => version.isMain) ?? null,
 );
+const showWorkflowControls = computed(() => !props.referenceOnly);
 const draftScheduleVersions = computed(() =>
   props.scheduleVersions.filter((version) => !version.isMain),
 );
@@ -698,7 +701,7 @@ onUnmounted(() => {
     }"
     :style="shellStyle"
   >
-    <p v-if="readOnly" class="schedule-shell__readonly-notice" role="note">
+    <p v-if="showReadonlyNotice" class="schedule-shell__readonly-notice" role="note">
       <span class="schedule-shell__readonly-notice-chip">읽기 전용</span>
       <span>기준 공정표는 직접 수정할 수 없어요. 작업본을 만들어 수정해 주세요.</span>
     </p>
@@ -720,12 +723,13 @@ onUnmounted(() => {
         </button>
 
         <span
-          v-if="mainScheduleVersion"
+          v-if="mainScheduleVersion && showWorkflowControls"
           class="schedule-shell__version-divider"
           aria-hidden="true"
         />
 
         <div
+          v-if="showWorkflowControls"
           ref="draftRailRef"
           class="schedule-shell__draft-rail"
           :class="{ 'schedule-shell__draft-rail--dragging': draftRailDragState }"
@@ -783,7 +787,7 @@ onUnmounted(() => {
         </div>
 
         <button
-          v-if="readOnly"
+          v-if="showWorkflowControls"
           type="button"
           class="schedule-shell__draft-button"
           :disabled="!canCreateDraftVersion"
@@ -794,7 +798,11 @@ onUnmounted(() => {
 
         <Teleport to="body">
           <div
-            v-if="activeVersionActionMenu && activeVersionActionMenuVersion"
+            v-if="
+              showWorkflowControls &&
+              activeVersionActionMenu &&
+              activeVersionActionMenuVersion
+            "
             ref="versionActionMenuRef"
             class="schedule-context-menu schedule-shell__version-context-menu"
             :style="{ left: `${activeVersionActionMenu.x}px`, top: `${activeVersionActionMenu.y}px` }"
@@ -824,7 +832,7 @@ onUnmounted(() => {
       </div>
 
       <button
-        v-if="canCompareScheduleVersion"
+        v-if="showWorkflowControls && canCompareScheduleVersion"
         type="button"
         class="schedule-shell__compare-toggle"
         :class="{ 'schedule-shell__compare-toggle--active': isScheduleVersionReviewActive }"
@@ -836,7 +844,7 @@ onUnmounted(() => {
       </button>
 
       <button
-        v-if="canPromoteScheduleVersion"
+        v-if="showWorkflowControls && canPromoteScheduleVersion"
         type="button"
         class="schedule-shell__promote-button"
         :disabled="
@@ -850,9 +858,17 @@ onUnmounted(() => {
 
       <div class="schedule-shell__toolbar-spacer" aria-hidden="true" />
 
-      <span class="schedule-shell__toolbar-divider" aria-hidden="true" />
+      <span
+        v-if="showWorkflowControls"
+        class="schedule-shell__toolbar-divider"
+        aria-hidden="true"
+      />
 
-      <div class="schedule-shell__actions" aria-label="작업 되돌리기">
+      <div
+        v-if="showWorkflowControls"
+        class="schedule-shell__actions"
+        aria-label="작업 되돌리기"
+      >
         <button
           type="button"
           class="schedule-shell__action schedule-shell__action--history"
@@ -917,7 +933,7 @@ onUnmounted(() => {
     <Teleport to="body">
       <Transition name="schedule-shell__promotion-dialog-transition">
         <div
-          v-if="scheduleVersionPromotion.open"
+          v-if="showWorkflowControls && scheduleVersionPromotion.open"
           class="schedule-shell__promotion-dialog-backdrop"
           role="presentation"
           @click.self="closeScheduleVersionPromotionDialog"

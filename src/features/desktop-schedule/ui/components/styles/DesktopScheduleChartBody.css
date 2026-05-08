@@ -292,8 +292,8 @@
   border-radius: calc(0.22rem * var(--schedule-zoom-scale, 1));
   background: rgba(248, 250, 252, 0.68);
   color: #475569;
-  font-size: clamp(0.54rem, calc(1.04rem * var(--schedule-zoom-scale, 1)), 1.36rem);
-  font-weight: 700;
+  font-size: clamp(0.58rem, calc(1.18rem * var(--schedule-zoom-scale, 1)), 1.52rem);
+  font-weight: 400;
   line-height: 1.05;
   opacity: 0.62;
   transform: translateX(-0.12rem);
@@ -314,17 +314,22 @@
 
 .schedule-chart-body__milestone-deadline-label {
   position: absolute;
+  box-sizing: border-box;
   top: 50%;
   right: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
   width: max-content;
+  height: 100%;
   padding: calc(0.24rem * var(--schedule-zoom-scale, 1))
     calc(0.58rem * var(--schedule-zoom-scale, 1));
   border: 1px solid rgba(217, 119, 6, 0.28);
   border-radius: calc(0.22rem * var(--schedule-zoom-scale, 1));
   background: rgba(255, 255, 255, 0.96);
   color: #92400e;
-  font-size: clamp(0.58rem, calc(1.12rem * var(--schedule-zoom-scale, 1)), 1.46rem);
-  font-weight: 700;
+  font-size: clamp(0.58rem, calc(1.18rem * var(--schedule-zoom-scale, 1)), 1.52rem);
+  font-weight: 400;
   line-height: 1.05;
   pointer-events: auto;
   text-align: right;

@@ -26,7 +26,6 @@ export interface DesktopScheduleVersionCreateRequest {
 
 export interface DesktopScheduleVersionUpdateRequest {
   versionName?: string | null;
-  isMain?: boolean | null;
 }
 
 export interface DesktopScheduleCalendarDateResponse {
@@ -58,7 +57,6 @@ export interface DesktopScheduleWorkTypeResponse {
   id: DesktopScheduleWorkTypeId;
   name: string;
   divisionId: DesktopScheduleDivisionId;
-  isStructure: boolean;
 }
 
 export interface DesktopScheduleSubWorkTypeResponse {
@@ -73,33 +71,34 @@ export interface DesktopScheduleReferenceHierarchyItem {
   divisionName: string;
   workTypeId: DesktopScheduleWorkTypeId;
   workTypeName: string;
-  isStructure: boolean;
   subWorkTypeId: DesktopScheduleSubWorkTypeId;
   subWorkTypeName: string;
   subWorkTypeColor: string | null;
 }
 
 export interface DesktopScheduleDivisionCreateRequest {
+  scheduleVersionId: DesktopScheduleVersionId;
   name: string;
 }
 
 export interface DesktopScheduleWorkTypeCreateRequest {
+  scheduleVersionId: DesktopScheduleVersionId;
   divisionId: DesktopScheduleDivisionId;
   name: string;
-  isStructure: boolean;
 }
 
 export interface DesktopScheduleSubWorkTypeCreateRequest {
+  scheduleVersionId: DesktopScheduleVersionId;
   workTypeId: DesktopScheduleWorkTypeId;
   name: string;
   color?: string | null;
 }
 
 export interface DesktopScheduleReferenceUpdateRequest {
+  scheduleVersionId?: DesktopScheduleVersionId;
   id?: number;
   name?: string;
   color?: string | null;
-  isStructure?: boolean;
   parentId?: number;
   ids?: number[];
 }
@@ -111,19 +110,16 @@ export interface DesktopScheduleMilestoneResponse {
 }
 
 export interface DesktopScheduleMilestoneCreateRequest {
+  scheduleVersionId: DesktopScheduleVersionId;
   date: string;
   name: string;
 }
 
 export interface DesktopScheduleMilestoneUpdateRequest {
+  scheduleVersionId: DesktopScheduleVersionId;
   id: DesktopScheduleMilestoneId;
   date: string;
   name: string;
-}
-
-export interface DesktopScheduleComponentTypeGroup {
-  componentDivisionId: number;
-  componentTypeIds: number[];
 }
 
 export interface DesktopScheduleWorkPhotoResponse {
@@ -140,18 +136,10 @@ export interface DesktopScheduleWorkResponse {
   startDate: string;
   workLeadTime: number;
   completionDate: string;
-  isWorkingOnHoliday: boolean;
   subWorkTypeId: number;
   division: string;
   workType: string;
   subWorkType: string;
-  zoneIds: number[];
-  zoneNames: string[];
-  floorIds: number[];
-  floorNames: string[];
-  componentTypes: DesktopScheduleComponentTypeGroup[];
-  positionY: number | null;
-  annotation: string | null;
   photos?: DesktopScheduleWorkPhotoResponse[];
 }
 
@@ -160,7 +148,6 @@ export interface DesktopScheduleWorkCreateRequest {
   workLeadTime: number;
   subWorkTypeId: number;
   scheduleVersionId: DesktopScheduleVersionId;
-  annotation?: string;
 }
 
 export interface DesktopScheduleWorkUpdateItem {
@@ -169,11 +156,6 @@ export interface DesktopScheduleWorkUpdateItem {
   startDate?: string;
   workLeadTime?: number;
   subWorkTypeId?: number;
-  positionY?: number;
-  zoneIds?: number[];
-  floorIds?: number[];
-  componentTypes?: DesktopScheduleComponentTypeGroup[];
-  annotation?: string;
 }
 
 export interface DesktopScheduleWorkUpdateRequest {

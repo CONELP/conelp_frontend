@@ -38,12 +38,6 @@ function getDurationDays(work: DesktopScheduleWorkResponse) {
   return Math.max(diffDays(work.startDate, work.completionDate) + 1, 1);
 }
 
-function getComponentTypeIds(work: DesktopScheduleWorkResponse) {
-  return (work.componentTypes ?? []).flatMap(
-    (componentTypeGroup) => componentTypeGroup.componentTypeIds ?? [],
-  );
-}
-
 function mapWorkToSourceTask(
   work: DesktopScheduleWorkResponse,
   index: number,
@@ -66,12 +60,12 @@ function mapWorkToSourceTask(
     workTypeId: hierarchyItem?.workTypeId,
     subWorkType,
     subWorkTypeId: work.subWorkTypeId,
-    positionY: work.positionY ?? index,
-    isWorkingOnHoliday: work.isWorkingOnHoliday,
-    annotation: work.annotation ?? "",
-    zoneIds: [...(work.zoneIds ?? [])],
-    floorIds: [...(work.floorIds ?? [])],
-    componentTypeIds: getComponentTypeIds(work),
+    positionY: index,
+    isWorkingOnHoliday: true,
+    annotation: "",
+    zoneIds: [],
+    floorIds: [],
+    componentTypeIds: [],
   };
 }
 
@@ -122,7 +116,6 @@ export function createDesktopScheduleSnapshotFromApiData(
       division: item.divisionName,
       workTypeId: item.workTypeId,
       workType: item.workTypeName,
-      isStructure: item.isStructure,
       subWorkTypeId: item.subWorkTypeId,
       subWorkType: item.subWorkTypeName,
       colorHex: item.subWorkTypeColor ?? null,

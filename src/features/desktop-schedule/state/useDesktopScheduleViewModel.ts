@@ -579,14 +579,6 @@ function getWorkHierarchyItemHistoryKey(item: DesktopScheduleReferenceHierarchyI
 function cloneWorkResponse(work: DesktopScheduleWorkResponse): DesktopScheduleWorkResponse {
   return {
     ...work,
-    zoneIds: [...(work.zoneIds ?? [])],
-    zoneNames: [...(work.zoneNames ?? [])],
-    floorIds: [...(work.floorIds ?? [])],
-    floorNames: [...(work.floorNames ?? [])],
-    componentTypes: (work.componentTypes ?? []).map((componentTypeGroup) => ({
-      ...componentTypeGroup,
-      componentTypeIds: [...(componentTypeGroup.componentTypeIds ?? [])],
-    })),
     photos: work.photos?.map((photo) => ({ ...photo })),
   };
 }
@@ -616,41 +608,6 @@ function cloneScheduleData(data: DesktopScheduleBootstrapData): DesktopScheduleB
     works: data.works.map(cloneWorkResponse),
     workDeps: data.workDeps.map(cloneWorkDepResponse),
     milestones: (data.milestones ?? []).map(cloneMilestoneResponse),
-  };
-}
-
-function normalizePromotedScheduleData(
-  data: DesktopScheduleBootstrapData,
-  promotedVersion: DesktopScheduleVersionResponse,
-  removedScheduleVersionIds: DesktopScheduleVersionId[] = [],
-): DesktopScheduleBootstrapData {
-  const removedScheduleVersionIdSet = new Set(removedScheduleVersionIds);
-  const normalizedVersions = data.scheduleVersions.filter(
-    (version) => version.id === promotedVersion.id || !removedScheduleVersionIdSet.has(version.id),
-  );
-  const hasPromotedVersion = normalizedVersions.some(
-    (version) => version.id === promotedVersion.id,
-  );
-  const nextVersions = sortScheduleVersionsForWorkflow([
-    ...normalizedVersions.map((version) => ({
-      ...version,
-      versionName:
-        version.id === promotedVersion.id ? promotedVersion.versionName : version.versionName,
-      isMain: version.id === promotedVersion.id,
-    })),
-    ...(hasPromotedVersion ? [] : [{ ...promotedVersion, isMain: true }]),
-  ]);
-  const selectedScheduleVersion =
-    nextVersions.find((version) => version.id === promotedVersion.id) ?? promotedVersion;
-
-  return {
-    ...data,
-    scheduleVersions: nextVersions,
-    selectedScheduleVersion: {
-      ...selectedScheduleVersion,
-      versionName: promotedVersion.versionName,
-      isMain: true,
-    },
   };
 }
 
@@ -817,8 +774,7 @@ function cloneSelectionState(selection: ReturnType<typeof createEmptyDesktopSche
 function hasDateOrLayoutChange(baseItem: DesktopScheduleItem, nextItem: DesktopScheduleItem) {
   return (
     baseItem.startDate !== nextItem.startDate ||
-    baseItem.durationDays !== nextItem.durationDays ||
-    baseItem.positionY !== nextItem.positionY
+    baseItem.durationDays !== nextItem.durationDays
   );
 }
 
@@ -2702,14 +2658,6 @@ function createDesktopScheduleViewModel() {
       startDate: work.startDate,
       workLeadTime: work.workLeadTime,
       subWorkTypeId: work.subWorkTypeId,
-      positionY: work.positionY ?? undefined,
-      zoneIds: [...(work.zoneIds ?? [])],
-      floorIds: [...(work.floorIds ?? [])],
-      componentTypes: (work.componentTypes ?? []).map((componentTypeGroup) => ({
-        ...componentTypeGroup,
-        componentTypeIds: [...(componentTypeGroup.componentTypeIds ?? [])],
-      })),
-      annotation: work.annotation ?? "",
     };
   }
 
@@ -2767,6 +2715,7 @@ function createDesktopScheduleViewModel() {
         updatedDivisionIds.add(target.divisionId);
         referenceUpdateRequests.push(
           desktopScheduleApi.updateDivision({
+            scheduleVersionId: getRequiredScheduleVersionIdForReferenceMutation(),
             id: target.divisionId,
             name: target.divisionName,
           }),
@@ -2774,17 +2723,16 @@ function createDesktopScheduleViewModel() {
       }
 
       if (
-        (source.workTypeName !== target.workTypeName ||
-          source.isStructure !== target.isStructure) &&
+        source.workTypeName !== target.workTypeName &&
         target.workTypeId > 0 &&
         !updatedWorkTypeIds.has(target.workTypeId)
       ) {
         updatedWorkTypeIds.add(target.workTypeId);
         referenceUpdateRequests.push(
           desktopScheduleApi.updateWorkType({
+            scheduleVersionId: getRequiredScheduleVersionIdForReferenceMutation(),
             id: target.workTypeId,
             name: target.workTypeName,
-            isStructure: target.isStructure,
           }),
         );
       }
@@ -2798,6 +2746,7 @@ function createDesktopScheduleViewModel() {
         updatedSubWorkTypeIds.add(target.subWorkTypeId);
         referenceUpdateRequests.push(
           desktopScheduleApi.updateSubWorkType({
+            scheduleVersionId: getRequiredScheduleVersionIdForReferenceMutation(),
             id: target.subWorkTypeId,
             name: target.subWorkTypeName,
             color: target.subWorkTypeColor,
@@ -2825,7 +2774,8 @@ function createDesktopScheduleViewModel() {
         targetDivisionIds.length > 1 &&
         JSON.stringify(targetDivisionIds) !== JSON.stringify(sourceDivisionIds)
       ) {
-        referenceUpdateRequests.push(desktopScheduleApi.updateDivision({ ids: targetDivisionIds }));
+        referenceUpdateRequests.push(desktopScheduleApi.updateDivision({
+            scheduleVersionId: getRequiredScheduleVersionIdForReferenceMutation(), ids: targetDivisionIds }));
       }
 
       const targetWorkTypeIdsByDivisionId =
@@ -2846,6 +2796,7 @@ function createDesktopScheduleViewModel() {
 
         referenceUpdateRequests.push(
           desktopScheduleApi.updateWorkType({
+            scheduleVersionId: getRequiredScheduleVersionIdForReferenceMutation(),
             parentId: divisionId,
             ids: targetWorkTypeIds,
           }),
@@ -2900,7 +2851,6 @@ function createDesktopScheduleViewModel() {
         workLeadTime: work.workLeadTime,
         subWorkTypeId: work.subWorkTypeId,
         scheduleVersionId,
-        annotation: work.annotation ?? "",
       });
       const createdWork = response.updatedWorks?.[0];
 
@@ -2910,13 +2860,7 @@ function createDesktopScheduleViewModel() {
         throw new Error("생성된 작업 ID를 확인하지 못했습니다.");
       }
 
-      if (
-        createdWork &&
-        (createdWork.workName !== work.workName ||
-          createdWork.positionY !== work.positionY ||
-          createdWork.zoneIds.join(",") !== (work.zoneIds ?? []).join(",") ||
-          createdWork.floorIds.join(",") !== (work.floorIds ?? []).join(","))
-      ) {
+      if (createdWork && createdWork.workName !== work.workName) {
         await desktopScheduleApi.updateWork({
           items: [
             {
@@ -3053,7 +2997,10 @@ function createDesktopScheduleViewModel() {
     if (milestoneIdsToDelete.length > 0) {
       await Promise.all(
         milestoneIdsToDelete.map((milestoneId) =>
-          desktopScheduleApi.deleteMilestone(milestoneId),
+          desktopScheduleApi.deleteMilestone(
+            milestoneId,
+            getRequiredScheduleVersionIdForReferenceMutation(),
+          ),
         ),
       );
     }
@@ -3062,6 +3009,7 @@ function createDesktopScheduleViewModel() {
       await Promise.all(
         milestonesToUpdate.map((milestone) =>
           desktopScheduleApi.updateMilestone({
+            scheduleVersionId: getRequiredScheduleVersionIdForReferenceMutation(),
             id: milestone.id,
             date: milestone.date,
             name: milestone.name,
@@ -3075,6 +3023,7 @@ function createDesktopScheduleViewModel() {
         milestonesToCreate.map(async (milestone) => ({
           sourceId: milestone.id,
           milestone: await desktopScheduleApi.createMilestone({
+            scheduleVersionId: getRequiredScheduleVersionIdForReferenceMutation(),
             date: milestone.date,
             name: milestone.name,
           }),
@@ -3344,7 +3293,6 @@ function createDesktopScheduleViewModel() {
           startDate: item.startDate,
           completionDate: item.endDate,
           workLeadTime: item.durationDays,
-          positionY: item.positionY,
         };
       }),
       workDeps: currentData.workDeps.map((workDep) => {
@@ -3590,7 +3538,7 @@ function createDesktopScheduleViewModel() {
 
   function replaceReferenceWorkTypeId(
     tempWorkTypeId: number,
-    workType: { id: number; name: string; isStructure?: boolean | null },
+    workType: { id: number; name: string },
   ) {
     updateLoadedScheduleData((currentData) => ({
       ...currentData,
@@ -3600,7 +3548,6 @@ function createDesktopScheduleViewModel() {
               ...item,
               workTypeId: workType.id,
               workTypeName: workType.name,
-              isStructure: workType.isStructure ?? item.isStructure,
             }
           : item,
       ),
@@ -3720,8 +3667,6 @@ function createDesktopScheduleViewModel() {
   async function loadSchedule(
     options: {
       scheduleVersionId?: DesktopScheduleVersionId;
-      promotedScheduleVersion?: DesktopScheduleVersionResponse;
-      removedScheduleVersionIds?: DesktopScheduleVersionId[];
     } = {},
   ) {
     scheduleVersionReviewState.value = createClosedScheduleVersionReviewState();
@@ -3737,13 +3682,7 @@ function createDesktopScheduleViewModel() {
       const loadedScheduleData = await desktopScheduleApi.loadCurrentProjectSchedule({
         scheduleVersionId: options.scheduleVersionId,
       });
-      const scheduleData = options.promotedScheduleVersion
-        ? normalizePromotedScheduleData(
-            loadedScheduleData,
-            options.promotedScheduleVersion,
-            options.removedScheduleVersionIds,
-          )
-        : loadedScheduleData;
+      const scheduleData = loadedScheduleData;
       const nextSnapshot = createDesktopScheduleSnapshotFromApiData(scheduleData);
       timelineCalendarState.value = createTimelineCalendarState(scheduleData);
       applyScheduleSnapshot(nextSnapshot);
@@ -3776,6 +3715,17 @@ function createDesktopScheduleViewModel() {
   function getSelectedScheduleVersionId() {
     return scheduleLoadState.value.data?.selectedScheduleVersion.id ?? null;
   }
+
+  function getRequiredScheduleVersionIdForReferenceMutation() {
+    const scheduleVersionId = getSelectedScheduleVersionId();
+
+    if (!scheduleVersionId) {
+      throw new Error("공종을 저장할 공정표 버전이 없습니다.");
+    }
+
+    return scheduleVersionId;
+  }
+
 
   function updateScheduleVersionsInLoadedData(
     updater: (versions: DesktopScheduleVersionResponse[]) => DesktopScheduleVersionResponse[],
@@ -3823,67 +3773,6 @@ function createDesktopScheduleViewModel() {
         ),
       ),
     );
-  }
-
-  function excludeScheduleVersionsFromWorkflow(scheduleVersionIds: DesktopScheduleVersionId[]) {
-    if (scheduleVersionIds.length === 0) {
-      return;
-    }
-
-    excludedScheduleVersionIds.value = new Set([
-      ...excludedScheduleVersionIds.value,
-      ...scheduleVersionIds,
-    ]);
-  }
-
-  function promoteScheduleVersionInLoadedData(
-    version: DesktopScheduleVersionResponse,
-    removedScheduleVersionIds: DesktopScheduleVersionId[] = [],
-  ) {
-    const currentData = scheduleLoadState.value.data;
-
-    if (!currentData) {
-      return;
-    }
-
-    const normalizedVersion = { ...version, isMain: true };
-    const removedScheduleVersionIdSet = new Set(removedScheduleVersionIds);
-    const filteredVersions = currentData.scheduleVersions.filter(
-      (currentVersion) =>
-        currentVersion.id === normalizedVersion.id ||
-        !removedScheduleVersionIdSet.has(currentVersion.id),
-    );
-    const hasVersion = filteredVersions.some(
-      (currentVersion) => currentVersion.id === normalizedVersion.id,
-    );
-    const nextVersions = sortScheduleVersionsForWorkflow([
-      ...filteredVersions.map((currentVersion) =>
-        currentVersion.id === normalizedVersion.id
-          ? { ...normalizedVersion }
-          : { ...currentVersion, isMain: false },
-      ),
-      ...(hasVersion ? [] : [{ ...normalizedVersion }]),
-    ]);
-
-    scheduleLoadState.value = {
-      ...scheduleLoadState.value,
-      data: {
-        ...currentData,
-        scheduleVersions: nextVersions,
-        selectedScheduleVersion: { ...normalizedVersion },
-      },
-    };
-  }
-
-  async function deleteReplacedMainScheduleVersions(
-    scheduleVersionIds: DesktopScheduleVersionId[],
-  ) {
-    for (const scheduleVersionId of scheduleVersionIds) {
-      await desktopScheduleApi.updateScheduleVersion(scheduleVersionId, {
-        isMain: false,
-      });
-      await desktopScheduleApi.deleteScheduleVersion(scheduleVersionId);
-    }
   }
 
   async function selectScheduleVersion(scheduleVersionId: DesktopScheduleVersionId) {
@@ -3960,7 +3849,6 @@ function createDesktopScheduleViewModel() {
         payload.scheduleVersionId,
         {
           versionName: trimmedVersionName,
-          isMain: null,
         },
       );
       replaceScheduleVersionInLoadedData({
@@ -4332,59 +4220,7 @@ function createDesktopScheduleViewModel() {
   }
 
   async function confirmScheduleVersionPromotion() {
-    const draftVersion = selectedScheduleVersion.value;
-    const mainVersion = scheduleVersions.value.find((version) => version.isMain) ?? null;
-    const promotionState = scheduleVersionPromotionState.value;
-    const summary = promotionState.summary;
-
-    if (!draftVersion || draftVersion.isMain || !mainVersion || !summary) {
-      showScheduleToast("반영할 작업본 정보를 다시 확인해 주세요.");
-      return;
-    }
-
-    scheduleVersionPromotionState.value = {
-      ...promotionState,
-      status: "promoting",
-      errorMessage: null,
-    };
-
-    try {
-      const promotedVersion = await desktopScheduleApi.updateScheduleVersion(draftVersion.id, {
-        isMain: true,
-      });
-      const promotedScheduleVersion = {
-        ...promotedVersion,
-        versionName: promotedVersion.versionName || draftVersion.versionName,
-        isMain: true,
-      };
-      const removedScheduleVersionIds = [draftVersion.id, mainVersion.id].filter(
-        (scheduleVersionId) => scheduleVersionId !== promotedScheduleVersion.id,
-      );
-
-      await deleteReplacedMainScheduleVersions(removedScheduleVersionIds);
-      excludeScheduleVersionsFromWorkflow(removedScheduleVersionIds);
-      promoteScheduleVersionInLoadedData(promotedScheduleVersion, removedScheduleVersionIds);
-
-      scheduleVersionReviewState.value = createClosedScheduleVersionReviewState();
-      scheduleVersionReviewBaselineCache.value = null;
-      scheduleVersionReviewSummaryCache.value = null;
-      scheduleVersionPromotionState.value = createClosedScheduleVersionPromotionState();
-
-      await loadSchedule({
-        scheduleVersionId: promotedScheduleVersion.id,
-        promotedScheduleVersion: promotedScheduleVersion,
-        removedScheduleVersionIds,
-      });
-      showScheduleToast("기준 공정표로 반영했어요.");
-    } catch (error) {
-      const normalizedError = normalizeError(error);
-      scheduleVersionPromotionState.value = {
-        ...promotionState,
-        status: "error",
-        errorMessage: normalizedError.message,
-      };
-      showScheduleToast("기준 공정표로 반영하지 못했어요.");
-    }
+    showScheduleToast("기준 공정표 반영 API가 아직 제공되지 않았어요.");
   }
 
   function getWorkConnectionById(workConnectionId: string) {
@@ -4412,6 +4248,7 @@ function createDesktopScheduleViewModel() {
     options: ScheduleMutationOptions = {},
   ) {
     const { reloadOnSuccess = false, reloadOnError = false, rollback } = options;
+
 
     try {
       await mutation();
@@ -4444,10 +4281,6 @@ function createDesktopScheduleViewModel() {
 
     if (baseItem.durationDays !== nextItem.durationDays) {
       request.workLeadTime = nextItem.durationDays;
-    }
-
-    if (baseItem.positionY !== nextItem.positionY) {
-      request.positionY = nextItem.positionY;
     }
 
     return request;
@@ -4648,7 +4481,6 @@ function createDesktopScheduleViewModel() {
       divisionName: DEFAULT_DIVISION_NAME,
       workTypeId: createOptimisticReferenceId(),
       workTypeName: DEFAULT_WORK_TYPE_NAME,
-      isStructure: true,
       subWorkTypeId: createOptimisticReferenceId(),
       subWorkTypeName: DEFAULT_SUB_WORK_TYPE_NAME,
       subWorkTypeColor: null,
@@ -4710,6 +4542,7 @@ function createDesktopScheduleViewModel() {
       const didSave = await runScheduleMutation(
         async () => {
           const division = await desktopScheduleApi.createDivision({
+            scheduleVersionId: getRequiredScheduleVersionIdForReferenceMutation(),
             name: nextName,
           });
           replaceReferenceDivisionId(payload.divisionId, division);
@@ -4727,7 +4560,8 @@ function createDesktopScheduleViewModel() {
 
     const didSave = await runScheduleMutation(
       async () => {
-        await desktopScheduleApi.updateDivision({ id: payload.divisionId, name: nextName });
+        await desktopScheduleApi.updateDivision({
+            scheduleVersionId: getRequiredScheduleVersionIdForReferenceMutation(), id: payload.divisionId, name: nextName });
       },
       "분류 이름을 변경하지 못했습니다.",
       {
@@ -4760,7 +4594,6 @@ function createDesktopScheduleViewModel() {
       divisionName: payload.divisionName,
       workTypeId: createOptimisticReferenceId(),
       workTypeName: DEFAULT_WORK_TYPE_NAME,
-      isStructure: true,
       subWorkTypeId: createOptimisticReferenceId(),
       subWorkTypeName: DEFAULT_SUB_WORK_TYPE_NAME,
       subWorkTypeColor: null,
@@ -4797,7 +4630,6 @@ function createDesktopScheduleViewModel() {
       divisionName: targetHierarchyItem.divisionName,
       workTypeId: targetHierarchyItem.workTypeId,
       workTypeName: targetHierarchyItem.workTypeName,
-      isStructure: targetHierarchyItem.isStructure,
       subWorkTypeId: createOptimisticReferenceId(),
       subWorkTypeName: DEFAULT_SUB_WORK_TYPE_NAME,
       subWorkTypeColor: null,
@@ -4868,9 +4700,9 @@ function createDesktopScheduleViewModel() {
       const didSave = await runScheduleMutation(
         async () => {
           const workType = await desktopScheduleApi.createWorkType({
+            scheduleVersionId: getRequiredScheduleVersionIdForReferenceMutation(),
             divisionId: targetHierarchyItem.divisionId,
             name: nextName,
-            isStructure: targetHierarchyItem.isStructure,
           });
           replaceReferenceWorkTypeId(payload.workTypeId, workType);
         },
@@ -4888,9 +4720,9 @@ function createDesktopScheduleViewModel() {
     const didSave = await runScheduleMutation(
       async () => {
         await desktopScheduleApi.updateWorkType({
+            scheduleVersionId: getRequiredScheduleVersionIdForReferenceMutation(),
           id: payload.workTypeId,
           name: nextName,
-          isStructure: targetHierarchyItem.isStructure,
         });
       },
       "상위 공정 이름을 변경하지 못했습니다.",
@@ -4969,6 +4801,7 @@ function createDesktopScheduleViewModel() {
       const didSave = await runScheduleMutation(
         async () => {
           const subWorkType = await desktopScheduleApi.createSubWorkType({
+            scheduleVersionId: getRequiredScheduleVersionIdForReferenceMutation(),
             workTypeId: targetHierarchyItem.workTypeId,
             name: nextName,
             color: targetHierarchyItem.subWorkTypeColor ?? null,
@@ -4989,6 +4822,7 @@ function createDesktopScheduleViewModel() {
     const didSave = await runScheduleMutation(
       async () => {
         await desktopScheduleApi.updateSubWorkType({
+            scheduleVersionId: getRequiredScheduleVersionIdForReferenceMutation(),
           id: payload.subWorkTypeId,
           name: nextName,
         });
@@ -5027,7 +4861,8 @@ function createDesktopScheduleViewModel() {
 
     const didSave = await runScheduleMutation(
       async () => {
-        await desktopScheduleApi.updateDivision({ ids: payload.divisionIds });
+        await desktopScheduleApi.updateDivision({
+            scheduleVersionId: getRequiredScheduleVersionIdForReferenceMutation(), ids: payload.divisionIds });
       },
       "분류 순서를 변경하지 못했습니다.",
       {
@@ -5063,6 +4898,7 @@ function createDesktopScheduleViewModel() {
     const didSave = await runScheduleMutation(
       async () => {
         await desktopScheduleApi.updateWorkType({
+            scheduleVersionId: getRequiredScheduleVersionIdForReferenceMutation(),
           parentId: payload.divisionId,
           ids: payload.workTypeIds,
         });
@@ -5162,7 +4998,10 @@ function createDesktopScheduleViewModel() {
             ...workDepIdsToDelete.map((workDepId) => desktopScheduleApi.deleteWorkDep(workDepId)),
             ...workIdsToDelete.map((workId) => desktopScheduleApi.deleteWork(workId)),
             ...milestoneApiIdsToDelete.map((milestoneApiId) =>
-              desktopScheduleApi.deleteMilestone(milestoneApiId),
+              desktopScheduleApi.deleteMilestone(
+                milestoneApiId,
+                getRequiredScheduleVersionIdForReferenceMutation(),
+              ),
             ),
           ]);
         },
@@ -5224,7 +5063,10 @@ function createDesktopScheduleViewModel() {
         async () => {
           await Promise.all(
             milestoneApiIdsToDelete.map((milestoneApiId) =>
-              desktopScheduleApi.deleteMilestone(milestoneApiId),
+              desktopScheduleApi.deleteMilestone(
+                milestoneApiId,
+                getRequiredScheduleVersionIdForReferenceMutation(),
+              ),
             ),
           );
         },
@@ -5428,6 +5270,7 @@ function createDesktopScheduleViewModel() {
         const didSave = await runScheduleMutation(
           async () => {
             await desktopScheduleApi.updateSubWorkType({
+            scheduleVersionId: getRequiredScheduleVersionIdForReferenceMutation(),
               id: subWorkTypeId,
               color: colorHex,
             });
@@ -5503,7 +5346,6 @@ function createDesktopScheduleViewModel() {
           workLeadTime: 3,
           subWorkTypeId,
           scheduleVersionId,
-          annotation: "",
         });
         applyServerMutationPatch(response, { rebuildSnapshot: true });
       },
@@ -5665,6 +5507,7 @@ function createDesktopScheduleViewModel() {
     const didSave = await runScheduleMutation(
       async () => {
         await desktopScheduleApi.updateMilestone({
+          scheduleVersionId: getRequiredScheduleVersionIdForReferenceMutation(),
           id: apiId,
           date: targetMilestone.date,
           name: trimmedLabel,
@@ -5993,13 +5836,13 @@ function createDesktopScheduleViewModel() {
 
               await Promise.all(
                 subWorkTypeIds.map((subWorkTypeId) =>
-                  desktopScheduleApi.deleteSubWorkType(subWorkTypeId),
+                  desktopScheduleApi.deleteSubWorkType(subWorkTypeId, getRequiredScheduleVersionIdForReferenceMutation()),
                 ),
               );
               await Promise.all(
-                workTypeIds.map((workTypeId) => desktopScheduleApi.deleteWorkType(workTypeId)),
+                workTypeIds.map((workTypeId) => desktopScheduleApi.deleteWorkType(workTypeId, getRequiredScheduleVersionIdForReferenceMutation())),
               );
-              await desktopScheduleApi.deleteDivision(target.divisionId);
+              await desktopScheduleApi.deleteDivision(target.divisionId, getRequiredScheduleVersionIdForReferenceMutation());
               return;
             }
 
@@ -6014,15 +5857,15 @@ function createDesktopScheduleViewModel() {
 
               await Promise.all(
                 subWorkTypeIds.map((subWorkTypeId) =>
-                  desktopScheduleApi.deleteSubWorkType(subWorkTypeId),
+                  desktopScheduleApi.deleteSubWorkType(subWorkTypeId, getRequiredScheduleVersionIdForReferenceMutation()),
                 ),
               );
-              await desktopScheduleApi.deleteWorkType(target.workTypeId);
+              await desktopScheduleApi.deleteWorkType(target.workTypeId, getRequiredScheduleVersionIdForReferenceMutation());
               return;
             }
 
             if (target.kind === "sub-work-type-header") {
-              await desktopScheduleApi.deleteSubWorkType(target.subWorkTypeId);
+              await desktopScheduleApi.deleteSubWorkType(target.subWorkTypeId, getRequiredScheduleVersionIdForReferenceMutation());
             }
           },
           "공정 항목을 삭제하지 못했습니다.",
@@ -6204,7 +6047,10 @@ function createDesktopScheduleViewModel() {
 
       const didSave = await runScheduleMutation(
         async () => {
-          await desktopScheduleApi.deleteMilestone(milestoneApiId);
+          await desktopScheduleApi.deleteMilestone(
+            milestoneApiId,
+            getRequiredScheduleVersionIdForReferenceMutation(),
+          );
         },
         "마일스톤을 삭제하지 못했습니다.",
         {
@@ -6387,6 +6233,7 @@ function createDesktopScheduleViewModel() {
     const didSave = await runScheduleMutation(
       async () => {
         const apiMilestone = await desktopScheduleApi.createMilestone({
+          scheduleVersionId: getRequiredScheduleVersionIdForReferenceMutation(),
           date: createdMilestone.date,
           name: createdMilestone.label,
         });
@@ -6616,6 +6463,7 @@ function createDesktopScheduleViewModel() {
               }
 
               return desktopScheduleApi.updateMilestone({
+                scheduleVersionId: getRequiredScheduleVersionIdForReferenceMutation(),
                 id: apiId,
                 date: milestone.date,
                 name: milestone.label,

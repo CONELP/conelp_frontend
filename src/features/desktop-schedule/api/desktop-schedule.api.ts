@@ -75,6 +75,8 @@ type RawDesktopScheduleProjectResponse = DesktopScheduleProjectResponse & {
   projectId?: DesktopScheduleProjectId;
 };
 
+const EMPTY_SCHEDULE_VERSION_NAME = "빈 공정표";
+
 function normalizeProjectResponse(
   project: RawDesktopScheduleProjectResponse,
 ): DesktopScheduleProjectResponse {
@@ -118,7 +120,7 @@ function resolveScheduleVersion(
       ? versions.find((version) => version.id === preferredScheduleVersionId) ?? null
       : null;
 
-  return matchedVersion ?? findMainScheduleVersion(versions);
+  return matchedVersion ?? findMainScheduleVersion(versions) ?? versions[0] ?? null;
 }
 
 function resolveSelectedProject(
@@ -158,8 +160,10 @@ export const desktopScheduleApi = {
 
   // Guide: backend/api/api-list/details/reference/48_getDivisionList.json
   // GET /api/reference/getDivisionList
-  getDivisionList() {
-    return apiFetch<DesktopScheduleDivisionResponse[]>("/reference/getDivisionList");
+  getDivisionList(scheduleVersionId?: DesktopScheduleVersionId) {
+    return apiFetch<DesktopScheduleDivisionResponse[]>(
+      `/reference/getDivisionList${buildQuery({ scheduleVersionId })}`,
+    );
   },
 
   // Guide: backend/api/api-list/details/reference/49_createDivision.json
@@ -182,17 +186,26 @@ export const desktopScheduleApi = {
 
   // Guide: backend/api/api-list/details/reference/101_deleteDivision.json
   // DELETE /api/reference/deleteDivision/{divisionId}
-  deleteDivision(divisionId: DesktopScheduleDivisionId) {
-    return apiFetch<void>(`/reference/deleteDivision/${encodePathSegment(divisionId)}`, {
-      method: "DELETE",
-    });
+  deleteDivision(
+    divisionId: DesktopScheduleDivisionId,
+    scheduleVersionId: DesktopScheduleVersionId,
+  ) {
+    return apiFetch<void>(
+      `/reference/deleteDivision/${encodePathSegment(divisionId)}${buildQuery({ scheduleVersionId })}`,
+      {
+        method: "DELETE",
+      },
+    );
   },
 
   // Guide: backend/api/api-list/details/reference/50_getWorkTypeList.json
   // GET /api/reference/getWorkTypeList?divisionId={divisionId}
-  getWorkTypeList(divisionId: DesktopScheduleDivisionId) {
+  getWorkTypeList(
+    divisionId: DesktopScheduleDivisionId,
+    scheduleVersionId?: DesktopScheduleVersionId,
+  ) {
     return apiFetch<DesktopScheduleWorkTypeResponse[]>(
-      `/reference/getWorkTypeList${buildQuery({ divisionId })}`,
+      `/reference/getWorkTypeList${buildQuery({ divisionId, scheduleVersionId })}`,
     );
   },
 
@@ -216,17 +229,26 @@ export const desktopScheduleApi = {
 
   // Guide: backend/api/api-list/details/reference/102_deleteWorkType.json
   // DELETE /api/reference/deleteWorkType/{workTypeId}
-  deleteWorkType(workTypeId: DesktopScheduleWorkTypeId) {
-    return apiFetch<void>(`/reference/deleteWorkType/${encodePathSegment(workTypeId)}`, {
-      method: "DELETE",
-    });
+  deleteWorkType(
+    workTypeId: DesktopScheduleWorkTypeId,
+    scheduleVersionId: DesktopScheduleVersionId,
+  ) {
+    return apiFetch<void>(
+      `/reference/deleteWorkType/${encodePathSegment(workTypeId)}${buildQuery({ scheduleVersionId })}`,
+      {
+        method: "DELETE",
+      },
+    );
   },
 
   // Guide: backend/api/api-list/details/reference/53_getSubWorkTypeList.json
   // GET /api/reference/getSubWorkTypeList?workTypeId={workTypeId}
-  getSubWorkTypeList(workTypeId: DesktopScheduleWorkTypeId) {
+  getSubWorkTypeList(
+    workTypeId: DesktopScheduleWorkTypeId,
+    scheduleVersionId?: DesktopScheduleVersionId,
+  ) {
     return apiFetch<DesktopScheduleSubWorkTypeResponse[]>(
-      `/reference/getSubWorkTypeList${buildQuery({ workTypeId })}`,
+      `/reference/getSubWorkTypeList${buildQuery({ workTypeId, scheduleVersionId })}`,
     );
   },
 
@@ -250,10 +272,16 @@ export const desktopScheduleApi = {
 
   // Guide: backend/api/api-list/details/reference/103_deleteSubWorkType.json
   // DELETE /api/reference/deleteSubWorkType/{subWorkTypeId}
-  deleteSubWorkType(subWorkTypeId: DesktopScheduleSubWorkTypeId) {
-    return apiFetch<void>(`/reference/deleteSubWorkType/${encodePathSegment(subWorkTypeId)}`, {
-      method: "DELETE",
-    });
+  deleteSubWorkType(
+    subWorkTypeId: DesktopScheduleSubWorkTypeId,
+    scheduleVersionId: DesktopScheduleVersionId,
+  ) {
+    return apiFetch<void>(
+      `/reference/deleteSubWorkType/${encodePathSegment(subWorkTypeId)}${buildQuery({ scheduleVersionId })}`,
+      {
+        method: "DELETE",
+      },
+    );
   },
 
   // Guide: backend/api/api-list/details/scheduleVersion/39_getScheduleVersionList.json
@@ -416,8 +444,10 @@ export const desktopScheduleApi = {
 
   // Guide: backend/api/api-list/details/milestone/328_getMilestoneList.json
   // GET /api/milestone/getMilestoneList
-  getMilestoneList() {
-    return apiFetch<DesktopScheduleMilestoneResponse[]>("/milestone/getMilestoneList");
+  getMilestoneList(scheduleVersionId?: DesktopScheduleVersionId) {
+    return apiFetch<DesktopScheduleMilestoneResponse[]>(
+      `/milestone/getMilestoneList${buildQuery({ scheduleVersionId })}`,
+    );
   },
 
   // Guide: backend/api/api-list/details/milestone/329_createMilestone.json
@@ -440,18 +470,26 @@ export const desktopScheduleApi = {
 
   // Guide: backend/api/api-list/details/milestone/331_deleteMilestone.json
   // DELETE /api/milestone/deleteMilestone/{milestoneId}
-  deleteMilestone(milestoneId: DesktopScheduleMilestoneId) {
-    return apiFetch<void>(`/milestone/deleteMilestone/${encodePathSegment(milestoneId)}`, {
-      method: "DELETE",
-    });
+  deleteMilestone(
+    milestoneId: DesktopScheduleMilestoneId,
+    scheduleVersionId: DesktopScheduleVersionId,
+  ) {
+    return apiFetch<void>(
+      `/milestone/deleteMilestone/${encodePathSegment(milestoneId)}${buildQuery({ scheduleVersionId })}`,
+      {
+        method: "DELETE",
+      },
+    );
   },
 
-  async getReferenceHierarchy(): Promise<DesktopScheduleReferenceHierarchyItem[]> {
-    const divisions = await desktopScheduleApi.getDivisionList();
+  async getReferenceHierarchy(
+    scheduleVersionId?: DesktopScheduleVersionId,
+  ): Promise<DesktopScheduleReferenceHierarchyItem[]> {
+    const divisions = await desktopScheduleApi.getDivisionList(scheduleVersionId);
     const workTypeGroups = await Promise.all(
       divisions.map(async (division) => ({
         division,
-        workTypes: await desktopScheduleApi.getWorkTypeList(division.id),
+        workTypes: await desktopScheduleApi.getWorkTypeList(division.id, scheduleVersionId),
       })),
     );
 
@@ -460,7 +498,7 @@ export const desktopScheduleApi = {
         divisionGroup.workTypes.map(async (workType) => ({
           division: divisionGroup.division,
           workType,
-          subWorkTypes: await desktopScheduleApi.getSubWorkTypeList(workType.id),
+          subWorkTypes: await desktopScheduleApi.getSubWorkTypeList(workType.id, scheduleVersionId),
         })),
       ),
     );
@@ -473,7 +511,6 @@ export const desktopScheduleApi = {
             divisionName: group.division.name,
             workTypeId: group.workType.id,
             workTypeName: group.workType.name,
-            isStructure: group.workType.isStructure,
             subWorkTypeId: 0,
             subWorkTypeName: "",
             subWorkTypeColor: null,
@@ -486,7 +523,6 @@ export const desktopScheduleApi = {
         divisionName: group.division.name,
         workTypeId: group.workType.id,
         workTypeName: group.workType.name,
-        isStructure: group.workType.isStructure,
         subWorkTypeId: subWorkType.id,
         subWorkTypeName: subWorkType.name,
         subWorkTypeColor: subWorkType.color ?? null,
@@ -500,7 +536,6 @@ export const desktopScheduleApi = {
         divisionName: division.name,
         workTypeId: 0,
         workTypeName: "",
-        isStructure: false,
         subWorkTypeId: 0,
         subWorkTypeName: "",
         subWorkTypeColor: null,
@@ -516,17 +551,18 @@ export const desktopScheduleApi = {
     const selectedProject = resolveSelectedProject(projects, options.projectId);
 
     const scheduleVersions = await desktopScheduleApi.getScheduleVersionList();
-
-    const selectedScheduleVersion = resolveScheduleVersion(
+    let selectedScheduleVersion = resolveScheduleVersion(
       scheduleVersions,
       options.scheduleVersionId,
     );
+    let nextScheduleVersions = scheduleVersions;
 
     if (!selectedScheduleVersion) {
-      throw new DesktopScheduleApiError(
-        "NO_MAIN_SCHEDULE_VERSION",
-        "메인 공정표 버전이 없습니다.",
-      );
+      const createdScheduleVersion = await desktopScheduleApi.createScheduleVersion({
+        versionName: EMPTY_SCHEDULE_VERSION_NAME,
+      });
+      selectedScheduleVersion = createdScheduleVersion;
+      nextScheduleVersions = [createdScheduleVersion];
     }
 
     const scheduleVersionId = selectedScheduleVersion.id;
@@ -540,16 +576,16 @@ export const desktopScheduleApi = {
 
     const [calendar, workHierarchy, works, workDeps, milestones] = await Promise.all([
       desktopScheduleApi.getProjectCalendar(selectedProject.id),
-      desktopScheduleApi.getReferenceHierarchy(),
+      desktopScheduleApi.getReferenceHierarchy(scheduleVersionId),
       worksPromise,
       desktopScheduleApi.getWorkDepListByVersion(scheduleVersionId),
-      desktopScheduleApi.getMilestoneList(),
+      desktopScheduleApi.getMilestoneList(scheduleVersionId),
     ]);
 
     return {
       projects,
       selectedProject,
-      scheduleVersions,
+      scheduleVersions: nextScheduleVersions,
       selectedScheduleVersion,
       calendar,
       workHierarchy,
