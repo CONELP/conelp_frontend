@@ -90,7 +90,6 @@ export interface WorkTypeReferenceResponse {
   id: number;
   name: string;
   divisionId: number;
-  isStructure: boolean;
 }
 
 export interface UpdateMirLineRequest {
@@ -234,14 +233,14 @@ export interface CatLineResponse {
 export interface DocumentJobResponse {
   id: number;
   projectId: string;
-  docType: string;
+  docType: "DR" | "MIR" | "CAT" | "CCST" | "SCHEDULE_3WEEK" | "SCHEDULE_3MONTH" | string;
   docNo: string | null;
-  status: string;
+  status: "PENDING" | "RUNNING" | "SUCCEEDED" | "FAILED" | string;
   resultUrl: string | null;
   pdfUrl: string | null;
   errCode: string | null;
   errDetail: string | null;
   startedAt: string | null;
   completedAt: string | null;
-  createdAt: string | null;
+  createdAt: string;
 }

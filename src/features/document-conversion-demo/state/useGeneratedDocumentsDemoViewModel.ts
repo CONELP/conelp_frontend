@@ -23,7 +23,12 @@ interface GeneratedDocumentDateGroup {
 const KOREAN_WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"] as const;
 const SUCCESS_STATUS = "SUCCEEDED";
 const DOCUMENT_LABEL_BY_TYPE: Record<string, string> = {
+  DR: "일일 작업일보",
   MIR: "자재 반입 검수요청",
+  CAT: "콘크리트 타설 요청",
+  CCST: "압축강도 시험 의뢰",
+  SCHEDULE_3WEEK: "3주 공정표",
+  SCHEDULE_3MONTH: "3개월 공정표",
 };
 
 function formatGeneratedDocumentDate(value: string) {
@@ -192,7 +197,7 @@ export function useGeneratedDocumentsDemoViewModel() {
     generatedDocumentsErrorMessage.value = "";
 
     try {
-      const documents = await materialInspectionRequestApi.getMirDocumentList();
+      const documents = await materialInspectionRequestApi.getDocumentJobList();
 
       generatedDocumentItems.value = sortGeneratedDocuments(
         documents

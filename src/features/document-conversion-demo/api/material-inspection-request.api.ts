@@ -32,8 +32,17 @@ function appendOptionalString(formData: FormData, key: string, value?: string) {
 
 function appendOptionalNumber(formData: FormData, key: string, value?: number | null) {
   if (typeof value === "number" && Number.isFinite(value)) {
-    formData.append(key, String(value));
+    appendJsonPart(formData, key, value);
   }
+}
+
+function appendJsonPart(formData: FormData, key: string, value: unknown) {
+  formData.append(
+    key,
+    new Blob([JSON.stringify(value)], {
+      type: "application/json",
+    }),
+  );
 }
 
 function toApiBody<TRequest extends object>(body: TRequest): Record<string, unknown> {
@@ -114,7 +123,7 @@ export const materialInspectionRequestApi = {
     request.deliveryNote.forEach((image) => {
       formData.append("deliveryNote", image);
     });
-    formData.append("metadata", JSON.stringify(request.metadata));
+    appendJsonPart(formData, "metadata", request.metadata);
     request.batchPhotos.forEach((image) => {
       formData.append("batchPhotos", image);
     });
@@ -175,6 +184,14 @@ export const materialInspectionRequestApi = {
         method: "GET",
       },
     );
+  },
+
+  async getDocumentJobList() {
+    await ensureSelectedProjectId();
+
+    return apiFetch<DocumentJobResponse[]>("/document/getDocumentJobList", {
+      method: "GET",
+    });
   },
 
   async downloadDocumentFile(key: string) {
