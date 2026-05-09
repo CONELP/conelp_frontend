@@ -920,14 +920,11 @@ function validateMirReviewRows(rows: MaterialReviewRow[]) {
   }
 
   const hasInvalidLine = rows.some(
-    (row) =>
-      !row.manufacturer.trim() ||
-      !row.materialTypeName.trim() ||
-      !row.materialSpecName.trim(),
+    (row) => !row.materialTypeName.trim() || !row.materialSpecName.trim(),
   );
 
   if (hasInvalidLine) {
-    return "제조사, 자재 종류, 규격을 모두 입력해 주세요.";
+    return "자재 종류, 규격을 모두 입력해 주세요.";
   }
 
   return "";
