@@ -93,6 +93,17 @@ async function authFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return readResponseBody(response) as Promise<T>;
 }
 
+let refreshInFlight: Promise<TokenResponse> | null = null;
+
+async function performRefresh(): Promise<TokenResponse> {
+  const tokenData = await authFetch<TokenResponse>("/refresh", {
+    method: "POST",
+  });
+
+  setAccessToken(tokenData.accessToken);
+  return tokenData;
+}
+
 async function buildLoginBody(email: string, password: string): Promise<LoginCredentials> {
   const publicKeyPem = await authApi.getPublicKey();
   const cryptoKey = await importPublicKey(publicKeyPem);
@@ -121,12 +132,13 @@ export const authApi = {
   },
 
   async refresh() {
-    const tokenData = await authFetch<TokenResponse>("/refresh", {
-      method: "POST",
-    });
+    if (!refreshInFlight) {
+      refreshInFlight = performRefresh().finally(() => {
+        refreshInFlight = null;
+      });
+    }
 
-    setAccessToken(tokenData.accessToken);
-    return tokenData;
+    return refreshInFlight;
   },
 
   async me() {

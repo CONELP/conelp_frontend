@@ -1,6 +1,6 @@
-import { clearAccessToken, getAccessToken, setAccessToken } from "@/shared/network/access-token";
+import { authApi } from "@/features/auth/services/auth-api";
+import { clearAccessToken, getAccessToken } from "@/shared/network/access-token";
 import { toApiUrl } from "@/shared/network/api-config";
-import type { TokenResponse } from "@/features/auth/model/auth.types";
 
 type ApiBody = BodyInit | Record<string, unknown> | unknown[] | null;
 
@@ -44,23 +44,6 @@ function buildHeaders(body: ApiBody | undefined, initHeaders?: HeadersInit) {
   }
 
   return headers;
-}
-
-async function refreshAccessToken() {
-  const response = await fetch(toApiUrl("/auth/refresh"), {
-    method: "POST",
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error("인증이 만료되었습니다.");
-  }
-
-  const tokenData = (await response.json()) as TokenResponse;
-  setAccessToken(tokenData.accessToken);
 }
 
 async function redirectToLogin() {
@@ -112,7 +95,7 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
 
   if ((response.status === 401 || response.status === 403) && retryOnUnauthorized) {
     try {
-      await refreshAccessToken();
+      await authApi.refresh();
       return apiFetch<T>(path, { ...options, retryOnUnauthorized: false });
     } catch {
       clearAccessToken();
