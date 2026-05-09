@@ -3,6 +3,8 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 
 import imageIcon from "@fluentui/svg-icons/icons/image_20_regular.svg";
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
+import { actualWorkApi } from "@/features/document-conversion-demo/api/actual-work.api";
+import type { ActualWorkResponse } from "@/features/document-conversion-demo/api/actual-work-api.types";
 import { materialInspectionRequestApi } from "@/features/document-conversion-demo/api/material-inspection-request.api";
 import type { WorkTypeReferenceResponse } from "@/features/document-conversion-demo/api/material-inspection-request-api.types";
 import { desktopScheduleService } from "@/features/desktop-schedule/services/desktop-schedule.service";
@@ -56,6 +58,10 @@ type DailyReportWorkTypeDragOverState = DailyReportWorkTypeDragState & {
 type DailyReportTaskDraft = {
   id: string;
   text: string;
+  actualWorkId: number | null;
+  matchedWorkName: string | null;
+  isSyncing: boolean;
+  hasReceivedResponse: boolean;
 };
 
 type DailyReportWorkTypeDraft = {
@@ -113,6 +119,39 @@ function createDailyReportTask(text = ""): DailyReportTaskDraft {
   return {
     id: createDailyReportImageId(),
     text,
+    actualWorkId: null,
+    matchedWorkName: null,
+    isSyncing: false,
+    hasReceivedResponse: false,
+  };
+}
+
+function createDailyReportTaskFromResponse(response: ActualWorkResponse): DailyReportTaskDraft {
+  return {
+    id: createDailyReportImageId(),
+    text: response.actualWorkName,
+    actualWorkId: response.id,
+    matchedWorkName: response.workName,
+    isSyncing: false,
+    hasReceivedResponse: true,
+  };
+}
+
+function pad2(value: number) {
+  return String(value).padStart(2, "0");
+}
+
+function formatLocalDate(date: Date) {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+}
+
+function getReportDates() {
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  return {
+    today: formatLocalDate(today),
+    tomorrow: formatLocalDate(tomorrow),
   };
 }
 
@@ -158,6 +197,13 @@ function normalizeDailyReportTasks(value: unknown): DailyReportTaskDraft[] {
     .map((task) => ({
       id: typeof task.id === "string" && task.id ? task.id : createDailyReportImageId(),
       text: typeof task.text === "string" ? task.text : "",
+      actualWorkId:
+        typeof task.actualWorkId === "number" && Number.isFinite(task.actualWorkId)
+          ? task.actualWorkId
+          : null,
+      matchedWorkName: typeof task.matchedWorkName === "string" ? task.matchedWorkName : null,
+      isSyncing: false,
+      hasReceivedResponse: typeof task.actualWorkId === "number",
     }));
 
   return tasks.length > 0 ? tasks : [createDailyReportTask()];
@@ -341,7 +387,12 @@ const imageDragState = ref<DailyReportImageDragState | null>(null);
 const imageDragOverState = ref<DailyReportImageDragOverState | null>(null);
 const previewImage = ref<DailyReportImageDraft | null>(null);
 const workTypeSuggestionStates = ref<Record<string, DailyReportWorkTypeSuggestionState>>({});
-const dailyReportDraft = readStoredDailyReportDraft();
+const dailyReportDraft: DailyReportDraft = {
+  todayWorkTypes: [],
+  tomorrowWorkTypes: [],
+  todayImages: [],
+  tomorrowImages: [],
+};
 const todayWorkTypes = ref<DailyReportWorkTypeDraft[]>(dailyReportDraft.todayWorkTypes);
 const tomorrowWorkTypes = ref<DailyReportWorkTypeDraft[]>(dailyReportDraft.tomorrowWorkTypes);
 const todayImages = ref<DailyReportImageDraft[]>(dailyReportDraft.todayImages);
@@ -546,10 +597,24 @@ function addDailyReportWorkType(section: DailyReportWorkSection) {
 
 function removeDailyReportWorkType(section: DailyReportWorkSection, workTypeId: string) {
   clearWorkTypeSuggestionCloseTimer(workTypeId);
+  const target = getWorkTypeDrafts(section).find((workType) => workType.id === workTypeId);
   setWorkTypeDrafts(
     section,
     getWorkTypeDrafts(section).filter((workType) => workType.id !== workTypeId),
   );
+  if (target) {
+    target.tasks.forEach((task) => {
+      void syncTaskDelete(task);
+    });
+  }
+}
+
+function findSectionForWorkType(
+  workType: DailyReportWorkTypeDraft,
+): DailyReportWorkSection | null {
+  if (todayWorkTypes.value.some((entry) => entry.id === workType.id)) return "today";
+  if (tomorrowWorkTypes.value.some((entry) => entry.id === workType.id)) return "tomorrow";
+  return null;
 }
 
 function moveDailyReportWorkType(
@@ -666,12 +731,136 @@ function getWorkTypeDragClass(section: DailyReportWorkSection, workTypeId: strin
   };
 }
 
+const reportDates = getReportDates();
+const taskSyncRequestIds = new Map<string, number>();
+const pendingTaskDeletes = new Set<string>();
+
+function getSectionDate(section: DailyReportWorkSection) {
+  return section === "today" ? reportDates.today : reportDates.tomorrow;
+}
+
+function nextSyncRequestId(taskId: string) {
+  const next = (taskSyncRequestIds.get(taskId) ?? 0) + 1;
+  taskSyncRequestIds.set(taskId, next);
+  return next;
+}
+
+function isLatestSync(taskId: string, requestId: number) {
+  return taskSyncRequestIds.get(taskId) === requestId;
+}
+
+function applyResponseToTask(task: DailyReportTaskDraft, response: ActualWorkResponse) {
+  task.actualWorkId = response.id;
+  task.matchedWorkName = response.workName;
+  task.hasReceivedResponse = true;
+}
+
+async function syncTaskCreate(
+  task: DailyReportTaskDraft,
+  workType: DailyReportWorkTypeDraft,
+  section: DailyReportWorkSection,
+) {
+  if (workType.workTypeId === null) return;
+  const trimmedName = task.text.trim();
+  if (!trimmedName) return;
+
+  const requestId = nextSyncRequestId(task.id);
+  task.isSyncing = true;
+
+  try {
+    const response = await actualWorkApi.create({
+      date: getSectionDate(section),
+      workTypeId: workType.workTypeId,
+      workName: trimmedName,
+    });
+
+    if (!isLatestSync(task.id, requestId)) return;
+
+    if (pendingTaskDeletes.has(task.id)) {
+      pendingTaskDeletes.delete(task.id);
+      try {
+        await actualWorkApi.delete(response.id);
+      } catch (error) {
+        console.error("deleteActualWork (after create) failed", error);
+      }
+      return;
+    }
+
+    applyResponseToTask(task, response);
+  } catch (error) {
+    console.error("createActualWork failed", error);
+  } finally {
+    if (isLatestSync(task.id, requestId)) {
+      task.isSyncing = false;
+    }
+  }
+}
+
+async function syncTaskUpdate(
+  task: DailyReportTaskDraft,
+  patch: { workTypeId?: number; workName?: string },
+) {
+  if (task.actualWorkId === null) return;
+  const body = {
+    ...(typeof patch.workTypeId === "number" ? { workTypeId: patch.workTypeId } : {}),
+    ...(typeof patch.workName === "string" ? { workName: patch.workName } : {}),
+  };
+  if (Object.keys(body).length === 0) return;
+
+  const requestId = nextSyncRequestId(task.id);
+  task.isSyncing = true;
+
+  try {
+    const response = await actualWorkApi.update(task.actualWorkId, body);
+    if (!isLatestSync(task.id, requestId)) return;
+    applyResponseToTask(task, response);
+  } catch (error) {
+    console.error("updateActualWork failed", error);
+  } finally {
+    if (isLatestSync(task.id, requestId)) {
+      task.isSyncing = false;
+    }
+  }
+}
+
+async function syncTaskDelete(task: DailyReportTaskDraft) {
+  if (task.actualWorkId === null) {
+    pendingTaskDeletes.add(task.id);
+    return;
+  }
+  try {
+    await actualWorkApi.delete(task.actualWorkId);
+  } catch (error) {
+    console.error("deleteActualWork failed", error);
+  }
+}
+
 function addDailyReportTask(workType: DailyReportWorkTypeDraft) {
   workType.tasks.push(createDailyReportTask());
 }
 
 function removeDailyReportTask(workType: DailyReportWorkTypeDraft, taskId: string) {
+  const target = workType.tasks.find((task) => task.id === taskId);
   workType.tasks = workType.tasks.filter((task) => task.id !== taskId);
+  if (target) {
+    void syncTaskDelete(target);
+  }
+}
+
+async function handleTaskBlur(
+  workType: DailyReportWorkTypeDraft,
+  task: DailyReportTaskDraft,
+) {
+  const trimmedName = task.text.trim();
+  if (!trimmedName) return;
+
+  if (task.actualWorkId === null) {
+    const section = findSectionForWorkType(workType);
+    if (!section) return;
+    await syncTaskCreate(task, workType, section);
+  } else {
+    await syncTaskUpdate(task, { workName: trimmedName });
+  }
 }
 
 function getWorkTypeSuggestionState(workTypeId: string) {
@@ -870,12 +1059,28 @@ function selectDailyReportWorkTypeSuggestion(
   clearWorkTypeSuggestionCloseTimer(workType.id);
   const state = ensureWorkTypeSuggestionState(workType.id);
   state.requestId += 1;
+  const previousWorkTypeId = workType.workTypeId;
   workType.workTypeId = suggestion.id;
   workType.workTypeName = suggestion.name;
   state.suggestions = [];
   state.errorMessage = "";
   state.isOpen = false;
   state.highlightedIndex = -1;
+
+  if (previousWorkTypeId === suggestion.id) {
+    return;
+  }
+
+  const section = findSectionForWorkType(workType);
+  if (!section) return;
+
+  workType.tasks.forEach((task) => {
+    if (task.actualWorkId !== null) {
+      void syncTaskUpdate(task, { workTypeId: suggestion.id });
+    } else if (task.text.trim()) {
+      void syncTaskCreate(task, workType, section);
+    }
+  });
 }
 
 function getImageDrafts(section: DailyReportWorkSection) {
@@ -1058,19 +1263,44 @@ function getImageCardDragClass(section: DailyReportWorkSection, imageId: string)
 }
 
 function handleDailyReportSave() {
-  if (typeof window === "undefined") {
-    return;
-  }
+  // 작업 항목들은 입력 시점에 자동 저장되므로 별도 처리 불필요.
+}
 
-  window.localStorage.setItem(
-    DAILY_REPORT_DRAFT_STORAGE_KEY,
-    JSON.stringify({
-      todayWorkTypes: todayWorkTypes.value,
-      tomorrowWorkTypes: tomorrowWorkTypes.value,
-      todayImages: todayImages.value,
-      tomorrowImages: tomorrowImages.value,
-    }),
-  );
+function buildWorkTypeDraftsFromResponses(
+  responses: ActualWorkResponse[],
+): DailyReportWorkTypeDraft[] {
+  const groupOrder: number[] = [];
+  const groups = new Map<number, DailyReportWorkTypeDraft>();
+
+  responses.forEach((response) => {
+    let group = groups.get(response.workTypeId);
+    if (!group) {
+      group = {
+        id: createDailyReportImageId(),
+        workTypeId: response.workTypeId,
+        workTypeName: response.workTypeName,
+        tasks: [],
+      };
+      groups.set(response.workTypeId, group);
+      groupOrder.push(response.workTypeId);
+    }
+    group.tasks.push(createDailyReportTaskFromResponse(response));
+  });
+
+  return groupOrder.map((workTypeId) => groups.get(workTypeId)!);
+}
+
+async function hydrateDailyReportFromServer() {
+  try {
+    const [todayResponses, tomorrowResponses] = await Promise.all([
+      actualWorkApi.listByDate(reportDates.today),
+      actualWorkApi.listByDate(reportDates.tomorrow),
+    ]);
+    todayWorkTypes.value = buildWorkTypeDraftsFromResponses(todayResponses);
+    tomorrowWorkTypes.value = buildWorkTypeDraftsFromResponses(tomorrowResponses);
+  } catch (error) {
+    console.error("hydrate daily report failed", error);
+  }
 }
 
 async function ensureBaselineScheduleSelected() {
@@ -1118,6 +1348,8 @@ onMounted(() => {
   } else {
     void ensureBaselineScheduleSelected();
   }
+
+  void hydrateDailyReportFromServer();
 });
 
 onUnmounted(() => {
@@ -1504,7 +1736,26 @@ watch(
 	                        class="daily-report-task-input"
 	                        type="text"
 	                        placeholder="작업 사항을 입력해 주세요."
+	                        @blur="handleTaskBlur(workType, task)"
 	                      />
+	                      <span
+	                        v-if="task.isSyncing"
+	                        class="daily-report-task-match-label daily-report-task-match-label--syncing"
+	                      >
+	                        동기화 중...
+	                      </span>
+	                      <span
+	                        v-else-if="task.matchedWorkName"
+	                        class="daily-report-task-match-label daily-report-task-match-label--matched"
+	                      >
+	                        → {{ task.matchedWorkName }}
+	                      </span>
+	                      <span
+	                        v-else-if="task.hasReceivedResponse && task.text.trim()"
+	                        class="daily-report-task-match-label daily-report-task-match-label--unmatched"
+	                      >
+	                        매칭 없음
+	                      </span>
 	                      <button
 	                        type="button"
 	                        class="daily-report-task-delete"
@@ -1728,7 +1979,26 @@ watch(
 	                        class="daily-report-task-input"
 	                        type="text"
 	                        placeholder="작업 사항을 입력해 주세요."
+	                        @blur="handleTaskBlur(workType, task)"
 	                      />
+	                      <span
+	                        v-if="task.isSyncing"
+	                        class="daily-report-task-match-label daily-report-task-match-label--syncing"
+	                      >
+	                        동기화 중...
+	                      </span>
+	                      <span
+	                        v-else-if="task.matchedWorkName"
+	                        class="daily-report-task-match-label daily-report-task-match-label--matched"
+	                      >
+	                        → {{ task.matchedWorkName }}
+	                      </span>
+	                      <span
+	                        v-else-if="task.hasReceivedResponse && task.text.trim()"
+	                        class="daily-report-task-match-label daily-report-task-match-label--unmatched"
+	                      >
+	                        매칭 없음
+	                      </span>
 	                      <button
 	                        type="button"
 	                        class="daily-report-task-delete"

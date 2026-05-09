@@ -846,3 +846,26 @@
     display: none;
   }
 }
+
+.daily-report-task-match-label {
+  grid-column: 2 / -1;
+  grid-row: 2;
+  font-size: 0.78rem;
+  line-height: 1.2;
+  margin-top: -0.15rem;
+  padding-bottom: 0.25rem;
+  word-break: break-word;
+}
+
+.daily-report-task-match-label--matched {
+  color: var(--primary, #1e1888);
+}
+
+.daily-report-task-match-label--unmatched {
+  color: rgba(100, 116, 139, 0.62);
+}
+
+.daily-report-task-match-label--syncing {
+  color: rgba(100, 116, 139, 0.62);
+  font-style: italic;
+}
