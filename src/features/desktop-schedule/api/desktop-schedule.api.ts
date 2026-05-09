@@ -331,6 +331,16 @@ export const desktopScheduleApi = {
     );
   },
 
+  // POST /api/scheduleVersion/setScheduleMain/{scheduleVersionId}
+  setScheduleMain(scheduleVersionId: DesktopScheduleVersionId) {
+    return apiFetch<DesktopScheduleVersionResponse>(
+      `/scheduleVersion/setScheduleMain/${encodePathSegment(scheduleVersionId)}`,
+      {
+        method: "POST",
+      },
+    );
+  },
+
   // Guide: backend/api/gantt-chart/gantt-chart-core-api.md
   // DELETE /api/scheduleVersion/deleteScheduleVersion/{scheduleVersionId}
   deleteScheduleVersion(scheduleVersionId: DesktopScheduleVersionId) {

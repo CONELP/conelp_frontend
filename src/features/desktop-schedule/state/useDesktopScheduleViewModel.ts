@@ -1893,8 +1893,7 @@ function createDesktopScheduleViewModel() {
   const canPromoteScheduleVersion = computed(
     () =>
       selectedScheduleVersion.value !== null &&
-      selectedScheduleVersion.value.isMain === false &&
-      scheduleVersions.value.some((version) => version.isMain),
+      selectedScheduleVersion.value.isMain === false,
   );
   const scheduleLoadStatus = computed(() => scheduleLoadState.value.status);
   const scheduleLoadErrorMessage = computed(
@@ -4164,12 +4163,19 @@ function createDesktopScheduleViewModel() {
       return;
     }
 
+    const requestId = (scheduleVersionPromotionRequestId += 1);
+
     if (!mainVersion) {
-      showScheduleToast("기준 공정표가 없어 반영할 수 없어요.");
+      scheduleVersionPromotionState.value = {
+        open: true,
+        status: "idle",
+        baselineVersionName: "",
+        draftVersionName: draftVersion.versionName,
+        summary: null,
+        errorMessage: null,
+      };
       return;
     }
-
-    const requestId = (scheduleVersionPromotionRequestId += 1);
 
     scheduleVersionPromotionState.value = {
       open: true,
@@ -4220,7 +4226,45 @@ function createDesktopScheduleViewModel() {
   }
 
   async function confirmScheduleVersionPromotion() {
-    showScheduleToast("기준 공정표 반영 API가 아직 제공되지 않았어요.");
+    const draftVersion = selectedScheduleVersion.value;
+    const promotionState = scheduleVersionPromotionState.value;
+
+    if (!promotionState.open || promotionState.status === "promoting") return;
+    if (!draftVersion || draftVersion.isMain) {
+      showScheduleToast("작업본에서만 기준 공정표로 반영할 수 있어요.");
+      return;
+    }
+
+    const requestId = (scheduleVersionPromotionRequestId += 1);
+
+    scheduleVersionPromotionState.value = {
+      ...promotionState,
+      status: "promoting",
+      errorMessage: null,
+    };
+
+    try {
+      await desktopScheduleApi.setScheduleMain(draftVersion.id);
+
+      if (requestId !== scheduleVersionPromotionRequestId) return;
+
+      await loadSchedule({ scheduleVersionId: draftVersion.id });
+
+      if (requestId !== scheduleVersionPromotionRequestId) return;
+
+      scheduleVersionPromotionState.value = createClosedScheduleVersionPromotionState();
+      showScheduleToast("기준 공정표로 반영했어요.");
+    } catch (error) {
+      if (requestId !== scheduleVersionPromotionRequestId) return;
+
+      const normalizedError = normalizeError(error);
+      scheduleVersionPromotionState.value = {
+        ...scheduleVersionPromotionState.value,
+        status: "error",
+        errorMessage: normalizedError.message,
+      };
+      showScheduleToast(normalizedError.message || "기준 공정표로 반영하지 못했어요.");
+    }
   }
 
   function getWorkConnectionById(workConnectionId: string) {

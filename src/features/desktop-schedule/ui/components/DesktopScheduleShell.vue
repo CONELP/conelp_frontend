@@ -250,7 +250,7 @@ const promotionConfirmDisabled = computed(
   () =>
     props.scheduleVersionPromotion.status === "preparing" ||
     props.scheduleVersionPromotion.status === "promoting" ||
-    !props.scheduleVersionPromotion.summary,
+    props.scheduleVersionPromotion.status === "error",
 );
 const promotionConfirmLabel = computed(() =>
   props.scheduleVersionPromotion.status === "promoting" ? "반영 중" : "기준 공정표로 반영",
