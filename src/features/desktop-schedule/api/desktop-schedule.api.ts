@@ -37,6 +37,7 @@ import type {
 } from "@/features/desktop-schedule/api/desktop-schedule-api.types";
 
 const SELECTED_PROJECT_ID_STORAGE_KEY = "selectedProjectId";
+const SELECTED_SCHEDULE_VERSION_ID_STORAGE_KEY = "selectedScheduleVersionId";
 
 export class DesktopScheduleApiError extends Error {
   code: "NO_PROJECT" | "NO_PROJECT_ID" | "NO_MAIN_SCHEDULE_VERSION";
@@ -107,6 +108,25 @@ export function clearSelectedDesktopScheduleProjectId() {
   localStorage.removeItem(SELECTED_PROJECT_ID_STORAGE_KEY);
 }
 
+export function getSelectedDesktopScheduleVersionId(): DesktopScheduleVersionId | null {
+  const stored = localStorage.getItem(SELECTED_SCHEDULE_VERSION_ID_STORAGE_KEY);
+
+  if (!stored || stored === "undefined" || stored === "null") {
+    return null;
+  }
+
+  const parsed = Number.parseInt(stored, 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export function setSelectedDesktopScheduleVersionId(versionId: DesktopScheduleVersionId) {
+  localStorage.setItem(SELECTED_SCHEDULE_VERSION_ID_STORAGE_KEY, String(versionId));
+}
+
+export function clearSelectedDesktopScheduleVersionId() {
+  localStorage.removeItem(SELECTED_SCHEDULE_VERSION_ID_STORAGE_KEY);
+}
+
 export function findMainScheduleVersion(versions: DesktopScheduleVersionResponse[]) {
   return versions.find((version) => version.isMain) ?? null;
 }
@@ -115,9 +135,14 @@ function resolveScheduleVersion(
   versions: DesktopScheduleVersionResponse[],
   preferredScheduleVersionId?: DesktopScheduleVersionId,
 ) {
-  const matchedVersion =
+  const preferredId =
     typeof preferredScheduleVersionId === "number"
-      ? versions.find((version) => version.id === preferredScheduleVersionId) ?? null
+      ? preferredScheduleVersionId
+      : getSelectedDesktopScheduleVersionId();
+
+  const matchedVersion =
+    typeof preferredId === "number"
+      ? versions.find((version) => version.id === preferredId) ?? null
       : null;
 
   return matchedVersion ?? findMainScheduleVersion(versions) ?? versions[0] ?? null;
@@ -574,6 +599,8 @@ export const desktopScheduleApi = {
       selectedScheduleVersion = createdScheduleVersion;
       nextScheduleVersions = [createdScheduleVersion];
     }
+
+    setSelectedDesktopScheduleVersionId(selectedScheduleVersion.id);
 
     const scheduleVersionId = selectedScheduleVersion.id;
     const worksPromise = options.period
