@@ -272,10 +272,18 @@
 }
 
 .daily-report-typeahead__option:hover,
-.daily-report-typeahead__option:focus-visible,
-.daily-report-typeahead__option--highlighted {
+.daily-report-typeahead__option:focus-visible {
   background: #f1f5f9;
   color: #111827;
+}
+
+.daily-report-typeahead__option--highlighted,
+.daily-report-typeahead__option--highlighted:hover,
+.daily-report-typeahead__option--highlighted:focus-visible {
+  background: rgba(30, 24, 136, 0.1);
+  color: var(--primary, #1e1888);
+  outline: 2px solid var(--primary, #1e1888);
+  outline-offset: -2px;
 }
 
 .daily-report-typeahead__option:focus-visible {

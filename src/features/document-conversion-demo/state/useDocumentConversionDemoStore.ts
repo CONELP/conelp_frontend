@@ -36,11 +36,13 @@ interface UploadedImageFileEntry {
 interface MirDocumentSubmissionDraft {
   createRequest: CreateMirDocumentRequest | null;
   updateRequest: UpdateMirDataRequest | null;
+  active: boolean;
 }
 
 interface CatDocumentSubmissionDraft {
   createRequest: CreateCatDocumentRequest | null;
   updateRequest: UpdateCatDataRequest | null;
+  active: boolean;
 }
 
 export const useDocumentConversionDemoStore = defineStore(
