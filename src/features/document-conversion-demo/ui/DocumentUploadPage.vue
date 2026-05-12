@@ -168,6 +168,156 @@
         </section>
 
         <div
+          v-if="isConcreteDeliveryTest"
+          class="upload-batches"
+        >
+          <div
+            v-for="(batch, batchIndex) in concreteUploadBatches"
+            :key="batch.id"
+            class="upload-dropzone upload-dropzone--batch"
+            :class="{
+              'upload-dropzone--drag-active': isConcreteBatchDragActive(batch.id),
+            }"
+            @dragenter.prevent="handleConcreteBatchDragEnter($event, batch.id)"
+            @dragover.prevent="handleConcreteBatchDragOver($event, batch.id)"
+            @dragleave="handleConcreteBatchDragLeave($event, batch.id)"
+            @drop.prevent="handleConcreteBatchDrop($event, batch.id)"
+          >
+            <Transition name="upload-dropzone-overlay">
+              <div
+                v-if="isConcreteBatchDragActive(batch.id)"
+                class="upload-dropzone__drop-overlay"
+                aria-hidden="true"
+              >
+                <span class="upload-dropzone__drop-label">
+                  이미지를 여기에 놓아주세요
+                </span>
+              </div>
+            </Transition>
+
+            <button
+              class="upload-dropzone__trigger"
+              type="button"
+              :aria-label="`${batchIndex + 1}회 사진 업로드`"
+              @click="openFilePicker(batch.id)"
+            >
+              <img class="upload-dropzone__icon" :src="uploadIcon" alt="" />
+            </button>
+
+            <div class="upload-dropzone__batch-header">
+              <p class="upload-dropzone__batch-title">[{{ batchIndex + 1 }}회]</p>
+              <button
+                v-if="concreteUploadBatches.length > 1"
+                class="upload-dropzone__batch-remove"
+                type="button"
+                :aria-label="`${batchIndex + 1}회 삭제`"
+                @click="removeConcreteUploadBatch(batch.id)"
+              >
+                <img
+                  class="upload-dropzone__batch-remove-icon"
+                  :src="deleteIcon"
+                  alt=""
+                  aria-hidden="true"
+                />
+              </button>
+            </div>
+
+            <div class="upload-dropzone__guide-list upload-dropzone__guide-list--two-column">
+              <p
+                v-for="guideItem in uploadGuideItems"
+                :key="`${batch.id}-${guideItem.label}`"
+                class="upload-dropzone__guide-item"
+              >
+                <span
+                  class="upload-dropzone__status upload-dropzone__status--static"
+                  aria-hidden="true"
+                >
+                  <span class="upload-dropzone__status-bullet" />
+                </span>
+                <span>{{ guideItem.label }}</span>
+              </p>
+            </div>
+
+            <div
+              v-if="getConcreteBatchUploadedFiles(batch.id).length > 0"
+              class="upload-dropzone__selected"
+            >
+              <TransitionGroup
+                class="upload-dropzone__selected-list"
+                name="upload-image-grid"
+                tag="div"
+              >
+                <div
+                  v-for="file in getConcreteBatchUploadedFiles(batch.id)"
+                  :key="file.id"
+                  class="upload-dropzone__selected-item"
+                  :class="{
+                    'upload-dropzone__selected-item--removing':
+                      isUploadedFileRemoving(file.id),
+                    'upload-dropzone__selected-item--dragging':
+                      draggedUploadFileId === file.id,
+                    'upload-dropzone__selected-item--drag-over-before':
+                      dragOverUploadFileId === file.id &&
+                      dragOverUploadPlacement === 'before',
+                    'upload-dropzone__selected-item--drag-over-after':
+                      dragOverUploadFileId === file.id &&
+                      dragOverUploadPlacement === 'after',
+                  }"
+                  draggable="true"
+                  @dragstart="handleUploadedFileDragStart($event, file.id)"
+                  @dragover.prevent.stop="
+                    handleConcreteBatchFileDragOver($event, batch.id, file.id)
+                  "
+                  @dragleave.stop="handleUploadedFileDragLeave(file.id)"
+                  @drop.prevent.stop="
+                    handleConcreteBatchFileDrop($event, batch.id, file.id)
+                  "
+                  @dragend="handleUploadedFileDragEnd"
+                >
+                  <button
+                    class="upload-dropzone__preview-button"
+                    type="button"
+                    :aria-label="`${file.name} 크게 보기`"
+                    @click="handleOpenImagePreview(file)"
+                  >
+                    <img
+                      v-if="file.thumbnail"
+                      class="upload-dropzone__selected-thumbnail"
+                      :src="file.thumbnail"
+                      :alt="file.name"
+                      draggable="false"
+                    />
+                  </button>
+
+                  <button
+                    class="upload-dropzone__selected-remove"
+                    type="button"
+                    :aria-label="`${file.name} 삭제`"
+                    @click="handleRemoveUploadedFile(file.id)"
+                  >
+                    <img
+                      class="upload-dropzone__selected-remove-icon"
+                      :src="dismissIcon"
+                      alt=""
+                      aria-hidden="true"
+                    />
+                  </button>
+                </div>
+              </TransitionGroup>
+            </div>
+          </div>
+
+          <button
+            class="upload-batches__add"
+            type="button"
+            @click="addConcreteUploadBatch"
+          >
+            + 회차 추가하기
+          </button>
+        </div>
+
+        <div
+          v-else
           class="upload-dropzone"
           :class="{ 'upload-dropzone--drag-active': isDropzoneDragActive }"
           @dragenter.prevent="handleDropzoneDragEnter"
@@ -191,7 +341,7 @@
             class="upload-dropzone__trigger"
             type="button"
             aria-label="사진 업로드"
-            @click="openFilePicker"
+            @click="openFilePicker()"
           >
             <img class="upload-dropzone__icon" :src="uploadIcon" alt="" />
           </button>
@@ -231,7 +381,21 @@
                 :class="{
                   'upload-dropzone__selected-item--removing':
                     isUploadedFileRemoving(file.id),
+                  'upload-dropzone__selected-item--dragging':
+                    draggedUploadFileId === file.id,
+                  'upload-dropzone__selected-item--drag-over-before':
+                    dragOverUploadFileId === file.id &&
+                    dragOverUploadPlacement === 'before',
+                  'upload-dropzone__selected-item--drag-over-after':
+                    dragOverUploadFileId === file.id &&
+                    dragOverUploadPlacement === 'after',
                 }"
+                draggable="true"
+                @dragstart="handleUploadedFileDragStart($event, file.id)"
+                @dragover.prevent.stop="handleUploadedFileDragOver($event, file.id)"
+                @dragleave.stop="handleUploadedFileDragLeave(file.id)"
+                @drop.prevent.stop="handleUploadedFileDrop($event, file.id)"
+                @dragend="handleUploadedFileDragEnd"
               >
                 <button
                   class="upload-dropzone__preview-button"
@@ -244,6 +408,7 @@
                     class="upload-dropzone__selected-thumbnail"
                     :src="file.thumbnail"
                     :alt="file.name"
+                    draggable="false"
                   />
                 </button>
 
@@ -277,7 +442,7 @@
         >
           {{
             requiresWorkContext
-              ? "분석하기"
+              ? "생성하기"
               : uploadPageCopy.actionLabel
           }}
         </button>
@@ -318,15 +483,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watchEffect } from "vue";
+import { computed, onBeforeUnmount, ref, watch, watchEffect } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import backIcon from "@fluentui/svg-icons/icons/chevron_left_24_regular.svg";
+import deleteIcon from "@fluentui/svg-icons/icons/delete_20_regular.svg";
 import dismissIcon from "@fluentui/svg-icons/icons/dismiss_16_regular.svg";
 import uploadIcon from "@fluentui/svg-icons/icons/add_24_regular.svg";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
 import type { UploadSampleFile } from "@/features/document-conversion-demo/model/document-conversion-demo.types";
 import { useDocumentUploadDemoViewModel } from "@/features/document-conversion-demo/state/useDocumentUploadDemoViewModel";
+
+type UploadFileDropPlacement = "before" | "after";
 
 const {
   uploadPageCopy,
@@ -352,6 +520,7 @@ const {
   backToSelectionRoute,
   addUploadedImageFiles,
   removeUploadedImageFile,
+  reorderUploadedImageFiles,
   selectUploadDocument,
   updateMirUploadWorkTypeName,
   moveHighlightedWorkTypeSuggestion,
@@ -370,11 +539,33 @@ const isDropzoneDragActive = ref(false);
 const removingUploadedFileIds = ref(new Set<string>());
 const removeAnimationTimers: ReturnType<typeof setTimeout>[] = [];
 let dropzoneDragDepth = 0;
+let concreteBatchIdSequence = 0;
+const activeConcreteBatchId = ref<string | null>(null);
+const concreteUploadBatches = ref<Array<{ id: string }>>([]);
+const concreteBatchFileIds = ref<Record<string, string[]>>({});
+const concreteBatchDragDepths = ref<Record<string, number>>({});
+const draggedUploadFileId = ref<string | null>(null);
+const dragOverUploadFileId = ref<string | null>(null);
+const dragOverUploadPlacement = ref<UploadFileDropPlacement>("before");
 const uploadErrorMessageLines = computed(() =>
   (uploadErrorMessage.value.match(/[^.!?。！？]+[.!?。！？]?/g) ?? [])
     .map((line) => line.trim())
     .filter(Boolean),
 );
+
+function createConcreteBatchId() {
+  concreteBatchIdSequence += 1;
+  return `concrete-upload-batch-${concreteBatchIdSequence}`;
+}
+
+function resetConcreteUploadBatches() {
+  const firstBatchId = createConcreteBatchId();
+
+  concreteUploadBatches.value = [{ id: firstBatchId }];
+  concreteBatchFileIds.value = { [firstBatchId]: [] };
+  concreteBatchDragDepths.value = {};
+  activeConcreteBatchId.value = null;
+}
 
 watchEffect(() => {
   const routeDocumentType = route.query.documentType;
@@ -398,7 +589,16 @@ watchEffect(() => {
   }
 });
 
-function openFilePicker() {
+watch(
+  () => selectedDocument.value.type,
+  () => {
+    resetConcreteUploadBatches();
+  },
+  { immediate: true },
+);
+
+function openFilePicker(batchId: string | null = null) {
+  activeConcreteBatchId.value = batchId;
   fileInput.value?.click();
 }
 
@@ -414,9 +614,17 @@ function handleFileSelection(event: Event) {
     file.type.startsWith("image/"),
   );
 
-  if (files.length > 0) {
+  if (files.length > 0 && isConcreteDeliveryTest.value) {
+    const batchId = activeConcreteBatchId.value ?? concreteUploadBatches.value[0]?.id;
+
+    if (batchId) {
+      addFilesToConcreteBatch(batchId, files);
+    }
+  } else if (files.length > 0) {
     addUploadedImageFiles(files);
   }
+
+  activeConcreteBatchId.value = null;
 
   if (input) {
     input.value = "";
@@ -476,6 +684,325 @@ function handleDropzoneDrop(event: DragEvent) {
   }
 }
 
+function addFilesToConcreteBatch(batchId: string, files: File[]) {
+  const addedFileIds = addUploadedImageFiles(files);
+
+  if (addedFileIds.length === 0) {
+    return;
+  }
+
+  concreteBatchFileIds.value = {
+    ...concreteBatchFileIds.value,
+    [batchId]: [
+      ...(concreteBatchFileIds.value[batchId] ?? []),
+      ...addedFileIds,
+    ],
+  };
+}
+
+function addConcreteUploadBatch() {
+  const batchId = createConcreteBatchId();
+
+  concreteUploadBatches.value = [...concreteUploadBatches.value, { id: batchId }];
+  concreteBatchFileIds.value = {
+    ...concreteBatchFileIds.value,
+    [batchId]: [],
+  };
+}
+
+function removeConcreteUploadBatch(batchId: string) {
+  if (concreteUploadBatches.value.length <= 1) {
+    return;
+  }
+
+  const fileIds = concreteBatchFileIds.value[batchId] ?? [];
+
+  if (selectedPreviewFile.value && fileIds.includes(selectedPreviewFile.value.id)) {
+    selectedPreviewFile.value = null;
+  }
+
+  fileIds.forEach((fileId) => {
+    removeUploadedImageFile(fileId);
+  });
+
+  const { [batchId]: removedFileIds, ...nextBatchFileIds } =
+    concreteBatchFileIds.value;
+  const { [batchId]: removedDragDepth, ...nextBatchDragDepths } =
+    concreteBatchDragDepths.value;
+
+  void removedFileIds;
+  void removedDragDepth;
+
+  concreteBatchFileIds.value = nextBatchFileIds;
+  concreteBatchDragDepths.value = nextBatchDragDepths;
+  concreteUploadBatches.value = concreteUploadBatches.value.filter(
+    (batch) => batch.id !== batchId,
+  );
+
+  if (activeConcreteBatchId.value === batchId) {
+    activeConcreteBatchId.value = null;
+  }
+}
+
+function isConcreteBatchDragActive(batchId: string) {
+  return (concreteBatchDragDepths.value[batchId] ?? 0) > 0;
+}
+
+function setConcreteBatchDragDepth(batchId: string, depth: number) {
+  concreteBatchDragDepths.value = {
+    ...concreteBatchDragDepths.value,
+    [batchId]: depth,
+  };
+}
+
+function handleConcreteBatchDragEnter(event: DragEvent, batchId: string) {
+  if (!hasDraggedFiles(event)) {
+    return;
+  }
+
+  setConcreteBatchDragDepth(
+    batchId,
+    (concreteBatchDragDepths.value[batchId] ?? 0) + 1,
+  );
+}
+
+function handleConcreteBatchDragOver(event: DragEvent, batchId: string) {
+  if (!hasDraggedFiles(event)) {
+    return;
+  }
+
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = "copy";
+  }
+
+  setConcreteBatchDragDepth(
+    batchId,
+    Math.max(concreteBatchDragDepths.value[batchId] ?? 1, 1),
+  );
+}
+
+function handleConcreteBatchDragLeave(event: DragEvent, batchId: string) {
+  if (!hasDraggedFiles(event)) {
+    return;
+  }
+
+  setConcreteBatchDragDepth(
+    batchId,
+    Math.max((concreteBatchDragDepths.value[batchId] ?? 0) - 1, 0),
+  );
+}
+
+function handleConcreteBatchDrop(event: DragEvent, batchId: string) {
+  setConcreteBatchDragDepth(batchId, 0);
+
+  const files = toDraggedImageFiles(event.dataTransfer);
+
+  if (files.length > 0) {
+    addFilesToConcreteBatch(batchId, files);
+  }
+}
+
+function getUploadFileDropPlacement(
+  event: DragEvent,
+): UploadFileDropPlacement {
+  const target = event.currentTarget as HTMLElement | null;
+
+  if (!target) {
+    return "before";
+  }
+
+  const rect = target.getBoundingClientRect();
+  const verticalRatio = (event.clientY - rect.top) / rect.height;
+  const horizontalRatio = (event.clientX - rect.left) / rect.width;
+
+  if (verticalRatio > 0.8) {
+    return "after";
+  }
+
+  if (verticalRatio < 0.2) {
+    return "before";
+  }
+
+  return horizontalRatio > 0.5 ? "after" : "before";
+}
+
+function hasFileOrderChanged(currentFileIds: string[], nextFileIds: string[]) {
+  return (
+    currentFileIds.length !== nextFileIds.length ||
+    currentFileIds.some((fileId, index) => fileId !== nextFileIds[index])
+  );
+}
+
+function moveFileIdNearTarget(
+  fileIds: string[],
+  sourceFileId: string,
+  targetFileId: string,
+  placement: UploadFileDropPlacement,
+) {
+  if (sourceFileId === targetFileId) {
+    return fileIds;
+  }
+
+  const nextFileIds = fileIds.filter((fileId) => fileId !== sourceFileId);
+  const targetIndex = nextFileIds.indexOf(targetFileId);
+
+  if (targetIndex < 0) {
+    return fileIds;
+  }
+
+  nextFileIds.splice(
+    placement === "after" ? targetIndex + 1 : targetIndex,
+    0,
+    sourceFileId,
+  );
+
+  return nextFileIds;
+}
+
+function handleUploadedFileDragStart(event: DragEvent, fileId: string) {
+  if (isUploadedFileRemoving(fileId)) {
+    event.preventDefault();
+    return;
+  }
+
+  draggedUploadFileId.value = fileId;
+  dragOverUploadFileId.value = null;
+
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", fileId);
+  }
+}
+
+function handleUploadedFileDragOver(event: DragEvent, targetFileId: string) {
+  const sourceFileId = draggedUploadFileId.value;
+
+  if (!sourceFileId || sourceFileId === targetFileId) {
+    return;
+  }
+
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = "move";
+  }
+
+  dragOverUploadFileId.value = targetFileId;
+  dragOverUploadPlacement.value = getUploadFileDropPlacement(event);
+}
+
+function handleUploadedFileDragLeave(fileId: string) {
+  if (dragOverUploadFileId.value === fileId) {
+    dragOverUploadFileId.value = null;
+  }
+}
+
+function handleUploadedFileDrop(event: DragEvent, targetFileId: string) {
+  const sourceFileId = draggedUploadFileId.value;
+
+  if (!sourceFileId || sourceFileId === targetFileId) {
+    handleUploadedFileDragEnd();
+    return;
+  }
+
+  const currentFileIds = uploadedFiles.value.map((file) => file.id);
+  const nextFileIds = moveFileIdNearTarget(
+    currentFileIds,
+    sourceFileId,
+    targetFileId,
+    getUploadFileDropPlacement(event),
+  );
+
+  if (hasFileOrderChanged(currentFileIds, nextFileIds)) {
+    reorderUploadedImageFiles(nextFileIds);
+  }
+
+  handleUploadedFileDragEnd();
+}
+
+function syncConcreteBatchUploadOrder() {
+  const orderedFileIds = concreteUploadBatches.value.flatMap(
+    (batch) => concreteBatchFileIds.value[batch.id] ?? [],
+  );
+
+  if (orderedFileIds.length > 0) {
+    reorderUploadedImageFiles(orderedFileIds);
+  }
+}
+
+function handleConcreteBatchFileDragOver(
+  event: DragEvent,
+  batchId: string,
+  targetFileId: string,
+) {
+  const sourceFileId = draggedUploadFileId.value;
+  const fileIds = concreteBatchFileIds.value[batchId] ?? [];
+
+  if (
+    !sourceFileId ||
+    sourceFileId === targetFileId ||
+    !fileIds.includes(sourceFileId) ||
+    !fileIds.includes(targetFileId)
+  ) {
+    return;
+  }
+
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = "move";
+  }
+
+  dragOverUploadFileId.value = targetFileId;
+  dragOverUploadPlacement.value = getUploadFileDropPlacement(event);
+}
+
+function handleConcreteBatchFileDrop(
+  event: DragEvent,
+  batchId: string,
+  targetFileId: string,
+) {
+  const sourceFileId = draggedUploadFileId.value;
+  const currentFileIds = concreteBatchFileIds.value[batchId] ?? [];
+
+  if (
+    !sourceFileId ||
+    sourceFileId === targetFileId ||
+    !currentFileIds.includes(sourceFileId) ||
+    !currentFileIds.includes(targetFileId)
+  ) {
+    handleUploadedFileDragEnd();
+    return;
+  }
+
+  const nextFileIds = moveFileIdNearTarget(
+    currentFileIds,
+    sourceFileId,
+    targetFileId,
+    getUploadFileDropPlacement(event),
+  );
+
+  if (hasFileOrderChanged(currentFileIds, nextFileIds)) {
+    concreteBatchFileIds.value = {
+      ...concreteBatchFileIds.value,
+      [batchId]: nextFileIds,
+    };
+    syncConcreteBatchUploadOrder();
+  }
+
+  handleUploadedFileDragEnd();
+}
+
+function handleUploadedFileDragEnd() {
+  draggedUploadFileId.value = null;
+  dragOverUploadFileId.value = null;
+  dragOverUploadPlacement.value = "before";
+}
+
+function getConcreteBatchUploadedFiles(batchId: string) {
+  const fileById = new Map(uploadedFiles.value.map((file) => [file.id, file]));
+
+  return (concreteBatchFileIds.value[batchId] ?? [])
+    .map((fileId) => fileById.get(fileId))
+    .filter((file): file is UploadSampleFile => Boolean(file));
+}
+
 function isUploadedFileRemoving(fileId: string) {
   return removingUploadedFileIds.value.has(fileId);
 }
@@ -504,6 +1031,12 @@ function handleRemoveUploadedFile(fileId: string) {
   }
 
   markUploadedFileRemoving(fileId);
+  concreteBatchFileIds.value = Object.fromEntries(
+    Object.entries(concreteBatchFileIds.value).map(([batchId, fileIds]) => [
+      batchId,
+      fileIds.filter((id) => id !== fileId),
+    ]),
+  );
 
   removeAnimationTimers.push(
     setTimeout(() => {

@@ -13,8 +13,6 @@ import type {
 } from "@/features/document-conversion-demo/api/material-inspection-request-api.types";
 import { documentCatalog } from "@/features/document-conversion-demo/data/document-conversion-demo.seed";
 
-const MIR_IMAGE_UPLOAD_LIMIT = 10;
-
 function createUploadFileKey(file: File) {
   return `${file.name}:${file.size}:${file.lastModified}`;
 }
@@ -98,20 +96,20 @@ export const useDocumentConversionDemoStore = defineStore(
       const existingKeys = new Set(
         uploadedImageFiles.value.map((entry) => entry.fileKey),
       );
-      const remainingSlots = Math.max(
-        MIR_IMAGE_UPLOAD_LIMIT - uploadedImageFiles.value.length,
-        0,
-      );
+      const addedEntries: UploadedImageFileEntry[] = [];
 
-      nextFiles.slice(0, remainingSlots).forEach((file) => {
+      nextFiles.forEach((file) => {
         const fileKey = createUploadFileKey(file);
 
         if (!existingKeys.has(fileKey)) {
-          uploadedImageFiles.value.push({
+          const entry = {
             id: createUploadFileId(file),
             file,
             fileKey,
-          });
+          };
+
+          uploadedImageFiles.value.push(entry);
+          addedEntries.push(entry);
           existingKeys.add(fileKey);
         }
       });
@@ -119,6 +117,7 @@ export const useDocumentConversionDemoStore = defineStore(
       uploadMode.value =
         uploadedImageFiles.value.length > 0 ? "uploaded" : "empty";
       clearMirResult();
+      return addedEntries;
     }
 
     function removeUploadedImageFile(fileIdToRemove: string) {
@@ -128,6 +127,27 @@ export const useDocumentConversionDemoStore = defineStore(
 
       uploadMode.value =
         uploadedImageFiles.value.length > 0 ? "uploaded" : "empty";
+      clearMirResult();
+    }
+
+    function reorderUploadedImageFiles(orderedFileIds: string[]) {
+      const fileById = new Map(
+        uploadedImageFiles.value.map((entry) => [entry.id, entry]),
+      );
+      const orderedEntries = orderedFileIds
+        .map((fileId) => fileById.get(fileId))
+        .filter((entry): entry is UploadedImageFileEntry => Boolean(entry));
+
+      if (orderedEntries.length === 0) {
+        return;
+      }
+
+      const orderedIdSet = new Set(orderedEntries.map((entry) => entry.id));
+      const remainingEntries = uploadedImageFiles.value.filter(
+        (entry) => !orderedIdSet.has(entry.id),
+      );
+
+      uploadedImageFiles.value = [...orderedEntries, ...remainingEntries];
       clearMirResult();
     }
 
@@ -221,6 +241,7 @@ export const useDocumentConversionDemoStore = defineStore(
       clearSelectedDocument,
       addUploadedImageFiles,
       removeUploadedImageFile,
+      reorderUploadedImageFiles,
       clearUpload,
       setMirUploadApplication,
       setMirUploadWorkTypeName,

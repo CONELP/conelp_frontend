@@ -66,12 +66,16 @@ const MIR_CREATE_STEP_TRANSITIONS = createEvenLoadingStepTransitions(
 );
 
 const CAT_ANALYSIS_LOADING_STEPS = [
-  "송장과 콘크리트 시험사진을 정리하고 있어요.",
-  "배치별 슬럼프, 공기량, 온도 값을 분석하고 있어요.",
-  "콘크리트 반입시험 검토 화면을 준비하고 있어요.",
+  "업로드한 콘크리트 시험 사진을 정리하고 있어요.",
+  "회차별 슬럼프, 보드판, 공기량 사진을 확인하고 있어요.",
+  "온도, 염화물, 함수율 사진을 시험 항목과 연결하고 있어요.",
+  "콘크리트 반입시험 양식에 회차별 정보를 배치하고 있어요.",
+  "콘크리트 반입시험 결과 파일을 준비하고 있어요.",
 ] as const;
 
-const CAT_ANALYSIS_STEP_TRANSITIONS = EVEN_LOADING_STEP_TRANSITIONS;
+const CAT_ANALYSIS_STEP_TRANSITIONS = createEvenLoadingStepTransitions(
+  CAT_ANALYSIS_LOADING_STEPS.length,
+);
 
 const CAT_CREATE_LOADING_STEPS = [
   "검토한 콘크리트 반입시험 정보를 정리하고 있어요.",
@@ -85,8 +89,6 @@ const RESULT_ROUTE = "/preview/result";
 const OCR_VALIDATION_ROUTE = "/preview/upload-feedback";
 const DIRECT_DOCUMENT_BACK_ROUTE = "/preview/documents";
 const UPLOAD_DOCUMENT_ROUTE = "/preview/upload";
-const MIR_IMAGE_UPLOAD_LIMIT = 10;
-const CAT_IMAGE_UPLOAD_LIMIT = 10;
 const CAT_MIN_IMAGE_UPLOAD_COUNT = 2;
 
 function isDocumentCatalogType(value: string): value is DocumentCatalogType {
@@ -164,11 +166,7 @@ export function useConversionLoadingDemoViewModel() {
       : "이미지에서 텍스트를 읽고 있어요.";
   });
 
-  const loadingDestinationRoute = computed(() =>
-    selectedDocument.value.type === "concrete_delivery_csi"
-      ? OCR_VALIDATION_ROUTE
-      : RESULT_ROUTE,
-  );
+  const loadingDestinationRoute = computed(() => RESULT_ROUTE);
 
   function clearLoadingStepTimers() {
     loadingStepTimers.forEach((timer) => clearTimeout(timer));
@@ -247,10 +245,6 @@ export function useConversionLoadingDemoViewModel() {
       return "이미지를 1장 이상 업로드해 주세요.";
     }
 
-    if (store.uploadedImageFiles.length > MIR_IMAGE_UPLOAD_LIMIT) {
-      return "이미지는 최대 10장까지 업로드할 수 있어요.";
-    }
-
     return "";
   }
 
@@ -264,11 +258,7 @@ export function useConversionLoadingDemoViewModel() {
     }
 
     if (store.uploadedImageFiles.length < CAT_MIN_IMAGE_UPLOAD_COUNT) {
-      return "송장 사진과 시험 사진을 각각 1장 이상 업로드해 주세요.";
-    }
-
-    if (store.uploadedImageFiles.length > CAT_IMAGE_UPLOAD_LIMIT) {
-      return "이미지는 최대 10장까지 업로드할 수 있어요.";
+      return "콘크리트 반입시험 사진을 2장 이상 업로드해 주세요.";
     }
 
     return "";
@@ -360,6 +350,7 @@ export function useConversionLoadingDemoViewModel() {
     store.setMirAnalysisErrorMessage("");
 
     const currentRunId = ++loadingRunId;
+    const startedAt = Date.now();
     const validationMessage = resolveCatAnalysisValidationMessage();
 
     if (validationMessage) {
@@ -377,38 +368,13 @@ export function useConversionLoadingDemoViewModel() {
       );
     });
 
-    const [deliveryNoteEntry, ...batchPhotoEntries] = store.uploadedImageFiles;
+    await waitForMinimumLoadingDuration(startedAt);
 
-    try {
-      const result = await materialInspectionRequestApi.analyzeCatPhoto({
-        application: store.mirUploadApplication,
-        workTypeId: store.mirUploadWorkTypeId,
-        deliveryNote: deliveryNoteEntry ? [deliveryNoteEntry.file] : [],
-        metadata: [{ batch: 1, count: batchPhotoEntries.length }],
-        batchPhotos: batchPhotoEntries.map((entry) => entry.file),
-      });
-
-      if (currentRunId !== loadingRunId) {
-        return;
-      }
-
-      store.saveCatAnalysisResult(result);
-      void router.replace(OCR_VALIDATION_ROUTE);
-    } catch (error) {
-      if (currentRunId !== loadingRunId) {
-        return;
-      }
-
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "콘크리트 반입시험 자료 분석에 실패했습니다.";
-
-      store.setMirAnalysisErrorMessage(errorMessage);
-      loadingErrorMessage.value = "분석에 실패했어요. 업로드 화면으로 돌아갑니다.";
-      clearLoadingStepTimers();
-      scheduleRouteNavigation(UPLOAD_DOCUMENT_ROUTE, 1800);
+    if (currentRunId !== loadingRunId) {
+      return;
     }
+
+    replaceRoute(RESULT_ROUTE);
   }
 
   async function startMirCreateLoadingSequence() {

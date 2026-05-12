@@ -311,7 +311,8 @@ export const servicePresentationSiteManifest: ServicePresentationSiteManifest[] 
             required: true,
           },
         ],
-        outputExcel: "260402_콘크리트시험일지(신일).xlsx",
+        outputExcel:
+          "260402 지상2층 벽체 (4월30일 시험)/260402_콘크리트시험일지(신일).xlsx",
         registrationSteps: [
           {
             id: "register-concrete-delivery",

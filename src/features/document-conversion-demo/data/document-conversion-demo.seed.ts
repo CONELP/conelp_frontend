@@ -221,9 +221,10 @@ export const uploadDocumentPresets: UploadDocumentPreset[] = [
   {
     documentType: "concrete_delivery_csi",
     guideItems: [
-      "송장 사진",
       "슬럼프 시험 전경 사진",
       "보드판 사진",
+      "공기량 사진",
+      "온도 사진",
       "염화물 사진",
       "함수율 사진",
     ],
@@ -242,26 +243,31 @@ export const uploadDocumentPresets: UploadDocumentPreset[] = [
     feedbackItems: [
       {
         id: "delivery-check-1",
-        label: "송장 사진",
-        status: "matched",
-      },
-      {
-        id: "delivery-check-2",
         label: "슬럼프 시험 전경 사진",
         status: "matched",
       },
       {
-        id: "delivery-check-3",
+        id: "delivery-check-2",
         label: "보드판 사진",
         status: "missing",
       },
       {
+        id: "delivery-check-3",
+        label: "공기량 사진",
+        status: "missing",
+      },
+      {
         id: "delivery-check-4",
-        label: "염화물 사진",
+        label: "온도 사진",
         status: "missing",
       },
       {
         id: "delivery-check-5",
+        label: "염화물 사진",
+        status: "missing",
+      },
+      {
+        id: "delivery-check-6",
         label: "함수율 사진",
         status: "missing",
       },

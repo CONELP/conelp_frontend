@@ -15,7 +15,6 @@ import type {
 } from "@/features/document-conversion-demo/model/document-conversion-demo.types";
 import { useDocumentConversionDemoStore } from "@/features/document-conversion-demo/state/useDocumentConversionDemoStore";
 
-const IMAGE_UPLOAD_LIMIT = 10;
 const CAT_MIN_IMAGE_UPLOAD_COUNT = 2;
 
 function createUploadPreviewFile(
@@ -249,8 +248,7 @@ export function useDocumentUploadDemoViewModel() {
     return Boolean(
       mirUploadApplication.value.trim() &&
         mirUploadWorkTypeName.value.trim() &&
-        hasRequiredImageCount &&
-        uploadedFiles.value.length <= IMAGE_UPLOAD_LIMIT,
+        hasRequiredImageCount,
     );
   });
 
@@ -503,6 +501,10 @@ export function useDocumentUploadDemoViewModel() {
     store.selectDocument(document.type);
   }
 
+  function addUploadedImageFiles(files: File[]) {
+    return store.addUploadedImageFiles(files).map((entry) => entry.id);
+  }
+
   watch(
     () => store.uploadedImageFiles.map((entry) => entry.id).join(","),
     () => {
@@ -588,8 +590,9 @@ export function useDocumentUploadDemoViewModel() {
     primaryFeedbackRoute,
     backToSelectionRoute: "/preview/documents",
     uploadFeedbackRoute: "/preview/upload-feedback",
-    addUploadedImageFiles: store.addUploadedImageFiles,
+    addUploadedImageFiles,
     removeUploadedImageFile: store.removeUploadedImageFile,
+    reorderUploadedImageFiles: store.reorderUploadedImageFiles,
     clearUpload: store.clearUpload,
     selectUploadDocument,
     updateMirUploadWorkTypeName,
