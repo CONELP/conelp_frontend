@@ -2,10 +2,15 @@ import { computed, onMounted, ref } from "vue";
 
 import { materialInspectionRequestApi } from "@/features/document-conversion-demo/api/material-inspection-request.api";
 import type { DocumentJobResponse } from "@/features/document-conversion-demo/api/material-inspection-request-api.types";
+import { documentCatalog } from "@/features/document-conversion-demo/data/document-conversion-demo.seed";
+import type { ServicePresentationGeneratedResult } from "@/features/service-presentation-demo/model/service-presentation-demo.types";
+import { useServicePresentationDemoViewModel } from "@/features/service-presentation-demo/state/useServicePresentationDemoViewModel";
 
 export interface GeneratedDocumentListItem {
   id: string;
-  jobId: number;
+  jobId: number | null;
+  demoResultId: string | null;
+  canDelete: boolean;
   title: string;
   subtitle: string;
   createdAt: string;
@@ -43,6 +48,20 @@ function formatGeneratedDocumentDate(value: string) {
   const day = String(createdAt.getDate()).padStart(2, "0");
 
   return `${year}.${month}.${day}`;
+}
+
+function formatGeneratedDocumentNumber(value: string) {
+  const createdAt = new Date(value);
+
+  if (Number.isNaN(createdAt.getTime())) {
+    return "";
+  }
+
+  const year = String(createdAt.getFullYear()).slice(-2);
+  const month = String(createdAt.getMonth() + 1).padStart(2, "0");
+  const day = String(createdAt.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
 function formatGeneratedDocumentTime(value: string) {
@@ -110,12 +129,33 @@ function removeWhitespace(value: string) {
   return value.replace(/\s+/g, "");
 }
 
+function resolveFileNameFromPath(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const pathSegments = value.split("/").filter(Boolean);
+
+  return pathSegments[pathSegments.length - 1] ?? value;
+}
+
 function resolveGeneratedDocumentDate(document: DocumentJobResponse) {
   return document.createdAt ?? document.completedAt ?? document.startedAt ?? "";
 }
 
 function resolveGeneratedDocumentTitle(document: DocumentJobResponse) {
   return DOCUMENT_LABEL_BY_TYPE[document.docType] ?? document.docType;
+}
+
+function resolveDemoGeneratedDocumentTitle(result: ServicePresentationGeneratedResult) {
+  if (!result.documentType) {
+    return result.title;
+  }
+
+  return (
+    documentCatalog.find((document) => document.type === result.documentType)?.label ??
+    result.title
+  );
 }
 
 function toGeneratedDocumentListItem(
@@ -133,12 +173,39 @@ function toGeneratedDocumentListItem(
   return {
     id: String(document.id),
     jobId: document.id,
+    demoResultId: null,
+    canDelete: false,
     title,
     subtitle: [subtitleBase, timeLabel].filter(Boolean).join(", "),
     createdAt,
     resultUrl: document.resultUrl,
     pdfUrl: document.pdfUrl,
     downloadFileName: `${documentName}_${docNo}${resolveGeneratedDocumentFileExtension(sourceUrl)}`,
+  };
+}
+
+function toDemoGeneratedDocumentListItem(
+  result: ServicePresentationGeneratedResult,
+): GeneratedDocumentListItem {
+  const outputFileName = resolveFileNameFromPath(result.outputRef);
+  const documentNumber = result.documentNo ?? formatGeneratedDocumentNumber(result.createdAt);
+  const timeLabel = formatGeneratedDocumentTime(result.createdAt);
+  const fallbackDateLabel = formatGeneratedDocumentDate(result.createdAt);
+  const title = resolveDemoGeneratedDocumentTitle(result);
+
+  return {
+    id: `demo:${result.id}`,
+    jobId: null,
+    demoResultId: result.id,
+    canDelete: true,
+    title,
+    subtitle: [documentNumber || fallbackDateLabel, timeLabel].filter(Boolean).join(", "),
+    createdAt: result.createdAt,
+    resultUrl: result.outputRef,
+    pdfUrl: null,
+    downloadFileName:
+      outputFileName ??
+      `${removeWhitespace(title)}_${fallbackDateLabel}.xlsx`,
   };
 }
 
@@ -152,9 +219,24 @@ function sortGeneratedDocuments(
 }
 
 export function useGeneratedDocumentsDemoViewModel() {
-  const generatedDocumentItems = ref<GeneratedDocumentListItem[]>([]);
-  const isGeneratedDocumentsLoading = ref(false);
-  const generatedDocumentsErrorMessage = ref("");
+  const { selectedSiteGeneratedResults, deleteGeneratedResult } =
+    useServicePresentationDemoViewModel();
+  const backendGeneratedDocumentItems = ref<GeneratedDocumentListItem[]>([]);
+  const isBackendGeneratedDocumentsLoading = ref(false);
+  const backendGeneratedDocumentsErrorMessage = ref("");
+
+  const demoGeneratedDocumentItems = computed(() =>
+    selectedSiteGeneratedResults.value
+      .filter((result) => result.type === "document" && result.status === "generated")
+      .map(toDemoGeneratedDocumentListItem),
+  );
+
+  const generatedDocumentItems = computed(() =>
+    sortGeneratedDocuments([
+      ...demoGeneratedDocumentItems.value,
+      ...backendGeneratedDocumentItems.value,
+    ]),
+  );
 
   const generatedDocumentGroups = computed(() =>
     generatedDocumentItems.value.reduce<GeneratedDocumentDateGroup[]>(
@@ -191,28 +273,54 @@ export function useGeneratedDocumentsDemoViewModel() {
       generatedDocumentGroups.value.find((group) => group.dateKey === todayDateKey)
         ?.documents ?? [],
   );
+  const isGeneratedDocumentsLoading = computed(
+    () =>
+      isBackendGeneratedDocumentsLoading.value &&
+      generatedDocumentItems.value.length === 0,
+  );
+  const generatedDocumentsErrorMessage = computed(() =>
+    generatedDocumentItems.value.length === 0
+      ? backendGeneratedDocumentsErrorMessage.value
+      : "",
+  );
 
   async function refreshGeneratedDocuments() {
-    isGeneratedDocumentsLoading.value = true;
-    generatedDocumentsErrorMessage.value = "";
+    isBackendGeneratedDocumentsLoading.value = true;
+    backendGeneratedDocumentsErrorMessage.value = "";
 
     try {
       const documents = await materialInspectionRequestApi.getDocumentJobList();
 
-      generatedDocumentItems.value = sortGeneratedDocuments(
+      backendGeneratedDocumentItems.value = sortGeneratedDocuments(
         documents
           .filter((document) => document.status === SUCCESS_STATUS)
           .map(toGeneratedDocumentListItem),
       );
     } catch (error) {
-      generatedDocumentsErrorMessage.value =
+      backendGeneratedDocumentsErrorMessage.value =
         error instanceof Error
           ? error.message
           : "생성된 문서 목록을 불러오지 못했습니다.";
-      generatedDocumentItems.value = [];
+      backendGeneratedDocumentItems.value = [];
     } finally {
-      isGeneratedDocumentsLoading.value = false;
+      isBackendGeneratedDocumentsLoading.value = false;
     }
+  }
+
+  function deleteGeneratedDocument(document: GeneratedDocumentListItem) {
+    if (!document.demoResultId) {
+      return false;
+    }
+
+    return deleteGeneratedResult(document.demoResultId);
+  }
+
+  function deleteGeneratedDocumentById(demoResultId: string | null) {
+    if (!demoResultId) {
+      return false;
+    }
+
+    return deleteGeneratedResult(demoResultId);
   }
 
   onMounted(() => {
@@ -226,5 +334,7 @@ export function useGeneratedDocumentsDemoViewModel() {
     isGeneratedDocumentsLoading,
     generatedDocumentsErrorMessage,
     refreshGeneratedDocuments,
+    deleteGeneratedDocument,
+    deleteGeneratedDocumentById,
   };
 }

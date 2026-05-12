@@ -185,20 +185,23 @@
   min-height: 0;
   overflow-y: auto;
   scrollbar-gutter: stable;
-  padding-right: 0.18rem;
   align-content: start;
 }
 
 .selection-panel__generated-item {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 0.78rem;
-  align-items: start;
-  padding: 0.92rem;
+  align-items: center;
+  padding: 0.86rem;
   border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 1rem;
   background: #fff;
   align-self: start;
+}
+
+.selection-panel__generated-item:hover {
+  background: #f8f9fb;
 }
 
 .selection-panel__generated-icon-wrap {
@@ -242,6 +245,30 @@
   line-height: 1.45;
 }
 
+.selection-panel__generated-download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 1px solid var(--outline-soft);
+  border-radius: 0.72rem;
+  background: #fff;
+  box-shadow: none;
+}
+
+.selection-panel__generated-download:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.selection-panel__generated-download-icon {
+  width: 1rem;
+  height: 1rem;
+  opacity: 0.86;
+}
+
 .selection-panel__empty {
   margin: 0;
   color: var(--ink-faint);
@@ -269,6 +296,45 @@
   height: 1.18rem;
   flex: 0 0 auto;
   opacity: 0.46;
+}
+
+.selection-generated-menu {
+  position: fixed;
+  z-index: 1000;
+  pointer-events: auto;
+  min-width: 8.5rem;
+  padding: 0.28rem;
+  border: 1px solid var(--outline-soft);
+  border-radius: 0.68rem;
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.14);
+}
+
+.selection-generated-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 0.58rem;
+  width: 100%;
+  min-height: 2.45rem;
+  padding: 0 0.72rem;
+  border: 0;
+  border-radius: 0.48rem;
+  background: transparent;
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: left;
+  box-shadow: none;
+}
+
+.selection-generated-menu__item:hover {
+  background: #f3f4f6;
+}
+
+.selection-generated-menu__icon {
+  width: 1rem;
+  height: 1rem;
+  opacity: 0.72;
 }
 
 @media (prefers-reduced-motion: no-preference) {

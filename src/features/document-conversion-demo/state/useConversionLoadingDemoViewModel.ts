@@ -11,14 +11,23 @@ import type {
 import { documentCatalog } from "@/features/document-conversion-demo/data/document-conversion-demo.seed";
 import type { DocumentCatalogType } from "@/features/document-conversion-demo/model/document-conversion-demo.types";
 import { useDocumentConversionDemoStore } from "@/features/document-conversion-demo/state/useDocumentConversionDemoStore";
+import { useServicePresentationDemoViewModel } from "@/features/service-presentation-demo/state/useServicePresentationDemoViewModel";
 
-const LOADING_TEXT_TOTAL_DURATION_MS = 5000;
+const LOADING_TEXT_TOTAL_DURATION_MS = 6000;
 const LOADING_TEXT_FIRST_TRANSITION_MS = Math.round(
   LOADING_TEXT_TOTAL_DURATION_MS / 3,
 );
 const LOADING_TEXT_SECOND_TRANSITION_MS = Math.round(
   (LOADING_TEXT_TOTAL_DURATION_MS * 2) / 3,
 );
+
+function createEvenLoadingStepTransitions(stepCount: number) {
+  return Array.from({ length: Math.max(stepCount - 1, 0) }, (_, index) => ({
+    delayMs: Math.round((LOADING_TEXT_TOTAL_DURATION_MS * (index + 1)) / stepCount),
+    stepIndex: index + 1,
+  }));
+}
+
 const EVEN_LOADING_STEP_TRANSITIONS = [
   { delayMs: LOADING_TEXT_FIRST_TRANSITION_MS, stepIndex: 1 },
   { delayMs: LOADING_TEXT_SECOND_TRANSITION_MS, stepIndex: 2 },
@@ -34,19 +43,27 @@ const DAILY_REPORT_STEP_TRANSITIONS = EVEN_LOADING_STEP_TRANSITIONS;
 
 const MIR_ANALYSIS_LOADING_STEPS = [
   "업로드한 이미지를 정리하고 있어요.",
-  "송장, 밀시트, 태그 내용을 분석하고 있어요.",
-  "검토 화면에 들어갈 항목을 준비하고 있어요.",
+  "송장과 자재 반입 사진을 분류하고 있어요.",
+  "공급처, 반입일, 사용 위치를 확인하고 있어요.",
+  "자재명, 규격, 수량을 문서 양식에 맞추고 있어요.",
+  "자재 반입 검수요청서 결과 파일을 준비하고 있어요.",
 ] as const;
 
-const MIR_ANALYSIS_STEP_TRANSITIONS = EVEN_LOADING_STEP_TRANSITIONS;
+const MIR_ANALYSIS_STEP_TRANSITIONS = createEvenLoadingStepTransitions(
+  MIR_ANALYSIS_LOADING_STEPS.length,
+);
 
 const MIR_CREATE_LOADING_STEPS = [
   "검토한 자재 반입 정보를 정리하고 있어요.",
-  "문서 생성에 필요한 데이터를 저장하고 있어요.",
-  "자재 반입 검수요청서를 렌더링하고 있어요.",
+  "수정한 자재명, 규격, 수량을 반영하고 있어요.",
+  "검수요청서 양식에 반입 정보를 배치하고 있어요.",
+  "첨부 사진과 송장 정보를 문서와 연결하고 있어요.",
+  "자재 반입 검수요청서를 생성하고 있어요.",
 ] as const;
 
-const MIR_CREATE_STEP_TRANSITIONS = EVEN_LOADING_STEP_TRANSITIONS;
+const MIR_CREATE_STEP_TRANSITIONS = createEvenLoadingStepTransitions(
+  MIR_CREATE_LOADING_STEPS.length,
+);
 
 const CAT_ANALYSIS_LOADING_STEPS = [
   "송장과 콘크리트 시험사진을 정리하고 있어요.",
@@ -76,10 +93,24 @@ function isDocumentCatalogType(value: string): value is DocumentCatalogType {
   return documentCatalog.some((document) => document.type === value);
 }
 
+function waitForMinimumLoadingDuration(startedAt: number) {
+  const remainingMs = LOADING_TEXT_TOTAL_DURATION_MS - (Date.now() - startedAt);
+
+  if (remainingMs <= 0) {
+    return Promise.resolve();
+  }
+
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, remainingMs);
+  });
+}
+
 export function useConversionLoadingDemoViewModel() {
   const store = useDocumentConversionDemoStore();
   const router = useRouter();
   const route = useRoute();
+  const { recordSelectedSiteDocumentGeneration } =
+    useServicePresentationDemoViewModel();
 
   const selectedDocument = computed(
     () => store.selectedDocument ?? documentCatalog[0],
@@ -134,7 +165,6 @@ export function useConversionLoadingDemoViewModel() {
   });
 
   const loadingDestinationRoute = computed(() =>
-    selectedDocument.value.type === "material_registration" ||
     selectedDocument.value.type === "concrete_delivery_csi"
       ? OCR_VALIDATION_ROUTE
       : RESULT_ROUTE,
@@ -160,10 +190,31 @@ export function useConversionLoadingDemoViewModel() {
       : path;
   }
 
+  function resolveCurrentDocumentType() {
+    const routeDocumentType = route.query.documentType;
+
+    return typeof routeDocumentType === "string" &&
+      isDocumentCatalogType(routeDocumentType)
+      ? routeDocumentType
+      : store.selectedDocument?.type ?? selectedDocument.value.type;
+  }
+
+  function recordResultGeneration() {
+    recordSelectedSiteDocumentGeneration(resolveCurrentDocumentType());
+  }
+
+  function replaceRoute(path: string) {
+    if (path === RESULT_ROUTE) {
+      recordResultGeneration();
+    }
+
+    void router.replace(createDocumentRouteLocation(path));
+  }
+
   function scheduleRouteNavigation(path: string, delayMs: number) {
     loadingStepTimers.push(
       setTimeout(() => {
-        void router.replace(createDocumentRouteLocation(path));
+        replaceRoute(path);
       }, delayMs),
     );
   }
@@ -275,6 +326,7 @@ export function useConversionLoadingDemoViewModel() {
     store.setMirAnalysisErrorMessage("");
 
     const currentRunId = ++loadingRunId;
+    const startedAt = Date.now();
     const validationMessage = resolveMirAnalysisValidationMessage();
 
     if (validationMessage) {
@@ -292,34 +344,13 @@ export function useConversionLoadingDemoViewModel() {
       );
     });
 
-    try {
-      const result = await materialInspectionRequestApi.analyzeMirPhoto({
-        application: store.mirUploadApplication,
-        workTypeId: store.mirUploadWorkTypeId,
-        images: store.uploadedImageFiles.map((entry) => entry.file),
-      });
+    await waitForMinimumLoadingDuration(startedAt);
 
-      if (currentRunId !== loadingRunId) {
-        return;
-      }
-
-      store.saveMirAnalysisResult(result);
-      void router.replace(OCR_VALIDATION_ROUTE);
-    } catch (error) {
-      if (currentRunId !== loadingRunId) {
-        return;
-      }
-
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "자재 반입 검수요청 자료 분석에 실패했습니다.";
-
-      store.setMirAnalysisErrorMessage(errorMessage);
-      loadingErrorMessage.value = "분석에 실패했어요. 업로드 화면으로 돌아갑니다.";
-      clearLoadingStepTimers();
-      scheduleRouteNavigation(UPLOAD_DOCUMENT_ROUTE, 1800);
+    if (currentRunId !== loadingRunId) {
+      return;
     }
+
+    replaceRoute(RESULT_ROUTE);
   }
 
   async function startCatAnalysisLoadingSequence() {
@@ -386,6 +417,7 @@ export function useConversionLoadingDemoViewModel() {
     loadingErrorMessage.value = "";
 
     const currentRunId = ++loadingRunId;
+    const startedAt = Date.now();
     const draft = store.mirDocumentSubmissionDraft;
 
     if (!draft) {
@@ -429,8 +461,14 @@ export function useConversionLoadingDemoViewModel() {
         return;
       }
 
+      await waitForMinimumLoadingDuration(startedAt);
+
+      if (currentRunId !== loadingRunId) {
+        return;
+      }
+
       store.saveMirCreateResult(createResult);
-      void router.replace(RESULT_ROUTE);
+      replaceRoute(RESULT_ROUTE);
     } catch (error) {
       if (currentRunId !== loadingRunId) {
         return;
@@ -496,7 +534,7 @@ export function useConversionLoadingDemoViewModel() {
       }
 
       store.saveCatCreateResult(createResult);
-      void router.replace(RESULT_ROUTE);
+      replaceRoute(RESULT_ROUTE);
     } catch (error) {
       if (currentRunId !== loadingRunId) {
         return;

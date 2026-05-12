@@ -14,6 +14,8 @@ import type {
 
 const SELECTED_PRESENTATION_SITE_STORAGE_KEY =
   "conelp:presentation-demo:selected-site";
+const GENERATED_PRESENTATION_RESULTS_STORAGE_KEY =
+  "conelp:presentation-demo:generated-results";
 
 function findSiteById(siteId: string | null) {
   return (
@@ -50,6 +52,90 @@ function persistSelectedSiteIdToSession(siteId: ServicePresentationSiteId) {
   }
 }
 
+function formatGeneratedDocumentNo(date: Date) {
+  const year = String(date.getFullYear()).slice(-2);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function isServicePresentationGeneratedResult(
+  value: unknown,
+): value is ServicePresentationGeneratedResult {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const result = value as Partial<ServicePresentationGeneratedResult>;
+
+  return (
+    typeof result.id === "string" &&
+    typeof result.siteId === "string" &&
+    findSiteById(result.siteId) !== null &&
+    result.type === "document" &&
+    (typeof result.documentNo === "string" || result.documentNo === undefined) &&
+    typeof result.title === "string" &&
+    Array.isArray(result.sourceRefs) &&
+    (typeof result.outputRef === "string" || result.outputRef === null) &&
+    typeof result.createdAt === "string" &&
+    result.status === "generated"
+  );
+}
+
+function mergeGeneratedResults(
+  results: ServicePresentationGeneratedResult[],
+) {
+  const resultById = new Map<string, ServicePresentationGeneratedResult>();
+
+  results.forEach((result) => {
+    resultById.set(result.id, result);
+  });
+
+  return Array.from(resultById.values());
+}
+
+function readGeneratedResultsFromSession() {
+  if (typeof window === "undefined") {
+    return servicePresentationGeneratedResultsSeed.map((result) => ({ ...result }));
+  }
+
+  try {
+    const storedResults = JSON.parse(
+      window.sessionStorage.getItem(
+        GENERATED_PRESENTATION_RESULTS_STORAGE_KEY,
+      ) ?? "[]",
+    );
+    const sessionResults = Array.isArray(storedResults)
+      ? storedResults.filter(isServicePresentationGeneratedResult)
+      : [];
+
+    return mergeGeneratedResults([
+      ...servicePresentationGeneratedResultsSeed.map((result) => ({ ...result })),
+      ...sessionResults,
+    ]);
+  } catch {
+    return servicePresentationGeneratedResultsSeed.map((result) => ({ ...result }));
+  }
+}
+
+function persistGeneratedResultsToSession(
+  results: ServicePresentationGeneratedResult[],
+) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.sessionStorage.setItem(
+      GENERATED_PRESENTATION_RESULTS_STORAGE_KEY,
+      JSON.stringify(results),
+    );
+  } catch {
+    // Generated result persistence is best-effort for the local demo.
+  }
+}
+
 export const useServicePresentationDemoStore = defineStore(
   "service-presentation-demo",
   () => {
@@ -57,7 +143,7 @@ export const useServicePresentationDemoStore = defineStore(
       readSelectedSiteIdFromSession(),
     );
     const generatedResults = ref<ServicePresentationGeneratedResult[]>(
-      servicePresentationGeneratedResultsSeed.map((result) => ({ ...result })),
+      readGeneratedResultsFromSession(),
     );
 
     const sites = computed(() => servicePresentationSiteManifest);
@@ -104,11 +190,16 @@ export const useServicePresentationDemoStore = defineStore(
         return null;
       }
 
+      const now = new Date();
+      const createdAt = now.toISOString();
+      const documentNo = formatGeneratedDocumentNo(now);
+      const generatedResultId = `${site.siteId}:${documentType}:${documentNo}`;
       const generatedResult: ServicePresentationGeneratedResult = {
-        id: `${site.siteId}:${documentType}:latest`,
+        id: generatedResultId,
         siteId: site.siteId,
         type: "document",
         documentType,
+        documentNo,
         title: documentManifest.label,
         sourceRefs: documentManifest.inputFiles.map(
           (fileName) => `${documentManifest.sourceFolder}/${fileName}`,
@@ -116,18 +207,35 @@ export const useServicePresentationDemoStore = defineStore(
         outputRef: documentManifest.outputExcel
           ? `${documentManifest.sourceFolder}/${documentManifest.outputExcel}`
           : null,
-        createdAt: new Date().toISOString(),
+        createdAt,
         status: "generated",
       };
 
-      generatedResults.value = [
+      const nextGeneratedResults = [
         generatedResult,
         ...generatedResults.value.filter(
-          (result) => result.id !== generatedResult.id,
+          (result) => result.id !== generatedResultId,
         ),
       ];
 
+      generatedResults.value = nextGeneratedResults;
+      persistGeneratedResultsToSession(nextGeneratedResults);
+
       return generatedResult;
+    }
+
+    function deleteGeneratedResult(resultId: string) {
+      const nextGeneratedResults = generatedResults.value.filter(
+        (result) => result.id !== resultId && `demo:${result.id}` !== resultId,
+      );
+
+      if (nextGeneratedResults.length === generatedResults.value.length) {
+        return false;
+      }
+
+      generatedResults.value = nextGeneratedResults;
+      persistGeneratedResultsToSession(nextGeneratedResults);
+      return true;
     }
 
     function selectSite(siteId: string) {
@@ -165,6 +273,7 @@ export const useServicePresentationDemoStore = defineStore(
       getSelectedSiteDocumentManifest,
       getSelectedSiteDocumentResult,
       recordSelectedSiteDocumentGeneration,
+      deleteGeneratedResult,
       selectSite,
       resetToDefaultSite,
       clearSelectedSite,

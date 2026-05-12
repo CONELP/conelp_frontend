@@ -1,4 +1,4 @@
-import { computed, onMounted, watch } from "vue";
+import { computed, watch } from "vue";
 import { useRoute } from "vue-router";
 
 import { documentCatalog } from "@/features/document-conversion-demo/data/document-conversion-demo.seed";
@@ -53,6 +53,17 @@ function resolveFileNameFromPath(value: string | null | undefined) {
   return pathSegments[pathSegments.length - 1] ?? value;
 }
 
+function resolveSelectedManifestOutputRef(
+  sourceFolder: string,
+  outputExcel: string | null,
+) {
+  if (!outputExcel) {
+    return "";
+  }
+
+  return `${sourceFolder.replace(/\/$/, "")}/${outputExcel}`;
+}
+
 function formatResultTime(value: string | null | undefined) {
   if (!value) {
     return "";
@@ -80,8 +91,15 @@ export function useResultPreviewDemoViewModel() {
   const {
     getSelectedSiteDocumentManifest,
     getSelectedSiteDocumentResult,
-    recordSelectedSiteDocumentGeneration,
   } = useServicePresentationDemoViewModel();
+
+  const routeDocumentType = computed<DocumentCatalogType>(() => {
+    const documentType = route.query.documentType;
+
+    return typeof documentType === "string" && isDocumentCatalogType(documentType)
+      ? documentType
+      : store.selectedDocument?.type ?? documentCatalog[0].type;
+  });
 
   watch(
     () => route.query.documentType,
@@ -98,7 +116,10 @@ export function useResultPreviewDemoViewModel() {
   );
 
   const selectedDocument = computed(
-    () => store.selectedDocument ?? documentCatalog[0],
+    () =>
+      documentCatalog.find((document) => document.type === routeDocumentType.value) ??
+      store.selectedDocument ??
+      documentCatalog[0],
   );
   const activeCreateResult = computed(
     () => store.catCreateResult ?? store.mirCreateResult,
@@ -109,6 +130,13 @@ export function useResultPreviewDemoViewModel() {
   const selectedDemoResult = computed(() =>
     getSelectedSiteDocumentResult(selectedDocument.value.type),
   );
+  const selectedManifestOutputRef = computed(() => {
+    const manifest = selectedManifest.value;
+
+    return manifest
+      ? resolveSelectedManifestOutputRef(manifest.sourceFolder, manifest.outputExcel)
+      : "";
+  });
 
   const resultFileName = computed(() => {
     if (activeCreateResult.value?.docNo) {
@@ -116,14 +144,18 @@ export function useResultPreviewDemoViewModel() {
     }
 
     return (
-      selectedManifest.value?.outputExcel ??
+      resolveFileNameFromPath(selectedManifest.value?.outputExcel) ??
       resolveFileNameFromPath(selectedDemoResult.value?.outputRef) ??
       formatResultFileName(selectedDocument.value.label, new Date())
     );
   });
 
   const resultDownloadUrl = computed(
-    () => activeCreateResult.value?.resultUrl ?? activeCreateResult.value?.pdfUrl ?? "",
+    () =>
+      activeCreateResult.value?.resultUrl ??
+      activeCreateResult.value?.pdfUrl ??
+      selectedDemoResult.value?.outputRef ??
+      selectedManifestOutputRef.value,
   );
 
   const resultDownloadJobId = computed(
@@ -176,10 +208,6 @@ export function useResultPreviewDemoViewModel() {
       ? []
       : DEFAULT_REVIEW_ITEMS,
   );
-
-  onMounted(() => {
-    recordSelectedSiteDocumentGeneration(selectedDocument.value.type);
-  });
 
   return {
     resultFileName,

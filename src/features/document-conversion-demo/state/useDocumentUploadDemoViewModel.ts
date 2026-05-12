@@ -112,6 +112,8 @@ export function useDocumentUploadDemoViewModel() {
   const isWorkTypeSuggestionsLoading = ref(false);
   const workTypeSuggestionsErrorMessage = ref("");
   const isWorkTypeSuggestionListOpen = ref(false);
+  const highlightedWorkTypeSuggestionIndex = ref(-1);
+  const workTypeSuggestionQuery = ref("");
   let guideInspectionTimer: ReturnType<typeof setTimeout> | null = null;
   let workTypeSuggestionCloseTimer: ReturnType<typeof setTimeout> | null = null;
   let workTypeSuggestionRequestId = 0;
@@ -128,8 +130,14 @@ export function useDocumentUploadDemoViewModel() {
   const isConcreteDeliveryTest = computed(
     () => selectedDocument.value.type === "concrete_delivery_csi",
   );
+  const isConcreteStrengthTest = computed(
+    () => selectedDocument.value.type === "concrete_strength_csi",
+  );
   const requiresWorkContext = computed(
-    () => isMaterialInspectionRequest.value || isConcreteDeliveryTest.value,
+    () =>
+      isMaterialInspectionRequest.value ||
+      isConcreteDeliveryTest.value ||
+      isConcreteStrengthTest.value,
   );
   const mirUploadApplication = computed({
     get: () => store.mirUploadApplication,
@@ -279,9 +287,11 @@ export function useDocumentUploadDemoViewModel() {
 
   function clearWorkTypeSuggestions() {
     workTypeSuggestions.value = [];
+    workTypeSuggestionQuery.value = "";
     workTypeSuggestionsErrorMessage.value = "";
     isWorkTypeSuggestionsLoading.value = false;
     isWorkTypeSuggestionListOpen.value = false;
+    highlightedWorkTypeSuggestionIndex.value = -1;
   }
 
   async function loadWorkTypeSuggestions(workTypeName: string) {
@@ -293,6 +303,21 @@ export function useDocumentUploadDemoViewModel() {
       return;
     }
 
+    if (
+      query === workTypeSuggestionQuery.value &&
+      (isWorkTypeSuggestionsLoading.value || workTypeSuggestions.value.length > 0)
+    ) {
+      isWorkTypeSuggestionListOpen.value = true;
+      highlightedWorkTypeSuggestionIndex.value =
+        highlightedWorkTypeSuggestionIndex.value >= 0
+          ? highlightedWorkTypeSuggestionIndex.value
+          : workTypeSuggestions.value.length > 0
+            ? 0
+            : -1;
+      return;
+    }
+
+    workTypeSuggestionQuery.value = query;
     isWorkTypeSuggestionsLoading.value = true;
     workTypeSuggestionsErrorMessage.value = "";
     isWorkTypeSuggestionListOpen.value = true;
@@ -306,12 +331,14 @@ export function useDocumentUploadDemoViewModel() {
       }
 
       workTypeSuggestions.value = suggestions;
+      highlightedWorkTypeSuggestionIndex.value = suggestions.length > 0 ? 0 : -1;
     } catch (error) {
       if (requestId !== workTypeSuggestionRequestId) {
         return;
       }
 
       workTypeSuggestions.value = [];
+      highlightedWorkTypeSuggestionIndex.value = -1;
       workTypeSuggestionsErrorMessage.value =
         error instanceof Error
           ? error.message
@@ -329,17 +356,26 @@ export function useDocumentUploadDemoViewModel() {
     const query = mirUploadWorkTypeName.value.trim();
 
     if (query && mirUploadWorkTypeId.value === null) {
-      isWorkTypeSuggestionListOpen.value = true;
-
-      if (!isWorkTypeSuggestionsLoading.value && workTypeSuggestions.value.length === 0) {
-        void loadWorkTypeSuggestions(query);
-      }
+      isWorkTypeSuggestionListOpen.value =
+        workTypeSuggestions.value.length > 0 || isWorkTypeSuggestionsLoading.value;
+      highlightedWorkTypeSuggestionIndex.value =
+        highlightedWorkTypeSuggestionIndex.value >= 0
+          ? highlightedWorkTypeSuggestionIndex.value
+          : workTypeSuggestions.value.length > 0
+            ? 0
+            : -1;
 
       return;
     }
 
     if (workTypeSuggestions.value.length > 0 || isWorkTypeSuggestionsLoading.value) {
       isWorkTypeSuggestionListOpen.value = true;
+      highlightedWorkTypeSuggestionIndex.value =
+        highlightedWorkTypeSuggestionIndex.value >= 0
+          ? highlightedWorkTypeSuggestionIndex.value
+          : workTypeSuggestions.value.length > 0
+            ? 0
+            : -1;
     }
   }
 
@@ -361,11 +397,95 @@ export function useDocumentUploadDemoViewModel() {
     workTypeSuggestions.value = [];
     workTypeSuggestionsErrorMessage.value = "";
     isWorkTypeSuggestionListOpen.value = false;
+    highlightedWorkTypeSuggestionIndex.value = -1;
   }
 
   function updateMirUploadWorkTypeName(value: string) {
     store.setMirUploadWorkTypeName(value);
+    highlightedWorkTypeSuggestionIndex.value = -1;
+
+    const query = value.trim();
+
+    if (
+      query &&
+      query === workTypeSuggestionQuery.value &&
+      (isWorkTypeSuggestionsLoading.value || workTypeSuggestions.value.length > 0)
+    ) {
+      isWorkTypeSuggestionListOpen.value = true;
+      highlightedWorkTypeSuggestionIndex.value =
+        workTypeSuggestions.value.length > 0 ? 0 : -1;
+      return;
+    }
+
     void loadWorkTypeSuggestions(value);
+  }
+
+  function setHighlightedWorkTypeSuggestionIndex(index: number) {
+    highlightedWorkTypeSuggestionIndex.value = Math.min(
+      Math.max(index, -1),
+      workTypeSuggestions.value.length - 1,
+    );
+  }
+
+  function moveHighlightedWorkTypeSuggestion(direction: 1 | -1) {
+    const suggestionCount = workTypeSuggestions.value.length;
+
+    clearWorkTypeSuggestionCloseTimer();
+
+    if (mirUploadWorkTypeName.value.trim()) {
+      isWorkTypeSuggestionListOpen.value = true;
+    }
+
+    if (suggestionCount === 0) {
+      return;
+    }
+
+    const baseIndex =
+      highlightedWorkTypeSuggestionIndex.value >= 0
+        ? highlightedWorkTypeSuggestionIndex.value
+        : direction === 1
+          ? -1
+          : 0;
+
+    highlightedWorkTypeSuggestionIndex.value =
+      (baseIndex + direction + suggestionCount) % suggestionCount;
+  }
+
+  function selectHighlightedWorkTypeSuggestion() {
+    const suggestionCount = workTypeSuggestions.value.length;
+
+    if (!isWorkTypeSuggestionListOpen.value || suggestionCount === 0) {
+      return;
+    }
+
+    const selectedIndex =
+      highlightedWorkTypeSuggestionIndex.value >= 0 &&
+      highlightedWorkTypeSuggestionIndex.value < suggestionCount
+        ? highlightedWorkTypeSuggestionIndex.value
+        : 0;
+    const suggestion = workTypeSuggestions.value[selectedIndex];
+
+    if (suggestion) {
+      selectWorkTypeSuggestion(suggestion);
+    }
+  }
+
+  function handleWorkTypeSuggestionEnter(event: KeyboardEvent) {
+    if (event.isComposing) {
+      return;
+    }
+
+    if (!isWorkTypeSuggestionListOpen.value || workTypeSuggestions.value.length === 0) {
+      return;
+    }
+
+    event.preventDefault();
+    selectHighlightedWorkTypeSuggestion();
+  }
+
+  function closeWorkTypeSuggestionList() {
+    isWorkTypeSuggestionListOpen.value = false;
+    highlightedWorkTypeSuggestionIndex.value = -1;
   }
 
   function revokePreviewUrls() {
@@ -442,11 +562,13 @@ export function useDocumentUploadDemoViewModel() {
     hasSelectedDocument,
     isMaterialInspectionRequest,
     isConcreteDeliveryTest,
+    isConcreteStrengthTest,
     requiresWorkContext,
     mirUploadApplication,
     mirUploadWorkTypeName,
     mirUploadWorkTypeId,
     workTypeSuggestions,
+    highlightedWorkTypeSuggestionIndex,
     isWorkTypeSuggestionsLoading,
     workTypeSuggestionsErrorMessage,
     isWorkTypeSuggestionListOpen,
@@ -471,6 +593,11 @@ export function useDocumentUploadDemoViewModel() {
     clearUpload: store.clearUpload,
     selectUploadDocument,
     updateMirUploadWorkTypeName,
+    moveHighlightedWorkTypeSuggestion,
+    selectHighlightedWorkTypeSuggestion,
+    handleWorkTypeSuggestionEnter,
+    closeWorkTypeSuggestionList,
+    setHighlightedWorkTypeSuggestionIndex,
     openWorkTypeSuggestionList,
     scheduleCloseWorkTypeSuggestionList,
     selectWorkTypeSuggestion,

@@ -79,7 +79,8 @@ export const servicePresentationSiteManifest: ServicePresentationSiteManifest[] 
             required: true,
           },
         ],
-        outputExcel: "사진대장.xlsx",
+        outputExcel:
+          "(건)제23-27호 자재 검수요청서(철근) 230817/사진대장.xlsx",
         registrationSteps: [
           {
             id: "register-material-source",
@@ -244,7 +245,9 @@ export const servicePresentationSiteManifest: ServicePresentationSiteManifest[] 
         documentType: "material_registration",
         label: "자재반입검수요청서",
         sourceFolder: "data/청운교회/2. 자재반입검수요청서",
-        inputFiles: ["260402 단열재 송장.pdf"],
+        inputFiles: [
+          "260402 단열재(90,130,180T)/260402 단열재 송장.pdf",
+        ],
         inputRefs: [
           {
             id: "cheongun-material-invoice",
@@ -254,7 +257,8 @@ export const servicePresentationSiteManifest: ServicePresentationSiteManifest[] 
             required: true,
           },
         ],
-        outputExcel: "26-04-01 주요자재 검수요청서_단열재(90,130,180T).xlsx",
+        outputExcel:
+          "260402 단열재(90,130,180T)/26-04-01 주요자재 검수요청서_단열재(90,130,180T).xlsx",
         registrationSteps: [
           {
             id: "register-material-source",

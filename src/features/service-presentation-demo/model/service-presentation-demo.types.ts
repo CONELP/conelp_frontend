@@ -45,6 +45,7 @@ export interface ServicePresentationGeneratedResult {
   siteId: ServicePresentationSiteId;
   type: "document" | "schedule";
   documentType?: DocumentCatalogType;
+  documentNo?: string;
   title: string;
   sourceRefs: string[];
   outputRef: string | null;

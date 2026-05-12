@@ -55,6 +55,10 @@ export function useServicePresentationDemoViewModel() {
     return store.recordSelectedSiteDocumentGeneration(documentType);
   }
 
+  function deleteGeneratedResult(resultId: string) {
+    return store.deleteGeneratedResult(resultId);
+  }
+
   return {
     siteCards,
     selectedSite,
@@ -67,6 +71,7 @@ export function useServicePresentationDemoViewModel() {
     getSelectedSiteDocumentManifest,
     getSelectedSiteDocumentResult,
     recordSelectedSiteDocumentGeneration,
+    deleteGeneratedResult,
     selectSite: store.selectSite,
     resetToDefaultSite: store.resetToDefaultSite,
     clearSelectedSite: store.clearSelectedSite,

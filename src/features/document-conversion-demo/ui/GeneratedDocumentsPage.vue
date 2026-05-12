@@ -1,5 +1,5 @@
 <template>
-  <div class="generated-frame">
+  <div class="generated-frame" @click="closeGeneratedContextMenu">
     <DesktopAppHeader class="generated-page__desktop-header" />
 
     <main class="generated-page">
@@ -42,6 +42,7 @@
               v-for="document in group.documents"
               :key="document.id"
               class="generated-row"
+              @contextmenu.prevent="handleOpenGeneratedContextMenu($event, document)"
             >
               <div class="generated-row__content">
                 <span class="generated-row__file">
@@ -84,15 +85,45 @@
       <section v-else class="generated-empty">
         생성된 문서가 없어요
       </section>
+
+      <div
+        v-if="generatedContextMenu"
+        class="generated-context-menu"
+        :style="{
+          left: `${generatedContextMenu.x}px`,
+          top: `${generatedContextMenu.y}px`,
+        }"
+        role="menu"
+        @click.stop
+        @pointerdown.stop
+      >
+        <button
+          class="generated-context-menu__item"
+          type="button"
+          role="menuitem"
+          @click.prevent.stop="handleDeleteGeneratedDocument"
+          @mousedown.prevent.stop="handleDeleteGeneratedDocument"
+          @pointerdown.prevent.stop="handleDeleteGeneratedDocument"
+        >
+          <img
+            class="generated-context-menu__icon"
+            :src="deleteIcon"
+            alt=""
+            aria-hidden="true"
+          />
+          삭제
+        </button>
+      </div>
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { onBeforeUnmount, onMounted, ref } from "vue";
 import { RouterLink } from "vue-router";
 import downloadIcon from "@fluentui/svg-icons/icons/arrow_download_20_regular.svg";
 import backIcon from "@fluentui/svg-icons/icons/chevron_left_24_regular.svg";
+import deleteIcon from "@fluentui/svg-icons/icons/delete_20_regular.svg";
 import documentIcon from "@fluentui/svg-icons/icons/document_20_regular.svg";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
@@ -104,18 +135,42 @@ const {
   generatedDocumentGroups,
   isGeneratedDocumentsLoading,
   generatedDocumentsErrorMessage,
+  deleteGeneratedDocumentById,
 } = useGeneratedDocumentsDemoViewModel();
 
 const downloadingDocumentId = ref<string | null>(null);
+const generatedContextMenu = ref<{
+  x: number;
+  y: number;
+  demoResultId: string;
+} | null>(null);
 
 function isStorageObjectKey(value: string) {
-  return value.startsWith("gs://") || !/^https?:\/\//i.test(value);
+  return value.startsWith("gs://") || (!isExternalUrl(value) && !isLocalDemoPath(value));
+}
+
+function isExternalUrl(value: string) {
+  return /^https?:\/\//i.test(value);
+}
+
+function isLocalDemoPath(value: string) {
+  return value.startsWith("data/") || value.startsWith("/data/");
+}
+
+function toFetchableGeneratedDocumentUrl(value: string) {
+  if (isExternalUrl(value) || value.startsWith("/")) {
+    return value;
+  }
+
+  return `/${value.split("/").map(encodeURIComponent).join("/")}`;
 }
 
 async function fetchExternalGeneratedDocument(value: string) {
-  const response = await fetch(value, {
-    credentials: "include",
-  });
+  const fetchUrl = toFetchableGeneratedDocumentUrl(value);
+  const response = await fetch(
+    fetchUrl,
+    isExternalUrl(fetchUrl) ? { credentials: "include" } : undefined,
+  );
 
   if (!response.ok) {
     throw new Error("다운로드 요청 실패");
@@ -133,6 +188,10 @@ async function downloadGeneratedDocumentBlob(document: GeneratedDocumentListItem
     }
 
     return fetchExternalGeneratedDocument(sourceUrl);
+  }
+
+  if (document.jobId === null) {
+    throw new Error("다운로드할 문서가 없습니다.");
   }
 
   return materialInspectionRequestApi.downloadDocumentJob(document.jobId);
@@ -171,6 +230,52 @@ async function handleDownloadGeneratedDocument(document: GeneratedDocumentListIt
     downloadingDocumentId.value = null;
   }
 }
+
+function closeGeneratedContextMenu() {
+  generatedContextMenu.value = null;
+}
+
+function handleOpenGeneratedContextMenu(
+  event: MouseEvent,
+  document: GeneratedDocumentListItem,
+) {
+  if (!document.canDelete || !document.demoResultId) {
+    closeGeneratedContextMenu();
+    return;
+  }
+
+  const menuWidth = 148;
+  const menuHeight = 48;
+
+  generatedContextMenu.value = {
+    x: Math.min(event.clientX, window.innerWidth - menuWidth - 12),
+    y: Math.min(event.clientY, window.innerHeight - menuHeight - 12),
+    demoResultId: document.demoResultId,
+  };
+}
+
+function handleDeleteGeneratedDocument() {
+  if (!generatedContextMenu.value) {
+    return;
+  }
+
+  deleteGeneratedDocumentById(generatedContextMenu.value.demoResultId);
+  closeGeneratedContextMenu();
+}
+
+function handleGeneratedContextMenuKeydown(event: KeyboardEvent) {
+  if (event.key === "Escape") {
+    closeGeneratedContextMenu();
+  }
+}
+
+onMounted(() => {
+  window.addEventListener("keydown", handleGeneratedContextMenuKeydown);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("keydown", handleGeneratedContextMenuKeydown);
+});
 </script>
 
 <style scoped src="./styles/GeneratedDocumentsPage.css"></style>

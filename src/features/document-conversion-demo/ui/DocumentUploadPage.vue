@@ -45,6 +45,10 @@
             <span class="upload-intro__title-line">콘크리트 반입시험 자료를</span>
             <span class="upload-intro__title-line">업로드 해주세요.</span>
           </template>
+          <template v-else-if="isConcreteStrengthTest">
+            <span class="upload-intro__title-line">콘크리트 압축강도 자료를</span>
+            <span class="upload-intro__title-line">업로드 해주세요.</span>
+          </template>
           <template v-else>
             <span class="upload-intro__title-line">{{ selectedDocument.label }}</span>
             <span class="upload-intro__title-line">자료를 업로드 해주세요.</span>
@@ -79,7 +83,17 @@
                 role="combobox"
                 :aria-expanded="isWorkTypeSuggestionListOpen"
                 aria-autocomplete="list"
+                :aria-activedescendant="
+                  highlightedWorkTypeSuggestionIndex >= 0 &&
+                  workTypeSuggestions[highlightedWorkTypeSuggestionIndex]
+                    ? `upload-work-type-option-${workTypeSuggestions[highlightedWorkTypeSuggestionIndex]?.id}`
+                    : undefined
+                "
                 @input="handleWorkTypeNameInput"
+                @keydown.down.prevent="moveHighlightedWorkTypeSuggestion(1)"
+                @keydown.up.prevent="moveHighlightedWorkTypeSuggestion(-1)"
+                @keydown.enter="handleWorkTypeSuggestionEnter"
+                @keydown.esc.prevent="closeWorkTypeSuggestionList"
                 @focus="openWorkTypeSuggestionList"
                 @blur="scheduleCloseWorkTypeSuggestionList"
               />
@@ -108,11 +122,22 @@
 
                   <template v-else-if="workTypeSuggestions.length > 0">
                     <button
-                      v-for="suggestion in workTypeSuggestions"
+                      v-for="(suggestion, suggestionIndex) in workTypeSuggestions"
                       :key="suggestion.id"
+                      :id="`upload-work-type-option-${suggestion.id}`"
                       class="upload-typeahead__option"
+                      :class="{
+                        'upload-typeahead__option--highlighted':
+                          highlightedWorkTypeSuggestionIndex === suggestionIndex,
+                      }"
                       type="button"
                       role="option"
+                      :aria-selected="
+                        highlightedWorkTypeSuggestionIndex === suggestionIndex
+                      "
+                      @mouseenter="
+                        setHighlightedWorkTypeSuggestionIndex(suggestionIndex)
+                      "
                       @click="selectWorkTypeSuggestion(suggestion)"
                     >
                       {{ suggestion.name }}
@@ -142,7 +167,26 @@
           </label>
         </section>
 
-        <div class="upload-dropzone">
+        <div
+          class="upload-dropzone"
+          :class="{ 'upload-dropzone--drag-active': isDropzoneDragActive }"
+          @dragenter.prevent="handleDropzoneDragEnter"
+          @dragover.prevent="handleDropzoneDragOver"
+          @dragleave="handleDropzoneDragLeave"
+          @drop.prevent="handleDropzoneDrop"
+        >
+          <Transition name="upload-dropzone-overlay">
+            <div
+              v-if="isDropzoneDragActive"
+              class="upload-dropzone__drop-overlay"
+              aria-hidden="true"
+            >
+              <span class="upload-dropzone__drop-label">
+                이미지를 여기에 놓아주세요
+              </span>
+            </div>
+          </Transition>
+
           <button
             class="upload-dropzone__trigger"
             type="button"
@@ -184,6 +228,10 @@
                 v-for="file in uploadedFiles"
                 :key="file.id"
                 class="upload-dropzone__selected-item"
+                :class="{
+                  'upload-dropzone__selected-item--removing':
+                    isUploadedFileRemoving(file.id),
+                }"
               >
                 <button
                   class="upload-dropzone__preview-button"
@@ -270,7 +318,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watchEffect } from "vue";
+import { computed, onBeforeUnmount, ref, watchEffect } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import backIcon from "@fluentui/svg-icons/icons/chevron_left_24_regular.svg";
 import dismissIcon from "@fluentui/svg-icons/icons/dismiss_16_regular.svg";
@@ -286,11 +334,13 @@ const {
   hasSelectedDocument,
   isMaterialInspectionRequest,
   isConcreteDeliveryTest,
+  isConcreteStrengthTest,
   requiresWorkContext,
   mirUploadApplication,
   mirUploadWorkTypeName,
   mirUploadWorkTypeId,
   workTypeSuggestions,
+  highlightedWorkTypeSuggestionIndex,
   isWorkTypeSuggestionsLoading,
   workTypeSuggestionsErrorMessage,
   isWorkTypeSuggestionListOpen,
@@ -304,6 +354,10 @@ const {
   removeUploadedImageFile,
   selectUploadDocument,
   updateMirUploadWorkTypeName,
+  moveHighlightedWorkTypeSuggestion,
+  handleWorkTypeSuggestionEnter,
+  closeWorkTypeSuggestionList,
+  setHighlightedWorkTypeSuggestionIndex,
   openWorkTypeSuggestionList,
   scheduleCloseWorkTypeSuggestionList,
   selectWorkTypeSuggestion,
@@ -312,6 +366,10 @@ const router = useRouter();
 const route = useRoute();
 const fileInput = ref<HTMLInputElement | null>(null);
 const selectedPreviewFile = ref<UploadSampleFile | null>(null);
+const isDropzoneDragActive = ref(false);
+const removingUploadedFileIds = ref(new Set<string>());
+const removeAnimationTimers: ReturnType<typeof setTimeout>[] = [];
+let dropzoneDragDepth = 0;
 const uploadErrorMessageLines = computed(() =>
   (uploadErrorMessage.value.match(/[^.!?。！？]+[.!?。！？]?/g) ?? [])
     .map((line) => line.trim())
@@ -365,12 +423,94 @@ function handleFileSelection(event: Event) {
   }
 }
 
+function hasDraggedFiles(event: DragEvent) {
+  const types = Array.from(event.dataTransfer?.types ?? []);
+
+  return types.includes("Files");
+}
+
+function toDraggedImageFiles(dataTransfer: DataTransfer | null) {
+  return Array.from(dataTransfer?.files ?? []).filter((file) =>
+    file.type.startsWith("image/"),
+  );
+}
+
+function handleDropzoneDragEnter(event: DragEvent) {
+  if (!hasDraggedFiles(event)) {
+    return;
+  }
+
+  dropzoneDragDepth += 1;
+  isDropzoneDragActive.value = true;
+}
+
+function handleDropzoneDragOver(event: DragEvent) {
+  if (!hasDraggedFiles(event)) {
+    return;
+  }
+
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = "copy";
+  }
+
+  isDropzoneDragActive.value = true;
+}
+
+function handleDropzoneDragLeave(event: DragEvent) {
+  if (!hasDraggedFiles(event)) {
+    return;
+  }
+
+  dropzoneDragDepth = Math.max(dropzoneDragDepth - 1, 0);
+  isDropzoneDragActive.value = dropzoneDragDepth > 0;
+}
+
+function handleDropzoneDrop(event: DragEvent) {
+  dropzoneDragDepth = 0;
+  isDropzoneDragActive.value = false;
+
+  const files = toDraggedImageFiles(event.dataTransfer);
+
+  if (files.length > 0) {
+    addUploadedImageFiles(files);
+  }
+}
+
+function isUploadedFileRemoving(fileId: string) {
+  return removingUploadedFileIds.value.has(fileId);
+}
+
+function markUploadedFileRemoving(fileId: string) {
+  const nextRemovingFileIds = new Set(removingUploadedFileIds.value);
+
+  nextRemovingFileIds.add(fileId);
+  removingUploadedFileIds.value = nextRemovingFileIds;
+}
+
+function unmarkUploadedFileRemoving(fileId: string) {
+  const nextRemovingFileIds = new Set(removingUploadedFileIds.value);
+
+  nextRemovingFileIds.delete(fileId);
+  removingUploadedFileIds.value = nextRemovingFileIds;
+}
+
 function handleRemoveUploadedFile(fileId: string) {
-  removeUploadedImageFile(fileId);
+  if (isUploadedFileRemoving(fileId)) {
+    return;
+  }
 
   if (selectedPreviewFile.value?.id === fileId) {
     selectedPreviewFile.value = null;
   }
+
+  markUploadedFileRemoving(fileId);
+
+  removeAnimationTimers.push(
+    setTimeout(() => {
+      removeUploadedImageFile(fileId);
+      unmarkUploadedFileRemoving(fileId);
+    }, 180),
+  );
 }
 
 function handleOpenImagePreview(file: UploadSampleFile) {
@@ -391,6 +531,11 @@ function handleGenerate() {
     query: { documentType: selectedDocument.value.type },
   });
 }
+
+onBeforeUnmount(() => {
+  removeAnimationTimers.forEach((timer) => clearTimeout(timer));
+  removeAnimationTimers.length = 0;
+});
 </script>
 
 <style scoped src="./styles/DocumentUploadPage.css"></style>

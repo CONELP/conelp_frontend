@@ -119,13 +119,31 @@ const {
 const isDownloadingResult = ref(false);
 
 function isStorageObjectKey(value: string) {
-  return value.startsWith("gs://") || !/^https?:\/\//i.test(value);
+  return value.startsWith("gs://") || (!isExternalUrl(value) && !isLocalDemoPath(value));
+}
+
+function isExternalUrl(value: string) {
+  return /^https?:\/\//i.test(value);
+}
+
+function isLocalDemoPath(value: string) {
+  return value.startsWith("data/") || value.startsWith("/data/");
+}
+
+function toFetchableResultUrl(value: string) {
+  if (isExternalUrl(value) || value.startsWith("/")) {
+    return value;
+  }
+
+  return `/${value.split("/").map(encodeURIComponent).join("/")}`;
 }
 
 async function fetchExternalResultFile(value: string) {
-  const response = await fetch(value, {
-    credentials: "include",
-  });
+  const fetchUrl = toFetchableResultUrl(value);
+  const response = await fetch(
+    fetchUrl,
+    isExternalUrl(fetchUrl) ? { credentials: "include" } : undefined,
+  );
 
   if (!response.ok) {
     throw new Error("다운로드 요청 실패");

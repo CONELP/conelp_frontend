@@ -38,10 +38,7 @@ function resolveSiteDocumentCatalog(
 
 export function useDocumentConversionDemoViewModel() {
   const store = useDocumentConversionDemoStore();
-  const {
-    getSelectedSiteDocumentManifest,
-    selectedSiteDocuments,
-  } = useServicePresentationDemoViewModel();
+  const { selectedSiteDocuments } = useServicePresentationDemoViewModel();
 
   const pageCopy = createSelectionPageContent(selectionPageCopy);
   const flowStages = createFlowStageLabels(demoFlowStages);
@@ -64,10 +61,6 @@ export function useDocumentConversionDemoViewModel() {
 
     if (selectedType?.type === "daily_report_write") {
       return "/preview/daily-report-write";
-    }
-
-    if (selectedType && getSelectedSiteDocumentManifest(selectedType.type)) {
-      return "/preview/document-registration";
     }
 
     return selectedType?.generationMode === "direct"
