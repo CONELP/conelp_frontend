@@ -66,19 +66,6 @@
                 </div>
               </article>
 
-              <article v-if="reviewItems.length > 0" class="result-review-card">
-                <p class="result-review-card__title">검토가 필요해요.</p>
-
-                <ul class="result-review-card__list">
-                  <li
-                    v-for="item in reviewItems"
-                    :key="item"
-                    class="result-review-card__item"
-                  >
-                    {{ item }}
-                  </li>
-                </ul>
-              </article>
             </section>
           </div>
         </section>
@@ -113,7 +100,6 @@ const {
   resultDocumentTitle,
   resultDocumentSubtitle,
   isResultDownloadAvailable,
-  reviewItems,
 } = useResultPreviewDemoViewModel();
 
 const isDownloadingResult = ref(false);

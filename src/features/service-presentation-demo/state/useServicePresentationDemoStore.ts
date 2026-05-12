@@ -8,6 +8,7 @@ import {
 import { servicePresentationGeneratedResultsSeed } from "@/features/service-presentation-demo/data/generated-results.seed";
 import type { DocumentCatalogType } from "@/features/document-conversion-demo/model/document-conversion-demo.types";
 import type {
+  ServicePresentationDocumentManifest,
   ServicePresentationGeneratedResult,
   ServicePresentationSiteId,
 } from "@/features/service-presentation-demo/model/service-presentation-demo.types";
@@ -22,6 +23,44 @@ function findSiteById(siteId: string | null) {
     servicePresentationSiteManifest.find((site) => site.siteId === siteId) ??
     null
   );
+}
+
+function resolveDocumentManifestOutputRef(
+  documentManifest: ServicePresentationDocumentManifest | null | undefined,
+) {
+  if (!documentManifest?.outputExcel) {
+    return null;
+  }
+
+  return `${documentManifest.sourceFolder.replace(/\/$/, "")}/${documentManifest.outputExcel}`;
+}
+
+function hydrateGeneratedResult(
+  result: ServicePresentationGeneratedResult,
+): ServicePresentationGeneratedResult {
+  if (result.type !== "document" || !result.documentType) {
+    return result;
+  }
+
+  const site = findSiteById(result.siteId);
+  const documentManifest =
+    site?.documents.find(
+      (document) => document.documentType === result.documentType,
+    ) ?? null;
+  const outputRef = resolveDocumentManifestOutputRef(documentManifest);
+
+  if (!outputRef) {
+    return result;
+  }
+
+  if (result.outputRef === outputRef) {
+    return result;
+  }
+
+  return {
+    ...result,
+    outputRef,
+  };
 }
 
 function readSelectedSiteIdFromSession() {
@@ -89,7 +128,7 @@ function mergeGeneratedResults(
   const resultById = new Map<string, ServicePresentationGeneratedResult>();
 
   results.forEach((result) => {
-    resultById.set(result.id, result);
+    resultById.set(result.id, hydrateGeneratedResult(result));
   });
 
   return Array.from(resultById.values());
@@ -160,7 +199,7 @@ export const useServicePresentationDemoStore = defineStore(
     const selectedSiteGeneratedResults = computed(() =>
       generatedResults.value.filter(
         (result) => result.siteId === selectedSiteId.value,
-      ),
+      ).map(hydrateGeneratedResult),
     );
     const selectedScheduleSeedId = computed(
       () => selectedSite.value?.scheduleSeedId ?? "",

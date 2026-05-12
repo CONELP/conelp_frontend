@@ -166,7 +166,7 @@ export const servicePresentationSiteManifest: ServicePresentationSiteManifest[] 
             required: true,
           },
         ],
-        outputExcel: null,
+        outputExcel: "230921_콘크리트압축강도시험.xlsx",
         registrationSteps: [
           {
             id: "register-strength-sources",
@@ -355,7 +355,7 @@ export const servicePresentationSiteManifest: ServicePresentationSiteManifest[] 
             required: true,
           },
         ],
-        outputExcel: null,
+        outputExcel: "260402_콘크리트시험일지(신일).xlsx",
         registrationSteps: [
           {
             id: "register-strength-sources",

@@ -85,6 +85,18 @@ const CAT_CREATE_LOADING_STEPS = [
 
 const CAT_CREATE_STEP_TRANSITIONS = EVEN_LOADING_STEP_TRANSITIONS;
 
+const CST_LOADING_STEPS = [
+  "선택한 콘크리트 반입시험 문서를 확인하고 있어요.",
+  "업로드한 공시체 강도 사진을 로트별로 정리하고 있어요.",
+  "7일 강도와 28일 강도 자료를 문서 양식에 맞추고 있어요.",
+  "콘크리트 압축강도 시험 문서를 렌더링하고 있어요.",
+  "콘크리트 압축강도 시험 결과 파일을 준비하고 있어요.",
+] as const;
+
+const CST_STEP_TRANSITIONS = createEvenLoadingStepTransitions(
+  CST_LOADING_STEPS.length,
+);
+
 const RESULT_ROUTE = "/preview/result";
 const OCR_VALIDATION_ROUTE = "/preview/upload-feedback";
 const DIRECT_DOCUMENT_BACK_ROUTE = "/preview/documents";
@@ -161,6 +173,10 @@ export function useConversionLoadingDemoViewModel() {
         : CAT_ANALYSIS_LOADING_STEPS[loadingStepIndex.value];
     }
 
+    if (selectedDocument.value.type === "concrete_strength_csi") {
+      return CST_LOADING_STEPS[loadingStepIndex.value];
+    }
+
     return selectedDocument.value.generationMode === "direct"
       ? "기본 항목과 문서 형식을 준비하고 있어요."
       : "이미지에서 텍스트를 읽고 있어요.";
@@ -222,6 +238,22 @@ export function useConversionLoadingDemoViewModel() {
     loadingStepIndex.value = 0;
 
     DAILY_REPORT_STEP_TRANSITIONS.forEach(({ delayMs, stepIndex }) => {
+      loadingStepTimers.push(
+        setTimeout(() => {
+          loadingStepIndex.value = stepIndex;
+        }, delayMs),
+      );
+    });
+
+    scheduleRouteNavigation(loadingDestinationRoute.value, LOADING_TEXT_TOTAL_DURATION_MS);
+  }
+
+  function startConcreteStrengthLoadingSequence() {
+    clearLoadingStepTimers();
+    loadingStepIndex.value = 0;
+    loadingErrorMessage.value = "";
+
+    CST_STEP_TRANSITIONS.forEach(({ delayMs, stepIndex }) => {
       loadingStepTimers.push(
         setTimeout(() => {
           loadingStepIndex.value = stepIndex;
@@ -555,6 +587,11 @@ export function useConversionLoadingDemoViewModel() {
         }
 
         void startCatAnalysisLoadingSequence();
+        return;
+      }
+
+      if (documentType === "concrete_strength_csi") {
+        startConcreteStrengthLoadingSequence();
         return;
       }
 

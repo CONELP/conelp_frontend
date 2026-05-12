@@ -14,8 +14,17 @@ import type {
   UploadSampleFile,
 } from "@/features/document-conversion-demo/model/document-conversion-demo.types";
 import { useDocumentConversionDemoStore } from "@/features/document-conversion-demo/state/useDocumentConversionDemoStore";
+import type { ServicePresentationGeneratedResult } from "@/features/service-presentation-demo/model/service-presentation-demo.types";
+import { useServicePresentationDemoViewModel } from "@/features/service-presentation-demo/state/useServicePresentationDemoViewModel";
 
 const CAT_MIN_IMAGE_UPLOAD_COUNT = 2;
+
+interface LinkedConcreteDeliveryDocumentOption {
+  id: string;
+  title: string;
+  subtitle: string;
+  createdAt: string;
+}
 
 function createUploadPreviewFile(
   file: File,
@@ -103,8 +112,71 @@ function createAnalysisPhotoPreviewUrl(mimeType: string, data: string) {
   return `data:${mimeType || "image/jpeg"};base64,${data}`;
 }
 
+function formatLinkedDocumentDate(value: string | null | undefined) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const year = String(date.getFullYear()).slice(-2);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function formatLinkedDocumentTime(value: string | null | undefined) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+
+  return `${hours}:${minutes}`;
+}
+
+function resolveFileNameFromPath(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const pathSegments = value.split("/").filter(Boolean);
+
+  return pathSegments[pathSegments.length - 1] ?? value;
+}
+
+function toLinkedConcreteDeliveryDocumentOption(
+  result: ServicePresentationGeneratedResult,
+): LinkedConcreteDeliveryDocumentOption {
+  const dateLabel = formatLinkedDocumentDate(result.createdAt);
+  const timeLabel = formatLinkedDocumentTime(result.createdAt);
+
+  return {
+    id: result.id,
+    title:
+      resolveFileNameFromPath(result.outputRef) ??
+      result.documentNo ??
+      result.title,
+    subtitle: [dateLabel, timeLabel].filter(Boolean).join(", "),
+    createdAt: result.createdAt,
+  };
+}
+
 export function useDocumentUploadDemoViewModel() {
   const store = useDocumentConversionDemoStore();
+  const { selectedSiteGeneratedResults } = useServicePresentationDemoViewModel();
   const guideInspectionState = ref<"idle" | "inspecting" | "done">("idle");
   const guideInspectionCount = ref(0);
   const workTypeSuggestions = ref<WorkTypeReferenceResponse[]>([]);
@@ -113,6 +185,7 @@ export function useDocumentUploadDemoViewModel() {
   const isWorkTypeSuggestionListOpen = ref(false);
   const highlightedWorkTypeSuggestionIndex = ref(-1);
   const workTypeSuggestionQuery = ref("");
+  const selectedLinkedConcreteDeliveryDocumentId = ref("");
   let guideInspectionTimer: ReturnType<typeof setTimeout> | null = null;
   let workTypeSuggestionCloseTimer: ReturnType<typeof setTimeout> | null = null;
   let workTypeSuggestionRequestId = 0;
@@ -135,8 +208,7 @@ export function useDocumentUploadDemoViewModel() {
   const requiresWorkContext = computed(
     () =>
       isMaterialInspectionRequest.value ||
-      isConcreteDeliveryTest.value ||
-      isConcreteStrengthTest.value,
+      isConcreteDeliveryTest.value,
   );
   const mirUploadApplication = computed({
     get: () => store.mirUploadApplication,
@@ -171,6 +243,25 @@ export function useDocumentUploadDemoViewModel() {
         previewUrlMap.value[entry.id],
       ),
     ),
+  );
+  const linkedConcreteDeliveryDocumentOptions = computed(() =>
+    selectedSiteGeneratedResults.value
+      .filter(
+        (result) =>
+          result.type === "document" &&
+          result.status === "generated" &&
+          result.documentType === "concrete_delivery_csi",
+      )
+      .map(toLinkedConcreteDeliveryDocumentOption)
+      .sort(
+        (left, right) =>
+          new Date(right.createdAt).getTime() -
+          new Date(left.createdAt).getTime(),
+      )
+      .map((document) => ({
+        ...document,
+        isSelected: document.id === selectedLinkedConcreteDeliveryDocumentId.value,
+      })),
   );
 
   const ocrValidationItems = computed<OcrValidationItemViewData[]>(() => {
@@ -237,6 +328,10 @@ export function useDocumentUploadDemoViewModel() {
   );
 
   const hasRequiredUploadInputs = computed(() => {
+    if (isConcreteStrengthTest.value) {
+      return Boolean(selectedLinkedConcreteDeliveryDocumentId.value);
+    }
+
     if (!requiresWorkContext.value) {
       return true;
     }
@@ -505,6 +600,10 @@ export function useDocumentUploadDemoViewModel() {
     return store.addUploadedImageFiles(files).map((entry) => entry.id);
   }
 
+  function selectLinkedConcreteDeliveryDocument(documentId: string) {
+    selectedLinkedConcreteDeliveryDocumentId.value = documentId;
+  }
+
   watch(
     () => store.uploadedImageFiles.map((entry) => entry.id).join(","),
     () => {
@@ -550,6 +649,24 @@ export function useDocumentUploadDemoViewModel() {
     { immediate: true },
   );
 
+  watch(
+    () => linkedConcreteDeliveryDocumentOptions.value.map((document) => document.id),
+    (documentIds) => {
+      if (
+        documentIds.length > 0 &&
+        !documentIds.includes(selectedLinkedConcreteDeliveryDocumentId.value)
+      ) {
+        selectedLinkedConcreteDeliveryDocumentId.value = documentIds[0];
+        return;
+      }
+
+      if (documentIds.length === 0) {
+        selectedLinkedConcreteDeliveryDocumentId.value = "";
+      }
+    },
+    { immediate: true },
+  );
+
   onBeforeUnmount(() => {
     clearGuideInspectionTimer();
     clearWorkTypeSuggestionCloseTimer();
@@ -578,6 +695,8 @@ export function useDocumentUploadDemoViewModel() {
     selectedPreset,
     requiresUpload,
     uploadedFiles,
+    linkedConcreteDeliveryDocumentOptions,
+    selectedLinkedConcreteDeliveryDocumentId,
     ocrValidationItems,
     uploadGuideItems,
     feedbackItems,
@@ -593,6 +712,7 @@ export function useDocumentUploadDemoViewModel() {
     addUploadedImageFiles,
     removeUploadedImageFile: store.removeUploadedImageFile,
     reorderUploadedImageFiles: store.reorderUploadedImageFiles,
+    selectLinkedConcreteDeliveryDocument,
     clearUpload: store.clearUpload,
     selectUploadDocument,
     updateMirUploadWorkTypeName,
