@@ -31,7 +31,14 @@
         class="schedule-chart-body__day-column"
         :class="getDayColumnClass(day)"
         :style="{ left: `${day.left}px`, width: `${day.width}px`, height: `${shellLayout.chartHeight}px` }"
-      />
+      >
+        <span
+          v-if="day.isHoliday && day.holidayName"
+          class="schedule-chart-body__day-column-holiday-label"
+        >
+          {{ day.holidayName }}
+        </span>
+      </div>
 
       <div
         v-for="row in shellLayout.rows"
@@ -1902,8 +1909,8 @@ function getResizeHandleClass(bar: DesktopScheduleBarLayout, _edge: "left" | "ri
 }
 
 function getDayColumnClass(day: DesktopScheduleTimelineLayout["days"][number]) {
-  if (day.isWeekend) {
-    return "schedule-chart-body__day-column--weekend";
+  if (day.isHoliday) {
+    return "schedule-chart-body__day-column--holiday";
   }
 
   if (day.isToday) {

@@ -65,8 +65,26 @@
   pointer-events: none;
 }
 
-.schedule-chart-body__day-column--weekend {
+.schedule-chart-body__day-column--holiday {
   background: rgba(244, 63, 94, 0.05);
+}
+
+.schedule-chart-body__day-column-holiday-label {
+  position: sticky;
+  top: 0.5rem;
+  display: block;
+  width: 100%;
+  padding-block: 0.4rem;
+  color: #be123c;
+  font-size: clamp(0.55rem, calc(0.78rem * var(--schedule-zoom-scale, 1)), 0.95rem);
+  font-weight: 600;
+  line-height: 1.05;
+  text-align: center;
+  white-space: nowrap;
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  letter-spacing: 0.02em;
+  pointer-events: none;
 }
 
 .schedule-chart-body__day-column--today {

@@ -144,7 +144,8 @@ export interface DesktopScheduleTimelineCell {
   left: number;
   width: number;
   isToday: boolean;
-  isWeekend: boolean;
+  isHoliday: boolean;
+  holidayName: string | null;
 }
 
 export interface DesktopScheduleTimelineGroup {

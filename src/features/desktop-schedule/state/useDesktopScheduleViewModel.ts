@@ -105,7 +105,10 @@ type ColorPaletteState = {
 type TimelineCalendarState = {
   startDate: string | null;
   endDate: string | null;
-  dates: Record<string, { isHoliday: boolean; isActivated: boolean }>;
+  dates: Record<
+    string,
+    { isHoliday: boolean; isActivated: boolean; holidayName: string | null }
+  >;
 };
 
 type ScheduleToastState = {
@@ -190,8 +193,8 @@ type ScheduleVersionReviewSummaryCache = {
 };
 
 const DEFAULT_DIVISION_NAME = "분류 (건축공사)";
-const DEFAULT_WORK_TYPE_NAME = "상위 공사명 (철콘공사)";
-const DEFAULT_SUB_WORK_TYPE_NAME = "하위 공사명 (타설)";
+const DEFAULT_WORK_TYPE_NAME = "공종명 (철콘공사)";
+const DEFAULT_SUB_WORK_TYPE_NAME = "세부공종명 (타설)";
 const DEFAULT_ROW_PANEL_WIDTH = 220;
 const DEFAULT_WORK_TYPE_COLUMN_WIDTH = 110;
 const ROW_PANEL_MIN_WIDTH = 180;
@@ -457,6 +460,7 @@ function createTimelineCalendarState(data: DesktopScheduleBootstrapData): Timeli
         {
           isHoliday: date.isHoliday,
           isActivated: date.isActivated,
+          holidayName: date.holidayName,
         },
       ]),
     ),
@@ -1201,7 +1205,7 @@ function formatReviewGapDays(gapDays: number) {
 }
 
 function getItemProcessLabel(item: DesktopScheduleItem) {
-  return [item.workType, item.subWorkType].filter(Boolean).join(" / ") || "공정 미지정";
+  return [item.workType, item.subWorkType].filter(Boolean).join(" / ") || "공종 미지정";
 }
 
 function getItemSignature(item: DesktopScheduleItem, mode: "exact" | "lane" | "nameRow") {
@@ -4628,7 +4632,7 @@ function createDesktopScheduleViewModel() {
     }
 
     if (payload.divisionId < 0) {
-      showScheduleToast("분류 저장이 끝난 뒤 상위공정을 추가할 수 있어요.");
+      showScheduleToast("분류 저장이 끝난 뒤 공종을 추가할 수 있어요.");
       return;
     }
 
@@ -4663,7 +4667,7 @@ function createDesktopScheduleViewModel() {
     }
 
     if (targetHierarchyItem.workTypeId < 0) {
-      showScheduleToast("상위 공정명을 먼저 입력해 주세요.");
+      showScheduleToast("공종명을 먼저 입력해 주세요.");
       closeContextMenu();
       return;
     }
@@ -4750,7 +4754,7 @@ function createDesktopScheduleViewModel() {
           });
           replaceReferenceWorkTypeId(payload.workTypeId, workType);
         },
-        "상위 공정을 추가하지 못했습니다.",
+        "공종을 추가하지 못했습니다.",
         {
           rollback: () => restoreWorkingSnapshot(snapshot),
         },
@@ -4769,7 +4773,7 @@ function createDesktopScheduleViewModel() {
           name: nextName,
         });
       },
-      "상위 공정 이름을 변경하지 못했습니다.",
+      "공종 이름을 변경하지 못했습니다.",
       {
         rollback: () => restoreWorkingSnapshot(snapshot),
       },
@@ -4825,7 +4829,7 @@ function createDesktopScheduleViewModel() {
     }
 
     if (targetHierarchyItem.workTypeId < 0) {
-      showScheduleToast("상위 공정명을 먼저 입력해 주세요.");
+      showScheduleToast("공종명을 먼저 입력해 주세요.");
       closeContextMenu();
       return;
     }
@@ -4852,7 +4856,7 @@ function createDesktopScheduleViewModel() {
           });
           replaceReferenceSubWorkTypeId(payload.subWorkTypeId, subWorkType);
         },
-        "하위 공정을 추가하지 못했습니다.",
+        "세부공종을 추가하지 못했습니다.",
         {
           rollback: () => restoreWorkingSnapshot(snapshot),
         },
@@ -4871,7 +4875,7 @@ function createDesktopScheduleViewModel() {
           name: nextName,
         });
       },
-      "하위 공정 이름을 변경하지 못했습니다.",
+      "세부공종 이름을 변경하지 못했습니다.",
       {
         rollback: () => restoreWorkingSnapshot(snapshot),
       },
@@ -4947,7 +4951,7 @@ function createDesktopScheduleViewModel() {
           ids: payload.workTypeIds,
         });
       },
-      "상위 공정 순서를 변경하지 못했습니다.",
+      "공종 순서를 변경하지 못했습니다.",
       {
         rollback: () => restoreWorkingSnapshot(snapshot),
       },
@@ -5319,7 +5323,7 @@ function createDesktopScheduleViewModel() {
               color: colorHex,
             });
           },
-          "하위 공정 색상을 저장하지 못했습니다.",
+          "세부공종 색상을 저장하지 못했습니다.",
           {
             rollback: () => restoreWorkingSnapshot(snapshot),
           },
@@ -5359,7 +5363,7 @@ function createDesktopScheduleViewModel() {
 
     if (!scheduleVersionId || !subWorkTypeId) {
       handleMutationError(
-        new Error("작업을 생성할 공정표 버전 또는 하위 공정 정보가 없습니다."),
+        new Error("작업을 생성할 공정표 버전 또는 세부공종 정보가 없습니다."),
         "작업을 생성하지 못했습니다.",
       );
       closeContextMenu();
@@ -5613,14 +5617,14 @@ function createDesktopScheduleViewModel() {
           : target.kind === "division-header"
               ? {
                 id: "create-work-type-reference",
-                label: "상위 공정 생성",
+                label: "공종 생성",
                 command: "create-work-type-reference" as const,
                 icon: "plus" as const,
               }
             : target.kind === "work-type-header"
               ? {
                 id: "create-sub-work-type-reference",
-                label: "하위 공정 생성",
+                label: "세부공종 생성",
                 command: "create-sub-work-type-reference" as const,
                 icon: "plus" as const,
               }
@@ -5962,7 +5966,7 @@ function createDesktopScheduleViewModel() {
       }
 
       if (targetRow.kind === "parent-process" && command === "change-properties") {
-        const nextName = promptForName("상위 공정명을 입력하세요.", targetRow.name);
+        const nextName = promptForName("공종명을 입력하세요.", targetRow.name);
         if (nextName) {
           const snapshot = captureWorkingSnapshot();
           workingRows.value = desktopScheduleService.updateRowName(
