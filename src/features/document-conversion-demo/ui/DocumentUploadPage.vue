@@ -169,7 +169,7 @@
         </section>
 
         <section
-          v-else-if="requiresWorkContext"
+          v-if="requiresWorkContext"
           class="upload-form"
           :aria-label="`${selectedDocument.label} 기본 정보`"
         >
@@ -181,7 +181,7 @@
                 class="upload-field__input"
                 type="text"
                 autocomplete="off"
-                placeholder="철근콘크리트공사"
+                :placeholder="workContextHint.workTypeName"
                 role="combobox"
                 :aria-expanded="isWorkTypeSuggestionListOpen"
                 aria-autocomplete="list"
@@ -264,7 +264,7 @@
               class="upload-field__input"
               type="text"
               autocomplete="off"
-              placeholder="B동 북측 야적장"
+              :placeholder="workContextHint.application"
             />
           </label>
         </section>
@@ -768,6 +768,7 @@ const {
   mirUploadApplication,
   mirUploadWorkTypeName,
   mirUploadWorkTypeId,
+  workContextHint,
   workTypeSuggestions,
   highlightedWorkTypeSuggestionIndex,
   isWorkTypeSuggestionsLoading,

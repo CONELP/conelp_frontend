@@ -13,6 +13,7 @@ import type {
   UploadFeedbackItem,
   UploadSampleFile,
 } from "@/features/document-conversion-demo/model/document-conversion-demo.types";
+import { resolveDocumentWorkContextHint } from "@/features/document-conversion-demo/services/document-work-context-hints";
 import { useDocumentConversionDemoStore } from "@/features/document-conversion-demo/state/useDocumentConversionDemoStore";
 import type { ServicePresentationGeneratedResult } from "@/features/service-presentation-demo/model/service-presentation-demo.types";
 import { useServicePresentationDemoViewModel } from "@/features/service-presentation-demo/state/useServicePresentationDemoViewModel";
@@ -176,7 +177,10 @@ function toLinkedConcreteDeliveryDocumentOption(
 
 export function useDocumentUploadDemoViewModel() {
   const store = useDocumentConversionDemoStore();
-  const { selectedSiteGeneratedResults } = useServicePresentationDemoViewModel();
+  const {
+    selectedSite,
+    selectedSiteGeneratedResults,
+  } = useServicePresentationDemoViewModel();
   const guideInspectionState = ref<"idle" | "inspecting" | "done">("idle");
   const guideInspectionCount = ref(0);
   const workTypeSuggestions = ref<WorkTypeReferenceResponse[]>([]);
@@ -208,7 +212,14 @@ export function useDocumentUploadDemoViewModel() {
   const requiresWorkContext = computed(
     () =>
       isMaterialInspectionRequest.value ||
-      isConcreteDeliveryTest.value,
+      isConcreteDeliveryTest.value ||
+      isConcreteStrengthTest.value,
+  );
+  const workContextHint = computed(() =>
+    resolveDocumentWorkContextHint(
+      selectedSite.value?.siteId,
+      selectedDocument.value.type,
+    ),
   );
   const mirUploadApplication = computed({
     get: () => store.mirUploadApplication,
@@ -328,8 +339,16 @@ export function useDocumentUploadDemoViewModel() {
   );
 
   const hasRequiredUploadInputs = computed(() => {
+    const hasRequiredWorkContext = Boolean(
+      mirUploadApplication.value.trim() &&
+        mirUploadWorkTypeName.value.trim(),
+    );
+
     if (isConcreteStrengthTest.value) {
-      return Boolean(selectedLinkedConcreteDeliveryDocumentId.value);
+      return Boolean(
+        selectedLinkedConcreteDeliveryDocumentId.value &&
+          hasRequiredWorkContext,
+      );
     }
 
     if (!requiresWorkContext.value) {
@@ -341,8 +360,7 @@ export function useDocumentUploadDemoViewModel() {
       : uploadedFiles.value.length > 0;
 
     return Boolean(
-      mirUploadApplication.value.trim() &&
-        mirUploadWorkTypeName.value.trim() &&
+      hasRequiredWorkContext &&
         hasRequiredImageCount,
     );
   });
@@ -686,6 +704,7 @@ export function useDocumentUploadDemoViewModel() {
     mirUploadApplication,
     mirUploadWorkTypeName,
     mirUploadWorkTypeId,
+    workContextHint,
     workTypeSuggestions,
     highlightedWorkTypeSuggestionIndex,
     isWorkTypeSuggestionsLoading,

@@ -16,6 +16,26 @@ export const servicePresentationSiteManifest: ServicePresentationSiteManifest[] 
     scheduleSeedId: "sunhyewon-baseline-schedule",
     documents: [
       {
+        documentType: "daily_report_write",
+        label: "공사일보 작성",
+        sourceFolder: "data/선혜원/1. 작업일보",
+        inputFiles: [],
+        inputRefs: [],
+        outputExcel: null,
+        registrationSteps: [
+          {
+            id: "open-daily-report-editor",
+            label: "작성 화면 열기",
+            description: "공정표와 함께 공사일보 작성 화면을 열어 바로 입력을 시작합니다.",
+          },
+        ],
+        generationSteps: [
+          "공정표 기준으로 당일 작업 구성을 확인하고 있어요.",
+          "공사일보 작성 화면을 준비하고 있어요.",
+        ],
+        status: "available",
+      },
+      {
         documentType: "daily_report",
         label: "홈페이지 fetch 작업일보",
         sourceFolder: "data/선혜원/1. 작업일보",
@@ -198,6 +218,26 @@ export const servicePresentationSiteManifest: ServicePresentationSiteManifest[] 
     dataRoot: "data/청운교회",
     scheduleSeedId: "cheongun-church-baseline-schedule",
     documents: [
+      {
+        documentType: "daily_report_write",
+        label: "공사일보 작성",
+        sourceFolder: "data/청운교회/1. 작업일보",
+        inputFiles: [],
+        inputRefs: [],
+        outputExcel: null,
+        registrationSteps: [
+          {
+            id: "open-daily-report-editor",
+            label: "작성 화면 열기",
+            description: "공정표와 함께 공사일보 작성 화면을 열어 바로 입력을 시작합니다.",
+          },
+        ],
+        generationSteps: [
+          "공정표 기준으로 당일 작업 구성을 확인하고 있어요.",
+          "공사일보 작성 화면을 준비하고 있어요.",
+        ],
+        status: "available",
+      },
       {
         documentType: "daily_report",
         label: "홈페이지 fetch 작업일보",

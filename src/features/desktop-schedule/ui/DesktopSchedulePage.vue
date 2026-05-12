@@ -2,12 +2,44 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
+import DailyReportEditorPanel from "@/features/document-conversion-demo/ui/components/DailyReportEditorPanel.vue";
 import { desktopScheduleService } from "@/features/desktop-schedule/services/desktop-schedule.service";
 import { useDesktopScheduleViewModel } from "@/features/desktop-schedule/state/useDesktopScheduleViewModel";
 import DesktopScheduleColorPalette from "@/features/desktop-schedule/ui/components/DesktopScheduleColorPalette.vue";
 import DesktopScheduleContextMenu from "@/features/desktop-schedule/ui/components/DesktopScheduleContextMenu.vue";
 import DesktopScheduleShell from "@/features/desktop-schedule/ui/components/DesktopScheduleShell.vue";
 import "@/features/desktop-schedule/ui/styles/DesktopSchedulePage.css";
+
+const DAILY_REPORT_PANEL_WIDTH_STORAGE_KEY = "conelp.schedule.dailyReportPanelWidth.v1";
+const DAILY_REPORT_PANEL_DEFAULT_WIDTH = 464;
+const DAILY_REPORT_PANEL_MIN_WIDTH = 336;
+const DAILY_REPORT_PANEL_MAX_WIDTH = 640;
+const DAILY_REPORT_PANEL_SPLITTER_WIDTH = 10;
+const DAILY_REPORT_MIN_WORKSPACE_WIDTH = 640;
+const DAILY_REPORT_PANEL_TOP_OFFSET = 48;
+
+type DailyReportPanelResizeState = {
+  pointerId: number;
+  startClientX: number;
+  startWidth: number;
+};
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function readStoredDailyReportPanelWidth() {
+  if (typeof window === "undefined") {
+    return DAILY_REPORT_PANEL_DEFAULT_WIDTH;
+  }
+
+  const storedValue = window.localStorage.getItem(DAILY_REPORT_PANEL_WIDTH_STORAGE_KEY);
+  const parsedValue = storedValue === null ? Number.NaN : Number.parseFloat(storedValue);
+
+  return Number.isFinite(parsedValue)
+    ? clampNumber(parsedValue, DAILY_REPORT_PANEL_MIN_WIDTH, DAILY_REPORT_PANEL_MAX_WIDTH)
+    : DAILY_REPORT_PANEL_DEFAULT_WIDTH;
+}
 
 const {
   scheduleLoadStatus,
@@ -110,9 +142,13 @@ const {
   closeScheduleVersionPromotionDialog,
 } = useDesktopScheduleViewModel();
 
+const shellLayoutRef = ref<HTMLElement | null>(null);
 const shellHostRef = ref<HTMLElement | null>(null);
 const shellViewportHeight = ref(640);
 const chartViewportWidth = ref(0);
+const isDailyReportPanelOpen = ref(true);
+const dailyReportPanelWidth = ref(readStoredDailyReportPanelWidth());
+const dailyReportPanelResizeState = ref<DailyReportPanelResizeState | null>(null);
 const shouldApplyInitialTimelineScroll = ref(
   scheduleLoadStatus.value !== "success",
 );
@@ -123,6 +159,18 @@ const isScheduleRefreshing = computed(
     scheduleLoadStatus.value === "loading" &&
     selectedScheduleVersionId.value !== null,
 );
+const showDailyReportEditor = computed(
+  () => isScheduleReadOnly.value && isDailyReportPanelOpen.value,
+);
+const scheduleShellStyle = computed(() => ({
+  "--desktop-schedule-daily-report-panel-width": showDailyReportEditor.value
+    ? `${dailyReportPanelWidth.value}px`
+    : "0px",
+  "--desktop-schedule-daily-report-splitter-width": showDailyReportEditor.value
+    ? `${DAILY_REPORT_PANEL_SPLITTER_WIDTH}px`
+    : "0px",
+  "--desktop-schedule-daily-report-panel-top-offset": `${DAILY_REPORT_PANEL_TOP_OFFSET}px`,
+}));
 
 function syncShellViewport() {
   if (!shellHostRef.value) {
@@ -155,6 +203,95 @@ function handleZoomOut() {
 
 function handleZoomChange(zoomIndex: number) {
   setZoomIndex(zoomIndex, chartViewportWidth.value);
+}
+
+function handleToggleDailyReportPanel() {
+  if (!isScheduleReadOnly.value) {
+    return;
+  }
+
+  isDailyReportPanelOpen.value = !isDailyReportPanelOpen.value;
+}
+
+function getDailyReportPanelMaxWidth() {
+  const shellWidth = shellLayoutRef.value?.clientWidth ?? 0;
+
+  if (shellWidth <= 0) {
+    return DAILY_REPORT_PANEL_MAX_WIDTH;
+  }
+
+  return Math.min(
+    DAILY_REPORT_PANEL_MAX_WIDTH,
+    Math.max(
+      DAILY_REPORT_PANEL_MIN_WIDTH,
+      shellWidth - DAILY_REPORT_MIN_WORKSPACE_WIDTH - DAILY_REPORT_PANEL_SPLITTER_WIDTH,
+    ),
+  );
+}
+
+function clampDailyReportPanelWidth(width: number) {
+  return clampNumber(
+    width,
+    DAILY_REPORT_PANEL_MIN_WIDTH,
+    getDailyReportPanelMaxWidth(),
+  );
+}
+
+function persistDailyReportPanelWidth() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(
+    DAILY_REPORT_PANEL_WIDTH_STORAGE_KEY,
+    String(Math.round(dailyReportPanelWidth.value)),
+  );
+}
+
+function handleDailyReportPanelResizeMove(event: PointerEvent) {
+  const resizeState = dailyReportPanelResizeState.value;
+
+  if (!resizeState || resizeState.pointerId !== event.pointerId) {
+    return;
+  }
+
+  const dragDelta = event.clientX - resizeState.startClientX;
+  dailyReportPanelWidth.value = clampDailyReportPanelWidth(
+    resizeState.startWidth - dragDelta,
+  );
+  requestAnimationFrame(syncShellViewport);
+}
+
+function endDailyReportPanelResize(event: PointerEvent) {
+  const resizeState = dailyReportPanelResizeState.value;
+
+  if (!resizeState || resizeState.pointerId !== event.pointerId) {
+    return;
+  }
+
+  dailyReportPanelResizeState.value = null;
+  persistDailyReportPanelWidth();
+  window.removeEventListener("pointermove", handleDailyReportPanelResizeMove, true);
+  window.removeEventListener("pointerup", endDailyReportPanelResize, true);
+  window.removeEventListener("pointercancel", endDailyReportPanelResize, true);
+  requestAnimationFrame(syncShellViewport);
+}
+
+function startDailyReportPanelResize(event: PointerEvent) {
+  if (!showDailyReportEditor.value) {
+    return;
+  }
+
+  event.preventDefault();
+  dailyReportPanelResizeState.value = {
+    pointerId: event.pointerId,
+    startClientX: event.clientX,
+    startWidth: dailyReportPanelWidth.value,
+  };
+
+  window.addEventListener("pointermove", handleDailyReportPanelResizeMove, true);
+  window.addEventListener("pointerup", endDailyReportPanelResize, true);
+  window.addEventListener("pointercancel", endDailyReportPanelResize, true);
 }
 
 function handleScheduleReload() {
@@ -219,6 +356,9 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener("keydown", handleHistoryShortcut);
+  window.removeEventListener("pointermove", handleDailyReportPanelResizeMove, true);
+  window.removeEventListener("pointerup", endDailyReportPanelResize, true);
+  window.removeEventListener("pointercancel", endDailyReportPanelResize, true);
   resizeObserver?.disconnect();
   resizeObserver = null;
   closeContextMenu();
@@ -254,6 +394,20 @@ watch(
   },
   { immediate: true },
 );
+
+watch(
+  () => [
+    isScheduleReadOnly.value,
+    showDailyReportEditor.value,
+    dailyReportPanelWidth.value,
+    rowPanelWidth.value,
+  ],
+  async () => {
+    await nextTick();
+    syncShellViewport();
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
@@ -272,7 +426,16 @@ watch(
       </div>
     </Transition>
 
-    <div class="desktop-schedule-page__shell">
+    <div
+      ref="shellLayoutRef"
+      class="desktop-schedule-page__shell"
+      :class="{
+        'desktop-schedule-page__shell--with-daily-report-panel': isScheduleReadOnly,
+        'desktop-schedule-page__shell--panel-open': showDailyReportEditor,
+        'desktop-schedule-page__shell--panel-resizing': dailyReportPanelResizeState,
+      }"
+      :style="scheduleShellStyle"
+    >
       <section class="desktop-schedule-page__workspace">
         <div ref="shellHostRef" class="desktop-schedule-page__workspace-host">
           <div
@@ -345,9 +508,14 @@ watch(
               :can-zoom-out="canZoomOut"
               :can-undo="canUndoLocalHistory"
               :can-redo="canRedoLocalHistory"
+              :panel-open="showDailyReportEditor"
+              :show-panel-toggle="isScheduleReadOnly"
+              panel-toggle-open-label="패널 숨기기"
+              panel-toggle-closed-label="패널 보기"
               @scroll-sync="syncChartScroll"
               @row-panel-width-change="handleRowPanelWidthChange"
               @work-type-column-width-change="handleWorkTypeColumnWidthChange"
+              @toggle-panel="handleToggleDailyReportPanel"
               @undo="undoLocalHistory"
               @redo="redoLocalHistory"
               @create-draft-version="createDraftVersionFromCurrent"
@@ -444,6 +612,29 @@ watch(
           </template>
         </div>
       </section>
+
+      <Transition name="desktop-schedule-daily-report-splitter">
+        <button
+          v-if="showDailyReportEditor"
+          type="button"
+          class="desktop-schedule-page__daily-report-splitter"
+          aria-label="공정표와 공사일보 작성 패널 너비 조절"
+          title="드래그해서 공사일보 작성 패널 너비 조절"
+          @pointerdown="startDailyReportPanelResize"
+        >
+          <span
+            class="desktop-schedule-page__daily-report-splitter-line"
+            aria-hidden="true"
+          />
+        </button>
+      </Transition>
+
+      <Transition name="desktop-schedule-daily-report-panel">
+        <DailyReportEditorPanel
+          v-if="showDailyReportEditor"
+          class="desktop-schedule-page__daily-report-panel"
+        />
+      </Transition>
     </div>
   </main>
 </template>

@@ -85,6 +85,43 @@
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
 }
 
+.schedule-shell__panel-toggle {
+  display: inline-flex;
+  width: 1.95rem;
+  height: 1.9rem;
+  flex: 0 0 1.95rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 0.5rem;
+  background: #fff;
+  color: #475569;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.schedule-shell__panel-toggle:hover,
+.schedule-shell__panel-toggle:focus-visible {
+  border-color: rgba(37, 99, 235, 0.24);
+  background: #f8fafc;
+  color: #111827;
+}
+
+.schedule-shell__panel-toggle:focus-visible {
+  outline: 2px solid rgba(107, 114, 128, 0.42);
+  outline-offset: -2px;
+}
+
+.schedule-shell__panel-toggle-icon {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex: 0 0 auto;
+}
+
 .schedule-shell__promote-button {
   display: inline-flex;
   min-height: 1.9rem;

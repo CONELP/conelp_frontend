@@ -5,11 +5,18 @@ import imageIcon from "@fluentui/svg-icons/icons/image_20_regular.svg";
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
 import { materialInspectionRequestApi } from "@/features/document-conversion-demo/api/material-inspection-request.api";
 import type { WorkTypeReferenceResponse } from "@/features/document-conversion-demo/api/material-inspection-request-api.types";
+import {
+  resolveDailyReportHomepageImportConfig,
+  toDemoDataUrl,
+  type DailyReportHomepagePayload,
+  type DailyReportHomepageWorkSection,
+} from "@/features/document-conversion-demo/data/daily-report-homepage-demo.seed";
 import { desktopScheduleService } from "@/features/desktop-schedule/services/desktop-schedule.service";
 import { useDesktopScheduleViewModel } from "@/features/desktop-schedule/state/useDesktopScheduleViewModel";
 import DesktopScheduleColorPalette from "@/features/desktop-schedule/ui/components/DesktopScheduleColorPalette.vue";
 import DesktopScheduleContextMenu from "@/features/desktop-schedule/ui/components/DesktopScheduleContextMenu.vue";
 import DesktopScheduleShell from "@/features/desktop-schedule/ui/components/DesktopScheduleShell.vue";
+import { useServicePresentationDemoViewModel } from "@/features/service-presentation-demo/state/useServicePresentationDemoViewModel";
 import "@/features/desktop-schedule/ui/styles/DesktopSchedulePage.css";
 
 const DAILY_REPORT_LAYOUT_STORAGE_KEY = "conelp.dailyReportWrite.layoutRatio.v1";
@@ -17,7 +24,8 @@ const DAILY_REPORT_DEFAULT_SCHEDULE_RATIO = 0.67;
 const DAILY_REPORT_MIN_SCHEDULE_WIDTH = 520;
 const DAILY_REPORT_MIN_PANEL_WIDTH = 304;
 const DAILY_REPORT_SPLITTER_WIDTH = 10;
-const DAILY_REPORT_DRAFT_STORAGE_KEY = "conelp.dailyReportWrite.draft.v1";
+const DAILY_REPORT_DRAFT_STORAGE_KEY = "conelp.dailyReportWrite.draft.v2";
+const HOMEPAGE_IMPORT_MIN_DURATION_MS = 2500;
 
 type LayoutResizeState = {
   pointerId: number;
@@ -31,6 +39,7 @@ type DailyReportImageDraft = {
   id: string;
   src: string;
   description: string;
+  source?: "manual" | "homepage";
 };
 
 type DailyReportImageDropPosition = "before" | "after";
@@ -63,6 +72,7 @@ type DailyReportWorkTypeDraft = {
   workTypeId: number | null;
   workTypeName: string;
   tasks: DailyReportTaskDraft[];
+  source?: "manual" | "homepage";
 };
 
 type DailyReportWorkTypeSuggestionState = {
@@ -124,6 +134,7 @@ function createDailyReportWorkTypeDraft(
     workTypeId: null,
     workTypeName: "",
     tasks: [createDailyReportTask(taskText)],
+    source: "manual",
   };
 }
 
@@ -141,6 +152,7 @@ function normalizeDailyReportImages(value: unknown): DailyReportImageDraft[] {
       id: typeof image.id === "string" && image.id ? image.id : createDailyReportImageId(),
       src: typeof image.src === "string" ? image.src : "",
       description: typeof image.description === "string" ? image.description : "",
+      source: (image.source === "homepage" ? "homepage" : "manual") as DailyReportImageDraft["source"],
     }))
     .filter((image) => image.src);
 }
@@ -184,6 +196,7 @@ function normalizeDailyReportWorkTypes(
             : null,
         workTypeName: typeof workType.workTypeName === "string" ? workType.workTypeName : "",
         tasks: normalizeDailyReportTasks(workType.tasks),
+        source: workType.source === "homepage" ? "homepage" : "manual",
       }));
   }
 
@@ -243,6 +256,12 @@ function readImageFileAsDataUrl(file: File) {
       reject(reader.error ?? new Error("이미지 파일을 읽지 못했습니다."));
     });
     reader.readAsDataURL(file);
+  });
+}
+
+function waitForHomepageImportDemo() {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, HOMEPAGE_IMPORT_MIN_DURATION_MS);
   });
 }
 
@@ -326,6 +345,7 @@ const {
   notifyReadOnlyScheduleAction,
 } = useDesktopScheduleViewModel();
 
+const { selectedSite } = useServicePresentationDemoViewModel();
 const layoutRef = ref<HTMLElement | null>(null);
 const shellHostRef = ref<HTMLElement | null>(null);
 const todayImageInputRef = ref<HTMLInputElement | null>(null);
@@ -346,6 +366,7 @@ const todayWorkTypes = ref<DailyReportWorkTypeDraft[]>(dailyReportDraft.todayWor
 const tomorrowWorkTypes = ref<DailyReportWorkTypeDraft[]>(dailyReportDraft.tomorrowWorkTypes);
 const todayImages = ref<DailyReportImageDraft[]>(dailyReportDraft.todayImages);
 const tomorrowImages = ref<DailyReportImageDraft[]>(dailyReportDraft.tomorrowImages);
+const homepageImportStatus = ref<"idle" | "loading" | "error">("idle");
 const shouldApplyInitialTimelineScroll = ref(
   scheduleLoadStatus.value !== "success",
 );
@@ -1057,7 +1078,7 @@ function getImageCardDragClass(section: DailyReportWorkSection, imageId: string)
   };
 }
 
-function handleDailyReportSave() {
+function persistDailyReportDraft() {
   if (typeof window === "undefined") {
     return;
   }
@@ -1065,12 +1086,129 @@ function handleDailyReportSave() {
   window.localStorage.setItem(
     DAILY_REPORT_DRAFT_STORAGE_KEY,
     JSON.stringify({
-      todayWorkTypes: todayWorkTypes.value,
-      tomorrowWorkTypes: tomorrowWorkTypes.value,
-      todayImages: todayImages.value,
-      tomorrowImages: tomorrowImages.value,
+      todayWorkTypes: todayWorkTypes.value.filter(
+        (workType) => workType.source !== "homepage",
+      ),
+      tomorrowWorkTypes: tomorrowWorkTypes.value.filter(
+        (workType) => workType.source !== "homepage",
+      ),
+      todayImages: todayImages.value.filter((image) => image.source !== "homepage"),
+      tomorrowImages: tomorrowImages.value.filter((image) => image.source !== "homepage"),
     }),
   );
+}
+
+function createWorkTypesFromHomepageSections(
+  sections: DailyReportHomepageWorkSection[] | undefined,
+) {
+  return (sections ?? [])
+    .filter((section) => section.name.trim() || section.items.some((item) => item.trim()))
+    .map((section) => ({
+      id: createDailyReportImageId(),
+      workTypeId: null,
+      workTypeName: section.name,
+      source: "homepage" as const,
+      tasks:
+        section.items.length > 0
+          ? section.items.map((item) => createDailyReportTask(item))
+          : [createDailyReportTask()],
+    }));
+}
+
+function getWorkTypeSignature(workType: DailyReportWorkTypeDraft) {
+  return JSON.stringify({
+    workTypeName: workType.workTypeName.trim(),
+    tasks: workType.tasks.map((task) => task.text.trim()).filter(Boolean),
+  });
+}
+
+function mergeWorkTypes(
+  currentWorkTypes: DailyReportWorkTypeDraft[],
+  incomingWorkTypes: DailyReportWorkTypeDraft[],
+) {
+  const existingSignatures = new Set(currentWorkTypes.map(getWorkTypeSignature));
+
+  return [
+    ...currentWorkTypes,
+    ...incomingWorkTypes.filter((workType) => {
+      const signature = getWorkTypeSignature(workType);
+
+      if (existingSignatures.has(signature)) {
+        return false;
+      }
+
+      existingSignatures.add(signature);
+      return true;
+    }),
+  ];
+}
+
+function mergeImages(
+  currentImages: DailyReportImageDraft[],
+  incomingImages: DailyReportImageDraft[],
+) {
+  const existingSources = new Set(currentImages.map((image) => image.src));
+
+  return [
+    ...currentImages,
+    ...incomingImages.filter((image) => {
+      if (existingSources.has(image.src)) {
+        return false;
+      }
+
+      existingSources.add(image.src);
+      return true;
+    }),
+  ];
+}
+
+async function handleHomepageDataImport() {
+  const config = resolveDailyReportHomepageImportConfig(selectedSite.value?.siteId);
+
+  if (!config) {
+    homepageImportStatus.value = "error";
+    return;
+  }
+
+  homepageImportStatus.value = "loading";
+
+  try {
+    const [response] = await Promise.all([
+      fetch(toDemoDataUrl(config.jsonPath)),
+      waitForHomepageImportDemo(),
+    ]);
+
+    if (!response.ok) {
+      throw new Error("홈페이지 작업일보 JSON을 불러오지 못했습니다.");
+    }
+
+    const payload = (await response.json()) as DailyReportHomepagePayload;
+    const todayImportedWorkTypes = createWorkTypesFromHomepageSections(
+      payload.normalized?.today?.sections,
+    );
+    const tomorrowImportedWorkTypes = createWorkTypesFromHomepageSections(
+      payload.normalized?.tomorrow?.sections,
+    );
+    const importedImages = (payload.normalized?.photos ?? []).map((photo) => ({
+      id: createDailyReportImageId(),
+      src: toDemoDataUrl(`${config.photoFolderPath}/${photo.filename}`),
+      description: photo.caption,
+      source: "homepage" as const,
+    }));
+
+    todayWorkTypes.value = mergeWorkTypes(todayWorkTypes.value, todayImportedWorkTypes);
+    tomorrowWorkTypes.value = mergeWorkTypes(tomorrowWorkTypes.value, tomorrowImportedWorkTypes);
+    todayImages.value = mergeImages(todayImages.value, importedImages);
+    persistDailyReportDraft();
+    homepageImportStatus.value = "idle";
+  } catch (error) {
+    console.error(error);
+    homepageImportStatus.value = "error";
+  }
+}
+
+function handleDailyReportSave() {
+  persistDailyReportDraft();
 }
 
 async function ensureBaselineScheduleSelected() {
@@ -1828,12 +1966,37 @@ watch(
         <footer class="daily-report-write-save-bar">
           <button
             type="button"
+            class="daily-report-write-import-button"
+            :disabled="homepageImportStatus === 'loading'"
+            @click="handleHomepageDataImport"
+          >
+            {{ homepageImportStatus === "loading" ? "홈페이지 자료 불러오는 중" : "홈페이지 자료 불러오기" }}
+          </button>
+          <button
+            type="button"
             class="daily-report-write-save-button"
             @click="handleDailyReportSave"
           >
             저장하기
           </button>
         </footer>
+
+        <Transition name="daily-report-homepage-import-overlay">
+          <div
+            v-if="homepageImportStatus === 'loading'"
+            class="daily-report-homepage-import-overlay"
+            role="status"
+            aria-live="polite"
+          >
+            <div class="daily-report-homepage-import-overlay__card">
+              <span
+                class="daily-report-homepage-import-overlay__indicator"
+                aria-hidden="true"
+              />
+              <span>홈페이지 자료를 가져오고 있어요.</span>
+            </div>
+          </div>
+        </Transition>
       </aside>
     </section>
 

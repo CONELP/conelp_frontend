@@ -16,6 +16,7 @@
   flex: 1;
   min-height: 0;
   width: 100%;
+  overflow: hidden;
   padding: 1rem;
 }
 
@@ -86,9 +87,12 @@
 }
 
 .daily-report-write-panel {
+  position: relative;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   gap: 1rem;
+  height: 100%;
+  max-height: 100%;
   overflow: hidden;
   padding: 1rem;
 }
@@ -98,7 +102,9 @@
   gap: 1rem;
   align-content: start;
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding-right: 0.1rem;
 }
 
@@ -678,25 +684,52 @@
   bottom: 0;
   z-index: 2;
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
   padding-top: 0.1rem;
   background: #fff;
 }
 
+.daily-report-write-import-button,
 .daily-report-write-save-button {
   display: inline-flex;
   min-height: 2.55rem;
   align-items: center;
   justify-content: center;
+  white-space: nowrap;
   padding: 0 1.25rem;
   border: 1px solid rgba(30, 64, 175, 0.22);
   border-radius: 0.72rem;
-  background: var(--primary);
-  color: #fff;
   font-family: inherit;
   font-size: 0.92rem;
   font-weight: 850;
   line-height: 1;
+}
+
+.daily-report-write-import-button {
+  background: #fff;
+  color: #374151;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.04);
+}
+
+.daily-report-write-import-button:hover,
+.daily-report-write-import-button:focus-visible {
+  background: #f8fafc;
+}
+
+.daily-report-write-import-button:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.18);
+  outline-offset: 2px;
+}
+
+.daily-report-write-import-button:disabled {
+  opacity: 0.56;
+  cursor: default;
+}
+
+.daily-report-write-save-button {
+  background: var(--primary);
+  color: #fff;
   box-shadow: 0 10px 22px rgba(37, 99, 235, 0.18);
 }
 
@@ -708,6 +741,64 @@
 .daily-report-write-save-button:focus-visible {
   outline: 2px solid rgba(37, 99, 235, 0.28);
   outline-offset: 2px;
+}
+
+.daily-report-homepage-import-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  border-radius: inherit;
+  background: rgba(248, 250, 252, 0.66);
+  backdrop-filter: blur(3px);
+}
+
+.daily-report-homepage-import-overlay__card {
+  display: grid;
+  min-width: 14.5rem;
+  justify-items: center;
+  gap: 0.78rem;
+  padding: 1.25rem 1.45rem;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 0.85rem;
+  background: #fff;
+  box-shadow: 0 22px 48px rgba(15, 23, 42, 0.16);
+  color: #334155;
+  font-size: 0.9rem;
+  font-weight: 750;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.daily-report-homepage-import-overlay__indicator {
+  width: 2.6rem;
+  height: 2.6rem;
+  border: 4px solid rgba(37, 99, 235, 0.16);
+  border-top-color: var(--primary);
+  border-radius: 999px;
+  animation: daily-report-homepage-import-spin 720ms linear infinite;
+}
+
+.daily-report-homepage-import-overlay-enter-active,
+.daily-report-homepage-import-overlay-leave-active {
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.daily-report-homepage-import-overlay-enter-from,
+.daily-report-homepage-import-overlay-leave-to {
+  opacity: 0;
+  transform: translateY(0.25rem);
+}
+
+@keyframes daily-report-homepage-import-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .daily-report-image-preview {

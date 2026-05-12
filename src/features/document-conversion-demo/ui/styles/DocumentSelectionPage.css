@@ -184,7 +184,6 @@
   gap: 0.7rem;
   min-height: 0;
   overflow-y: auto;
-  scrollbar-gutter: stable;
   align-content: start;
 }
 

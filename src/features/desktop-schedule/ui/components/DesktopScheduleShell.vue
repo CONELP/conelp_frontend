@@ -17,6 +17,8 @@ import type {
 import DesktopScheduleChartBody from "@/features/desktop-schedule/ui/components/DesktopScheduleChartBody.vue";
 import DesktopScheduleRowPanel from "@/features/desktop-schedule/ui/components/DesktopScheduleRowPanel.vue";
 import DesktopScheduleTimelineHeader from "@/features/desktop-schedule/ui/components/DesktopScheduleTimelineHeader.vue";
+import panelRightContractIcon from "@fluentui/svg-icons/icons/panel_right_contract_20_regular.svg";
+import panelRightExpandIcon from "@fluentui/svg-icons/icons/panel_right_expand_20_regular.svg";
 import redoIcon from "@fluentui/svg-icons/icons/arrow_redo_20_regular.svg";
 import undoIcon from "@fluentui/svg-icons/icons/arrow_undo_20_regular.svg";
 import "@/features/desktop-schedule/ui/components/styles/DesktopScheduleContextMenu.css";
@@ -82,6 +84,10 @@ const props = defineProps<{
   canZoomOut: boolean;
   canUndo: boolean;
   canRedo: boolean;
+  panelOpen?: boolean;
+  showPanelToggle?: boolean;
+  panelToggleOpenLabel?: string;
+  panelToggleClosedLabel?: string;
 }>();
 
 const emit = defineEmits<{
@@ -164,6 +170,7 @@ const emit = defineEmits<{
   "zoom-in": [];
   "zoom-out": [];
   "zoom-change": [zoomIndex: number];
+  "toggle-panel": [];
 }>();
 
 const hoveredRowId = ref<string | null>(null);
@@ -260,6 +267,16 @@ const activeVersionActionMenuVersion = computed(() =>
     ? props.scheduleVersions.find((version) => version.id === activeVersionActionMenu.value?.versionId) ??
       null
     : null,
+);
+const isPanelOpen = computed(() => props.panelOpen ?? true);
+const showPanelToggle = computed(() => props.showPanelToggle ?? false);
+const panelToggleLabel = computed(() =>
+  isPanelOpen.value
+    ? (props.panelToggleOpenLabel ?? "패널 숨기기")
+    : (props.panelToggleClosedLabel ?? "패널 보기"),
+);
+const panelToggleIcon = computed(() =>
+  isPanelOpen.value ? panelRightContractIcon : panelRightExpandIcon,
 );
 const frameStyle = computed(() => ({
   gridTemplateColumns: `${props.rowPanelWidth}px minmax(0, 1fr)`,
@@ -928,6 +945,29 @@ onUnmounted(() => {
           +
         </button>
       </div>
+
+      <span
+        v-if="showPanelToggle"
+        class="schedule-shell__toolbar-divider"
+        aria-hidden="true"
+      />
+
+      <button
+        v-if="showPanelToggle"
+        type="button"
+        class="schedule-shell__panel-toggle"
+        :aria-label="panelToggleLabel"
+        :aria-pressed="isPanelOpen"
+        :title="panelToggleLabel"
+        @click="emit('toggle-panel')"
+      >
+        <img
+          class="schedule-shell__panel-toggle-icon"
+          :src="panelToggleIcon"
+          alt=""
+          aria-hidden="true"
+        />
+      </button>
     </div>
 
     <Teleport to="body">
