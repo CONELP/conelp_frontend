@@ -1844,6 +1844,7 @@ function createDesktopScheduleViewModel() {
           : undefined,
       workConnections: workingWorkConnections.value,
       milestones: workingMilestones.value,
+      includeProgressLines: selectedScheduleVersion.value?.isMain === true,
     }),
   );
 

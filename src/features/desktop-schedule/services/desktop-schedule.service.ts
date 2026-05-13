@@ -71,6 +71,7 @@ interface ShellLayoutOptions {
   criticalPaths?: DesktopScheduleCriticalPath[];
   milestones?: DesktopScheduleMilestone[];
   showCriticalPaths?: boolean;
+  includeProgressLines?: boolean;
 }
 
 interface RowBarDraft {
@@ -1353,14 +1354,16 @@ function buildShellLayout(
     }));
   });
 
-  const progressLines = buildProgressLines(
-    visibleRows,
-    itemsByRow,
-    timeline,
-    rowTopById,
-    rowHeightById,
-    rowHeight,
-  );
+  const progressLines = options.includeProgressLines
+    ? buildProgressLines(
+        visibleRows,
+        itemsByRow,
+        timeline,
+        rowTopById,
+        rowHeightById,
+        rowHeight,
+      )
+    : [];
 
   return {
     rows: [milestoneRow, ...processRows],

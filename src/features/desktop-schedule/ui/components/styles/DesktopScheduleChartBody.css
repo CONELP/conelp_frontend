@@ -236,18 +236,39 @@
 
 .schedule-chart-body__progress-line {
   position: absolute;
-  z-index: 6;
+  z-index: 25;
   height: 2px;
   pointer-events: none;
+  background: currentColor;
   transform: translateY(-50%);
 }
 
 .schedule-chart-body__progress-line--behind {
-  background: #ef4444;
+  color: #ef4444;
 }
 
 .schedule-chart-body__progress-line--ahead {
-  background: #4ade80;
+  color: #4ade80;
+}
+
+.schedule-chart-body__progress-line::before {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+}
+
+.schedule-chart-body__progress-line--behind::before {
+  left: 0;
+  transform: translate(-50%, -50%);
+}
+
+.schedule-chart-body__progress-line--ahead::before {
+  right: 0;
+  transform: translate(50%, -50%);
 }
 
 .schedule-chart-body__connections {
@@ -273,7 +294,7 @@
 }
 
 .schedule-chart-body__milestone-deadline {
-  z-index: 7;
+  z-index: 2;
   display: block;
   appearance: none;
   overflow: visible;
@@ -345,7 +366,7 @@
 }
 
 .schedule-chart-body__milestone-cell {
-  z-index: 8;
+  z-index: 2;
   display: flex;
   appearance: none;
   align-items: center;
