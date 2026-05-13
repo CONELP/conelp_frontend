@@ -108,6 +108,8 @@ const {
   requestScheduleVersionPromotion,
   confirmScheduleVersionPromotion,
   closeScheduleVersionPromotionDialog,
+  exportScheduleAsExcel,
+  importScheduleStub,
 } = useDesktopScheduleViewModel();
 
 const shellHostRef = ref<HTMLElement | null>(null);
@@ -351,6 +353,8 @@ watch(
               @undo="undoLocalHistory"
               @redo="redoLocalHistory"
               @create-draft-version="createDraftVersionFromCurrent"
+              @import-schedule="importScheduleStub"
+              @export-schedule-excel="exportScheduleAsExcel"
               @select-schedule-version="selectScheduleVersion"
               @rename-schedule-version="renameScheduleVersion"
               @delete-schedule-version="deleteScheduleVersion"

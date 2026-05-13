@@ -153,6 +153,8 @@ const emit = defineEmits<{
   redo: [];
   "select-schedule-version": [scheduleVersionId: number];
   "create-draft-version": [versionName: string];
+  "import-schedule": [];
+  "export-schedule-excel": [range: "3week" | "3month"];
   "rename-schedule-version": [payload: { scheduleVersionId: number; versionName: string }];
   "delete-schedule-version": [scheduleVersionId: number];
   "open-schedule-version-review": [];
@@ -184,6 +186,10 @@ const draftRailDragState = ref<{
   hasMoved: boolean;
 } | null>(null);
 const shouldSuppressNextDraftClick = ref(false);
+const exportMenuRootRef = ref<HTMLElement | null>(null);
+const exportMenuRef = ref<HTMLElement | null>(null);
+const isExportMenuOpen = ref(false);
+const exportMenuPosition = ref({ x: 0, y: 0 });
 
 const shellHeight = computed(() => Math.max(props.viewportHeight ?? 640, 320));
 const scaledShellHeaderHeight = computed(() =>
@@ -317,8 +323,19 @@ function closeScheduleVersionPromotionDialog() {
 function handleDocumentPointerDown(event: PointerEvent) {
   const target = event.target;
 
+  if (!(target instanceof Node)) {
+    return;
+  }
+
   if (
-    !(target instanceof Node) ||
+    isExportMenuOpen.value &&
+    !exportMenuRootRef.value?.contains(target) &&
+    !exportMenuRef.value?.contains(target)
+  ) {
+    isExportMenuOpen.value = false;
+  }
+
+  if (
     versionMenuRootRef.value?.contains(target) ||
     versionActionMenuRef.value?.contains(target)
   ) {
@@ -335,6 +352,11 @@ function handleDocumentPointerDown(event: PointerEvent) {
 
 function handleDocumentKeyDown(event: KeyboardEvent) {
   if (event.key === "Escape") {
+    if (isExportMenuOpen.value) {
+      isExportMenuOpen.value = false;
+      return;
+    }
+
     if (props.scheduleVersionPromotion.open) {
       closeScheduleVersionPromotionDialog();
       return;
@@ -342,6 +364,34 @@ function handleDocumentKeyDown(event: KeyboardEvent) {
 
     closeVersionOverlays();
   }
+}
+
+function toggleExportMenu(event: MouseEvent) {
+  if (isExportMenuOpen.value) {
+    isExportMenuOpen.value = false;
+    return;
+  }
+
+  const trigger = event.currentTarget;
+  if (!(trigger instanceof HTMLElement)) {
+    return;
+  }
+
+  const rect = trigger.getBoundingClientRect();
+  exportMenuPosition.value = {
+    x: rect.left,
+    y: rect.bottom + 4,
+  };
+  isExportMenuOpen.value = true;
+}
+
+function selectExportRange(range: "3week" | "3month") {
+  isExportMenuOpen.value = false;
+  emit("export-schedule-excel", range);
+}
+
+function emitImportSchedule() {
+  emit("import-schedule");
 }
 
 function selectScheduleVersion(version: ScheduleVersionOption) {
@@ -783,18 +833,16 @@ onUnmounted(() => {
               </span>
             </div>
 
+            <button
+              type="button"
+              class="schedule-shell__draft-button"
+              :disabled="!canCreateDraftVersion"
+              @click="createDraftVersionWithDefaultName"
+            >
+              + 작업본 만들기
+            </button>
           </div>
         </div>
-
-        <button
-          v-if="showWorkflowControls"
-          type="button"
-          class="schedule-shell__draft-button"
-          :disabled="!canCreateDraftVersion"
-          @click="createDraftVersionWithDefaultName"
-        >
-          + 작업본 만들기
-        </button>
 
         <Teleport to="body">
           <div
@@ -829,6 +877,62 @@ onUnmounted(() => {
             </button>
           </div>
         </Teleport>
+      </div>
+
+      <div
+        v-if="showWorkflowControls"
+        class="schedule-shell__schedule-actions"
+        aria-label="공정표 작업"
+      >
+        <button
+          type="button"
+          class="schedule-shell__schedule-action-button"
+          @click="emitImportSchedule"
+        >
+          공정표 불러오기
+        </button>
+
+        <div ref="exportMenuRootRef" class="schedule-shell__export-menu-root">
+          <button
+            type="button"
+            class="schedule-shell__schedule-action-button"
+            :aria-expanded="isExportMenuOpen"
+            aria-haspopup="true"
+            @click="toggleExportMenu"
+          >
+            엑셀로 내보내기 ▾
+          </button>
+
+          <Teleport to="body">
+            <div
+              v-if="isExportMenuOpen"
+              ref="exportMenuRef"
+              class="schedule-context-menu schedule-shell__export-menu"
+              :style="{
+                left: `${exportMenuPosition.x}px`,
+                top: `${exportMenuPosition.y}px`,
+              }"
+              role="menu"
+            >
+              <button
+                type="button"
+                class="schedule-context-menu__item"
+                role="menuitem"
+                @click="selectExportRange('3week')"
+              >
+                3주 공정표 만들기
+              </button>
+              <button
+                type="button"
+                class="schedule-context-menu__item"
+                role="menuitem"
+                @click="selectExportRange('3month')"
+              >
+                3개월 공정표 만들기
+              </button>
+            </div>
+          </Teleport>
+        </div>
       </div>
 
       <button

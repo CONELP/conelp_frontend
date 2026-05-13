@@ -1,4 +1,4 @@
-import { apiFetch } from "@/shared/network/api-client";
+import { apiFetch, apiFetchAttachment } from "@/shared/network/api-client";
 import type {
   DesktopScheduleBootstrapData,
   DesktopScheduleBootstrapOptions,
@@ -18,6 +18,7 @@ import type {
   DesktopScheduleSubWorkTypeCreateRequest,
   DesktopScheduleSubWorkTypeId,
   DesktopScheduleSubWorkTypeResponse,
+  DesktopScheduleExportRequest,
   DesktopScheduleVersionCreateRequest,
   DesktopScheduleVersionId,
   DesktopScheduleVersionResponse,
@@ -383,6 +384,22 @@ export const desktopScheduleApi = {
     return apiFetch<DesktopScheduleWorkResponse[]>(
       `/work/getWorkListByVersion${buildQuery({ scheduleVersionId })}`,
     );
+  },
+
+  // POST /api/schedule/create3WeekSchedule
+  export3WeekSchedule(body: DesktopScheduleExportRequest) {
+    return apiFetchAttachment("/schedule/create3WeekSchedule", {
+      method: "POST",
+      body: toApiBody(body),
+    });
+  },
+
+  // POST /api/schedule/create3MonthSchedule
+  export3MonthSchedule(body: DesktopScheduleExportRequest) {
+    return apiFetchAttachment("/schedule/create3MonthSchedule", {
+      method: "POST",
+      body: toApiBody(body),
+    });
   },
 
   // Guide: backend/api/api-list/details/work/198_getWorkListByPeriodAndVersion.json

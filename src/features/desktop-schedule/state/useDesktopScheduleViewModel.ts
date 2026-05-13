@@ -6776,6 +6776,52 @@ function createDesktopScheduleViewModel() {
     setDayWidth(DESKTOP_SCHEDULE_TIMELINE_ZOOM_LEVELS[currentZoomIndex.value - 1]!, viewportWidth);
   }
 
+  function triggerBlobDownload(blob: Blob, filename: string) {
+    if (typeof window === "undefined" || typeof document === "undefined") {
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(objectUrl);
+  }
+
+  async function exportScheduleAsExcel(range: "3week" | "3month") {
+    const scheduleVersionId = selectedScheduleVersionId.value;
+    if (!scheduleVersionId) {
+      showScheduleToast("공정표 버전이 선택되지 않았어요.");
+      return;
+    }
+
+    try {
+      const { blob, filename } =
+        range === "3week"
+          ? await desktopScheduleApi.export3WeekSchedule({
+              scheduleVersionId,
+              excludedSubWorkTypeIds: [],
+            })
+          : await desktopScheduleApi.export3MonthSchedule({
+              scheduleVersionId,
+              excludedSubWorkTypeIds: [],
+            });
+      const fallbackName = range === "3week" ? "3주공정표.xlsx" : "3개월공정표.xlsx";
+      triggerBlobDownload(blob, filename || fallbackName);
+    } catch (error) {
+      showScheduleToast(
+        error instanceof Error ? error.message : "엑셀을 생성하지 못했어요.",
+      );
+    }
+  }
+
+  function importScheduleStub() {
+    showScheduleToast("공정표 불러오기는 준비 중이에요.");
+  }
+
   return {
     scheduleMeta,
     isScheduleReadOnly,
@@ -6882,6 +6928,8 @@ function createDesktopScheduleViewModel() {
     requestScheduleVersionPromotion,
     confirmScheduleVersionPromotion,
     closeScheduleVersionPromotionDialog,
+    exportScheduleAsExcel,
+    importScheduleStub,
   };
 }
 

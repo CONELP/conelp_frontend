@@ -144,6 +144,11 @@ export interface DesktopScheduleWorkResponse {
   photos?: DesktopScheduleWorkPhotoResponse[];
 }
 
+export interface DesktopScheduleExportRequest {
+  scheduleVersionId: DesktopScheduleVersionId;
+  excludedSubWorkTypeIds: number[];
+}
+
 export interface DesktopScheduleWorkCreateRequest {
   startDate: string;
   workLeadTime: number;

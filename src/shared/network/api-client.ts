@@ -84,7 +84,7 @@ async function parseSuccessResponse<T>(response: Response): Promise<T> {
   return response.blob() as Promise<T>;
 }
 
-export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): Promise<T> {
+async function rawApiFetch(path: string, options: ApiFetchOptions): Promise<Response> {
   const { body, retryOnUnauthorized = true, ...init } = options;
   const response = await fetch(toApiUrl(path), {
     ...init,
@@ -96,7 +96,7 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
   if ((response.status === 401 || response.status === 403) && retryOnUnauthorized) {
     try {
       await authApi.refresh();
-      return apiFetch<T>(path, { ...options, retryOnUnauthorized: false });
+      return rawApiFetch(path, { ...options, retryOnUnauthorized: false });
     } catch {
       clearAccessToken();
       await redirectToLogin();
@@ -108,5 +108,47 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
     throw new Error(await readErrorMessage(response));
   }
 
+  return response;
+}
+
+export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): Promise<T> {
+  const response = await rawApiFetch(path, options);
   return parseSuccessResponse<T>(response);
+}
+
+function parseAttachmentFilename(disposition: string | null): string {
+  if (!disposition) {
+    return "";
+  }
+
+  const utf8Match = disposition.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1].trim());
+    } catch {
+      return utf8Match[1].trim();
+    }
+  }
+
+  const quotedMatch = disposition.match(/filename\s*=\s*"([^"]+)"/i);
+  if (quotedMatch?.[1]) {
+    return quotedMatch[1];
+  }
+
+  const bareMatch = disposition.match(/filename\s*=\s*([^;]+)/i);
+  if (bareMatch?.[1]) {
+    return bareMatch[1].trim();
+  }
+
+  return "";
+}
+
+export async function apiFetchAttachment(
+  path: string,
+  options: ApiFetchOptions = {},
+): Promise<{ blob: Blob; filename: string }> {
+  const response = await rawApiFetch(path, options);
+  const blob = await response.blob();
+  const filename = parseAttachmentFilename(response.headers.get("content-disposition"));
+  return { blob, filename };
 }
