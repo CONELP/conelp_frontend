@@ -12,6 +12,11 @@ import {
   createSelectionSummary,
 } from "@/features/document-conversion-demo/services/document-conversion-demo.service";
 import { useDocumentConversionDemoStore } from "@/features/document-conversion-demo/state/useDocumentConversionDemoStore";
+import type { DocumentCatalogType } from "@/features/document-conversion-demo/model/document-conversion-demo.types";
+
+function isDocumentCatalogType(value: string): value is DocumentCatalogType {
+  return documentCatalog.some((document) => document.type === value);
+}
 
 export function useDocumentConversionDemoViewModel() {
   const store = useDocumentConversionDemoStore();
@@ -27,8 +32,12 @@ export function useDocumentConversionDemoViewModel() {
     createSelectionSummary(store.selectedDocument),
   );
 
-  function resolveNextRoute(type: string) {
+  function resolveNextRoute(type: DocumentCatalogType) {
     const selectedType = documentCatalog.find((document) => document.type === type);
+
+    if (!selectedType || selectedType.status !== "available") {
+      return "/preview/documents";
+    }
 
     if (selectedType?.type === "daily_report_write") {
       return "/preview/daily-report-write";
@@ -46,6 +55,7 @@ export function useDocumentConversionDemoViewModel() {
     selectedDocument: store.selectedDocument,
     selectionSummary,
     resolveNextRoute,
+    isDocumentCatalogType,
     clearSelectedDocument: store.clearSelectedDocument,
     selectDocument: store.selectDocument,
   };

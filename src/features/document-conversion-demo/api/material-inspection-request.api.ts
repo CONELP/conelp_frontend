@@ -1,4 +1,4 @@
-import { apiFetch } from "@/shared/network/api-client";
+import { apiFetch, apiFetchAttachment } from "@/shared/network/api-client";
 import type {
   AnalyzeCatPhotoRequest,
   AnalyzeMirPhotoRequest,
@@ -197,7 +197,20 @@ export const materialInspectionRequestApi = {
   async downloadDocumentFile(key: string) {
     await ensureSelectedProjectId();
 
-    return apiFetch<Blob>(
+    const attachment = await apiFetchAttachment(
+      `/file/downloadFile?key=${encodeURIComponent(key)}`,
+      {
+        method: "GET",
+      },
+    );
+
+    return attachment.blob;
+  },
+
+  async downloadDocumentFileAttachment(key: string) {
+    await ensureSelectedProjectId();
+
+    return apiFetchAttachment(
       `/file/downloadFile?key=${encodeURIComponent(key)}`,
       {
         method: "GET",
@@ -208,7 +221,17 @@ export const materialInspectionRequestApi = {
   async downloadDocumentJob(jobId: number) {
     await ensureSelectedProjectId();
 
-    return apiFetch<Blob>(`/document/downloadDocument/${jobId}`, {
+    const attachment = await apiFetchAttachment(`/document/downloadDocument/${jobId}`, {
+      method: "GET",
+    });
+
+    return attachment.blob;
+  },
+
+  async downloadDocumentJobAttachment(jobId: number) {
+    await ensureSelectedProjectId();
+
+    return apiFetchAttachment(`/document/downloadDocument/${jobId}`, {
       method: "GET",
     });
   },

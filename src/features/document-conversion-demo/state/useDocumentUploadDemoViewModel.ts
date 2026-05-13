@@ -9,6 +9,7 @@ import {
 import { materialInspectionRequestApi } from "@/features/document-conversion-demo/api/material-inspection-request.api";
 import type { WorkTypeReferenceResponse } from "@/features/document-conversion-demo/api/material-inspection-request-api.types";
 import type {
+  DocumentCatalogType,
   UploadDocumentPreset,
   UploadFeedbackItem,
   UploadSampleFile,
@@ -104,6 +105,10 @@ function createAnalysisPhotoPreviewUrl(mimeType: string, data: string) {
   return `data:${mimeType || "image/jpeg"};base64,${data}`;
 }
 
+function isDocumentCatalogType(value: string): value is DocumentCatalogType {
+  return documentCatalog.some((document) => document.type === value);
+}
+
 export function useDocumentUploadDemoViewModel() {
   const store = useDocumentConversionDemoStore();
   const guideInspectionState = ref<"idle" | "inspecting" | "done">("idle");
@@ -131,6 +136,17 @@ export function useDocumentUploadDemoViewModel() {
   );
   const requiresWorkContext = computed(
     () => isMaterialInspectionRequest.value || isConcreteDeliveryTest.value,
+  );
+  const workContextHint = computed(() =>
+    isConcreteDeliveryTest.value
+      ? {
+          workTypeName: "철근콘크리트공사",
+          application: "B동 3층 2공구",
+        }
+      : {
+          workTypeName: "철근콘크리트공사",
+          application: "B동 북측 야적장",
+        },
   );
   const mirUploadApplication = computed({
     get: () => store.mirUploadApplication,
@@ -259,9 +275,12 @@ export function useDocumentUploadDemoViewModel() {
       : uploadFeedbackPageCopy.primaryRetryActionLabel,
   );
 
-  const primaryFeedbackRoute = computed(() =>
-    canProceed.value ? "/preview/loading" : "/preview/upload",
-  );
+  const primaryFeedbackRoute = computed(() => ({
+    path: canProceed.value ? "/preview/loading" : "/preview/upload",
+    query: {
+      documentType: selectedDocument.value.type,
+    },
+  }));
 
   function clearGuideInspectionTimer() {
     if (guideInspectionTimer) {
@@ -430,9 +449,13 @@ export function useDocumentUploadDemoViewModel() {
   }
 
   function selectUploadDocument(type: string) {
+    if (!isDocumentCatalogType(type)) {
+      return;
+    }
+
     const document = documentCatalog.find((item) => item.type === type);
 
-    if (!document) {
+    if (!document || document.status !== "available") {
       return;
     }
 
@@ -499,6 +522,7 @@ export function useDocumentUploadDemoViewModel() {
     isMaterialInspectionRequest,
     isConcreteDeliveryTest,
     requiresWorkContext,
+    workContextHint,
     mirUploadApplication,
     mirUploadWorkTypeName,
     mirUploadWorkTypeId,

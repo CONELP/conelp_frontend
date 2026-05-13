@@ -6,6 +6,7 @@ import type {
 
 export interface SelectionCardViewData extends DocumentDemoCard {
   isSelected: boolean;
+  isAvailable: boolean;
   selectLabel: string;
 }
 
@@ -16,8 +17,13 @@ export function createSelectionCards(
   return documents.map((document) => ({
     ...document,
     isSelected: document.type === selectedType,
+    isAvailable: document.status === "available",
     selectLabel:
-      document.type === selectedType ? "선택됨" : "이 문서 선택",
+      document.status !== "available"
+        ? `${document.label} 준비 중`
+        : document.type === selectedType
+          ? "선택됨"
+          : "이 문서 선택",
   }));
 }
 

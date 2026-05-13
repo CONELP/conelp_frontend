@@ -1,4 +1,5 @@
 .schedule-chart-body {
+  min-height: 0;
   overflow: auto;
   background: #fff;
 }

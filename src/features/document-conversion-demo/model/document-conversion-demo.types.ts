@@ -1,8 +1,15 @@
-export type DocumentDemoStatus = "available";
+export type DocumentDemoStatus = "available" | "coming_soon";
 export type DocumentGenerationMode = "direct" | "upload_required";
+export type DocumentCatalogType =
+  | "daily_report_write"
+  | "daily_report"
+  | "material_registration"
+  | "concrete_delivery_csi"
+  | "concrete_strength_csi"
+  | "inspection_request";
 
 export interface DocumentDemoCard {
-  type: string;
+  type: DocumentCatalogType;
   label: string;
   chipLabel: string;
   iconSrc: string;
@@ -30,7 +37,7 @@ export interface UploadFeedbackItem {
 }
 
 export interface UploadDocumentPreset {
-  documentType: string;
+  documentType: DocumentCatalogType;
   guideItems: string[];
   sampleFiles: UploadSampleFile[];
   feedbackItems: UploadFeedbackItem[];

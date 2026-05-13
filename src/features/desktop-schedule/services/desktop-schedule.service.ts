@@ -129,7 +129,6 @@ const CRITICAL_PATH_COLORS = [
 const MILESTONE_MARKER_SIZE = 10;
 const MILESTONE_BADGE_HEIGHT = DESKTOP_SCHEDULE_SHELL_DEFAULTS.barHeight;
 const MILESTONE_BADGE_GAP = 6;
-const MILESTONE_ROW_EXTRA_HEIGHT = 10;
 const MILESTONE_BADGE_HORIZONTAL_GAP = 10;
 const MILESTONE_BADGE_HORIZONTAL_PADDING = 14;
 const MILESTONE_MIN_LABEL_WIDTH = 68;
@@ -550,10 +549,10 @@ function buildMilestoneLayouts(
   const labelScale = baseRowHeight / DESKTOP_SCHEDULE_SHELL_DEFAULTS.rowHeight;
   const badgeHeight = Math.max(Math.round(MILESTONE_BADGE_HEIGHT * labelScale), 18);
   const laneGap = Math.max(Math.round(MILESTONE_BADGE_GAP * labelScale), 3);
-  const rowExtraHeight = Math.max(Math.round(MILESTONE_ROW_EXTRA_HEIGHT * labelScale), 5);
+  const minimumVerticalPadding = Math.max(Math.round(5 * labelScale), 3);
   const verticalPadding = Math.max(
-    Math.round((baseRowHeight + rowExtraHeight - badgeHeight) / 2),
-    6,
+    Math.round((baseRowHeight - badgeHeight) / 2),
+    minimumVerticalPadding,
   );
 
   const milestoneLayouts = sortedMilestones.map((milestone) => {

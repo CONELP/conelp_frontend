@@ -1,5 +1,5 @@
 <template>
-  <header class="desktop-app-header">
+  <header class="desktop-app-header" v-bind="attrs">
     <div class="desktop-app-header__shell">
       <div class="desktop-app-header__top">
         <RouterLink
@@ -16,36 +16,51 @@
               class="desktop-app-header__project-button"
               type="button"
               :aria-expanded="isProjectMenuOpen"
-              :aria-haspopup="projects.length > 0 ? 'listbox' : undefined"
-              :disabled="isLoadingProjects && projects.length === 0"
+              :aria-haspopup="hasProjectOptions ? 'listbox' : undefined"
+              :aria-busy="isLoadingProjects || isProjectSwitching"
+              :disabled="isProjectButtonDisabled"
               @click="toggleProjectMenu"
             >
+              <img
+                class="desktop-app-header__project-icon"
+                :src="buildingIcon"
+                alt=""
+                aria-hidden="true"
+              />
               <span>{{ currentProjectLabel }}</span>
-              <span class="desktop-app-header__project-caret" aria-hidden="true">▾</span>
+              <img
+                class="desktop-app-header__project-caret"
+                :class="{ 'desktop-app-header__project-caret--open': isProjectMenuOpen }"
+                :src="chevronDownIcon"
+                alt=""
+                aria-hidden="true"
+              />
             </button>
 
-            <div
-              v-if="isProjectMenuOpen && projects.length > 0"
-              class="desktop-app-header__project-menu"
-              role="listbox"
-              aria-label="프로젝트 선택"
-            >
-              <button
-                v-for="project in projects"
-                :key="project.id"
-                type="button"
-                role="option"
-                class="desktop-app-header__project-option"
-                :class="{
-                  'desktop-app-header__project-option--active':
-                    project.id === currentProjectId,
-                }"
-                :aria-selected="project.id === currentProjectId"
-                @click="selectProject(project.id)"
+            <Transition name="desktop-app-header__project-menu-transition">
+              <div
+                v-if="isProjectMenuOpen && hasProjectOptions"
+                class="desktop-app-header__project-menu"
+                role="listbox"
+                aria-label="프로젝트 선택"
               >
-                {{ project.projectName }}
-              </button>
-            </div>
+                <button
+                  v-for="project in projects"
+                  :key="project.id"
+                  type="button"
+                  role="option"
+                  class="desktop-app-header__project-option"
+                  :class="{
+                    'desktop-app-header__project-option--active':
+                      project.id === currentProjectId,
+                  }"
+                  :aria-selected="project.id === currentProjectId"
+                  @click="selectProject(project.id)"
+                >
+                  <span>{{ project.projectName }}</span>
+                </button>
+              </div>
+            </Transition>
           </div>
 
           <button
@@ -71,13 +86,31 @@
       </nav>
     </div>
   </header>
+
+  <Transition name="desktop-app-header__project-loading-transition">
+    <div
+      v-if="isProjectSwitching"
+      class="desktop-app-header__project-loading-overlay"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <div class="desktop-app-header__project-loading-card">
+        <span class="desktop-app-header__project-loading-indicator" aria-hidden="true" />
+        <span>프로젝트 정보를 불러오고 있어요.</span>
+      </div>
+    </div>
+  </Transition>
 </template>
 
 <script setup lang="ts">
+import buildingIcon from "@fluentui/svg-icons/icons/building_20_regular.svg";
+import chevronDownIcon from "@fluentui/svg-icons/icons/chevron_down_20_regular.svg";
 import settingsIcon from "@fluentui/svg-icons/icons/settings_20_regular.svg";
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, useAttrs } from "vue";
 import { RouterLink, useRoute } from "vue-router";
 
+import { useDocumentConversionDemoStore } from "@/features/document-conversion-demo/state/useDocumentConversionDemoStore";
 import {
   clearSelectedDesktopScheduleVersionId,
   desktopScheduleApi,
@@ -89,6 +122,8 @@ import type { DesktopScheduleProjectResponse } from "@/features/desktop-schedule
 type DesktopHeaderSection = "dashboard" | "schedule" | "documents";
 
 const route = useRoute();
+const attrs = useAttrs();
+const documentConversionStore = useDocumentConversionDemoStore();
 
 const navItems: Array<{ id: DesktopHeaderSection; label: string; to: string }> = [
   {
@@ -128,11 +163,23 @@ const projects = ref<DesktopScheduleProjectResponse[]>([]);
 const currentProjectId = ref<string | null>(getSelectedDesktopScheduleProjectId());
 const isProjectMenuOpen = ref(false);
 const isLoadingProjects = ref(false);
+const isProjectSwitching = ref(false);
 const projectMenuRef = ref<HTMLElement | null>(null);
+let projectSwitchReloadTimer: ReturnType<typeof setTimeout> | null = null;
+
+const hasProjectOptions = computed(() => projects.value.length > 0);
+const isProjectButtonDisabled = computed(
+  () =>
+    isProjectSwitching.value ||
+    (isLoadingProjects.value && !hasProjectOptions.value),
+);
 
 const currentProjectLabel = computed(() => {
   if (isLoadingProjects.value && projects.value.length === 0) {
     return "불러오는 중";
+  }
+  if (!isLoadingProjects.value && projects.value.length === 0) {
+    return "프로젝트 없음";
   }
   const match = projects.value.find((project) => project.id === currentProjectId.value);
   return match?.projectName ?? "프로젝트 선택";
@@ -158,7 +205,7 @@ async function loadProjects() {
 }
 
 function toggleProjectMenu() {
-  if (isLoadingProjects.value && projects.value.length === 0) return;
+  if (isProjectButtonDisabled.value || !hasProjectOptions.value) return;
   isProjectMenuOpen.value = !isProjectMenuOpen.value;
 }
 
@@ -172,14 +219,18 @@ function selectProject(projectId: string) {
 
   setSelectedDesktopScheduleProjectId(projectId);
   clearSelectedDesktopScheduleVersionId();
+  documentConversionStore.clearSelectedDocument();
   currentProjectId.value = projectId;
 
   if (typeof window !== "undefined") {
-    window.location.reload();
+    isProjectSwitching.value = true;
+    projectSwitchReloadTimer = setTimeout(() => {
+      window.location.reload();
+    }, 700);
   }
 }
 
-function handleDocumentClick(event: MouseEvent) {
+function handleDocumentPointerDown(event: PointerEvent) {
   if (!isProjectMenuOpen.value) return;
   const target = event.target;
   if (!(target instanceof Node)) return;
@@ -187,16 +238,28 @@ function handleDocumentClick(event: MouseEvent) {
   closeProjectMenu();
 }
 
+function handleDocumentKeydown(event: KeyboardEvent) {
+  if (event.key === "Escape") {
+    closeProjectMenu();
+  }
+}
+
 onMounted(() => {
   void loadProjects();
   if (typeof window !== "undefined") {
-    window.addEventListener("click", handleDocumentClick);
+    document.addEventListener("pointerdown", handleDocumentPointerDown);
+    document.addEventListener("keydown", handleDocumentKeydown);
   }
 });
 
 onUnmounted(() => {
+  if (projectSwitchReloadTimer) {
+    clearTimeout(projectSwitchReloadTimer);
+  }
+
   if (typeof window !== "undefined") {
-    window.removeEventListener("click", handleDocumentClick);
+    document.removeEventListener("pointerdown", handleDocumentPointerDown);
+    document.removeEventListener("keydown", handleDocumentKeydown);
   }
 });
 </script>

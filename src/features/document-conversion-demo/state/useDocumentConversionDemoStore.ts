@@ -12,6 +12,7 @@ import type {
   UpdateMirDataRequest,
 } from "@/features/document-conversion-demo/api/material-inspection-request-api.types";
 import { documentCatalog } from "@/features/document-conversion-demo/data/document-conversion-demo.seed";
+import type { DocumentCatalogType } from "@/features/document-conversion-demo/model/document-conversion-demo.types";
 
 const MIR_IMAGE_UPLOAD_LIMIT = 10;
 
@@ -48,7 +49,7 @@ interface CatDocumentSubmissionDraft {
 export const useDocumentConversionDemoStore = defineStore(
   "document-conversion-demo",
   () => {
-    const selectedDocumentType = ref("");
+    const selectedDocumentType = ref<DocumentCatalogType | "">("");
     const uploadMode = ref<"uploaded" | "empty">("empty");
     const uploadedImageFiles = ref<UploadedImageFileEntry[]>([]);
     const mirUploadApplication = ref("");
@@ -78,7 +79,7 @@ export const useDocumentConversionDemoStore = defineStore(
       catDocumentSubmissionDraft.value = null;
     }
 
-    function selectDocument(type: string) {
+    function selectDocument(type: DocumentCatalogType) {
       selectedDocumentType.value = type;
       uploadMode.value = "empty";
       uploadedImageFiles.value = [];

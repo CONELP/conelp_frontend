@@ -75,7 +75,7 @@
                 class="upload-field__input"
                 type="text"
                 autocomplete="off"
-                placeholder="철근콘크리트공사"
+                :placeholder="workContextHint.workTypeName"
                 role="combobox"
                 :aria-expanded="isWorkTypeSuggestionListOpen"
                 aria-autocomplete="list"
@@ -144,12 +144,19 @@
               class="upload-field__input"
               type="text"
               autocomplete="off"
-              placeholder="B동 북측 야적장"
+              :placeholder="workContextHint.application"
             />
           </label>
         </section>
 
-        <div class="upload-dropzone">
+        <div
+          class="upload-dropzone"
+          :class="{ 'upload-dropzone--drag-active': isDropzoneDragActive }"
+          @dragenter.prevent="handleDropzoneDragEnter"
+          @dragover.prevent="handleDropzoneDragOver"
+          @dragleave="handleDropzoneDragLeave"
+          @drop.prevent="handleDropzoneDrop"
+        >
           <button
             class="upload-dropzone__trigger"
             type="button"
@@ -294,6 +301,7 @@ const {
   isMaterialInspectionRequest,
   isConcreteDeliveryTest,
   requiresWorkContext,
+  workContextHint,
   mirUploadApplication,
   mirUploadWorkTypeName,
   mirUploadWorkTypeId,
@@ -322,6 +330,8 @@ const router = useRouter();
 const route = useRoute();
 const fileInput = ref<HTMLInputElement | null>(null);
 const selectedPreviewFile = ref<UploadSampleFile | null>(null);
+const isDropzoneDragActive = ref(false);
+let dropzoneDragDepth = 0;
 const uploadErrorMessageLines = computed(() =>
   (uploadErrorMessage.value.match(/[^.!?。！？]+[.!?。！？]?/g) ?? [])
     .map((line) => line.trim())
@@ -343,7 +353,10 @@ watchEffect(() => {
   }
 
   if (!requiresUpload.value) {
-    void router.replace("/preview/loading");
+    void router.replace({
+      path: "/preview/loading",
+      query: { documentType: selectedDocument.value.type },
+    });
   }
 });
 
@@ -372,6 +385,57 @@ function handleFileSelection(event: Event) {
   }
 }
 
+function hasDraggedFiles(event: DragEvent) {
+  return Array.from(event.dataTransfer?.types ?? []).includes("Files");
+}
+
+function toDraggedImageFiles(dataTransfer: DataTransfer | null) {
+  return Array.from(dataTransfer?.files ?? []).filter((file) =>
+    file.type.startsWith("image/"),
+  );
+}
+
+function handleDropzoneDragEnter(event: DragEvent) {
+  if (!hasDraggedFiles(event)) {
+    return;
+  }
+
+  dropzoneDragDepth += 1;
+  isDropzoneDragActive.value = true;
+}
+
+function handleDropzoneDragOver(event: DragEvent) {
+  if (!hasDraggedFiles(event)) {
+    return;
+  }
+
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = "copy";
+  }
+
+  isDropzoneDragActive.value = true;
+}
+
+function handleDropzoneDragLeave(event: DragEvent) {
+  if (!hasDraggedFiles(event)) {
+    return;
+  }
+
+  dropzoneDragDepth = Math.max(dropzoneDragDepth - 1, 0);
+  isDropzoneDragActive.value = dropzoneDragDepth > 0;
+}
+
+function handleDropzoneDrop(event: DragEvent) {
+  dropzoneDragDepth = 0;
+  isDropzoneDragActive.value = false;
+
+  const files = toDraggedImageFiles(event.dataTransfer);
+
+  if (files.length > 0) {
+    addUploadedImageFiles(files);
+  }
+}
+
 function handleRemoveUploadedFile(fileId: string) {
   removeUploadedImageFile(fileId);
 
@@ -393,7 +457,10 @@ function handleGenerate() {
     return;
   }
 
-  void router.push("/preview/loading");
+  void router.push({
+    path: "/preview/loading",
+    query: { documentType: selectedDocument.value.type },
+  });
 }
 </script>
 

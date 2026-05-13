@@ -116,7 +116,12 @@ const materialSummaryMeta = computed(() => {
 });
 
 function handleCreateInspectionRequest() {
-  void router.push("/preview/result");
+  void router.push({
+    path: "/preview/result",
+    query: {
+      documentType: "material_registration",
+    },
+  });
 }
 
 function formatMaterialName(row: {

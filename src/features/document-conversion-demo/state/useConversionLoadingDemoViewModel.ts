@@ -1,5 +1,6 @@
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import type { RouteLocationRaw } from "vue-router";
 
 import { materialInspectionRequestApi } from "@/features/document-conversion-demo/api/material-inspection-request.api";
 import type {
@@ -9,6 +10,7 @@ import type {
   MirAnalysisResponse,
 } from "@/features/document-conversion-demo/api/material-inspection-request-api.types";
 import { documentCatalog } from "@/features/document-conversion-demo/data/document-conversion-demo.seed";
+import type { DocumentCatalogType } from "@/features/document-conversion-demo/model/document-conversion-demo.types";
 import { useDocumentConversionDemoStore } from "@/features/document-conversion-demo/state/useDocumentConversionDemoStore";
 
 const LOADING_TEXT_TOTAL_DURATION_MS = 5000;
@@ -71,6 +73,10 @@ const MIR_IMAGE_UPLOAD_LIMIT = 10;
 const CAT_IMAGE_UPLOAD_LIMIT = 10;
 const CAT_MIN_IMAGE_UPLOAD_COUNT = 2;
 
+function isDocumentCatalogType(value: string): value is DocumentCatalogType {
+  return documentCatalog.some((document) => document.type === value);
+}
+
 export function useConversionLoadingDemoViewModel() {
   const store = useDocumentConversionDemoStore();
   const router = useRouter();
@@ -95,16 +101,29 @@ export function useConversionLoadingDemoViewModel() {
     () => isMirCreateLoading.value || isCatCreateLoading.value,
   );
 
-  const loadingBackRoute = computed(() =>
-    (selectedDocument.value.type === "material_registration" && isMirCreateLoading.value) ||
-    (selectedDocument.value.type === "concrete_delivery_csi" && isCatCreateLoading.value)
-      ? OCR_VALIDATION_ROUTE
-      : selectedDocument.value.generationMode === "upload_required"
-      ? UPLOAD_DOCUMENT_ROUTE
-      : selectedDocument.value.generationMode === "direct"
-        ? DIRECT_DOCUMENT_BACK_ROUTE
-        : UPLOAD_DOCUMENT_ROUTE,
-  );
+  function toDocumentRoute(path: string, query: Record<string, string> = {}): RouteLocationRaw {
+    return {
+      path,
+      query: {
+        documentType: selectedDocument.value.type,
+        ...query,
+      },
+    };
+  }
+
+  const loadingBackRoute = computed<RouteLocationRaw>(() => {
+    const path =
+      (selectedDocument.value.type === "material_registration" && isMirCreateLoading.value) ||
+      (selectedDocument.value.type === "concrete_delivery_csi" && isCatCreateLoading.value)
+        ? OCR_VALIDATION_ROUTE
+        : selectedDocument.value.generationMode === "upload_required"
+        ? UPLOAD_DOCUMENT_ROUTE
+        : selectedDocument.value.generationMode === "direct"
+          ? DIRECT_DOCUMENT_BACK_ROUTE
+          : UPLOAD_DOCUMENT_ROUTE;
+
+    return toDocumentRoute(path);
+  });
 
   const baseLoadingDescription = computed(() => {
     if (selectedDocument.value.type === "daily_report") {
@@ -128,7 +147,7 @@ export function useConversionLoadingDemoViewModel() {
       : "이미지에서 텍스트를 읽고 있어요.";
   });
 
-  const loadingDestinationRoute = computed(() =>
+  const loadingDestinationPath = computed(() =>
     selectedDocument.value.type === "material_registration" ||
     selectedDocument.value.type === "concrete_delivery_csi"
       ? OCR_VALIDATION_ROUTE
@@ -140,7 +159,7 @@ export function useConversionLoadingDemoViewModel() {
     loadingStepTimers.length = 0;
   }
 
-  function scheduleRouteNavigation(route: string, delayMs: number) {
+  function scheduleRouteNavigation(route: RouteLocationRaw, delayMs: number) {
     loadingStepTimers.push(
       setTimeout(() => {
         void router.replace(route);
@@ -160,7 +179,10 @@ export function useConversionLoadingDemoViewModel() {
       );
     });
 
-    scheduleRouteNavigation(loadingDestinationRoute.value, LOADING_TEXT_TOTAL_DURATION_MS);
+    scheduleRouteNavigation(
+      toDocumentRoute(loadingDestinationPath.value),
+      LOADING_TEXT_TOTAL_DURATION_MS,
+    );
   }
 
   function resolveMirAnalysisValidationMessage() {
@@ -263,7 +285,7 @@ export function useConversionLoadingDemoViewModel() {
     if (validationMessage) {
       store.setMirAnalysisErrorMessage(validationMessage);
       loadingErrorMessage.value = "입력값을 확인하고 업로드 화면으로 돌아갑니다.";
-      scheduleRouteNavigation(UPLOAD_DOCUMENT_ROUTE, 1400);
+      scheduleRouteNavigation(toDocumentRoute(UPLOAD_DOCUMENT_ROUTE), 1400);
       return;
     }
 
@@ -287,7 +309,7 @@ export function useConversionLoadingDemoViewModel() {
       }
 
       store.saveMirAnalysisResult(result);
-      void router.replace(OCR_VALIDATION_ROUTE);
+      void router.replace(toDocumentRoute(OCR_VALIDATION_ROUTE));
     } catch (error) {
       if (currentRunId !== loadingRunId) {
         return;
@@ -301,7 +323,7 @@ export function useConversionLoadingDemoViewModel() {
       store.setMirAnalysisErrorMessage(errorMessage);
       loadingErrorMessage.value = "분석에 실패했어요. 업로드 화면으로 돌아갑니다.";
       clearLoadingStepTimers();
-      scheduleRouteNavigation(UPLOAD_DOCUMENT_ROUTE, 1800);
+      scheduleRouteNavigation(toDocumentRoute(UPLOAD_DOCUMENT_ROUTE), 1800);
     }
   }
 
@@ -317,7 +339,7 @@ export function useConversionLoadingDemoViewModel() {
     if (validationMessage) {
       store.setMirAnalysisErrorMessage(validationMessage);
       loadingErrorMessage.value = "입력값을 확인하고 업로드 화면으로 돌아갑니다.";
-      scheduleRouteNavigation(UPLOAD_DOCUMENT_ROUTE, 1400);
+      scheduleRouteNavigation(toDocumentRoute(UPLOAD_DOCUMENT_ROUTE), 1400);
       return;
     }
 
@@ -345,7 +367,7 @@ export function useConversionLoadingDemoViewModel() {
       }
 
       store.saveCatAnalysisResult(result);
-      void router.replace(OCR_VALIDATION_ROUTE);
+      void router.replace(toDocumentRoute(OCR_VALIDATION_ROUTE));
     } catch (error) {
       if (currentRunId !== loadingRunId) {
         return;
@@ -359,7 +381,7 @@ export function useConversionLoadingDemoViewModel() {
       store.setMirAnalysisErrorMessage(errorMessage);
       loadingErrorMessage.value = "분석에 실패했어요. 업로드 화면으로 돌아갑니다.";
       clearLoadingStepTimers();
-      scheduleRouteNavigation(UPLOAD_DOCUMENT_ROUTE, 1800);
+      scheduleRouteNavigation(toDocumentRoute(UPLOAD_DOCUMENT_ROUTE), 1800);
     }
   }
 
@@ -373,7 +395,7 @@ export function useConversionLoadingDemoViewModel() {
 
     if (!draft) {
       loadingErrorMessage.value = "생성할 문서 데이터가 없어 검토 화면으로 돌아갑니다.";
-      scheduleRouteNavigation(OCR_VALIDATION_ROUTE, 1400);
+      scheduleRouteNavigation(toDocumentRoute(OCR_VALIDATION_ROUTE), 1400);
       return;
     }
 
@@ -413,7 +435,9 @@ export function useConversionLoadingDemoViewModel() {
       }
 
       store.saveMirCreateResult(createResult);
-      void router.replace(RESULT_ROUTE);
+      void router.replace(
+        toDocumentRoute(RESULT_ROUTE, { jobId: String(createResult.jobId) }),
+      );
     } catch (error) {
       if (currentRunId !== loadingRunId) {
         return;
@@ -425,7 +449,7 @@ export function useConversionLoadingDemoViewModel() {
           : "자재 반입 검수요청서 생성에 실패했습니다.";
       store.clearMirDocumentSubmissionDraft();
       clearLoadingStepTimers();
-      scheduleRouteNavigation(OCR_VALIDATION_ROUTE, 2200);
+      scheduleRouteNavigation(toDocumentRoute(OCR_VALIDATION_ROUTE), 2200);
     }
   }
 
@@ -439,7 +463,7 @@ export function useConversionLoadingDemoViewModel() {
 
     if (!draft) {
       loadingErrorMessage.value = "생성할 문서 데이터가 없어 검토 화면으로 돌아갑니다.";
-      scheduleRouteNavigation(OCR_VALIDATION_ROUTE, 1400);
+      scheduleRouteNavigation(toDocumentRoute(OCR_VALIDATION_ROUTE), 1400);
       return;
     }
 
@@ -479,7 +503,9 @@ export function useConversionLoadingDemoViewModel() {
       }
 
       store.saveCatCreateResult(createResult);
-      void router.replace(RESULT_ROUTE);
+      void router.replace(
+        toDocumentRoute(RESULT_ROUTE, { jobId: String(createResult.jobId) }),
+      );
     } catch (error) {
       if (currentRunId !== loadingRunId) {
         return;
@@ -491,9 +517,23 @@ export function useConversionLoadingDemoViewModel() {
           : "콘크리트 반입시험 문서 생성에 실패했습니다.";
       store.clearCatDocumentSubmissionDraft();
       clearLoadingStepTimers();
-      scheduleRouteNavigation(OCR_VALIDATION_ROUTE, 2200);
+      scheduleRouteNavigation(toDocumentRoute(OCR_VALIDATION_ROUTE), 2200);
     }
   }
+
+  watch(
+    () => route.query.documentType,
+    (documentType) => {
+      if (
+        typeof documentType === "string" &&
+        isDocumentCatalogType(documentType) &&
+        store.selectedDocumentType !== documentType
+      ) {
+        store.selectDocument(documentType);
+      }
+    },
+    { immediate: true },
+  );
 
   watch(
     () => selectedDocument.value.type,
@@ -525,7 +565,10 @@ export function useConversionLoadingDemoViewModel() {
 
       clearLoadingStepTimers();
       loadingStepIndex.value = 0;
-      scheduleRouteNavigation(loadingDestinationRoute.value, LOADING_TEXT_TOTAL_DURATION_MS);
+      scheduleRouteNavigation(
+        toDocumentRoute(loadingDestinationPath.value),
+        LOADING_TEXT_TOTAL_DURATION_MS,
+      );
     },
     { immediate: true },
   );

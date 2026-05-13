@@ -104,8 +104,8 @@ export const documentCatalog: DocumentDemoCard[] = [
     description: "압축강도 결과와 CSI 항목을 묶어 보여 주는 문서",
     uploadGuide: "시험 결과표와 시편 사진을 올려 주세요.",
     resultLabel: "압축강도 결과 시안",
-    status: "available",
-    accentLabel: "즉시 데모 가능",
+    status: "coming_soon",
+    accentLabel: "API 준비 중",
     generationMode: "upload_required",
   },
   {
@@ -116,8 +116,8 @@ export const documentCatalog: DocumentDemoCard[] = [
     description: "공정별 검측 요청 정보를 빠르게 정리하는 요청 문서",
     uploadGuide: "검측 대상 위치 사진과 체크 포인트 메모를 올려 주세요.",
     resultLabel: "검측 요청서 결과 시안",
-    status: "available",
-    accentLabel: "즉시 데모 가능",
+    status: "coming_soon",
+    accentLabel: "API 준비 중",
     generationMode: "upload_required",
   },
 ];
@@ -221,9 +221,11 @@ export const uploadDocumentPresets: UploadDocumentPreset[] = [
   {
     documentType: "concrete_delivery_csi",
     guideItems: [
-      "송장 사진",
+      "출하증명서 사진",
       "슬럼프 시험 전경 사진",
       "보드판 사진",
+      "공기량 사진",
+      "온도 사진",
       "염화물 사진",
       "함수율 사진",
     ],
@@ -242,7 +244,7 @@ export const uploadDocumentPresets: UploadDocumentPreset[] = [
     feedbackItems: [
       {
         id: "delivery-check-1",
-        label: "송장 사진",
+        label: "출하증명서 사진",
         status: "matched",
       },
       {
@@ -257,11 +259,21 @@ export const uploadDocumentPresets: UploadDocumentPreset[] = [
       },
       {
         id: "delivery-check-4",
-        label: "염화물 사진",
+        label: "공기량 사진",
         status: "missing",
       },
       {
         id: "delivery-check-5",
+        label: "온도 사진",
+        status: "missing",
+      },
+      {
+        id: "delivery-check-6",
+        label: "염화물 사진",
+        status: "missing",
+      },
+      {
+        id: "delivery-check-7",
         label: "함수율 사진",
         status: "missing",
       },

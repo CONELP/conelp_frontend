@@ -227,6 +227,11 @@
   border-color: rgba(30, 24, 136, 0.28);
 }
 
+.upload-dropzone--drag-active {
+  border-color: rgba(30, 24, 136, 0.42);
+  background: rgba(30, 24, 136, 0.05);
+}
+
 .upload-dropzone__trigger {
   display: inline-flex;
   align-items: center;

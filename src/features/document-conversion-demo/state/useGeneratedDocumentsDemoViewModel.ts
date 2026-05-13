@@ -2,10 +2,12 @@ import { computed, onMounted, ref } from "vue";
 
 import { materialInspectionRequestApi } from "@/features/document-conversion-demo/api/material-inspection-request.api";
 import type { DocumentJobResponse } from "@/features/document-conversion-demo/api/material-inspection-request-api.types";
+import type { DocumentCatalogType } from "@/features/document-conversion-demo/model/document-conversion-demo.types";
 
 export interface GeneratedDocumentListItem {
   id: string;
   jobId: number;
+  documentType: DocumentCatalogType | null;
   title: string;
   subtitle: string;
   createdAt: string;
@@ -29,6 +31,12 @@ const DOCUMENT_LABEL_BY_TYPE: Record<string, string> = {
   CCST: "압축강도 시험 의뢰",
   SCHEDULE_3WEEK: "3주 공정표",
   SCHEDULE_3MONTH: "3개월 공정표",
+};
+const DOCUMENT_CATALOG_TYPE_BY_JOB_TYPE: Partial<Record<string, DocumentCatalogType>> = {
+  DR: "daily_report",
+  MIR: "material_registration",
+  CAT: "concrete_delivery_csi",
+  CCST: "concrete_strength_csi",
 };
 
 function formatGeneratedDocumentDate(value: string) {
@@ -118,6 +126,10 @@ function resolveGeneratedDocumentTitle(document: DocumentJobResponse) {
   return DOCUMENT_LABEL_BY_TYPE[document.docType] ?? document.docType;
 }
 
+function resolveGeneratedDocumentCatalogType(document: DocumentJobResponse) {
+  return DOCUMENT_CATALOG_TYPE_BY_JOB_TYPE[document.docType] ?? null;
+}
+
 function toGeneratedDocumentListItem(
   document: DocumentJobResponse,
 ): GeneratedDocumentListItem {
@@ -133,6 +145,7 @@ function toGeneratedDocumentListItem(
   return {
     id: String(document.id),
     jobId: document.id,
+    documentType: resolveGeneratedDocumentCatalogType(document),
     title,
     subtitle: [subtitleBase, timeLabel].filter(Boolean).join(", "),
     createdAt,

@@ -1,23 +1,138 @@
 .desktop-schedule-page {
+  display: flex;
+  height: 100vh;
+  height: 100svh;
+  flex-direction: column;
+  overflow: hidden;
   min-width: 1180px;
   min-height: 100vh;
+  min-height: 100svh;
   background: #f5f5f6;
 }
 
+.desktop-schedule-page > .desktop-app-header {
+  flex: 0 0 auto;
+}
+
 .desktop-schedule-page__shell {
+  flex: 1 1 auto;
   width: 100%;
   padding: 1.1rem 1.5rem 2.5rem;
   display: grid;
+  align-items: stretch;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   gap: 0;
+  min-height: 0;
+  overflow: hidden;
+  transition: grid-template-columns 220ms ease;
+}
+
+.desktop-schedule-page__shell--with-daily-report-panel {
+  grid-template-columns:
+    minmax(0, 1fr)
+    var(--desktop-schedule-daily-report-splitter-width, 0)
+    var(--desktop-schedule-daily-report-panel-width, 0);
+  grid-template-rows:
+    var(--desktop-schedule-daily-report-panel-top-offset, 0)
+    minmax(0, 1fr);
 }
 
 .desktop-schedule-page__workspace {
-  min-height: calc(100vh - 10.75rem);
+  display: flex;
+  grid-column: 1;
+  grid-row: 1 / -1;
+  min-height: 0;
+  min-width: 0;
 }
 
 .desktop-schedule-page__workspace-host {
   position: relative;
-  min-height: calc(100vh - 10.75rem);
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.desktop-schedule-page__daily-report-splitter {
+  display: flex;
+  grid-column: 2;
+  grid-row: 2;
+  width: var(--desktop-schedule-daily-report-splitter-width, 0.625rem);
+  min-width: 0;
+  min-height: 0;
+  align-self: stretch;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+}
+
+.desktop-schedule-page__daily-report-splitter-line {
+  width: 2px;
+  height: 4.25rem;
+  border-radius: 999px;
+  background: rgba(20, 24, 33, 0.14);
+  transition:
+    background-color 140ms ease,
+    height 140ms ease,
+    opacity 140ms ease;
+}
+
+.desktop-schedule-page__daily-report-splitter:hover
+  .desktop-schedule-page__daily-report-splitter-line,
+.desktop-schedule-page__daily-report-splitter:focus-visible
+  .desktop-schedule-page__daily-report-splitter-line,
+.desktop-schedule-page__shell--panel-resizing
+  .desktop-schedule-page__daily-report-splitter-line {
+  height: 5.4rem;
+  background: rgba(30, 24, 136, 0.34);
+}
+
+.desktop-schedule-page__daily-report-splitter:focus-visible {
+  outline: 2px solid rgba(30, 24, 136, 0.22);
+  outline-offset: -1px;
+}
+
+.desktop-schedule-page__daily-report-panel {
+  display: flex;
+  grid-column: 3;
+  grid-row: 2;
+  min-width: 0;
+  min-height: 0;
+  align-self: stretch;
+  overflow: hidden;
+}
+
+.desktop-schedule-page__shell--panel-resizing,
+.desktop-schedule-page__shell--panel-resizing * {
+  cursor: col-resize !important;
+  user-select: none;
+}
+
+.desktop-schedule-daily-report-panel-enter-active,
+.desktop-schedule-daily-report-panel-leave-active {
+  transition:
+    opacity 180ms ease,
+    transform 220ms ease;
+}
+
+.desktop-schedule-daily-report-panel-enter-from,
+.desktop-schedule-daily-report-panel-leave-to {
+  opacity: 0;
+  transform: translateX(0.75rem);
+}
+
+.desktop-schedule-daily-report-splitter-enter-active,
+.desktop-schedule-daily-report-splitter-leave-active {
+  transition: opacity 180ms ease;
+}
+
+.desktop-schedule-daily-report-splitter-enter-from,
+.desktop-schedule-daily-report-splitter-leave-to {
+  opacity: 0;
 }
 
 .desktop-schedule-page__refresh-overlay {
@@ -148,7 +263,8 @@
 
 .desktop-schedule-page__state {
   display: grid;
-  min-height: calc(100vh - 10.75rem);
+  height: 100%;
+  min-height: 0;
   place-items: center;
   align-content: center;
   gap: 0.75rem;
