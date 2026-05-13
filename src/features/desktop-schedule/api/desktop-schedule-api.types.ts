@@ -140,6 +140,7 @@ export interface DesktopScheduleWorkResponse {
   division: string;
   workType: string;
   subWorkType: string;
+  progress?: number | null;
   photos?: DesktopScheduleWorkPhotoResponse[];
 }
 

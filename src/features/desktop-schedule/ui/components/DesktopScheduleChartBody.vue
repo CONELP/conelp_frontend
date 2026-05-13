@@ -126,6 +126,18 @@
       />
 
       <div
+        v-for="progressLine in shellLayout.progressLines"
+        :key="progressLine.id"
+        class="schedule-chart-body__progress-line"
+        :class="`schedule-chart-body__progress-line--${progressLine.status}`"
+        :style="{
+          left: `${progressLine.leftStart}px`,
+          top: `${progressLine.top}px`,
+          width: `${progressLine.leftEnd - progressLine.leftStart}px`,
+        }"
+      />
+
+      <div
         v-if="hoveredDayOverlayStyle"
         class="schedule-chart-body__hover-day"
         :style="hoveredDayOverlayStyle"

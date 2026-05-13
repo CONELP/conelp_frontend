@@ -66,6 +66,7 @@ function mapWorkToSourceTask(
     zoneIds: [],
     floorIds: [],
     componentTypeIds: [],
+    progress: work.progress ?? null,
   };
 }
 

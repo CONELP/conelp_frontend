@@ -49,6 +49,7 @@ export interface DesktopScheduleItem {
   zoneIds?: number[];
   floorIds?: number[];
   componentTypeIds?: number[];
+  progress?: number | null;
 }
 
 export interface DesktopScheduleWorkConnection {
@@ -95,6 +96,7 @@ export interface DesktopScheduleSourceTask {
   zoneIds?: number[];
   floorIds?: number[];
   componentTypeIds?: number[];
+  progress?: number | null;
 }
 
 export interface DesktopScheduleSourceRow {
@@ -234,11 +236,23 @@ export interface DesktopScheduleConnectionLayout {
   labelY: number;
 }
 
+export interface DesktopScheduleProgressLineLayout {
+  id: string;
+  rowId: string;
+  workId: number;
+  status: "ahead" | "behind";
+  top: number;
+  leftStart: number;
+  leftEnd: number;
+  progressDate: string;
+}
+
 export interface DesktopScheduleShellLayout {
   rows: DesktopScheduleShellRow[];
   bars: DesktopScheduleBarLayout[];
   milestones: DesktopScheduleMilestoneLayout[];
   connections: DesktopScheduleConnectionLayout[];
+  progressLines: DesktopScheduleProgressLineLayout[];
   chartHeight: number;
   rowHeight: number;
 }

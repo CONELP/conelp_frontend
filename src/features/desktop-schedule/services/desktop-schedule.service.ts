@@ -6,6 +6,7 @@ import type {
   DesktopScheduleItem,
   DesktopScheduleMilestone,
   DesktopScheduleMilestoneLayout,
+  DesktopScheduleProgressLineLayout,
   DesktopScheduleRow,
   DesktopScheduleShellLayout,
   DesktopScheduleShellRow,
@@ -852,6 +853,7 @@ function buildItems(tasks: DesktopScheduleSourceTask[]): DesktopScheduleItem[] {
     zoneIds: task.zoneIds ? [...task.zoneIds] : [],
     floorIds: task.floorIds ? [...task.floorIds] : [],
     componentTypeIds: task.componentTypeIds ? [...task.componentTypeIds] : [],
+    progress: task.progress ?? null,
   }));
 }
 
@@ -1351,6 +1353,15 @@ function buildShellLayout(
     }));
   });
 
+  const progressLines = buildProgressLines(
+    visibleRows,
+    itemsByRow,
+    timeline,
+    rowTopById,
+    rowHeightById,
+    rowHeight,
+  );
+
   return {
     rows: [milestoneRow, ...processRows],
     bars: itemBars,
@@ -1360,9 +1371,89 @@ function buildShellLayout(
       workConnections,
       criticalPaths,
     ),
+    progressLines,
     chartHeight: accumulatedTop,
     rowHeight,
   };
+}
+
+function buildProgressLines(
+  visibleRows: DesktopScheduleRow[],
+  itemsByRow: Map<string, DesktopScheduleItem[]>,
+  timeline: DesktopScheduleTimelineLayout,
+  rowTopById: Map<string, number>,
+  rowHeightById: Map<string, number>,
+  defaultRowHeight: number,
+): DesktopScheduleProgressLineLayout[] {
+  const todayCell = timeline.days.find((day) => day.isToday);
+
+  if (!todayCell) {
+    return [];
+  }
+
+  const dayByDate = new Map(timeline.days.map((day) => [day.date, day] as const));
+  const todayCenter = todayCell.left + todayCell.width / 2;
+  const lines: DesktopScheduleProgressLineLayout[] = [];
+
+  visibleRows.forEach((row) => {
+    if (row.kind !== "child-process") {
+      return;
+    }
+
+    const rowTop = rowTopById.get(row.id);
+    if (rowTop === undefined) {
+      return;
+    }
+
+    const rowItems = itemsByRow.get(row.id) ?? [];
+    const eligible = rowItems.filter(
+      (item) => typeof item.progress === "number" && (item.progress ?? 0) > 0,
+    );
+
+    if (eligible.length === 0) {
+      return;
+    }
+
+    const latest = eligible.reduce((best, candidate) => {
+      const compareDate = candidate.startDate.localeCompare(best.startDate);
+      if (compareDate > 0) {
+        return candidate;
+      }
+      if (compareDate < 0) {
+        return best;
+      }
+      return candidate.workId > best.workId ? candidate : best;
+    });
+
+    const progressDate = shiftDateString(latest.startDate, (latest.progress ?? 1) - 1);
+    const progressCell = dayByDate.get(progressDate);
+
+    if (!progressCell) {
+      return;
+    }
+
+    const progressCenter = progressCell.left + progressCell.width / 2;
+
+    if (progressCenter === todayCenter) {
+      return;
+    }
+
+    const status: "ahead" | "behind" = progressCenter < todayCenter ? "behind" : "ahead";
+    const rowHeightValue = rowHeightById.get(row.id) ?? defaultRowHeight;
+
+    lines.push({
+      id: `progress-line:${row.id}:${latest.workId}`,
+      rowId: row.id,
+      workId: latest.workId,
+      status,
+      top: rowTop + rowHeightValue / 2,
+      leftStart: Math.min(progressCenter, todayCenter),
+      leftEnd: Math.max(progressCenter, todayCenter),
+      progressDate,
+    });
+  });
+
+  return lines;
 }
 
 function toggleRowCollapse(rows: DesktopScheduleRow[], rowId: string) {
