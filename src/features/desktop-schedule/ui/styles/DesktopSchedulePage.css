@@ -1,17 +1,30 @@
 .desktop-schedule-page {
+  display: flex;
+  height: 100vh;
+  height: 100svh;
   min-width: 1180px;
   min-height: 100vh;
+  min-height: 100svh;
+  flex-direction: column;
+  overflow: hidden;
   background: #f5f5f6;
 }
 
+.desktop-schedule-page > .desktop-app-header {
+  flex: 0 0 auto;
+}
+
 .desktop-schedule-page__shell {
+  flex: 1 1 auto;
   width: 100%;
   padding: 1.1rem 1.5rem 2.5rem;
   display: grid;
-  align-items: start;
+  align-items: stretch;
   grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   gap: 0;
   min-height: 0;
+  overflow: hidden;
   transition: grid-template-columns 220ms ease;
 }
 
@@ -20,32 +33,38 @@
     minmax(0, 1fr)
     var(--desktop-schedule-daily-report-splitter-width, 0)
     var(--desktop-schedule-daily-report-panel-width, 0);
+  grid-template-rows:
+    var(--desktop-schedule-daily-report-panel-top-offset, 0)
+    minmax(0, 1fr);
 }
 
 .desktop-schedule-page__workspace {
-  min-height: calc(100vh - 10.75rem);
+  display: flex;
+  grid-column: 1;
+  grid-row: 1 / -1;
+  min-height: 0;
   min-width: 0;
 }
 
 .desktop-schedule-page__workspace-host {
   position: relative;
-  min-height: calc(100vh - 10.75rem);
+  flex: 1 1 auto;
+  min-height: 0;
   min-width: 0;
+  overflow: hidden;
 }
 
 .desktop-schedule-page__daily-report-splitter {
   display: flex;
+  grid-column: 2;
+  grid-row: 2;
   width: var(--desktop-schedule-daily-report-splitter-width, 0.625rem);
   min-width: 0;
-  height: calc(
-    100vh - 10.75rem - var(--desktop-schedule-daily-report-panel-top-offset, 0px)
-  );
   min-height: 0;
-  align-self: start;
+  align-self: stretch;
   align-items: center;
   justify-content: center;
   padding: 0;
-  margin-top: var(--desktop-schedule-daily-report-panel-top-offset, 0px);
   border: 0;
   background: transparent;
   cursor: col-resize;
@@ -79,16 +98,11 @@
 
 .desktop-schedule-page__daily-report-panel {
   display: flex;
+  grid-column: 3;
+  grid-row: 2;
   min-width: 0;
-  height: calc(
-    100vh - 10.75rem - var(--desktop-schedule-daily-report-panel-top-offset, 0px)
-  );
   min-height: 0;
-  max-height: calc(
-    100vh - 10.75rem - var(--desktop-schedule-daily-report-panel-top-offset, 0px)
-  );
-  align-self: start;
-  margin-top: var(--desktop-schedule-daily-report-panel-top-offset, 0px);
+  align-self: stretch;
   overflow: hidden;
 }
 
@@ -249,7 +263,8 @@
 
 .desktop-schedule-page__state {
   display: grid;
-  min-height: calc(100vh - 10.75rem);
+  height: 100%;
+  min-height: 0;
   place-items: center;
   align-content: center;
   gap: 0.75rem;

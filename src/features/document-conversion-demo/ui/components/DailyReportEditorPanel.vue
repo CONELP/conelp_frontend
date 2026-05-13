@@ -928,9 +928,21 @@ function handleDailyReportSave() {
     <aside class="daily-report-write-panel" aria-label="공사일보 작성">
       <div class="daily-report-write-panel__content">
         <section class="daily-report-write-editor">
-          <label class="daily-report-write-editor__label">
-            오늘 작업
-          </label>
+          <div class="daily-report-write-editor__header">
+            <label class="daily-report-write-editor__label">
+              오늘 작업
+            </label>
+            <button
+              type="button"
+              class="daily-report-worktype-add"
+              @click="addDailyReportWorkType('today')"
+            >
+              <span class="daily-report-worktype-add__box" aria-hidden="true">
+                +
+              </span>
+              <span>공정 추가</span>
+            </button>
+          </div>
           <input
             ref="todayImageInputRef"
             class="daily-report-write-editor__file-input"
@@ -953,92 +965,101 @@ function handleDailyReportSave() {
                 @drop="handleWorkTypeDrop('today', workType.id, $event)"
                 @dragend="endWorkTypeDrag"
               >
-                <label class="daily-report-worktype-field">
-                  <span class="daily-report-worktype-field__control">
+                <div class="daily-report-worktype-field">
+                  <div class="daily-report-worktype-field__control">
                     <span class="daily-report-worktype-field__marker" aria-hidden="true" />
-                    <input
-                      :value="workType.workTypeName"
-                      class="daily-report-worktype-field__input"
-                      type="text"
-                      autocomplete="off"
-                      placeholder="공종명을 입력해 주세요."
-                      role="combobox"
-                      :aria-expanded="getWorkTypeSuggestionState(workType.id).isOpen"
-                      aria-autocomplete="list"
-                      @input="handleDailyReportWorkTypeNameInput(workType, $event)"
-                      @keydown="handleDailyReportWorkTypeKeydown(workType, $event)"
-                      @focus="openDailyReportWorkTypeSuggestionList(workType)"
-                      @blur="scheduleCloseDailyReportWorkTypeSuggestionList(workType.id)"
-                    />
-
-                    <Transition name="daily-report-typeahead">
-                      <div
-                        v-if="getWorkTypeSuggestionState(workType.id).isOpen"
-                        class="daily-report-typeahead"
-                        role="listbox"
-                        aria-label="공종명 후보"
-                        @mousedown.prevent
+                    <div class="daily-report-worktype-field__input-wrap">
+                      <input
+                        :value="workType.workTypeName"
+                        class="daily-report-worktype-field__input"
+                        type="text"
+                        autocomplete="off"
+                        placeholder="공종명을 입력해 주세요."
+                        role="combobox"
+                        :aria-expanded="getWorkTypeSuggestionState(workType.id).isOpen"
+                        aria-autocomplete="list"
+                        @input="handleDailyReportWorkTypeNameInput(workType, $event)"
+                        @keydown="handleDailyReportWorkTypeKeydown(workType, $event)"
+                        @focus="openDailyReportWorkTypeSuggestionList(workType)"
+                        @blur="scheduleCloseDailyReportWorkTypeSuggestionList(workType.id)"
+                      />
+                      <button
+                        type="button"
+                        class="daily-report-worktype-delete"
+                        aria-label="공종 삭제"
+                        @click="removeDailyReportWorkType('today', workType.id)"
                       >
-                        <p
-                          v-if="getWorkTypeSuggestionState(workType.id).isLoading"
-                          class="daily-report-typeahead__state"
+                        ×
+                      </button>
+
+                      <Transition name="daily-report-typeahead">
+                        <div
+                          v-if="getWorkTypeSuggestionState(workType.id).isOpen"
+                          class="daily-report-typeahead"
+                          role="listbox"
+                          aria-label="공종명 후보"
+                          @mousedown.prevent
                         >
-                          불러오는 중
-                        </p>
-                        <p
-                          v-else-if="getWorkTypeSuggestionState(workType.id).errorMessage"
-                          class="daily-report-typeahead__state"
-                        >
-                          {{ getWorkTypeSuggestionState(workType.id).errorMessage }}
-                        </p>
-                        <template
-                          v-else-if="getWorkTypeSuggestionState(workType.id).suggestions.length > 0"
-                        >
-                          <button
-                            v-for="(suggestion, suggestionIndex) in getWorkTypeSuggestionState(
-                              workType.id,
-                            ).suggestions"
-                            :key="suggestion.id"
-                            class="daily-report-typeahead__option"
-                            :class="{
-                              'daily-report-typeahead__option--highlighted':
-                                getWorkTypeSuggestionState(workType.id).highlightedIndex ===
-                                suggestionIndex,
-                            }"
-                            type="button"
-                            role="option"
-                            :aria-selected="
-                              getWorkTypeSuggestionState(workType.id).highlightedIndex ===
-                              suggestionIndex
-                            "
-                            @mouseenter="
-                              setDailyReportWorkTypeHighlightedIndex(
-                                workType.id,
-                                suggestionIndex,
-                              )
-                            "
-                            @click="selectDailyReportWorkTypeSuggestion(workType, suggestion)"
+                          <p
+                            v-if="getWorkTypeSuggestionState(workType.id).isLoading"
+                            class="daily-report-typeahead__state"
                           >
-                            {{ suggestion.name }}
-                          </button>
-                        </template>
-                        <p
-                          v-else-if="workType.workTypeName.trim() && workType.workTypeId === null"
-                          class="daily-report-typeahead__state"
-                        >
-                          매칭되는 공종명이 없어요
-                        </p>
-                      </div>
-                    </Transition>
-                  </span>
-                </label>
+                            불러오는 중
+                          </p>
+                          <p
+                            v-else-if="getWorkTypeSuggestionState(workType.id).errorMessage"
+                            class="daily-report-typeahead__state"
+                          >
+                            {{ getWorkTypeSuggestionState(workType.id).errorMessage }}
+                          </p>
+                          <template
+                            v-else-if="getWorkTypeSuggestionState(workType.id).suggestions.length > 0"
+                          >
+                            <button
+                              v-for="(suggestion, suggestionIndex) in getWorkTypeSuggestionState(
+                                workType.id,
+                              ).suggestions"
+                              :key="suggestion.id"
+                              class="daily-report-typeahead__option"
+                              :class="{
+                                'daily-report-typeahead__option--highlighted':
+                                  getWorkTypeSuggestionState(workType.id).highlightedIndex ===
+                                  suggestionIndex,
+                              }"
+                              type="button"
+                              role="option"
+                              :aria-selected="
+                                getWorkTypeSuggestionState(workType.id).highlightedIndex ===
+                                suggestionIndex
+                              "
+                              @mouseenter="
+                                setDailyReportWorkTypeHighlightedIndex(
+                                  workType.id,
+                                  suggestionIndex,
+                                )
+                              "
+                              @click="selectDailyReportWorkTypeSuggestion(workType, suggestion)"
+                            >
+                              {{ suggestion.name }}
+                            </button>
+                          </template>
+                          <p
+                            v-else-if="workType.workTypeName.trim() && workType.workTypeId === null"
+                            class="daily-report-typeahead__state"
+                          >
+                            매칭되는 공종명이 없어요
+                          </p>
+                        </div>
+                      </Transition>
+                    </div>
+                  </div>
+                </div>
                 <button
                   type="button"
-                  class="daily-report-worktype-delete"
-                  aria-label="공종 삭제"
-                  @click="removeDailyReportWorkType('today', workType.id)"
+                  class="daily-report-task-add"
+                  @click="addDailyReportTask(workType)"
                 >
-                  ×
+                  + 작업 사항 추가
                 </button>
 
                 <div class="daily-report-task-list">
@@ -1048,41 +1069,25 @@ function handleDailyReportSave() {
                     class="daily-report-task-row"
                   >
                     <span class="daily-report-task-row__bullet" aria-hidden="true">-</span>
-                    <input
-                      v-model="task.text"
-                      class="daily-report-task-input"
-                      type="text"
-                      placeholder="작업 사항을 입력해 주세요."
-                    />
-                    <button
-                      type="button"
-                      class="daily-report-task-delete"
-                      aria-label="작업사항 삭제"
-                      @click="removeDailyReportTask(workType, task.id)"
-                    >
-                      ×
-                    </button>
+                    <div class="daily-report-task-field">
+                      <input
+                        v-model="task.text"
+                        class="daily-report-task-input"
+                        type="text"
+                        placeholder="작업 사항을 입력해 주세요."
+                      />
+                      <button
+                        type="button"
+                        class="daily-report-task-delete"
+                        aria-label="작업사항 삭제"
+                        @click="removeDailyReportTask(workType, task.id)"
+                      >
+                        ×
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    class="daily-report-task-add"
-                    @click="addDailyReportTask(workType)"
-                  >
-                    + 작업 사항 추가
-                  </button>
                 </div>
               </article>
-
-              <button
-                type="button"
-                class="daily-report-worktype-add"
-                @click="addDailyReportWorkType('today')"
-              >
-                <span class="daily-report-worktype-add__box" aria-hidden="true">
-                  +
-                </span>
-                <span>공정 추가</span>
-              </button>
             </div>
             <div class="daily-report-write-attachments">
               <TransitionGroup
@@ -1114,10 +1119,10 @@ function handleDailyReportSave() {
                       draggable="false"
                     />
                   </figure>
-                  <input
+                  <textarea
                     v-model="image.description"
                     class="daily-report-write-image-card__description"
-                    type="text"
+                    rows="2"
                     placeholder="설명을 적어주세요."
                   />
                   <button
@@ -1150,9 +1155,21 @@ function handleDailyReportSave() {
         </section>
 
         <section class="daily-report-write-editor">
-          <label class="daily-report-write-editor__label">
-            내일 작업
-          </label>
+          <div class="daily-report-write-editor__header">
+            <label class="daily-report-write-editor__label">
+              내일 작업
+            </label>
+            <button
+              type="button"
+              class="daily-report-worktype-add"
+              @click="addDailyReportWorkType('tomorrow')"
+            >
+              <span class="daily-report-worktype-add__box" aria-hidden="true">
+                +
+              </span>
+              <span>공정 추가</span>
+            </button>
+          </div>
           <input
             ref="tomorrowImageInputRef"
             class="daily-report-write-editor__file-input"
@@ -1175,92 +1192,101 @@ function handleDailyReportSave() {
                 @drop="handleWorkTypeDrop('tomorrow', workType.id, $event)"
                 @dragend="endWorkTypeDrag"
               >
-                <label class="daily-report-worktype-field">
-                  <span class="daily-report-worktype-field__control">
+                <div class="daily-report-worktype-field">
+                  <div class="daily-report-worktype-field__control">
                     <span class="daily-report-worktype-field__marker" aria-hidden="true" />
-                    <input
-                      :value="workType.workTypeName"
-                      class="daily-report-worktype-field__input"
-                      type="text"
-                      autocomplete="off"
-                      placeholder="공종명을 입력해 주세요."
-                      role="combobox"
-                      :aria-expanded="getWorkTypeSuggestionState(workType.id).isOpen"
-                      aria-autocomplete="list"
-                      @input="handleDailyReportWorkTypeNameInput(workType, $event)"
-                      @keydown="handleDailyReportWorkTypeKeydown(workType, $event)"
-                      @focus="openDailyReportWorkTypeSuggestionList(workType)"
-                      @blur="scheduleCloseDailyReportWorkTypeSuggestionList(workType.id)"
-                    />
-
-                    <Transition name="daily-report-typeahead">
-                      <div
-                        v-if="getWorkTypeSuggestionState(workType.id).isOpen"
-                        class="daily-report-typeahead"
-                        role="listbox"
-                        aria-label="공종명 후보"
-                        @mousedown.prevent
+                    <div class="daily-report-worktype-field__input-wrap">
+                      <input
+                        :value="workType.workTypeName"
+                        class="daily-report-worktype-field__input"
+                        type="text"
+                        autocomplete="off"
+                        placeholder="공종명을 입력해 주세요."
+                        role="combobox"
+                        :aria-expanded="getWorkTypeSuggestionState(workType.id).isOpen"
+                        aria-autocomplete="list"
+                        @input="handleDailyReportWorkTypeNameInput(workType, $event)"
+                        @keydown="handleDailyReportWorkTypeKeydown(workType, $event)"
+                        @focus="openDailyReportWorkTypeSuggestionList(workType)"
+                        @blur="scheduleCloseDailyReportWorkTypeSuggestionList(workType.id)"
+                      />
+                      <button
+                        type="button"
+                        class="daily-report-worktype-delete"
+                        aria-label="공종 삭제"
+                        @click="removeDailyReportWorkType('tomorrow', workType.id)"
                       >
-                        <p
-                          v-if="getWorkTypeSuggestionState(workType.id).isLoading"
-                          class="daily-report-typeahead__state"
+                        ×
+                      </button>
+
+                      <Transition name="daily-report-typeahead">
+                        <div
+                          v-if="getWorkTypeSuggestionState(workType.id).isOpen"
+                          class="daily-report-typeahead"
+                          role="listbox"
+                          aria-label="공종명 후보"
+                          @mousedown.prevent
                         >
-                          불러오는 중
-                        </p>
-                        <p
-                          v-else-if="getWorkTypeSuggestionState(workType.id).errorMessage"
-                          class="daily-report-typeahead__state"
-                        >
-                          {{ getWorkTypeSuggestionState(workType.id).errorMessage }}
-                        </p>
-                        <template
-                          v-else-if="getWorkTypeSuggestionState(workType.id).suggestions.length > 0"
-                        >
-                          <button
-                            v-for="(suggestion, suggestionIndex) in getWorkTypeSuggestionState(
-                              workType.id,
-                            ).suggestions"
-                            :key="suggestion.id"
-                            class="daily-report-typeahead__option"
-                            :class="{
-                              'daily-report-typeahead__option--highlighted':
-                                getWorkTypeSuggestionState(workType.id).highlightedIndex ===
-                                suggestionIndex,
-                            }"
-                            type="button"
-                            role="option"
-                            :aria-selected="
-                              getWorkTypeSuggestionState(workType.id).highlightedIndex ===
-                              suggestionIndex
-                            "
-                            @mouseenter="
-                              setDailyReportWorkTypeHighlightedIndex(
-                                workType.id,
-                                suggestionIndex,
-                              )
-                            "
-                            @click="selectDailyReportWorkTypeSuggestion(workType, suggestion)"
+                          <p
+                            v-if="getWorkTypeSuggestionState(workType.id).isLoading"
+                            class="daily-report-typeahead__state"
                           >
-                            {{ suggestion.name }}
-                          </button>
-                        </template>
-                        <p
-                          v-else-if="workType.workTypeName.trim() && workType.workTypeId === null"
-                          class="daily-report-typeahead__state"
-                        >
-                          매칭되는 공종명이 없어요
-                        </p>
-                      </div>
-                    </Transition>
-                  </span>
-                </label>
+                            불러오는 중
+                          </p>
+                          <p
+                            v-else-if="getWorkTypeSuggestionState(workType.id).errorMessage"
+                            class="daily-report-typeahead__state"
+                          >
+                            {{ getWorkTypeSuggestionState(workType.id).errorMessage }}
+                          </p>
+                          <template
+                            v-else-if="getWorkTypeSuggestionState(workType.id).suggestions.length > 0"
+                          >
+                            <button
+                              v-for="(suggestion, suggestionIndex) in getWorkTypeSuggestionState(
+                                workType.id,
+                              ).suggestions"
+                              :key="suggestion.id"
+                              class="daily-report-typeahead__option"
+                              :class="{
+                                'daily-report-typeahead__option--highlighted':
+                                  getWorkTypeSuggestionState(workType.id).highlightedIndex ===
+                                  suggestionIndex,
+                              }"
+                              type="button"
+                              role="option"
+                              :aria-selected="
+                                getWorkTypeSuggestionState(workType.id).highlightedIndex ===
+                                suggestionIndex
+                              "
+                              @mouseenter="
+                                setDailyReportWorkTypeHighlightedIndex(
+                                  workType.id,
+                                  suggestionIndex,
+                                )
+                              "
+                              @click="selectDailyReportWorkTypeSuggestion(workType, suggestion)"
+                            >
+                              {{ suggestion.name }}
+                            </button>
+                          </template>
+                          <p
+                            v-else-if="workType.workTypeName.trim() && workType.workTypeId === null"
+                            class="daily-report-typeahead__state"
+                          >
+                            매칭되는 공종명이 없어요
+                          </p>
+                        </div>
+                      </Transition>
+                    </div>
+                  </div>
+                </div>
                 <button
                   type="button"
-                  class="daily-report-worktype-delete"
-                  aria-label="공종 삭제"
-                  @click="removeDailyReportWorkType('tomorrow', workType.id)"
+                  class="daily-report-task-add"
+                  @click="addDailyReportTask(workType)"
                 >
-                  ×
+                  + 작업 사항 추가
                 </button>
 
                 <div class="daily-report-task-list">
@@ -1270,41 +1296,25 @@ function handleDailyReportSave() {
                     class="daily-report-task-row"
                   >
                     <span class="daily-report-task-row__bullet" aria-hidden="true">-</span>
-                    <input
-                      v-model="task.text"
-                      class="daily-report-task-input"
-                      type="text"
-                      placeholder="작업 사항을 입력해 주세요."
-                    />
-                    <button
-                      type="button"
-                      class="daily-report-task-delete"
-                      aria-label="작업사항 삭제"
-                      @click="removeDailyReportTask(workType, task.id)"
-                    >
-                      ×
-                    </button>
+                    <div class="daily-report-task-field">
+                      <input
+                        v-model="task.text"
+                        class="daily-report-task-input"
+                        type="text"
+                        placeholder="작업 사항을 입력해 주세요."
+                      />
+                      <button
+                        type="button"
+                        class="daily-report-task-delete"
+                        aria-label="작업사항 삭제"
+                        @click="removeDailyReportTask(workType, task.id)"
+                      >
+                        ×
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    class="daily-report-task-add"
-                    @click="addDailyReportTask(workType)"
-                  >
-                    + 작업 사항 추가
-                  </button>
                 </div>
               </article>
-
-              <button
-                type="button"
-                class="daily-report-worktype-add"
-                @click="addDailyReportWorkType('tomorrow')"
-              >
-                <span class="daily-report-worktype-add__box" aria-hidden="true">
-                  +
-                </span>
-                <span>공정 추가</span>
-              </button>
             </div>
             <div class="daily-report-write-attachments">
               <TransitionGroup
@@ -1336,10 +1346,10 @@ function handleDailyReportSave() {
                       draggable="false"
                     />
                   </figure>
-                  <input
+                  <textarea
                     v-model="image.description"
                     class="daily-report-write-image-card__description"
-                    type="text"
+                    rows="2"
                     placeholder="설명을 적어주세요."
                   />
                   <button
