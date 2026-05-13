@@ -17,6 +17,86 @@ const DAILY_REPORT_DRAFT_STORAGE_KEY = "conelp.dailyReportWrite.draft.v2";
 const HOMEPAGE_IMPORT_MIN_DURATION_MS = 2500;
 
 type DailyReportWorkSection = "today" | "tomorrow";
+type DailyReportEditorTabId = "todayWork" | "tomorrowWork" | "labor" | "material" | "equipment";
+type DailyReportResourceTabId = Exclude<
+  DailyReportEditorTabId,
+  "todayWork" | "tomorrowWork" | "labor"
+>;
+type DailyReportResourceColumnKey = "name" | "detail" | "quantity" | "note";
+
+type DailyReportEditorTab = {
+  id: DailyReportEditorTabId;
+  label: string;
+};
+
+type DailyReportResourceColumn = {
+  key: DailyReportResourceColumnKey;
+  label: string;
+  placeholder: string;
+  inputMode?: "numeric" | "text";
+};
+
+type DailyReportResourceTab = {
+  id: DailyReportResourceTabId;
+  label: string;
+  addLabel: string;
+  columns: DailyReportResourceColumn[];
+};
+
+type DailyReportResourceDraft = {
+  id: string;
+  name: string;
+  detail: string;
+  quantity: string;
+  note: string;
+  source?: "manual" | "homepage";
+};
+
+type DailyReportLaborSubWorkDraft = {
+  id: string;
+  name: string;
+  quantity: string;
+  source?: "manual" | "homepage";
+};
+
+type DailyReportLaborWorkTypeDraft = {
+  id: string;
+  workTypeId: number | null;
+  workTypeName: string;
+  subWorks: DailyReportLaborSubWorkDraft[];
+  source?: "manual" | "homepage";
+};
+
+const DAILY_REPORT_EDITOR_TABS: DailyReportEditorTab[] = [
+  { id: "todayWork", label: "오늘작업" },
+  { id: "tomorrowWork", label: "내일작업" },
+  { id: "labor", label: "인력투입" },
+  { id: "material", label: "자재투입" },
+  { id: "equipment", label: "장비투입" },
+];
+
+const DAILY_REPORT_RESOURCE_TABS: DailyReportResourceTab[] = [
+  {
+    id: "material",
+    label: "자재투입",
+    addLabel: "자재 추가",
+    columns: [
+      { key: "name", label: "자재명", placeholder: "자재명" },
+      { key: "detail", label: "규격", placeholder: "규격" },
+      { key: "quantity", label: "수량", placeholder: "수량", inputMode: "numeric" },
+    ],
+  },
+  {
+    id: "equipment",
+    label: "장비투입",
+    addLabel: "장비 추가",
+    columns: [
+      { key: "name", label: "장비명", placeholder: "장비명" },
+      { key: "detail", label: "규격", placeholder: "규격" },
+      { key: "quantity", label: "수량", placeholder: "수량", inputMode: "numeric" },
+    ],
+  },
+];
 
 type DailyReportImageDraft = {
   id: string;
@@ -75,6 +155,10 @@ type DailyReportDraft = {
   tomorrowWorkTypes: DailyReportWorkTypeDraft[];
   todayImages: DailyReportImageDraft[];
   tomorrowImages: DailyReportImageDraft[];
+  laborWorkTypes: DailyReportLaborWorkTypeDraft[];
+  laborRows?: DailyReportResourceDraft[];
+  materialRows: DailyReportResourceDraft[];
+  equipmentRows: DailyReportResourceDraft[];
 };
 
 function clampNumber(value: number, min: number, max: number) {
@@ -104,6 +188,154 @@ function createDailyReportWorkTypeDraft(taskText = ""): DailyReportWorkTypeDraft
     tasks: [createDailyReportTask(taskText)],
     source: "manual",
   };
+}
+
+function createDailyReportLaborSubWorkDraft(
+  name = "",
+  quantity = "",
+): DailyReportLaborSubWorkDraft {
+  return {
+    id: createDailyReportImageId(),
+    name,
+    quantity,
+    source: "manual",
+  };
+}
+
+function createDailyReportLaborWorkTypeDraft(
+  subWorkName = "",
+  quantity = "",
+): DailyReportLaborWorkTypeDraft {
+  return {
+    id: createDailyReportImageId(),
+    workTypeId: null,
+    workTypeName: "",
+    subWorks: [createDailyReportLaborSubWorkDraft(subWorkName, quantity)],
+    source: "manual",
+  };
+}
+
+function createDailyReportResourceDraft(): DailyReportResourceDraft {
+  return {
+    id: createDailyReportImageId(),
+    name: "",
+    detail: "",
+    quantity: "",
+    note: "",
+    source: "manual",
+  };
+}
+
+function normalizeDailyReportLaborSubWorks(value: unknown): DailyReportLaborSubWorkDraft[] {
+  if (!Array.isArray(value)) {
+    return [createDailyReportLaborSubWorkDraft()];
+  }
+
+  const subWorks = value
+    .filter(
+      (subWork): subWork is Partial<DailyReportLaborSubWorkDraft> =>
+        typeof subWork === "object" && subWork !== null,
+    )
+    .map((subWork) => ({
+      id:
+        typeof subWork.id === "string" && subWork.id
+          ? subWork.id
+          : createDailyReportImageId(),
+      name: typeof subWork.name === "string" ? subWork.name : "",
+      quantity: typeof subWork.quantity === "string" ? subWork.quantity : "",
+      source: (subWork.source === "homepage"
+        ? "homepage"
+        : "manual") as DailyReportLaborSubWorkDraft["source"],
+    }));
+
+  return subWorks.length > 0 ? subWorks : [createDailyReportLaborSubWorkDraft()];
+}
+
+function normalizeLegacyLaborRows(value: unknown): DailyReportLaborWorkTypeDraft[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter(
+      (row): row is Partial<DailyReportResourceDraft> =>
+        typeof row === "object" && row !== null,
+    )
+    .map((row) => ({
+      id: typeof row.id === "string" && row.id ? row.id : createDailyReportImageId(),
+      workTypeId: null,
+      workTypeName: typeof row.name === "string" ? row.name : "",
+      subWorks: [
+        createDailyReportLaborSubWorkDraft(
+          typeof row.detail === "string" ? row.detail : "",
+          typeof row.quantity === "string" ? row.quantity : "",
+        ),
+      ],
+      source: (row.source === "homepage"
+        ? "homepage"
+        : "manual") as DailyReportLaborWorkTypeDraft["source"],
+    }))
+    .filter(
+      (workType) =>
+        workType.workTypeName.trim() ||
+        workType.subWorks.some(
+          (subWork) => subWork.name.trim() || subWork.quantity.trim(),
+        ),
+    );
+}
+
+function normalizeDailyReportLaborWorkTypes(
+  value: unknown,
+  legacyRows?: unknown,
+): DailyReportLaborWorkTypeDraft[] {
+  if (!Array.isArray(value)) {
+    return normalizeLegacyLaborRows(legacyRows);
+  }
+
+  return value
+    .filter(
+      (workType): workType is Partial<DailyReportLaborWorkTypeDraft> =>
+        typeof workType === "object" && workType !== null,
+    )
+    .map((workType) => ({
+      id:
+        typeof workType.id === "string" && workType.id
+          ? workType.id
+          : createDailyReportImageId(),
+      workTypeId:
+        typeof workType.workTypeId === "number" && Number.isFinite(workType.workTypeId)
+          ? workType.workTypeId
+          : null,
+      workTypeName: typeof workType.workTypeName === "string" ? workType.workTypeName : "",
+      subWorks: normalizeDailyReportLaborSubWorks(workType.subWorks),
+      source: (workType.source === "homepage"
+        ? "homepage"
+        : "manual") as DailyReportLaborWorkTypeDraft["source"],
+    }));
+}
+
+function normalizeDailyReportResourceRows(value: unknown): DailyReportResourceDraft[] {
+  if (!Array.isArray(value)) {
+    return [createDailyReportResourceDraft()];
+  }
+
+  const rows = value
+    .filter(
+      (row): row is Partial<DailyReportResourceDraft> =>
+        typeof row === "object" && row !== null,
+    )
+    .map((row) => ({
+      id: typeof row.id === "string" && row.id ? row.id : createDailyReportImageId(),
+      name: typeof row.name === "string" ? row.name : "",
+      detail: typeof row.detail === "string" ? row.detail : "",
+      quantity: typeof row.quantity === "string" ? row.quantity : "",
+      note: typeof row.note === "string" ? row.note : "",
+      source: (row.source === "homepage"
+        ? "homepage"
+        : "manual") as DailyReportResourceDraft["source"],
+    }));
+
+  return rows.length > 0 ? rows : [createDailyReportResourceDraft()];
 }
 
 function normalizeDailyReportImages(value: unknown): DailyReportImageDraft[] {
@@ -179,6 +411,9 @@ function readStoredDailyReportDraft(): DailyReportDraft {
       tomorrowWorkTypes: [],
       todayImages: [],
       tomorrowImages: [],
+      laborWorkTypes: [],
+      materialRows: [createDailyReportResourceDraft()],
+      equipmentRows: [createDailyReportResourceDraft()],
     };
   }
 
@@ -197,6 +432,12 @@ function readStoredDailyReportDraft(): DailyReportDraft {
       ),
       todayImages: normalizeDailyReportImages(parsedValue.todayImages),
       tomorrowImages: normalizeDailyReportImages(parsedValue.tomorrowImages),
+      laborWorkTypes: normalizeDailyReportLaborWorkTypes(
+        parsedValue.laborWorkTypes,
+        parsedValue.laborRows,
+      ),
+      materialRows: normalizeDailyReportResourceRows(parsedValue.materialRows),
+      equipmentRows: normalizeDailyReportResourceRows(parsedValue.equipmentRows),
     };
   } catch {
     return {
@@ -204,6 +445,9 @@ function readStoredDailyReportDraft(): DailyReportDraft {
       tomorrowWorkTypes: [],
       todayImages: [],
       tomorrowImages: [],
+      laborWorkTypes: [],
+      materialRows: [createDailyReportResourceDraft()],
+      equipmentRows: [createDailyReportResourceDraft()],
     };
   }
 }
@@ -242,11 +486,16 @@ const imageDragState = ref<DailyReportImageDragState | null>(null);
 const imageDragOverState = ref<DailyReportImageDragOverState | null>(null);
 const previewImage = ref<DailyReportImageDraft | null>(null);
 const workTypeSuggestionStates = ref<Record<string, DailyReportWorkTypeSuggestionState>>({});
+const laborWorkTypeSuggestionStates = ref<Record<string, DailyReportWorkTypeSuggestionState>>({});
+const activeDailyReportTab = ref<DailyReportEditorTabId>("todayWork");
 const dailyReportDraft = readStoredDailyReportDraft();
 const todayWorkTypes = ref<DailyReportWorkTypeDraft[]>(dailyReportDraft.todayWorkTypes);
 const tomorrowWorkTypes = ref<DailyReportWorkTypeDraft[]>(dailyReportDraft.tomorrowWorkTypes);
 const todayImages = ref<DailyReportImageDraft[]>(dailyReportDraft.todayImages);
 const tomorrowImages = ref<DailyReportImageDraft[]>(dailyReportDraft.tomorrowImages);
+const laborWorkTypes = ref<DailyReportLaborWorkTypeDraft[]>(dailyReportDraft.laborWorkTypes);
+const materialRows = ref<DailyReportResourceDraft[]>(dailyReportDraft.materialRows);
+const equipmentRows = ref<DailyReportResourceDraft[]>(dailyReportDraft.equipmentRows);
 const homepageImportStatus = ref<"idle" | "loading" | "error">("idle");
 
 function persistDailyReportDraft() {
@@ -265,6 +514,11 @@ function persistDailyReportDraft() {
       ),
       todayImages: todayImages.value.filter((image) => image.source !== "homepage"),
       tomorrowImages: tomorrowImages.value.filter((image) => image.source !== "homepage"),
+      laborWorkTypes: laborWorkTypes.value.filter(
+        (workType) => workType.source !== "homepage",
+      ),
+      materialRows: materialRows.value.filter((row) => row.source !== "homepage"),
+      equipmentRows: equipmentRows.value.filter((row) => row.source !== "homepage"),
     }),
   );
 }
@@ -485,7 +739,7 @@ function handleWorkTypeDragOver(
   workTypeDragOverState.value = {
     section,
     workTypeId,
-    position: getImageDropPosition(event),
+    position: getBlockDropPosition(event),
   };
 }
 
@@ -495,7 +749,7 @@ function handleWorkTypeDrop(
   event: DragEvent,
 ) {
   const dragState = workTypeDragState.value;
-  const position = getImageDropPosition(event);
+  const position = getBlockDropPosition(event);
   event.preventDefault();
 
   if (dragState?.section === section) {
@@ -739,6 +993,210 @@ function selectDailyReportWorkTypeSuggestion(
   state.highlightedIndex = -1;
 }
 
+function getLaborWorkTypeSuggestionState(rowId: string) {
+  return laborWorkTypeSuggestionStates.value[rowId] ?? {
+    suggestions: [],
+    isLoading: false,
+    errorMessage: "",
+    isOpen: false,
+    highlightedIndex: -1,
+    requestId: 0,
+    closeTimer: null,
+  };
+}
+
+function ensureLaborWorkTypeSuggestionState(rowId: string) {
+  const currentState = laborWorkTypeSuggestionStates.value[rowId];
+
+  if (currentState) {
+    return currentState;
+  }
+
+  const nextState: DailyReportWorkTypeSuggestionState = {
+    suggestions: [],
+    isLoading: false,
+    errorMessage: "",
+    isOpen: false,
+    highlightedIndex: -1,
+    requestId: 0,
+    closeTimer: null,
+  };
+
+  laborWorkTypeSuggestionStates.value = {
+    ...laborWorkTypeSuggestionStates.value,
+    [rowId]: nextState,
+  };
+
+  return nextState;
+}
+
+function clearLaborWorkTypeSuggestionCloseTimer(rowId: string) {
+  const state = laborWorkTypeSuggestionStates.value[rowId];
+
+  if (state?.closeTimer) {
+    clearTimeout(state.closeTimer);
+    state.closeTimer = null;
+  }
+}
+
+function clearLaborWorkTypeSuggestions(rowId: string) {
+  const state = ensureLaborWorkTypeSuggestionState(rowId);
+  state.suggestions = [];
+  state.errorMessage = "";
+  state.isLoading = false;
+  state.isOpen = false;
+  state.highlightedIndex = -1;
+}
+
+async function loadLaborWorkTypeSuggestions(workType: DailyReportLaborWorkTypeDraft) {
+  const query = workType.workTypeName.trim();
+  const state = ensureLaborWorkTypeSuggestionState(workType.id);
+  const requestId = state.requestId + 1;
+  state.requestId = requestId;
+
+  if (!query) {
+    clearLaborWorkTypeSuggestions(workType.id);
+    return;
+  }
+
+  state.isLoading = true;
+  state.errorMessage = "";
+  state.isOpen = true;
+
+  try {
+    const suggestions = await materialInspectionRequestApi.getWorkTypeListByName(query);
+
+    if (state.requestId !== requestId) {
+      return;
+    }
+
+    state.suggestions = suggestions;
+    state.highlightedIndex = suggestions.length > 0 ? 0 : -1;
+  } catch (error) {
+    if (state.requestId !== requestId) {
+      return;
+    }
+
+    state.suggestions = [];
+    state.highlightedIndex = -1;
+    state.errorMessage =
+      error instanceof Error ? error.message : "공종명을 불러오지 못했습니다.";
+  } finally {
+    if (state.requestId === requestId) {
+      state.isLoading = false;
+    }
+  }
+}
+
+function handleLaborWorkTypeNameInput(
+  workType: DailyReportLaborWorkTypeDraft,
+  event: Event,
+) {
+  const input = event.target as HTMLInputElement | null;
+  workType.workTypeName = input?.value ?? "";
+  workType.workTypeId = null;
+  void loadLaborWorkTypeSuggestions(workType);
+}
+
+function setLaborWorkTypeHighlightedIndex(rowId: string, index: number) {
+  const state = ensureLaborWorkTypeSuggestionState(rowId);
+  state.highlightedIndex = clampNumber(index, -1, state.suggestions.length - 1);
+}
+
+function handleLaborWorkTypeKeydown(
+  workType: DailyReportLaborWorkTypeDraft,
+  event: KeyboardEvent,
+) {
+  const state = ensureLaborWorkTypeSuggestionState(workType.id);
+  const suggestionCount = state.suggestions.length;
+
+  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+    event.preventDefault();
+    clearLaborWorkTypeSuggestionCloseTimer(workType.id);
+
+    if (workType.workTypeName.trim()) {
+      state.isOpen = true;
+    }
+
+    if (suggestionCount === 0) {
+      return;
+    }
+
+    const offset = event.key === "ArrowDown" ? 1 : -1;
+    const baseIndex =
+      state.highlightedIndex >= 0 ? state.highlightedIndex : event.key === "ArrowDown" ? -1 : 0;
+    state.highlightedIndex = (baseIndex + offset + suggestionCount) % suggestionCount;
+    return;
+  }
+
+  if (event.key === "Enter" && !event.isComposing) {
+    if (!state.isOpen || suggestionCount === 0) {
+      return;
+    }
+
+    event.preventDefault();
+    const selectedIndex =
+      state.highlightedIndex >= 0 && state.highlightedIndex < suggestionCount
+        ? state.highlightedIndex
+        : 0;
+    const suggestion = state.suggestions[selectedIndex];
+
+    if (suggestion) {
+      selectLaborWorkTypeSuggestion(workType, suggestion);
+    }
+    return;
+  }
+
+  if (event.key === "Escape" && state.isOpen) {
+    event.preventDefault();
+    state.isOpen = false;
+    state.highlightedIndex = -1;
+  }
+}
+
+function openLaborWorkTypeSuggestionList(workType: DailyReportLaborWorkTypeDraft) {
+  clearLaborWorkTypeSuggestionCloseTimer(workType.id);
+
+  const state = ensureLaborWorkTypeSuggestionState(workType.id);
+  const query = workType.workTypeName.trim();
+
+  if (!query) {
+    return;
+  }
+
+  state.isOpen = true;
+  state.highlightedIndex =
+    state.highlightedIndex >= 0 ? state.highlightedIndex : state.suggestions.length > 0 ? 0 : -1;
+
+  if (!state.isLoading && state.suggestions.length === 0) {
+    void loadLaborWorkTypeSuggestions(workType);
+  }
+}
+
+function scheduleCloseLaborWorkTypeSuggestionList(rowId: string) {
+  clearLaborWorkTypeSuggestionCloseTimer(rowId);
+  const state = ensureLaborWorkTypeSuggestionState(rowId);
+  state.closeTimer = setTimeout(() => {
+    state.isOpen = false;
+    state.closeTimer = null;
+  }, 120);
+}
+
+function selectLaborWorkTypeSuggestion(
+  workType: DailyReportLaborWorkTypeDraft,
+  suggestion: WorkTypeReferenceResponse,
+) {
+  clearLaborWorkTypeSuggestionCloseTimer(workType.id);
+  const state = ensureLaborWorkTypeSuggestionState(workType.id);
+  state.requestId += 1;
+  workType.workTypeId = suggestion.id;
+  workType.workTypeName = suggestion.name;
+  state.suggestions = [];
+  state.errorMessage = "";
+  state.isOpen = false;
+  state.highlightedIndex = -1;
+}
+
 function getImageDrafts(section: DailyReportWorkSection) {
   return section === "today" ? todayImages.value : tomorrowImages.value;
 }
@@ -794,7 +1252,7 @@ function closeDailyReportImagePreview() {
   previewImage.value = null;
 }
 
-function getImageDropPosition(event: DragEvent): DailyReportImageDropPosition {
+function getBlockDropPosition(event: DragEvent): DailyReportImageDropPosition {
   const target = event.currentTarget;
 
   if (!(target instanceof HTMLElement)) {
@@ -803,6 +1261,17 @@ function getImageDropPosition(event: DragEvent): DailyReportImageDropPosition {
 
   const targetRect = target.getBoundingClientRect();
   return event.clientY > targetRect.top + targetRect.height / 2 ? "after" : "before";
+}
+
+function getImageDropPosition(event: DragEvent): DailyReportImageDropPosition {
+  const target = event.currentTarget;
+
+  if (!(target instanceof HTMLElement)) {
+    return "after";
+  }
+
+  const targetRect = target.getBoundingClientRect();
+  return event.clientX > targetRect.left + targetRect.width / 2 ? "after" : "before";
 }
 
 function moveDailyReportImage(
@@ -918,6 +1387,67 @@ function getImageCardDragClass(section: DailyReportWorkSection, imageId: string)
   };
 }
 
+function addDailyReportLaborWorkType() {
+  laborWorkTypes.value = [
+    ...laborWorkTypes.value,
+    createDailyReportLaborWorkTypeDraft(),
+  ];
+}
+
+function removeDailyReportLaborWorkType(workTypeId: string) {
+  clearLaborWorkTypeSuggestionCloseTimer(workTypeId);
+  laborWorkTypes.value = laborWorkTypes.value.filter(
+    (workType) => workType.id !== workTypeId,
+  );
+}
+
+function addDailyReportLaborSubWork(workType: DailyReportLaborWorkTypeDraft) {
+  workType.subWorks.push(createDailyReportLaborSubWorkDraft());
+}
+
+function removeDailyReportLaborSubWork(
+  workType: DailyReportLaborWorkTypeDraft,
+  subWorkId: string,
+) {
+  workType.subWorks = workType.subWorks.filter((subWork) => subWork.id !== subWorkId);
+}
+
+function getDailyReportResourceRows(tabId: DailyReportResourceTabId) {
+  if (tabId === "material") {
+    return materialRows.value;
+  }
+
+  return equipmentRows.value;
+}
+
+function addDailyReportResourceRow(tabId: DailyReportResourceTabId) {
+  getDailyReportResourceRows(tabId).push(createDailyReportResourceDraft());
+}
+
+function removeDailyReportResourceRow(tabId: DailyReportResourceTabId, rowId: string) {
+  const rows = getDailyReportResourceRows(tabId);
+  const nextRows = rows.filter((row) => row.id !== rowId);
+
+  if (tabId === "material") {
+    materialRows.value = nextRows;
+    return;
+  }
+
+  equipmentRows.value = nextRows;
+}
+
+function updateDailyReportResourceValue(
+  row: DailyReportResourceDraft,
+  key: DailyReportResourceColumnKey,
+  event: Event,
+) {
+  const target = event.target;
+
+  if (target instanceof HTMLInputElement) {
+    row[key] = target.value;
+  }
+}
+
 function handleDailyReportSave() {
   persistDailyReportDraft();
 }
@@ -925,24 +1455,40 @@ function handleDailyReportSave() {
 
 <template>
   <div class="daily-report-editor-panel">
-    <aside class="daily-report-write-panel" aria-label="공사일보 작성">
+    <aside
+      class="daily-report-write-panel daily-report-write-panel--with-tabs"
+      aria-label="공사일보 작성"
+    >
+      <nav
+        class="daily-report-write-panel__tabs"
+        role="tablist"
+        aria-label="공사일보 항목"
+      >
+        <button
+          v-for="tab in DAILY_REPORT_EDITOR_TABS"
+          :id="`daily-report-tab-${tab.id}`"
+          :key="tab.id"
+          type="button"
+          class="daily-report-write-panel__tab"
+          :class="{ 'daily-report-write-panel__tab--active': activeDailyReportTab === tab.id }"
+          role="tab"
+          :aria-selected="activeDailyReportTab === tab.id"
+          :aria-controls="`daily-report-panel-${tab.id}`"
+          @click="activeDailyReportTab = tab.id"
+        >
+          {{ tab.label }}
+        </button>
+      </nav>
+
       <div class="daily-report-write-panel__content">
+        <div
+          v-show="activeDailyReportTab === 'todayWork'"
+          id="daily-report-panel-todayWork"
+          class="daily-report-tab-panel"
+          role="tabpanel"
+          aria-labelledby="daily-report-tab-todayWork"
+        >
         <section class="daily-report-write-editor">
-          <div class="daily-report-write-editor__header">
-            <label class="daily-report-write-editor__label">
-              오늘 작업
-            </label>
-            <button
-              type="button"
-              class="daily-report-worktype-add"
-              @click="addDailyReportWorkType('today')"
-            >
-              <span class="daily-report-worktype-add__box" aria-hidden="true">
-                +
-              </span>
-              <span>공정 추가</span>
-            </button>
-          </div>
           <input
             ref="todayImageInputRef"
             class="daily-report-write-editor__file-input"
@@ -952,7 +1498,25 @@ function handleDailyReportSave() {
             @change="handleDailyReportImageChange('today', $event)"
           />
           <div class="daily-report-write-work-cell">
-            <div class="daily-report-worktype-list">
+            <div class="daily-report-write-work-cell__header">
+              <span class="daily-report-write-work-cell__title">
+                오늘작업
+              </span>
+              <button
+                type="button"
+                class="daily-report-worktype-add"
+                @click="addDailyReportWorkType('today')"
+              >
+                <span class="daily-report-worktype-add__box" aria-hidden="true">
+                  +
+                </span>
+                <span>공종 추가</span>
+              </button>
+            </div>
+            <div
+              v-if="todayWorkTypes.length > 0"
+              class="daily-report-worktype-list"
+            >
               <article
                 v-for="workType in todayWorkTypes"
                 :key="workType.id"
@@ -1153,23 +1717,16 @@ function handleDailyReportSave() {
             </div>
           </div>
         </section>
+        </div>
 
+        <div
+          v-show="activeDailyReportTab === 'tomorrowWork'"
+          id="daily-report-panel-tomorrowWork"
+          class="daily-report-tab-panel"
+          role="tabpanel"
+          aria-labelledby="daily-report-tab-tomorrowWork"
+        >
         <section class="daily-report-write-editor">
-          <div class="daily-report-write-editor__header">
-            <label class="daily-report-write-editor__label">
-              내일 작업
-            </label>
-            <button
-              type="button"
-              class="daily-report-worktype-add"
-              @click="addDailyReportWorkType('tomorrow')"
-            >
-              <span class="daily-report-worktype-add__box" aria-hidden="true">
-                +
-              </span>
-              <span>공정 추가</span>
-            </button>
-          </div>
           <input
             ref="tomorrowImageInputRef"
             class="daily-report-write-editor__file-input"
@@ -1179,7 +1736,25 @@ function handleDailyReportSave() {
             @change="handleDailyReportImageChange('tomorrow', $event)"
           />
           <div class="daily-report-write-work-cell">
-            <div class="daily-report-worktype-list">
+            <div class="daily-report-write-work-cell__header">
+              <span class="daily-report-write-work-cell__title">
+                내일작업
+              </span>
+              <button
+                type="button"
+                class="daily-report-worktype-add"
+                @click="addDailyReportWorkType('tomorrow')"
+              >
+                <span class="daily-report-worktype-add__box" aria-hidden="true">
+                  +
+                </span>
+                <span>공종 추가</span>
+              </button>
+            </div>
+            <div
+              v-if="tomorrowWorkTypes.length > 0"
+              class="daily-report-worktype-list"
+            >
               <article
                 v-for="workType in tomorrowWorkTypes"
                 :key="workType.id"
@@ -1380,6 +1955,227 @@ function handleDailyReportSave() {
             </div>
           </div>
         </section>
+        </div>
+
+        <section
+          v-show="activeDailyReportTab === 'labor'"
+          id="daily-report-panel-labor"
+          class="daily-report-resource-panel"
+          role="tabpanel"
+          aria-labelledby="daily-report-tab-labor"
+        >
+          <div class="daily-report-write-work-cell daily-report-labor-cell">
+            <div class="daily-report-write-work-cell__header">
+              <span class="daily-report-write-work-cell__title">
+                인력투입
+              </span>
+              <button
+                type="button"
+                class="daily-report-worktype-add"
+                @click="addDailyReportLaborWorkType"
+              >
+                <span class="daily-report-worktype-add__box" aria-hidden="true">
+                  +
+                </span>
+                <span>공종 추가</span>
+              </button>
+            </div>
+
+            <div
+              v-if="laborWorkTypes.length > 0"
+              class="daily-report-worktype-list"
+            >
+              <article
+                v-for="workType in laborWorkTypes"
+                :key="workType.id"
+                class="daily-report-worktype-entry daily-report-worktype-entry--static"
+              >
+                <div class="daily-report-worktype-field">
+                  <div class="daily-report-worktype-field__control">
+                    <span class="daily-report-worktype-field__marker" aria-hidden="true" />
+                    <div class="daily-report-worktype-field__input-wrap">
+                      <input
+                        :value="workType.workTypeName"
+                        class="daily-report-worktype-field__input"
+                        type="text"
+                        autocomplete="off"
+                        placeholder="공종명을 입력해 주세요."
+                        role="combobox"
+                        :aria-expanded="getLaborWorkTypeSuggestionState(workType.id).isOpen"
+                        aria-autocomplete="list"
+                        @input="handleLaborWorkTypeNameInput(workType, $event)"
+                        @keydown="handleLaborWorkTypeKeydown(workType, $event)"
+                        @focus="openLaborWorkTypeSuggestionList(workType)"
+                        @blur="scheduleCloseLaborWorkTypeSuggestionList(workType.id)"
+                      />
+                      <button
+                        type="button"
+                        class="daily-report-worktype-delete"
+                        aria-label="공정 삭제"
+                        @click="removeDailyReportLaborWorkType(workType.id)"
+                      >
+                        ×
+                      </button>
+
+                      <Transition name="daily-report-typeahead">
+                        <div
+                          v-if="getLaborWorkTypeSuggestionState(workType.id).isOpen"
+                          class="daily-report-typeahead"
+                          role="listbox"
+                          aria-label="공종명 후보"
+                          @mousedown.prevent
+                        >
+                          <p
+                            v-if="getLaborWorkTypeSuggestionState(workType.id).isLoading"
+                            class="daily-report-typeahead__state"
+                          >
+                            불러오는 중
+                          </p>
+                          <p
+                            v-else-if="getLaborWorkTypeSuggestionState(workType.id).errorMessage"
+                            class="daily-report-typeahead__state"
+                          >
+                            {{ getLaborWorkTypeSuggestionState(workType.id).errorMessage }}
+                          </p>
+                          <template
+                            v-else-if="getLaborWorkTypeSuggestionState(workType.id).suggestions.length > 0"
+                          >
+                            <button
+                              v-for="(suggestion, suggestionIndex) in getLaborWorkTypeSuggestionState(
+                                workType.id,
+                              ).suggestions"
+                              :key="suggestion.id"
+                              class="daily-report-typeahead__option"
+                              :class="{
+                                'daily-report-typeahead__option--highlighted':
+                                  getLaborWorkTypeSuggestionState(workType.id).highlightedIndex ===
+                                  suggestionIndex,
+                              }"
+                              type="button"
+                              role="option"
+                              :aria-selected="
+                                getLaborWorkTypeSuggestionState(workType.id).highlightedIndex ===
+                                suggestionIndex
+                              "
+                              @mouseenter="
+                                setLaborWorkTypeHighlightedIndex(
+                                  workType.id,
+                                  suggestionIndex,
+                                )
+                              "
+                              @click="selectLaborWorkTypeSuggestion(workType, suggestion)"
+                            >
+                              {{ suggestion.name }}
+                            </button>
+                          </template>
+                          <p
+                            v-else-if="workType.workTypeName.trim() && workType.workTypeId === null"
+                            class="daily-report-typeahead__state"
+                          >
+                            매칭되는 공종명이 없어요
+                          </p>
+                        </div>
+                      </Transition>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  class="daily-report-task-add"
+                  @click="addDailyReportLaborSubWork(workType)"
+                >
+                  + 직종 추가
+                </button>
+
+                <div class="daily-report-task-list daily-report-labor-subwork-list">
+                  <div
+                    v-for="subWork in workType.subWorks"
+                    :key="subWork.id"
+                    class="daily-report-task-row daily-report-labor-subwork-row"
+                  >
+                    <span class="daily-report-task-row__bullet" aria-hidden="true">-</span>
+                    <div class="daily-report-labor-subwork-field">
+                      <input
+                        v-model="subWork.name"
+                        class="daily-report-task-input daily-report-labor-subwork-input"
+                        type="text"
+                        placeholder="직종명"
+                      />
+                      <input
+                        v-model="subWork.quantity"
+                        class="daily-report-task-input daily-report-labor-quantity-input"
+                        inputmode="numeric"
+                        type="text"
+                        placeholder="0"
+                      />
+                      <button
+                        type="button"
+                        class="daily-report-task-delete daily-report-labor-subwork-delete"
+                        aria-label="직종 삭제"
+                        @click="removeDailyReportLaborSubWork(workType, subWork.id)"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section
+          v-for="resourceTab in DAILY_REPORT_RESOURCE_TABS"
+          v-show="activeDailyReportTab === resourceTab.id"
+          :id="`daily-report-panel-${resourceTab.id}`"
+          :key="resourceTab.id"
+          class="daily-report-resource-panel"
+          role="tabpanel"
+          :aria-labelledby="`daily-report-tab-${resourceTab.id}`"
+        >
+          <div
+            class="daily-report-resource-table"
+            :class="`daily-report-resource-table--${resourceTab.id}`"
+          >
+            <div class="daily-report-resource-table__header">
+              <h2 class="daily-report-resource-table__title">
+                {{ resourceTab.label }}
+              </h2>
+              <button
+                type="button"
+                class="daily-report-resource-add"
+                @click="addDailyReportResourceRow(resourceTab.id)"
+              >
+                + {{ resourceTab.addLabel }}
+              </button>
+            </div>
+
+            <div
+              v-for="row in getDailyReportResourceRows(resourceTab.id)"
+              :key="row.id"
+              class="daily-report-resource-table__row"
+            >
+              <input
+                v-for="column in resourceTab.columns"
+                :key="column.key"
+                class="daily-report-resource-table__input"
+                :inputmode="column.inputMode ?? 'text'"
+                :placeholder="column.placeholder"
+                :value="row[column.key]"
+                @input="updateDailyReportResourceValue(row, column.key, $event)"
+              />
+              <button
+                type="button"
+                class="daily-report-resource-table__delete"
+                :aria-label="`${resourceTab.label} 항목 삭제`"
+                @click="removeDailyReportResourceRow(resourceTab.id, row.id)"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        </section>
       </div>
 
       <footer class="daily-report-write-save-bar">
@@ -1396,7 +2192,7 @@ function handleDailyReportSave() {
           class="daily-report-write-save-button"
           @click="handleDailyReportSave"
         >
-          저장하기
+          생성하기
         </button>
       </footer>
 

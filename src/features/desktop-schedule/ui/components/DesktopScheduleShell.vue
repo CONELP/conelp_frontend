@@ -723,6 +723,7 @@ onUnmounted(() => {
       <span>기준 공정표는 직접 수정할 수 없어요. 작업본을 만들어 수정해 주세요.</span>
     </p>
 
+    <section class="schedule-shell__surface" aria-label="공정표">
     <div class="schedule-shell__toolbar" aria-label="공정표 도구">
       <div ref="versionMenuRootRef" class="schedule-shell__version">
         <button
@@ -1169,5 +1170,6 @@ onUnmounted(() => {
 
       </div>
     </div>
+    </section>
   </div>
 </template>

@@ -631,7 +631,7 @@ watch(
 
       <Transition name="desktop-schedule-daily-report-panel">
         <DailyReportEditorPanel
-          v-if="showDailyReportEditor"
+          v-show="showDailyReportEditor"
           class="desktop-schedule-page__daily-report-panel"
         />
       </Transition>

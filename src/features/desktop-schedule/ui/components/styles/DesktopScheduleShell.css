@@ -15,6 +15,20 @@
   user-select: none;
 }
 
+.schedule-shell__surface {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.6rem;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 1rem;
+  background: #fff;
+}
+
 .schedule-shell__frame {
   position: relative;
   display: grid;
@@ -25,14 +39,14 @@
   grid-template-columns: var(--schedule-row-panel-width, 220px) minmax(0, 1fr);
   overflow: hidden;
   border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 0.95rem;
+  border-radius: 0.78rem;
   background: #fff;
 }
 
 .schedule-shell__toolbar {
   display: flex;
-  flex: 0 0 2.9rem;
-  min-height: 2.9rem;
+  flex: 0 0 3rem;
+  min-height: 3rem;
   align-items: center;
   gap: 0.55rem;
   padding: 0.28rem 0.6rem;
