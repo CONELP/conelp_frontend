@@ -1,5 +1,6 @@
 .schedule-row-panel {
   --schedule-work-type-column-width: 110px;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   background: #fff;

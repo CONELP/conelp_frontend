@@ -29,6 +29,10 @@ const SHELL_HEADER_MONTH_HEIGHT = 32;
 const SHELL_HEADER_WEEK_HEIGHT = 28;
 const SHELL_TOOLBAR_HEIGHT = 48;
 const SHELL_STACK_GAP = 8;
+const SHELL_SURFACE_PADDING_Y = 10;
+const SHELL_SURFACE_GAP = 8;
+const SHELL_SURFACE_BORDER_WIDTH = 1;
+const SHELL_FRAME_BORDER_WIDTH = 1;
 const READONLY_NOTICE_HEIGHT = 40;
 const ROW_PANEL_MIN_WIDTH = 180;
 const ROW_PANEL_MAX_WIDTH = 520;
@@ -209,11 +213,17 @@ const showReadonlyNotice = computed(() => props.readOnly && !props.referenceOnly
 const readonlyNoticeStackHeight = computed(() =>
   showReadonlyNotice.value ? READONLY_NOTICE_HEIGHT + SHELL_STACK_GAP : 0,
 );
+const scheduleSurfaceChromeHeight =
+  SHELL_SURFACE_PADDING_Y * 2 +
+  SHELL_SURFACE_GAP +
+  SHELL_SURFACE_BORDER_WIDTH * 2 +
+  SHELL_FRAME_BORDER_WIDTH * 2;
 const bodyViewportHeight = computed(() =>
   Math.max(
     shellHeight.value -
       scaledShellHeaderHeight.value -
       SHELL_TOOLBAR_HEIGHT -
+      scheduleSurfaceChromeHeight -
       readonlyNoticeStackHeight.value,
     200,
   ),

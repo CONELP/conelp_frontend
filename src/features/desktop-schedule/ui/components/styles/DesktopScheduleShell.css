@@ -21,8 +21,8 @@
   min-height: 0;
   min-width: 0;
   flex-direction: column;
-  gap: 0.55rem;
-  padding: 0.6rem;
+  gap: 8px;
+  padding: 10px;
   overflow: hidden;
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 1rem;
@@ -37,6 +37,7 @@
   min-height: 0;
   min-width: 0;
   grid-template-columns: var(--schedule-row-panel-width, 220px) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 0.78rem;
@@ -624,9 +625,10 @@
 }
 
 .schedule-shell__left-column {
-  display: flex;
+  display: grid;
   min-height: 0;
-  flex-direction: column;
+  grid-template-rows: var(--schedule-header-height, 116px) minmax(0, 1fr);
+  overflow: hidden;
   border-right: 1px solid rgba(0, 0, 0, 0.16);
 }
 
@@ -680,10 +682,11 @@
 
 .schedule-shell__main {
   position: relative;
-  display: flex;
+  display: grid;
   min-width: 0;
   min-height: 0;
-  flex-direction: column;
+  grid-template-rows: var(--schedule-header-height, 116px) minmax(0, 1fr);
+  overflow: hidden;
 }
 
 .schedule-shell__left-resize-handle {
