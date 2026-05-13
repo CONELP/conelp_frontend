@@ -1,6 +1,10 @@
 import { computed, ref } from "vue";
 
-import { desktopScheduleApi } from "@/features/desktop-schedule/api/desktop-schedule.api";
+import {
+  desktopScheduleApi,
+  findMainScheduleVersion,
+  getPastMainScheduleVersions,
+} from "@/features/desktop-schedule/api/desktop-schedule.api";
 import { createDesktopScheduleSnapshotFromApiData } from "@/features/desktop-schedule/api/desktop-schedule.mapper";
 import type {
   DesktopScheduleApiLoadState,
@@ -527,7 +531,14 @@ function createUniqueReferenceName(baseName: string, existingNames: string[]) {
 function sortScheduleVersionsForWorkflow(
   versions: DesktopScheduleVersionResponse[],
 ): DesktopScheduleVersionResponse[] {
+  const currentMain = findMainScheduleVersion(versions);
   return [...versions].sort((a, b) => {
+    const aIsCurrent = currentMain ? a.id === currentMain.id : false;
+    const bIsCurrent = currentMain ? b.id === currentMain.id : false;
+    if (aIsCurrent !== bIsCurrent) {
+      return aIsCurrent ? -1 : 1;
+    }
+
     if (a.isMain !== b.isMain) {
       return a.isMain ? -1 : 1;
     }
@@ -1870,6 +1881,12 @@ function createDesktopScheduleViewModel() {
   );
   const draftScheduleVersionCount = computed(
     () => scheduleVersions.value.filter((version) => !version.isMain).length,
+  );
+  const currentMainScheduleVersion = computed(
+    () => findMainScheduleVersion(scheduleVersions.value),
+  );
+  const pastMainScheduleVersions = computed(() =>
+    getPastMainScheduleVersions(scheduleVersions.value),
   );
   const isScheduleReadOnly = computed(() => selectedScheduleVersion.value?.isMain === true);
   const scheduleVersionDisplayName = computed(
@@ -3884,9 +3901,12 @@ function createDesktopScheduleViewModel() {
     }
 
     const isDeletingSelectedVersion = scheduleVersionId === getSelectedScheduleVersionId();
+    const currentMainFallback = findMainScheduleVersion(
+      scheduleVersions.value.filter((version) => version.id !== scheduleVersionId),
+    );
     const fallbackScheduleVersionId =
-      scheduleVersions.value.find((version) => version.isMain && version.id !== scheduleVersionId)
-        ?.id ?? scheduleVersions.value.find((version) => version.id !== scheduleVersionId)?.id;
+      currentMainFallback?.id ??
+      scheduleVersions.value.find((version) => version.id !== scheduleVersionId)?.id;
 
     try {
       await desktopScheduleApi.deleteScheduleVersion(scheduleVersionId);
@@ -4066,7 +4086,7 @@ function createDesktopScheduleViewModel() {
   async function openScheduleVersionReview() {
     const currentData = scheduleLoadState.value.data;
     const draftVersion = selectedScheduleVersion.value;
-    const mainVersion = scheduleVersions.value.find((version) => version.isMain) ?? null;
+    const mainVersion = findMainScheduleVersion(scheduleVersions.value);
 
     if (!currentData || !draftVersion) {
       showScheduleToast("비교할 공정표 데이터를 찾지 못했어요.");
@@ -4156,7 +4176,7 @@ function createDesktopScheduleViewModel() {
   async function requestScheduleVersionPromotion() {
     const currentData = scheduleLoadState.value.data;
     const draftVersion = selectedScheduleVersion.value;
-    const mainVersion = scheduleVersions.value.find((version) => version.isMain) ?? null;
+    const mainVersion = findMainScheduleVersion(scheduleVersions.value);
 
     if (!currentData || !draftVersion) {
       showScheduleToast("반영할 공정표 데이터를 찾지 못했어요.");
@@ -6930,6 +6950,7 @@ function createDesktopScheduleViewModel() {
     closeScheduleVersionPromotionDialog,
     exportScheduleAsExcel,
     importScheduleStub,
+    pastMainScheduleVersions,
   };
 }
 

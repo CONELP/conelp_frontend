@@ -377,6 +377,66 @@
   position: relative;
 }
 
+.schedule-shell__main-version-root {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.schedule-shell__version-caret {
+  margin-left: 0.32rem;
+  color: #6b7280;
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
+.schedule-shell__past-main-menu-heading {
+  padding: 0.3rem 0.7rem 0.45rem;
+  margin: 0;
+  color: var(--ink-faint);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.schedule-shell__past-main-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.schedule-shell__past-main-current-badge {
+  padding: 0.08rem 0.42rem;
+  border-radius: 0.32rem;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.schedule-shell__past-main-date {
+  flex: 0 0 auto;
+  color: var(--ink-faint);
+  font-size: 0.74rem;
+  font-weight: 500;
+}
+
+.schedule-context-menu__item--active {
+  background: rgba(30, 24, 136, 0.08);
+}
+
+.schedule-context-menu__item--active:hover {
+  background: rgba(30, 24, 136, 0.12);
+}
+
 .schedule-shell__readonly-notice {
   display: flex;
   width: max-content;

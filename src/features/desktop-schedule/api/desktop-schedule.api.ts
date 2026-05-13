@@ -128,8 +128,33 @@ export function clearSelectedDesktopScheduleVersionId() {
   localStorage.removeItem(SELECTED_SCHEDULE_VERSION_ID_STORAGE_KEY);
 }
 
+function compareSetMainAt(a: string | null | undefined, b: string | null | undefined) {
+  if (!a && !b) return 0;
+  if (!a) return -1;
+  if (!b) return 1;
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 export function findMainScheduleVersion(versions: DesktopScheduleVersionResponse[]) {
-  return versions.find((version) => version.isMain) ?? null;
+  const mainVersions = versions.filter((version) => version.isMain);
+  if (mainVersions.length === 0) {
+    return null;
+  }
+
+  return mainVersions.reduce((latest, candidate) =>
+    compareSetMainAt(candidate.setMainAt ?? null, latest.setMainAt ?? null) > 0 ? candidate : latest,
+  );
+}
+
+export function getPastMainScheduleVersions(versions: DesktopScheduleVersionResponse[]) {
+  const currentMain = findMainScheduleVersion(versions);
+  if (!currentMain) {
+    return [];
+  }
+
+  return versions
+    .filter((version) => version.isMain && version.id !== currentMain.id)
+    .sort((a, b) => compareSetMainAt(b.setMainAt ?? null, a.setMainAt ?? null));
 }
 
 function resolveScheduleVersion(
