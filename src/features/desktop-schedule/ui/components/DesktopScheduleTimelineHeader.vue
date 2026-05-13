@@ -10,8 +10,8 @@ const props = defineProps<{
 
 function getDayCellClass(day: DesktopScheduleTimelineLayout["days"][number]) {
   return {
-    "schedule-timeline-header__day--weekend": day.isWeekend,
-    "schedule-timeline-header__day--today": !day.isWeekend && day.isToday,
+    "schedule-timeline-header__day--holiday": day.isHoliday,
+    "schedule-timeline-header__day--today": !day.isHoliday && day.isToday,
     "schedule-timeline-header__day--hovered": day.date === props.hoveredDate,
   };
 }
@@ -50,6 +50,7 @@ function getDayCellClass(day: DesktopScheduleTimelineLayout["days"][number]) {
         class="schedule-timeline-header__day"
         :class="getDayCellClass(day)"
         :style="{ left: `${day.left}px`, width: `${day.width}px` }"
+        :title="day.holidayName ?? undefined"
       >
         <span>{{ day.dayOfMonth }}</span>
         <small>{{ day.dayName }}</small>

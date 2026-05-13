@@ -119,7 +119,7 @@
   line-height: 1;
 }
 
-.schedule-timeline-header__day--weekend {
+.schedule-timeline-header__day--holiday {
   background: rgba(244, 63, 94, 0.06);
   color: #be123c;
 }

@@ -1,4 +1,4 @@
-import { apiFetch } from "@/shared/network/api-client";
+import { apiFetch, apiFetchAttachment } from "@/shared/network/api-client";
 import type {
   DesktopScheduleBootstrapData,
   DesktopScheduleBootstrapOptions,
@@ -18,6 +18,7 @@ import type {
   DesktopScheduleSubWorkTypeCreateRequest,
   DesktopScheduleSubWorkTypeId,
   DesktopScheduleSubWorkTypeResponse,
+  DesktopScheduleExportRequest,
   DesktopScheduleVersionCreateRequest,
   DesktopScheduleVersionId,
   DesktopScheduleVersionResponse,
@@ -37,6 +38,7 @@ import type {
 } from "@/features/desktop-schedule/api/desktop-schedule-api.types";
 
 const SELECTED_PROJECT_ID_STORAGE_KEY = "selectedProjectId";
+const SELECTED_SCHEDULE_VERSION_ID_STORAGE_KEY = "selectedScheduleVersionId";
 
 export class DesktopScheduleApiError extends Error {
   code: "NO_PROJECT" | "NO_PROJECT_ID" | "NO_MAIN_SCHEDULE_VERSION";
@@ -107,17 +109,66 @@ export function clearSelectedDesktopScheduleProjectId() {
   localStorage.removeItem(SELECTED_PROJECT_ID_STORAGE_KEY);
 }
 
+export function getSelectedDesktopScheduleVersionId(): DesktopScheduleVersionId | null {
+  const stored = localStorage.getItem(SELECTED_SCHEDULE_VERSION_ID_STORAGE_KEY);
+
+  if (!stored || stored === "undefined" || stored === "null") {
+    return null;
+  }
+
+  const parsed = Number.parseInt(stored, 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export function setSelectedDesktopScheduleVersionId(versionId: DesktopScheduleVersionId) {
+  localStorage.setItem(SELECTED_SCHEDULE_VERSION_ID_STORAGE_KEY, String(versionId));
+}
+
+export function clearSelectedDesktopScheduleVersionId() {
+  localStorage.removeItem(SELECTED_SCHEDULE_VERSION_ID_STORAGE_KEY);
+}
+
+function compareSetMainAt(a: string | null | undefined, b: string | null | undefined) {
+  if (!a && !b) return 0;
+  if (!a) return -1;
+  if (!b) return 1;
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 export function findMainScheduleVersion(versions: DesktopScheduleVersionResponse[]) {
-  return versions.find((version) => version.isMain) ?? null;
+  const mainVersions = versions.filter((version) => version.isMain);
+  if (mainVersions.length === 0) {
+    return null;
+  }
+
+  return mainVersions.reduce((latest, candidate) =>
+    compareSetMainAt(candidate.setMainAt ?? null, latest.setMainAt ?? null) > 0 ? candidate : latest,
+  );
+}
+
+export function getPastMainScheduleVersions(versions: DesktopScheduleVersionResponse[]) {
+  const currentMain = findMainScheduleVersion(versions);
+  if (!currentMain) {
+    return [];
+  }
+
+  return versions
+    .filter((version) => version.isMain && version.id !== currentMain.id)
+    .sort((a, b) => compareSetMainAt(b.setMainAt ?? null, a.setMainAt ?? null));
 }
 
 function resolveScheduleVersion(
   versions: DesktopScheduleVersionResponse[],
   preferredScheduleVersionId?: DesktopScheduleVersionId,
 ) {
-  const matchedVersion =
+  const preferredId =
     typeof preferredScheduleVersionId === "number"
-      ? versions.find((version) => version.id === preferredScheduleVersionId) ?? null
+      ? preferredScheduleVersionId
+      : getSelectedDesktopScheduleVersionId();
+
+  const matchedVersion =
+    typeof preferredId === "number"
+      ? versions.find((version) => version.id === preferredId) ?? null
       : null;
 
   return matchedVersion ?? findMainScheduleVersion(versions) ?? versions[0] ?? null;
@@ -331,6 +382,16 @@ export const desktopScheduleApi = {
     );
   },
 
+  // POST /api/scheduleVersion/setScheduleMain/{scheduleVersionId}
+  setScheduleMain(scheduleVersionId: DesktopScheduleVersionId) {
+    return apiFetch<DesktopScheduleVersionResponse>(
+      `/scheduleVersion/setScheduleMain/${encodePathSegment(scheduleVersionId)}`,
+      {
+        method: "POST",
+      },
+    );
+  },
+
   // Guide: backend/api/gantt-chart/gantt-chart-core-api.md
   // DELETE /api/scheduleVersion/deleteScheduleVersion/{scheduleVersionId}
   deleteScheduleVersion(scheduleVersionId: DesktopScheduleVersionId) {
@@ -348,6 +409,22 @@ export const desktopScheduleApi = {
     return apiFetch<DesktopScheduleWorkResponse[]>(
       `/work/getWorkListByVersion${buildQuery({ scheduleVersionId })}`,
     );
+  },
+
+  // POST /api/schedule/create3WeekSchedule
+  export3WeekSchedule(body: DesktopScheduleExportRequest) {
+    return apiFetchAttachment("/schedule/create3WeekSchedule", {
+      method: "POST",
+      body: toApiBody(body),
+    });
+  },
+
+  // POST /api/schedule/create3MonthSchedule
+  export3MonthSchedule(body: DesktopScheduleExportRequest) {
+    return apiFetchAttachment("/schedule/create3MonthSchedule", {
+      method: "POST",
+      body: toApiBody(body),
+    });
   },
 
   // Guide: backend/api/api-list/details/work/198_getWorkListByPeriodAndVersion.json
@@ -564,6 +641,8 @@ export const desktopScheduleApi = {
       selectedScheduleVersion = createdScheduleVersion;
       nextScheduleVersions = [createdScheduleVersion];
     }
+
+    setSelectedDesktopScheduleVersionId(selectedScheduleVersion.id);
 
     const scheduleVersionId = selectedScheduleVersion.id;
     const worksPromise = options.period

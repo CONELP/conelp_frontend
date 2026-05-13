@@ -18,8 +18,8 @@
   background: transparent;
 }
 
-.schedule-chart__day--weekend {
-  background: rgba(0, 0, 0, 0.02);
+.schedule-chart__day--holiday {
+  background: rgba(244, 63, 94, 0.05);
 }
 
 .schedule-chart__day--today {

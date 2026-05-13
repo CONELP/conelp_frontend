@@ -82,6 +82,7 @@
                 @input="handleWorkTypeNameInput"
                 @focus="openWorkTypeSuggestionList"
                 @blur="scheduleCloseWorkTypeSuggestionList"
+                @keydown="handleWorkTypeKeydown"
               />
 
               <Transition name="upload-typeahead">
@@ -108,11 +109,17 @@
 
                   <template v-else-if="workTypeSuggestions.length > 0">
                     <button
-                      v-for="suggestion in workTypeSuggestions"
+                      v-for="(suggestion, suggestionIndex) in workTypeSuggestions"
                       :key="suggestion.id"
                       class="upload-typeahead__option"
+                      :class="{
+                        'upload-typeahead__option--highlighted':
+                          workTypeHighlightedIndex === suggestionIndex,
+                      }"
                       type="button"
                       role="option"
+                      :aria-selected="workTypeHighlightedIndex === suggestionIndex"
+                      @mouseenter="setWorkTypeHighlightedIndex(suggestionIndex)"
                       @click="selectWorkTypeSuggestion(suggestion)"
                     >
                       {{ suggestion.name }}
@@ -294,6 +301,7 @@ const {
   isWorkTypeSuggestionsLoading,
   workTypeSuggestionsErrorMessage,
   isWorkTypeSuggestionListOpen,
+  workTypeHighlightedIndex,
   requiresUpload,
   uploadedFiles,
   uploadGuideItems,
@@ -307,6 +315,8 @@ const {
   openWorkTypeSuggestionList,
   scheduleCloseWorkTypeSuggestionList,
   selectWorkTypeSuggestion,
+  setWorkTypeHighlightedIndex,
+  handleWorkTypeKeydown,
 } = useDocumentUploadDemoViewModel();
 const router = useRouter();
 const route = useRoute();

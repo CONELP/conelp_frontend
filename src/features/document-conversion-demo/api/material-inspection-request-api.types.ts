@@ -139,6 +139,7 @@ export interface CreateMirDocumentRequest {
   workTypeId: number | null;
   lines: CreateMirDocumentLineRequest[];
   photos: CreateMirDocumentPhotoRequest[];
+  active: boolean | null;
 }
 
 export interface UpdateCatBatchRequest {

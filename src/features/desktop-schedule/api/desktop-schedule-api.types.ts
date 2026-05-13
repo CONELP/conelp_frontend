@@ -18,6 +18,9 @@ export interface DesktopScheduleVersionResponse {
   id: DesktopScheduleVersionId;
   versionName: string;
   isMain: boolean;
+  setMainAt?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 }
 
 export interface DesktopScheduleVersionCreateRequest {
@@ -140,7 +143,13 @@ export interface DesktopScheduleWorkResponse {
   division: string;
   workType: string;
   subWorkType: string;
+  progress?: number | null;
   photos?: DesktopScheduleWorkPhotoResponse[];
+}
+
+export interface DesktopScheduleExportRequest {
+  scheduleVersionId: DesktopScheduleVersionId;
+  excludedSubWorkTypeIds: number[];
 }
 
 export interface DesktopScheduleWorkCreateRequest {

@@ -108,6 +108,9 @@ const {
   requestScheduleVersionPromotion,
   confirmScheduleVersionPromotion,
   closeScheduleVersionPromotionDialog,
+  exportScheduleAsExcel,
+  importScheduleStub,
+  pastMainScheduleVersions,
 } = useDesktopScheduleViewModel();
 
 const shellHostRef = ref<HTMLElement | null>(null);
@@ -312,6 +315,7 @@ watch(
               :shell-layout="shellLayout"
               :read-only="isScheduleReadOnly"
               :schedule-versions="scheduleVersions"
+              :past-main-schedule-versions="pastMainScheduleVersions"
               :selected-schedule-version-id="selectedScheduleVersionId"
               :version-name="scheduleVersionDisplayName"
               :version-mode-label="scheduleVersionModeLabel"
@@ -351,6 +355,8 @@ watch(
               @undo="undoLocalHistory"
               @redo="redoLocalHistory"
               @create-draft-version="createDraftVersionFromCurrent"
+              @import-schedule="importScheduleStub"
+              @export-schedule-excel="exportScheduleAsExcel"
               @select-schedule-version="selectScheduleVersion"
               @rename-schedule-version="renameScheduleVersion"
               @delete-schedule-version="deleteScheduleVersion"

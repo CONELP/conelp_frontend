@@ -47,10 +47,10 @@ type ReferenceDragState =
 
 const DEFAULT_DIVISION_NAME = "분류 (건축)";
 const DEFAULT_DIVISION_NAME_NEXT = "분류 (건축공사)";
-const DEFAULT_WORK_TYPE_NAME = "상위 공사명 (철콘공사)";
+const DEFAULT_WORK_TYPE_NAME = "공종명 (철콘공사)";
 const DEFAULT_DIVISION_NAMES = new Set([DEFAULT_DIVISION_NAME, DEFAULT_DIVISION_NAME_NEXT]);
 const DEFAULT_WORK_TYPE_NAMES = new Set([DEFAULT_WORK_TYPE_NAME]);
-const DEFAULT_SUB_WORK_TYPE_NAMES = new Set(["하위 공사명 (철근)", "하위 공사명 (타설)"]);
+const DEFAULT_SUB_WORK_TYPE_NAMES = new Set(["세부공종명 (철근)", "세부공종명 (타설)"]);
 
 const DIVISION_HINT_TEXT = "건축공사";
 const WORK_TYPE_HINT_TEXT = "철콘공사";
@@ -1348,8 +1348,8 @@ function handleSubWorkTypeRenameEscape() {
       <button
         type="button"
         class="schedule-row-panel__column-resize-handle"
-        aria-label="상위공정 칼럼 너비 조절"
-        title="드래그해서 상위공정 칼럼 너비 조절"
+        aria-label="공종 칼럼 너비 조절"
+        title="드래그해서 공종 칼럼 너비 조절"
         @pointerdown="startWorkTypeColumnResize"
       />
 

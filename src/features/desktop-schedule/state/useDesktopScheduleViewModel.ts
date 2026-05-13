@@ -1,6 +1,10 @@
 import { computed, ref } from "vue";
 
-import { desktopScheduleApi } from "@/features/desktop-schedule/api/desktop-schedule.api";
+import {
+  desktopScheduleApi,
+  findMainScheduleVersion,
+  getPastMainScheduleVersions,
+} from "@/features/desktop-schedule/api/desktop-schedule.api";
 import { createDesktopScheduleSnapshotFromApiData } from "@/features/desktop-schedule/api/desktop-schedule.mapper";
 import type {
   DesktopScheduleApiLoadState,
@@ -105,7 +109,10 @@ type ColorPaletteState = {
 type TimelineCalendarState = {
   startDate: string | null;
   endDate: string | null;
-  dates: Record<string, { isHoliday: boolean; isActivated: boolean }>;
+  dates: Record<
+    string,
+    { isHoliday: boolean; isActivated: boolean; holidayName: string | null }
+  >;
 };
 
 type ScheduleToastState = {
@@ -190,8 +197,8 @@ type ScheduleVersionReviewSummaryCache = {
 };
 
 const DEFAULT_DIVISION_NAME = "분류 (건축공사)";
-const DEFAULT_WORK_TYPE_NAME = "상위 공사명 (철콘공사)";
-const DEFAULT_SUB_WORK_TYPE_NAME = "하위 공사명 (타설)";
+const DEFAULT_WORK_TYPE_NAME = "공종명 (철콘공사)";
+const DEFAULT_SUB_WORK_TYPE_NAME = "세부공종명 (타설)";
 const DEFAULT_ROW_PANEL_WIDTH = 220;
 const DEFAULT_WORK_TYPE_COLUMN_WIDTH = 110;
 const ROW_PANEL_MIN_WIDTH = 180;
@@ -457,6 +464,7 @@ function createTimelineCalendarState(data: DesktopScheduleBootstrapData): Timeli
         {
           isHoliday: date.isHoliday,
           isActivated: date.isActivated,
+          holidayName: date.holidayName,
         },
       ]),
     ),
@@ -523,7 +531,14 @@ function createUniqueReferenceName(baseName: string, existingNames: string[]) {
 function sortScheduleVersionsForWorkflow(
   versions: DesktopScheduleVersionResponse[],
 ): DesktopScheduleVersionResponse[] {
+  const currentMain = findMainScheduleVersion(versions);
   return [...versions].sort((a, b) => {
+    const aIsCurrent = currentMain ? a.id === currentMain.id : false;
+    const bIsCurrent = currentMain ? b.id === currentMain.id : false;
+    if (aIsCurrent !== bIsCurrent) {
+      return aIsCurrent ? -1 : 1;
+    }
+
     if (a.isMain !== b.isMain) {
       return a.isMain ? -1 : 1;
     }
@@ -1201,7 +1216,7 @@ function formatReviewGapDays(gapDays: number) {
 }
 
 function getItemProcessLabel(item: DesktopScheduleItem) {
-  return [item.workType, item.subWorkType].filter(Boolean).join(" / ") || "공정 미지정";
+  return [item.workType, item.subWorkType].filter(Boolean).join(" / ") || "공종 미지정";
 }
 
 function getItemSignature(item: DesktopScheduleItem, mode: "exact" | "lane" | "nameRow") {
@@ -1840,6 +1855,7 @@ function createDesktopScheduleViewModel() {
           : undefined,
       workConnections: workingWorkConnections.value,
       milestones: workingMilestones.value,
+      includeProgressLines: selectedScheduleVersion.value?.isMain === true,
     }),
   );
 
@@ -1865,6 +1881,12 @@ function createDesktopScheduleViewModel() {
   );
   const draftScheduleVersionCount = computed(
     () => scheduleVersions.value.filter((version) => !version.isMain).length,
+  );
+  const currentMainScheduleVersion = computed(
+    () => findMainScheduleVersion(scheduleVersions.value),
+  );
+  const pastMainScheduleVersions = computed(() =>
+    getPastMainScheduleVersions(scheduleVersions.value),
   );
   const isScheduleReadOnly = computed(() => selectedScheduleVersion.value?.isMain === true);
   const scheduleVersionDisplayName = computed(
@@ -1893,8 +1915,7 @@ function createDesktopScheduleViewModel() {
   const canPromoteScheduleVersion = computed(
     () =>
       selectedScheduleVersion.value !== null &&
-      selectedScheduleVersion.value.isMain === false &&
-      scheduleVersions.value.some((version) => version.isMain),
+      selectedScheduleVersion.value.isMain === false,
   );
   const scheduleLoadStatus = computed(() => scheduleLoadState.value.status);
   const scheduleLoadErrorMessage = computed(
@@ -3880,9 +3901,12 @@ function createDesktopScheduleViewModel() {
     }
 
     const isDeletingSelectedVersion = scheduleVersionId === getSelectedScheduleVersionId();
+    const currentMainFallback = findMainScheduleVersion(
+      scheduleVersions.value.filter((version) => version.id !== scheduleVersionId),
+    );
     const fallbackScheduleVersionId =
-      scheduleVersions.value.find((version) => version.isMain && version.id !== scheduleVersionId)
-        ?.id ?? scheduleVersions.value.find((version) => version.id !== scheduleVersionId)?.id;
+      currentMainFallback?.id ??
+      scheduleVersions.value.find((version) => version.id !== scheduleVersionId)?.id;
 
     try {
       await desktopScheduleApi.deleteScheduleVersion(scheduleVersionId);
@@ -4062,7 +4086,7 @@ function createDesktopScheduleViewModel() {
   async function openScheduleVersionReview() {
     const currentData = scheduleLoadState.value.data;
     const draftVersion = selectedScheduleVersion.value;
-    const mainVersion = scheduleVersions.value.find((version) => version.isMain) ?? null;
+    const mainVersion = findMainScheduleVersion(scheduleVersions.value);
 
     if (!currentData || !draftVersion) {
       showScheduleToast("비교할 공정표 데이터를 찾지 못했어요.");
@@ -4152,7 +4176,7 @@ function createDesktopScheduleViewModel() {
   async function requestScheduleVersionPromotion() {
     const currentData = scheduleLoadState.value.data;
     const draftVersion = selectedScheduleVersion.value;
-    const mainVersion = scheduleVersions.value.find((version) => version.isMain) ?? null;
+    const mainVersion = findMainScheduleVersion(scheduleVersions.value);
 
     if (!currentData || !draftVersion) {
       showScheduleToast("반영할 공정표 데이터를 찾지 못했어요.");
@@ -4164,12 +4188,19 @@ function createDesktopScheduleViewModel() {
       return;
     }
 
+    const requestId = (scheduleVersionPromotionRequestId += 1);
+
     if (!mainVersion) {
-      showScheduleToast("기준 공정표가 없어 반영할 수 없어요.");
+      scheduleVersionPromotionState.value = {
+        open: true,
+        status: "idle",
+        baselineVersionName: "",
+        draftVersionName: draftVersion.versionName,
+        summary: null,
+        errorMessage: null,
+      };
       return;
     }
-
-    const requestId = (scheduleVersionPromotionRequestId += 1);
 
     scheduleVersionPromotionState.value = {
       open: true,
@@ -4220,7 +4251,45 @@ function createDesktopScheduleViewModel() {
   }
 
   async function confirmScheduleVersionPromotion() {
-    showScheduleToast("기준 공정표 반영 API가 아직 제공되지 않았어요.");
+    const draftVersion = selectedScheduleVersion.value;
+    const promotionState = scheduleVersionPromotionState.value;
+
+    if (!promotionState.open || promotionState.status === "promoting") return;
+    if (!draftVersion || draftVersion.isMain) {
+      showScheduleToast("작업본에서만 기준 공정표로 반영할 수 있어요.");
+      return;
+    }
+
+    const requestId = (scheduleVersionPromotionRequestId += 1);
+
+    scheduleVersionPromotionState.value = {
+      ...promotionState,
+      status: "promoting",
+      errorMessage: null,
+    };
+
+    try {
+      await desktopScheduleApi.setScheduleMain(draftVersion.id);
+
+      if (requestId !== scheduleVersionPromotionRequestId) return;
+
+      await loadSchedule({ scheduleVersionId: draftVersion.id });
+
+      if (requestId !== scheduleVersionPromotionRequestId) return;
+
+      scheduleVersionPromotionState.value = createClosedScheduleVersionPromotionState();
+      showScheduleToast("기준 공정표로 반영했어요.");
+    } catch (error) {
+      if (requestId !== scheduleVersionPromotionRequestId) return;
+
+      const normalizedError = normalizeError(error);
+      scheduleVersionPromotionState.value = {
+        ...scheduleVersionPromotionState.value,
+        status: "error",
+        errorMessage: normalizedError.message,
+      };
+      showScheduleToast(normalizedError.message || "기준 공정표로 반영하지 못했어요.");
+    }
   }
 
   function getWorkConnectionById(workConnectionId: string) {
@@ -4584,7 +4653,7 @@ function createDesktopScheduleViewModel() {
     }
 
     if (payload.divisionId < 0) {
-      showScheduleToast("분류 저장이 끝난 뒤 상위공정을 추가할 수 있어요.");
+      showScheduleToast("분류 저장이 끝난 뒤 공종을 추가할 수 있어요.");
       return;
     }
 
@@ -4619,7 +4688,7 @@ function createDesktopScheduleViewModel() {
     }
 
     if (targetHierarchyItem.workTypeId < 0) {
-      showScheduleToast("상위 공정명을 먼저 입력해 주세요.");
+      showScheduleToast("공종명을 먼저 입력해 주세요.");
       closeContextMenu();
       return;
     }
@@ -4706,7 +4775,7 @@ function createDesktopScheduleViewModel() {
           });
           replaceReferenceWorkTypeId(payload.workTypeId, workType);
         },
-        "상위 공정을 추가하지 못했습니다.",
+        "공종을 추가하지 못했습니다.",
         {
           rollback: () => restoreWorkingSnapshot(snapshot),
         },
@@ -4725,7 +4794,7 @@ function createDesktopScheduleViewModel() {
           name: nextName,
         });
       },
-      "상위 공정 이름을 변경하지 못했습니다.",
+      "공종 이름을 변경하지 못했습니다.",
       {
         rollback: () => restoreWorkingSnapshot(snapshot),
       },
@@ -4781,7 +4850,7 @@ function createDesktopScheduleViewModel() {
     }
 
     if (targetHierarchyItem.workTypeId < 0) {
-      showScheduleToast("상위 공정명을 먼저 입력해 주세요.");
+      showScheduleToast("공종명을 먼저 입력해 주세요.");
       closeContextMenu();
       return;
     }
@@ -4808,7 +4877,7 @@ function createDesktopScheduleViewModel() {
           });
           replaceReferenceSubWorkTypeId(payload.subWorkTypeId, subWorkType);
         },
-        "하위 공정을 추가하지 못했습니다.",
+        "세부공종을 추가하지 못했습니다.",
         {
           rollback: () => restoreWorkingSnapshot(snapshot),
         },
@@ -4827,7 +4896,7 @@ function createDesktopScheduleViewModel() {
           name: nextName,
         });
       },
-      "하위 공정 이름을 변경하지 못했습니다.",
+      "세부공종 이름을 변경하지 못했습니다.",
       {
         rollback: () => restoreWorkingSnapshot(snapshot),
       },
@@ -4903,7 +4972,7 @@ function createDesktopScheduleViewModel() {
           ids: payload.workTypeIds,
         });
       },
-      "상위 공정 순서를 변경하지 못했습니다.",
+      "공종 순서를 변경하지 못했습니다.",
       {
         rollback: () => restoreWorkingSnapshot(snapshot),
       },
@@ -5275,7 +5344,7 @@ function createDesktopScheduleViewModel() {
               color: colorHex,
             });
           },
-          "하위 공정 색상을 저장하지 못했습니다.",
+          "세부공종 색상을 저장하지 못했습니다.",
           {
             rollback: () => restoreWorkingSnapshot(snapshot),
           },
@@ -5315,7 +5384,7 @@ function createDesktopScheduleViewModel() {
 
     if (!scheduleVersionId || !subWorkTypeId) {
       handleMutationError(
-        new Error("작업을 생성할 공정표 버전 또는 하위 공정 정보가 없습니다."),
+        new Error("작업을 생성할 공정표 버전 또는 세부공종 정보가 없습니다."),
         "작업을 생성하지 못했습니다.",
       );
       closeContextMenu();
@@ -5569,14 +5638,14 @@ function createDesktopScheduleViewModel() {
           : target.kind === "division-header"
               ? {
                 id: "create-work-type-reference",
-                label: "상위 공정 생성",
+                label: "공종 생성",
                 command: "create-work-type-reference" as const,
                 icon: "plus" as const,
               }
             : target.kind === "work-type-header"
               ? {
                 id: "create-sub-work-type-reference",
-                label: "하위 공정 생성",
+                label: "세부공종 생성",
                 command: "create-sub-work-type-reference" as const,
                 icon: "plus" as const,
               }
@@ -5918,7 +5987,7 @@ function createDesktopScheduleViewModel() {
       }
 
       if (targetRow.kind === "parent-process" && command === "change-properties") {
-        const nextName = promptForName("상위 공정명을 입력하세요.", targetRow.name);
+        const nextName = promptForName("공종명을 입력하세요.", targetRow.name);
         if (nextName) {
           const snapshot = captureWorkingSnapshot();
           workingRows.value = desktopScheduleService.updateRowName(
@@ -6727,6 +6796,52 @@ function createDesktopScheduleViewModel() {
     setDayWidth(DESKTOP_SCHEDULE_TIMELINE_ZOOM_LEVELS[currentZoomIndex.value - 1]!, viewportWidth);
   }
 
+  function triggerBlobDownload(blob: Blob, filename: string) {
+    if (typeof window === "undefined" || typeof document === "undefined") {
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(objectUrl);
+  }
+
+  async function exportScheduleAsExcel(range: "3week" | "3month") {
+    const scheduleVersionId = selectedScheduleVersionId.value;
+    if (!scheduleVersionId) {
+      showScheduleToast("공정표 버전이 선택되지 않았어요.");
+      return;
+    }
+
+    try {
+      const { blob, filename } =
+        range === "3week"
+          ? await desktopScheduleApi.export3WeekSchedule({
+              scheduleVersionId,
+              excludedSubWorkTypeIds: [],
+            })
+          : await desktopScheduleApi.export3MonthSchedule({
+              scheduleVersionId,
+              excludedSubWorkTypeIds: [],
+            });
+      const fallbackName = range === "3week" ? "3주공정표.xlsx" : "3개월공정표.xlsx";
+      triggerBlobDownload(blob, filename || fallbackName);
+    } catch (error) {
+      showScheduleToast(
+        error instanceof Error ? error.message : "엑셀을 생성하지 못했어요.",
+      );
+    }
+  }
+
+  function importScheduleStub() {
+    showScheduleToast("공정표 불러오기는 준비 중이에요.");
+  }
+
   return {
     scheduleMeta,
     isScheduleReadOnly,
@@ -6833,6 +6948,9 @@ function createDesktopScheduleViewModel() {
     requestScheduleVersionPromotion,
     confirmScheduleVersionPromotion,
     closeScheduleVersionPromotionDialog,
+    exportScheduleAsExcel,
+    importScheduleStub,
+    pastMainScheduleVersions,
   };
 }
 

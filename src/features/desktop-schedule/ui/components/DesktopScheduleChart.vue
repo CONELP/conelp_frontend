@@ -12,7 +12,7 @@
       class="schedule-chart__day"
       :class="{
         'schedule-chart__day--today': day.isToday,
-        'schedule-chart__day--weekend': day.isWeekend,
+        'schedule-chart__day--holiday': day.isHoliday,
       }"
       :style="{
         left: `${day.left}px`,

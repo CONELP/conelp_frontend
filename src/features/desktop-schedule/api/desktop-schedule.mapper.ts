@@ -45,8 +45,8 @@ function mapWorkToSourceTask(
 ): DesktopScheduleSourceTask {
   const hierarchyItem = hierarchyBySubWorkTypeId.get(work.subWorkTypeId);
   const division = work.division || "미분류";
-  const workType = work.workType || "미분류 공정";
-  const subWorkType = work.subWorkType || "세부공정 미분류";
+  const workType = work.workType || "미분류 공종";
+  const subWorkType = work.subWorkType || "세부공종 미분류";
 
   return {
     workId: work.workId,
@@ -66,6 +66,7 @@ function mapWorkToSourceTask(
     zoneIds: [],
     floorIds: [],
     componentTypeIds: [],
+    progress: work.progress ?? null,
   };
 }
 

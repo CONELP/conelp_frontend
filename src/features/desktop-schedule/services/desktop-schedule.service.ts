@@ -6,6 +6,7 @@ import type {
   DesktopScheduleItem,
   DesktopScheduleMilestone,
   DesktopScheduleMilestoneLayout,
+  DesktopScheduleProgressLineLayout,
   DesktopScheduleRow,
   DesktopScheduleShellLayout,
   DesktopScheduleShellRow,
@@ -56,7 +57,9 @@ interface TimelineOptions {
   paddingAfterDays?: number;
   startDate?: string;
   endDate?: string;
-  calendarDates?: Readonly<Record<string, { isHoliday?: boolean; isActivated?: boolean }>>;
+  calendarDates?: Readonly<
+    Record<string, { isHoliday?: boolean; isActivated?: boolean; holidayName?: string | null }>
+  >;
 }
 
 interface ShellLayoutOptions {
@@ -68,6 +71,7 @@ interface ShellLayoutOptions {
   criticalPaths?: DesktopScheduleCriticalPath[];
   milestones?: DesktopScheduleMilestone[];
   showCriticalPaths?: boolean;
+  includeProgressLines?: boolean;
 }
 
 interface RowBarDraft {
@@ -687,7 +691,7 @@ function buildRows(tasks: DesktopScheduleSourceTask[], sourceRows: DesktopSchedu
       return;
     }
 
-    const workType = sourceRow.workType || "미분류 공정";
+    const workType = sourceRow.workType || "미분류 공종";
 
     if (sourceRow.subWorkTypeId === 0) {
       upsertWorkTypeDraft(workTypeDrafts, {
@@ -707,7 +711,7 @@ function buildRows(tasks: DesktopScheduleSourceTask[], sourceRows: DesktopSchedu
       division,
       workTypeId: sourceRow.workTypeId,
       workType,
-      subWorkType: sourceRow.subWorkType || "세부공정 미분류",
+      subWorkType: sourceRow.subWorkType || "세부공종 미분류",
       subWorkTypeId: sourceRow.subWorkTypeId,
       colorHex: sourceRow.colorHex ?? null,
       minPositionY: index,
@@ -716,8 +720,8 @@ function buildRows(tasks: DesktopScheduleSourceTask[], sourceRows: DesktopSchedu
 
   tasks.forEach((task) => {
     const division = task.division || "미분류";
-    const workType = task.workType || "미분류 공정";
-    const subWorkType = task.subWorkType || "세부공정 미분류";
+    const workType = task.workType || "미분류 공종";
+    const subWorkType = task.subWorkType || "세부공종 미분류";
 
     upsertChildDraft(childDrafts, {
       name: subWorkType,
@@ -830,9 +834,9 @@ function buildItems(tasks: DesktopScheduleSourceTask[]): DesktopScheduleItem[] {
     workId: task.workId,
     rowId: makeChildRowId(
       task.division || "미분류",
-      task.workType || "미분류 공정",
+      task.workType || "미분류 공종",
       task.subWorkTypeId,
-      task.subWorkType || "세부공정 미분류",
+      task.subWorkType || "세부공종 미분류",
     ),
     name: task.name,
     colorHex: null,
@@ -850,6 +854,7 @@ function buildItems(tasks: DesktopScheduleSourceTask[]): DesktopScheduleItem[] {
     zoneIds: task.zoneIds ? [...task.zoneIds] : [],
     floorIds: task.floorIds ? [...task.floorIds] : [],
     componentTypeIds: task.componentTypeIds ? [...task.componentTypeIds] : [],
+    progress: task.progress ?? null,
   }));
 }
 
@@ -983,7 +988,8 @@ function buildTimeline(
     const isoWeek = getIsoWeekInfo(date);
     const weekLabel = `W${String(isoWeek.weekNumber).padStart(2, "0")}`;
     const calendarDate = options.calendarDates?.[dateString];
-    const isCalendarOffDay = !!calendarDate?.isHoliday || calendarDate?.isActivated === false;
+    const isHoliday = !!calendarDate?.isHoliday;
+    const holidayName = calendarDate?.holidayName ?? null;
 
     return {
       key: dateString,
@@ -998,7 +1004,8 @@ function buildTimeline(
       left: index * dayWidth,
       width: dayWidth,
       isToday: dateString === todayString,
-      isWeekend: isCalendarOffDay || dayOfWeek === 0 || dayOfWeek === 6,
+      isHoliday,
+      holidayName,
     };
   });
 
@@ -1347,6 +1354,17 @@ function buildShellLayout(
     }));
   });
 
+  const progressLines = options.includeProgressLines
+    ? buildProgressLines(
+        visibleRows,
+        itemsByRow,
+        timeline,
+        rowTopById,
+        rowHeightById,
+        rowHeight,
+      )
+    : [];
+
   return {
     rows: [milestoneRow, ...processRows],
     bars: itemBars,
@@ -1356,9 +1374,89 @@ function buildShellLayout(
       workConnections,
       criticalPaths,
     ),
+    progressLines,
     chartHeight: accumulatedTop,
     rowHeight,
   };
+}
+
+function buildProgressLines(
+  visibleRows: DesktopScheduleRow[],
+  itemsByRow: Map<string, DesktopScheduleItem[]>,
+  timeline: DesktopScheduleTimelineLayout,
+  rowTopById: Map<string, number>,
+  rowHeightById: Map<string, number>,
+  defaultRowHeight: number,
+): DesktopScheduleProgressLineLayout[] {
+  const todayCell = timeline.days.find((day) => day.isToday);
+
+  if (!todayCell) {
+    return [];
+  }
+
+  const dayByDate = new Map(timeline.days.map((day) => [day.date, day] as const));
+  const todayCenter = todayCell.left + todayCell.width / 2;
+  const lines: DesktopScheduleProgressLineLayout[] = [];
+
+  visibleRows.forEach((row) => {
+    if (row.kind !== "child-process") {
+      return;
+    }
+
+    const rowTop = rowTopById.get(row.id);
+    if (rowTop === undefined) {
+      return;
+    }
+
+    const rowItems = itemsByRow.get(row.id) ?? [];
+    const eligible = rowItems.filter(
+      (item) => typeof item.progress === "number" && (item.progress ?? 0) > 0,
+    );
+
+    if (eligible.length === 0) {
+      return;
+    }
+
+    const latest = eligible.reduce((best, candidate) => {
+      const compareDate = candidate.startDate.localeCompare(best.startDate);
+      if (compareDate > 0) {
+        return candidate;
+      }
+      if (compareDate < 0) {
+        return best;
+      }
+      return candidate.workId > best.workId ? candidate : best;
+    });
+
+    const progressDate = shiftDateString(latest.startDate, (latest.progress ?? 1) - 1);
+    const progressCell = dayByDate.get(progressDate);
+
+    if (!progressCell) {
+      return;
+    }
+
+    const progressCenter = progressCell.left + progressCell.width / 2;
+
+    if (progressCenter === todayCenter) {
+      return;
+    }
+
+    const status: "ahead" | "behind" = progressCenter < todayCenter ? "behind" : "ahead";
+    const rowHeightValue = rowHeightById.get(row.id) ?? defaultRowHeight;
+
+    lines.push({
+      id: `progress-line:${row.id}:${latest.workId}`,
+      rowId: row.id,
+      workId: latest.workId,
+      status,
+      top: rowTop + rowHeightValue / 2,
+      leftStart: Math.min(progressCenter, todayCenter),
+      leftEnd: Math.max(progressCenter, todayCenter),
+      progressDate,
+    });
+  });
+
+  return lines;
 }
 
 function toggleRowCollapse(rows: DesktopScheduleRow[], rowId: string) {
@@ -1428,7 +1526,7 @@ function addParentRow(rows: DesktopScheduleRow[]) {
       id: createLocalRowId("parent"),
       kind: "parent-process",
       parentId: null,
-      name: `새 상위 공정 ${nextParentIndex}`,
+      name: `새 공종 ${nextParentIndex}`,
       colorHex: null,
       summaryStartDate: null,
       summaryEndDate: null,
@@ -1460,7 +1558,7 @@ function addChildRow(rows: DesktopScheduleRow[], parentRowId: string) {
     id: createLocalRowId("child"),
     kind: "child-process",
     parentId: parentRowId,
-    name: `새 하위 공정 ${nextChildIndex}`,
+    name: `새 세부공종 ${nextChildIndex}`,
     colorHex: null,
     summaryStartDate: null,
     summaryEndDate: null,

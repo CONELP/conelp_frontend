@@ -193,6 +193,15 @@
   background: rgba(30, 24, 136, 0.05);
 }
 
+.upload-typeahead__option--highlighted,
+.upload-typeahead__option--highlighted:hover,
+.upload-typeahead__option--highlighted:focus-visible {
+  background: rgba(30, 24, 136, 0.1);
+  color: var(--primary, #1e1888);
+  outline: 2px solid var(--primary, #1e1888);
+  outline-offset: -2px;
+}
+
 .upload-typeahead__state {
   padding: 0.68rem 0.72rem;
   color: var(--ink-faint);

@@ -205,6 +205,7 @@ export function useConversionLoadingDemoViewModel() {
 
   function toCreateMirDocumentRequest(
     result: MirAnalysisResponse,
+    active: boolean,
   ): CreateMirDocumentRequest {
     return {
       application: result.application,
@@ -221,14 +222,16 @@ export function useConversionLoadingDemoViewModel() {
         type: photo.type,
         description: photo.description,
       })),
+      active,
     };
   }
 
   function toCreateCatDocumentRequest(
     result: CatAnalysisResponse,
+    active: boolean,
   ): CreateCatDocumentRequest {
     return {
-      ...toCreateMirDocumentRequest(result),
+      ...toCreateMirDocumentRequest(result, active),
       batches: result.batches.map((batch) => ({
         batch: String(batch.batch),
         lineData: {
@@ -395,7 +398,7 @@ export function useConversionLoadingDemoViewModel() {
         }
 
         store.saveMirAnalysisResult(updateResult);
-        createRequest = toCreateMirDocumentRequest(updateResult);
+        createRequest = toCreateMirDocumentRequest(updateResult, draft.active);
       }
 
       if (!createRequest) {
@@ -461,7 +464,7 @@ export function useConversionLoadingDemoViewModel() {
         }
 
         store.saveCatAnalysisResult(updateResult);
-        createRequest = toCreateCatDocumentRequest(updateResult);
+        createRequest = toCreateCatDocumentRequest(updateResult, draft.active);
       }
 
       if (!createRequest) {

@@ -1,6 +1,6 @@
 <template>
   <main class="dashboard-page">
-    <DesktopAppHeader :site-label="dashboard.siteChipLabel" />
+    <DesktopAppHeader />
 
     <div class="dashboard-shell dashboard-body">
       <section class="dashboard-row dashboard-row--status">

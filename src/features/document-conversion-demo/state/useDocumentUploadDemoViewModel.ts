@@ -112,6 +112,7 @@ export function useDocumentUploadDemoViewModel() {
   const isWorkTypeSuggestionsLoading = ref(false);
   const workTypeSuggestionsErrorMessage = ref("");
   const isWorkTypeSuggestionListOpen = ref(false);
+  const workTypeHighlightedIndex = ref(-1);
   let guideInspectionTimer: ReturnType<typeof setTimeout> | null = null;
   let workTypeSuggestionCloseTimer: ReturnType<typeof setTimeout> | null = null;
   let workTypeSuggestionRequestId = 0;
@@ -281,6 +282,7 @@ export function useDocumentUploadDemoViewModel() {
     workTypeSuggestionsErrorMessage.value = "";
     isWorkTypeSuggestionsLoading.value = false;
     isWorkTypeSuggestionListOpen.value = false;
+    workTypeHighlightedIndex.value = -1;
   }
 
   async function loadWorkTypeSuggestions(workTypeName: string) {
@@ -305,12 +307,14 @@ export function useDocumentUploadDemoViewModel() {
       }
 
       workTypeSuggestions.value = suggestions;
+      workTypeHighlightedIndex.value = suggestions.length > 0 ? 0 : -1;
     } catch (error) {
       if (requestId !== workTypeSuggestionRequestId) {
         return;
       }
 
       workTypeSuggestions.value = [];
+      workTypeHighlightedIndex.value = -1;
       workTypeSuggestionsErrorMessage.value =
         error instanceof Error
           ? error.message
@@ -360,6 +364,59 @@ export function useDocumentUploadDemoViewModel() {
     workTypeSuggestions.value = [];
     workTypeSuggestionsErrorMessage.value = "";
     isWorkTypeSuggestionListOpen.value = false;
+    workTypeHighlightedIndex.value = -1;
+  }
+
+  function setWorkTypeHighlightedIndex(index: number) {
+    const total = workTypeSuggestions.value.length;
+    if (total === 0) {
+      workTypeHighlightedIndex.value = -1;
+      return;
+    }
+    workTypeHighlightedIndex.value = Math.max(-1, Math.min(index, total - 1));
+  }
+
+  function handleWorkTypeKeydown(event: KeyboardEvent) {
+    const total = workTypeSuggestions.value.length;
+
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      clearWorkTypeSuggestionCloseTimer();
+      if (mirUploadWorkTypeName.value.trim()) {
+        isWorkTypeSuggestionListOpen.value = true;
+      }
+      if (total === 0) return;
+
+      const offset = event.key === "ArrowDown" ? 1 : -1;
+      const baseIndex =
+        workTypeHighlightedIndex.value >= 0
+          ? workTypeHighlightedIndex.value
+          : event.key === "ArrowDown"
+            ? -1
+            : 0;
+      workTypeHighlightedIndex.value = (baseIndex + offset + total) % total;
+      return;
+    }
+
+    if (event.key === "Enter" && !event.isComposing) {
+      if (!isWorkTypeSuggestionListOpen.value || total === 0) return;
+      event.preventDefault();
+      const index =
+        workTypeHighlightedIndex.value >= 0 && workTypeHighlightedIndex.value < total
+          ? workTypeHighlightedIndex.value
+          : 0;
+      const suggestion = workTypeSuggestions.value[index];
+      if (suggestion) {
+        selectWorkTypeSuggestion(suggestion);
+      }
+      return;
+    }
+
+    if (event.key === "Escape" && isWorkTypeSuggestionListOpen.value) {
+      event.preventDefault();
+      isWorkTypeSuggestionListOpen.value = false;
+      workTypeHighlightedIndex.value = -1;
+    }
   }
 
   function updateMirUploadWorkTypeName(value: string) {
@@ -449,6 +506,7 @@ export function useDocumentUploadDemoViewModel() {
     isWorkTypeSuggestionsLoading,
     workTypeSuggestionsErrorMessage,
     isWorkTypeSuggestionListOpen,
+    workTypeHighlightedIndex,
     needsOcrValidation,
     selectedPreset,
     requiresUpload,
@@ -473,5 +531,7 @@ export function useDocumentUploadDemoViewModel() {
     openWorkTypeSuggestionList,
     scheduleCloseWorkTypeSuggestionList,
     selectWorkTypeSuggestion,
+    setWorkTypeHighlightedIndex,
+    handleWorkTypeKeydown,
   };
 }

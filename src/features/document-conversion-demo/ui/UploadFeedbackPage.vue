@@ -429,6 +429,46 @@
         </footer>
       </template>
     </main>
+
+    <Teleport to="body">
+      <div
+        v-if="isMaterialActiveConfirmOpen"
+        class="material-active-confirm__backdrop"
+        role="presentation"
+        @click.self="handleCancelMaterialActive"
+      >
+        <section
+          class="material-active-confirm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="material-active-confirm-title"
+        >
+          <header class="material-active-confirm__header">
+            <h2 id="material-active-confirm-title">반입자재도 함께 만들까요?</h2>
+            <p>
+              "예" 를 선택하면 이번 입고 데이터가 전체 반입자재에 산입됩니다.<br />
+              "아니오" 를 선택하면 산입에서 제외됩니다.
+            </p>
+          </header>
+          <footer class="material-active-confirm__footer">
+            <button
+              type="button"
+              class="material-active-confirm__button material-active-confirm__button--secondary"
+              @click="handleMaterialActiveChoice(false)"
+            >
+              아니오
+            </button>
+            <button
+              type="button"
+              class="material-active-confirm__button material-active-confirm__button--primary"
+              @click="handleMaterialActiveChoice(true)"
+            >
+              예
+            </button>
+          </footer>
+        </section>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -770,6 +810,7 @@ function hasCatReviewChanges(
 
 function toCreateMirDocumentRequest(
   result: MirAnalysisResponse,
+  active: boolean,
 ): CreateMirDocumentRequest {
   return {
     application: result.application,
@@ -786,14 +827,16 @@ function toCreateMirDocumentRequest(
       type: photo.type,
       description: photo.description,
     })),
+    active,
   };
 }
 
 function toCreateCatDocumentRequest(
   result: CatAnalysisResponse,
+  active: boolean,
 ): CreateCatDocumentRequest {
   return {
-    ...toCreateMirDocumentRequest(result),
+    ...toCreateMirDocumentRequest(result, active),
     batches: result.batches.map((batch) => ({
       batch: String(batch.batch),
       lineData: {
@@ -877,14 +920,11 @@ function validateMirReviewRows(rows: MaterialReviewRow[]) {
   }
 
   const hasInvalidLine = rows.some(
-    (row) =>
-      !row.manufacturer.trim() ||
-      !row.materialTypeName.trim() ||
-      !row.materialSpecName.trim(),
+    (row) => !row.materialTypeName.trim() || !row.materialSpecName.trim(),
   );
 
   if (hasInvalidLine) {
-    return "제조사, 자재 종류, 규격을 모두 입력해 주세요.";
+    return "자재 종류, 규격을 모두 입력해 주세요.";
   }
 
   return "";
@@ -1023,7 +1063,7 @@ function handleNextValidationImage() {
     (currentValidationIndex.value + 1) % ocrValidationItems.value.length;
 }
 
-function handleCreateMirDocumentDraft() {
+function handleCreateMirDocumentDraft(active: boolean) {
   const analysisResult = documentStore.mirAnalysisResult;
 
   if (!analysisResult || isSubmittingDocument.value) {
@@ -1044,10 +1084,12 @@ function handleCreateMirDocumentDraft() {
       ? {
           updateRequest: toUpdateMirDataRequest(analysisResult, finalRows),
           createRequest: null,
+          active,
         }
       : {
           updateRequest: null,
-          createRequest: toCreateMirDocumentRequest(analysisResult),
+          createRequest: toCreateMirDocumentRequest(analysisResult, active),
+          active,
         },
   );
   void router.push({
@@ -1056,7 +1098,7 @@ function handleCreateMirDocumentDraft() {
   });
 }
 
-function handleCreateCatDocumentDraft() {
+function handleCreateCatDocumentDraft(active: boolean) {
   const analysisResult = documentStore.catAnalysisResult;
 
   if (!analysisResult || isSubmittingDocument.value) {
@@ -1088,10 +1130,12 @@ function handleCreateCatDocumentDraft() {
             catBatchRows.value,
           ),
           createRequest: null,
+          active,
         }
       : {
           updateRequest: null,
-          createRequest: toCreateCatDocumentRequest(analysisResult),
+          createRequest: toCreateCatDocumentRequest(analysisResult, active),
+          active,
         },
   );
   void router.push({
@@ -1100,13 +1144,41 @@ function handleCreateCatDocumentDraft() {
   });
 }
 
+const isMaterialActiveConfirmOpen = ref(false);
+
 function handleCreateDocument() {
-  if (isConcreteDeliveryReview.value) {
-    handleCreateCatDocumentDraft();
+  if (isSubmittingDocument.value) return;
+
+  const finalRows = materialRows.value.filter(hasLineValue);
+  const rowValidationMessage = validateMirReviewRows(finalRows);
+  if (rowValidationMessage) {
+    submitErrorMessage.value = rowValidationMessage;
     return;
   }
 
-  handleCreateMirDocumentDraft();
+  if (isConcreteDeliveryReview.value) {
+    const batchValidationMessage = validateCatBatchRows(catBatchRows.value);
+    if (batchValidationMessage) {
+      submitErrorMessage.value = batchValidationMessage;
+      return;
+    }
+  }
+
+  submitErrorMessage.value = "";
+  isMaterialActiveConfirmOpen.value = true;
+}
+
+function handleMaterialActiveChoice(active: boolean) {
+  isMaterialActiveConfirmOpen.value = false;
+  if (isConcreteDeliveryReview.value) {
+    handleCreateCatDocumentDraft(active);
+  } else {
+    handleCreateMirDocumentDraft(active);
+  }
+}
+
+function handleCancelMaterialActive() {
+  isMaterialActiveConfirmOpen.value = false;
 }
 
 function handleAddMaterialRow() {

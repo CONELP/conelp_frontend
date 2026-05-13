@@ -41,6 +41,13 @@ type ScheduleVersionOption = {
   id: number;
   versionName: string;
   isMain: boolean;
+  setMainAt?: string | null;
+};
+
+type PastMainScheduleVersionOption = {
+  id: number;
+  versionName: string;
+  setMainAt?: string | null;
 };
 
 const props = defineProps<{
@@ -49,6 +56,7 @@ const props = defineProps<{
   readOnly: boolean;
   referenceOnly?: boolean;
   scheduleVersions: ScheduleVersionOption[];
+  pastMainScheduleVersions?: PastMainScheduleVersionOption[];
   selectedScheduleVersionId: number | null;
   versionName: string;
   versionModeLabel: string;
@@ -153,6 +161,8 @@ const emit = defineEmits<{
   redo: [];
   "select-schedule-version": [scheduleVersionId: number];
   "create-draft-version": [versionName: string];
+  "import-schedule": [];
+  "export-schedule-excel": [range: "3week" | "3month"];
   "rename-schedule-version": [payload: { scheduleVersionId: number; versionName: string }];
   "delete-schedule-version": [scheduleVersionId: number];
   "open-schedule-version-review": [];
@@ -184,6 +194,14 @@ const draftRailDragState = ref<{
   hasMoved: boolean;
 } | null>(null);
 const shouldSuppressNextDraftClick = ref(false);
+const exportMenuRootRef = ref<HTMLElement | null>(null);
+const exportMenuRef = ref<HTMLElement | null>(null);
+const isExportMenuOpen = ref(false);
+const exportMenuPosition = ref({ x: 0, y: 0 });
+const pastMainMenuRootRef = ref<HTMLElement | null>(null);
+const pastMainMenuRef = ref<HTMLElement | null>(null);
+const isPastMainMenuOpen = ref(false);
+const pastMainMenuPosition = ref({ x: 0, y: 0 });
 
 const shellHeight = computed(() => Math.max(props.viewportHeight ?? 640, 320));
 const scaledShellHeaderHeight = computed(() =>
@@ -218,12 +236,24 @@ const zoomSliderProgress = computed(() =>
 const leftHeaderVersionLabel = computed(() =>
   props.readOnly ? props.versionModeLabel : props.versionName,
 );
-const mainScheduleVersion = computed(() =>
-  props.scheduleVersions.find((version) => version.isMain) ?? null,
-);
+const mainScheduleVersion = computed<ScheduleVersionOption | null>(() => {
+  const mains = props.scheduleVersions.filter((version) => version.isMain);
+  if (mains.length === 0) return null;
+  return mains.reduce((latest, candidate) => {
+    const latestAt = latest.setMainAt ?? "";
+    const candidateAt = candidate.setMainAt ?? "";
+    return candidateAt > latestAt ? candidate : latest;
+  });
+});
 const showWorkflowControls = computed(() => !props.referenceOnly);
 const draftScheduleVersions = computed(() =>
   props.scheduleVersions.filter((version) => !version.isMain),
+);
+const safePastMainScheduleVersions = computed<PastMainScheduleVersionOption[]>(
+  () => props.pastMainScheduleVersions ?? [],
+);
+const hasPastMainScheduleVersions = computed(
+  () => safePastMainScheduleVersions.value.length > 0,
 );
 const isMainScheduleVersionSelected = computed(
   () =>
@@ -250,7 +280,7 @@ const promotionConfirmDisabled = computed(
   () =>
     props.scheduleVersionPromotion.status === "preparing" ||
     props.scheduleVersionPromotion.status === "promoting" ||
-    !props.scheduleVersionPromotion.summary,
+    props.scheduleVersionPromotion.status === "error",
 );
 const promotionConfirmLabel = computed(() =>
   props.scheduleVersionPromotion.status === "promoting" ? "반영 중" : "기준 공정표로 반영",
@@ -317,8 +347,27 @@ function closeScheduleVersionPromotionDialog() {
 function handleDocumentPointerDown(event: PointerEvent) {
   const target = event.target;
 
+  if (!(target instanceof Node)) {
+    return;
+  }
+
   if (
-    !(target instanceof Node) ||
+    isExportMenuOpen.value &&
+    !exportMenuRootRef.value?.contains(target) &&
+    !exportMenuRef.value?.contains(target)
+  ) {
+    isExportMenuOpen.value = false;
+  }
+
+  if (
+    isPastMainMenuOpen.value &&
+    !pastMainMenuRootRef.value?.contains(target) &&
+    !pastMainMenuRef.value?.contains(target)
+  ) {
+    isPastMainMenuOpen.value = false;
+  }
+
+  if (
     versionMenuRootRef.value?.contains(target) ||
     versionActionMenuRef.value?.contains(target)
   ) {
@@ -335,6 +384,16 @@ function handleDocumentPointerDown(event: PointerEvent) {
 
 function handleDocumentKeyDown(event: KeyboardEvent) {
   if (event.key === "Escape") {
+    if (isExportMenuOpen.value) {
+      isExportMenuOpen.value = false;
+      return;
+    }
+
+    if (isPastMainMenuOpen.value) {
+      isPastMainMenuOpen.value = false;
+      return;
+    }
+
     if (props.scheduleVersionPromotion.open) {
       closeScheduleVersionPromotionDialog();
       return;
@@ -342,6 +401,82 @@ function handleDocumentKeyDown(event: KeyboardEvent) {
 
     closeVersionOverlays();
   }
+}
+
+function openPastMainMenu(trigger: HTMLElement) {
+  const rect = trigger.getBoundingClientRect();
+  pastMainMenuPosition.value = {
+    x: rect.left,
+    y: rect.bottom + 4,
+  };
+  isPastMainMenuOpen.value = true;
+}
+
+function handleMainScheduleChipClick(event: MouseEvent) {
+  if (!mainScheduleVersion.value) {
+    return;
+  }
+
+  if (!hasPastMainScheduleVersions.value) {
+    selectScheduleVersion(mainScheduleVersion.value);
+    return;
+  }
+
+  if (isPastMainMenuOpen.value) {
+    isPastMainMenuOpen.value = false;
+    return;
+  }
+
+  const trigger = event.currentTarget;
+  if (trigger instanceof HTMLElement) {
+    openPastMainMenu(trigger);
+  }
+}
+
+function selectMainHistoryVersion(version: { id: number }) {
+  isPastMainMenuOpen.value = false;
+  if (version.id !== props.selectedScheduleVersionId) {
+    emit("select-schedule-version", version.id);
+  }
+}
+
+function formatPastMainTimestamp(value: string | null | undefined) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function toggleExportMenu(event: MouseEvent) {
+  if (isExportMenuOpen.value) {
+    isExportMenuOpen.value = false;
+    return;
+  }
+
+  const trigger = event.currentTarget;
+  if (!(trigger instanceof HTMLElement)) {
+    return;
+  }
+
+  const rect = trigger.getBoundingClientRect();
+  exportMenuPosition.value = {
+    x: rect.left,
+    y: rect.bottom + 4,
+  };
+  isExportMenuOpen.value = true;
+}
+
+function selectExportRange(range: "3week" | "3month") {
+  isExportMenuOpen.value = false;
+  emit("export-schedule-excel", range);
+}
+
+function emitImportSchedule() {
+  emit("import-schedule");
 }
 
 function selectScheduleVersion(version: ScheduleVersionOption) {
@@ -708,19 +843,91 @@ onUnmounted(() => {
 
     <div class="schedule-shell__toolbar" aria-label="공정표 도구">
       <div ref="versionMenuRootRef" class="schedule-shell__version">
-        <button
+        <div
           v-if="mainScheduleVersion"
-          type="button"
-          class="schedule-shell__version-chip"
-          :class="{
-            'schedule-shell__version-chip--readonly': readOnly,
-            'schedule-shell__version-chip--selected': isMainScheduleVersionSelected,
-          }"
-          aria-label="기준 공정표 선택"
-          @click="selectScheduleVersion(mainScheduleVersion)"
+          ref="pastMainMenuRootRef"
+          class="schedule-shell__main-version-root"
         >
-          <span class="schedule-shell__version-mode">기준 공정표</span>
-        </button>
+          <button
+            type="button"
+            class="schedule-shell__version-chip"
+            :class="{
+              'schedule-shell__version-chip--readonly': readOnly,
+              'schedule-shell__version-chip--selected': isMainScheduleVersionSelected,
+            }"
+            :aria-haspopup="hasPastMainScheduleVersions ? 'menu' : undefined"
+            :aria-expanded="
+              hasPastMainScheduleVersions ? isPastMainMenuOpen : undefined
+            "
+            aria-label="기준 공정표 선택"
+            @click="handleMainScheduleChipClick"
+          >
+            <span class="schedule-shell__version-mode">기준 공정표</span>
+            <span
+              v-if="hasPastMainScheduleVersions"
+              class="schedule-shell__version-caret"
+              aria-hidden="true"
+            >▾</span>
+          </button>
+
+          <Teleport to="body">
+            <div
+              v-if="isPastMainMenuOpen"
+              ref="pastMainMenuRef"
+              class="schedule-context-menu schedule-shell__past-main-menu"
+              :style="{
+                left: `${pastMainMenuPosition.x}px`,
+                top: `${pastMainMenuPosition.y}px`,
+              }"
+              role="menu"
+            >
+              <p class="schedule-shell__past-main-menu-heading">기준 공정표 이력</p>
+              <button
+                type="button"
+                class="schedule-context-menu__item"
+                :class="{
+                  'schedule-context-menu__item--active':
+                    mainScheduleVersion?.id === selectedScheduleVersionId,
+                }"
+                role="menuitem"
+                @click="selectMainHistoryVersion(mainScheduleVersion!)"
+              >
+                <span class="schedule-shell__past-main-name">
+                  {{ mainScheduleVersion?.versionName }}
+                  <span class="schedule-shell__past-main-current-badge">현재</span>
+                </span>
+                <span
+                  v-if="formatPastMainTimestamp(mainScheduleVersion?.setMainAt)"
+                  class="schedule-shell__past-main-date"
+                >
+                  {{ formatPastMainTimestamp(mainScheduleVersion?.setMainAt) }}
+                </span>
+              </button>
+              <button
+                v-for="pastMain in safePastMainScheduleVersions"
+                :key="pastMain.id"
+                type="button"
+                class="schedule-context-menu__item"
+                :class="{
+                  'schedule-context-menu__item--active':
+                    pastMain.id === selectedScheduleVersionId,
+                }"
+                role="menuitem"
+                @click="selectMainHistoryVersion(pastMain)"
+              >
+                <span class="schedule-shell__past-main-name">
+                  {{ pastMain.versionName }}
+                </span>
+                <span
+                  v-if="formatPastMainTimestamp(pastMain.setMainAt)"
+                  class="schedule-shell__past-main-date"
+                >
+                  {{ formatPastMainTimestamp(pastMain.setMainAt) }}
+                </span>
+              </button>
+            </div>
+          </Teleport>
+        </div>
 
         <span
           v-if="mainScheduleVersion && showWorkflowControls"
@@ -783,18 +990,16 @@ onUnmounted(() => {
               </span>
             </div>
 
+            <button
+              type="button"
+              class="schedule-shell__draft-button"
+              :disabled="!canCreateDraftVersion"
+              @click="createDraftVersionWithDefaultName"
+            >
+              + 작업본 만들기
+            </button>
           </div>
         </div>
-
-        <button
-          v-if="showWorkflowControls"
-          type="button"
-          class="schedule-shell__draft-button"
-          :disabled="!canCreateDraftVersion"
-          @click="createDraftVersionWithDefaultName"
-        >
-          + 작업본 만들기
-        </button>
 
         <Teleport to="body">
           <div
@@ -829,6 +1034,62 @@ onUnmounted(() => {
             </button>
           </div>
         </Teleport>
+      </div>
+
+      <div
+        v-if="showWorkflowControls"
+        class="schedule-shell__schedule-actions"
+        aria-label="공정표 작업"
+      >
+        <button
+          type="button"
+          class="schedule-shell__schedule-action-button"
+          @click="emitImportSchedule"
+        >
+          공정표 불러오기
+        </button>
+
+        <div ref="exportMenuRootRef" class="schedule-shell__export-menu-root">
+          <button
+            type="button"
+            class="schedule-shell__schedule-action-button"
+            :aria-expanded="isExportMenuOpen"
+            aria-haspopup="true"
+            @click="toggleExportMenu"
+          >
+            엑셀로 내보내기 ▾
+          </button>
+
+          <Teleport to="body">
+            <div
+              v-if="isExportMenuOpen"
+              ref="exportMenuRef"
+              class="schedule-context-menu schedule-shell__export-menu"
+              :style="{
+                left: `${exportMenuPosition.x}px`,
+                top: `${exportMenuPosition.y}px`,
+              }"
+              role="menu"
+            >
+              <button
+                type="button"
+                class="schedule-context-menu__item"
+                role="menuitem"
+                @click="selectExportRange('3week')"
+              >
+                3주 공정표 만들기
+              </button>
+              <button
+                type="button"
+                class="schedule-context-menu__item"
+                role="menuitem"
+                @click="selectExportRange('3month')"
+              >
+                3개월 공정표 만들기
+              </button>
+            </div>
+          </Teleport>
+        </div>
       </div>
 
       <button
