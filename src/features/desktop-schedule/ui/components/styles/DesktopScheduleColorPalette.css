@@ -10,27 +10,6 @@
   backdrop-filter: blur(12px);
 }
 
-.schedule-color-palette__clear {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  justify-content: center;
-  padding: 0.5rem 0.65rem;
-  margin-bottom: 0.5rem;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  border-radius: 0.45rem;
-  background: #fff;
-  color: var(--ink);
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.schedule-color-palette__clear:hover,
-.schedule-color-palette__clear--selected {
-  border-color: rgba(0, 0, 0, 0.32);
-  background: rgba(0, 0, 0, 0.04);
-}
-
 .schedule-color-palette__grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);

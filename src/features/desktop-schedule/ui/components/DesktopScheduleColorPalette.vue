@@ -6,15 +6,6 @@
       class="schedule-color-palette"
       :style="{ left: `${position.left}px`, top: `${position.top}px` }"
     >
-      <button
-        type="button"
-        class="schedule-color-palette__clear"
-        :class="{ 'schedule-color-palette__clear--selected': selectedColor === null }"
-        @click="emit('select', null)"
-      >
-        색상 없음
-      </button>
-
       <div class="schedule-color-palette__grid" aria-label="색상 팔레트">
         <button
           v-for="color in paletteColors"
@@ -44,20 +35,25 @@ const VIEWPORT_MARGIN = 12;
 
 const paletteColors = [
   { label: "Slate", value: "#64748b" },
+  { label: "Stone", value: "#78716c" },
   { label: "Red", value: "#ef4444" },
+  { label: "Rose", value: "#f43f5e" },
+  { label: "Pink", value: "#ec4899" },
   { label: "Orange", value: "#f97316" },
   { label: "Amber", value: "#f59e0b" },
   { label: "Yellow", value: "#eab308" },
   { label: "Lime", value: "#84cc16" },
   { label: "Green", value: "#22c55e" },
+  { label: "Emerald", value: "#10b981" },
   { label: "Teal", value: "#14b8a6" },
   { label: "Cyan", value: "#06b6d4" },
   { label: "Sky", value: "#0ea5e9" },
   { label: "Blue", value: "#3b82f6" },
   { label: "Indigo", value: "#6366f1" },
   { label: "Violet", value: "#8b5cf6" },
-  { label: "Pink", value: "#ec4899" },
-  { label: "Rose", value: "#f43f5e" },
+  { label: "Purple", value: "#a855f7" },
+  { label: "Fuchsia", value: "#d946ef" },
+  { label: "Magenta", value: "#c026d3" },
 ] as const;
 
 const props = defineProps<{
