@@ -793,7 +793,12 @@ function buildRows(tasks: DesktopScheduleSourceTask[], sourceRows: DesktopSchedu
         workTypeId: workTypeDraft.workTypeId,
         workType: workTypeDraft.workType,
         subWorkType: "",
-        subWorkTypeId: 0,
+        // workType 당 1개만 존재하는 placeholder sub-work-type 에 고유 음수 임시 id 부여.
+        // 같은 음수 id 로 ViewModel 이 createSubWorkType 분기로 진입한다.
+        subWorkTypeId:
+          workTypeDraft.workTypeId && workTypeDraft.workTypeId > 0
+            ? -workTypeDraft.workTypeId
+            : 0,
       },
     }));
   const childRows = Array.from(childDrafts.values()).map((childDraft) => ({

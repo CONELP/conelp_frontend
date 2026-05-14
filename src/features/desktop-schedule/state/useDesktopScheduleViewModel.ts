@@ -3702,18 +3702,29 @@ function createDesktopScheduleViewModel() {
     tempSubWorkTypeId: number,
     subWorkType: { id: number; name: string; color?: string | null },
   ) {
+    // service 가 부여한 음수 임시 id (`-workTypeId`) 의 경우 hierarchy 에는 subWorkTypeId=0 으로 저장된 placeholder 가 대응됨.
+    const placeholderWorkTypeId = tempSubWorkTypeId < 0 ? -tempSubWorkTypeId : null;
+
     updateLoadedScheduleData((currentData) => ({
       ...currentData,
-      workHierarchy: currentData.workHierarchy.map((item) =>
-        item.subWorkTypeId === tempSubWorkTypeId
-          ? {
-              ...item,
-              subWorkTypeId: subWorkType.id,
-              subWorkTypeName: subWorkType.name,
-              subWorkTypeColor: subWorkType.color ?? item.subWorkTypeColor ?? null,
-            }
-          : item,
-      ),
+      workHierarchy: currentData.workHierarchy.map((item) => {
+        const matchesByTempId = item.subWorkTypeId === tempSubWorkTypeId;
+        const matchesByPlaceholder =
+          placeholderWorkTypeId !== null &&
+          item.workTypeId === placeholderWorkTypeId &&
+          item.subWorkTypeId === 0;
+
+        if (!matchesByTempId && !matchesByPlaceholder) {
+          return item;
+        }
+
+        return {
+          ...item,
+          subWorkTypeId: subWorkType.id,
+          subWorkTypeName: subWorkType.name,
+          subWorkTypeColor: subWorkType.color ?? item.subWorkTypeColor ?? null,
+        };
+      }),
     }));
     rebuildScheduleFromLoadedData();
   }
@@ -3737,6 +3748,13 @@ function createDesktopScheduleViewModel() {
     >,
     name: string,
   ) {
+    // sub-work-type placeholder 의 경우 target.subWorkTypeId 는 service 가 부여한 음수 임시 id 이고,
+    // hierarchy 에는 subWorkTypeId=0 으로 저장돼 있어 workTypeId 매칭이 필요.
+    const placeholderWorkTypeIdForSubWorkType =
+      target.kind === "sub-work-type-header" && target.subWorkTypeId < 0
+        ? -target.subWorkTypeId
+        : null;
+
     updateLoadedScheduleData((currentData) => ({
       ...currentData,
       workHierarchy: currentData.workHierarchy.map((item) => {
@@ -3748,11 +3766,16 @@ function createDesktopScheduleViewModel() {
           return { ...item, workTypeName: name };
         }
 
-        if (
-          target.kind === "sub-work-type-header" &&
-          item.subWorkTypeId === target.subWorkTypeId
-        ) {
-          return { ...item, subWorkTypeName: name };
+        if (target.kind === "sub-work-type-header") {
+          const matchesByTempId = item.subWorkTypeId === target.subWorkTypeId;
+          const matchesByPlaceholder =
+            placeholderWorkTypeIdForSubWorkType !== null &&
+            item.workTypeId === placeholderWorkTypeIdForSubWorkType &&
+            item.subWorkTypeId === 0;
+
+          if (matchesByTempId || matchesByPlaceholder) {
+            return { ...item, subWorkTypeName: name };
+          }
         }
 
         return item;
@@ -5075,14 +5098,31 @@ function createDesktopScheduleViewModel() {
     closeContextMenu();
   }
 
+  function findHierarchyItemForSubWorkTypeRename(subWorkTypeId: number) {
+    const hierarchy = scheduleLoadState.value.data?.workHierarchy;
+
+    if (!hierarchy) {
+      return undefined;
+    }
+
+    if (subWorkTypeId < 0) {
+      // service.buildRows 에서 workType-only placeholder 에 `-workTypeId` 음수 임시 id 를 부여한다.
+      // hierarchy 에는 여전히 subWorkTypeId=0 으로 저장되어 있으므로 workTypeId 로 역추적한다.
+      const workTypeId = -subWorkTypeId;
+      return hierarchy.find(
+        (item) => item.workTypeId === workTypeId && item.subWorkTypeId === 0,
+      );
+    }
+
+    return hierarchy.find((item) => item.subWorkTypeId === subWorkTypeId);
+  }
+
   function startSubWorkTypeRename(subWorkTypeId: number) {
     if (!ensureScheduleEditable()) {
       return;
     }
 
-    const targetHierarchyItem = scheduleLoadState.value.data?.workHierarchy.find(
-      (item) => item.subWorkTypeId === subWorkTypeId,
-    );
+    const targetHierarchyItem = findHierarchyItemForSubWorkTypeRename(subWorkTypeId);
 
     if (!targetHierarchyItem) {
       renamingSubWorkTypeId.value = null;
@@ -5104,9 +5144,7 @@ function createDesktopScheduleViewModel() {
     }
 
     const nextName = payload.name.trim();
-    const targetHierarchyItem = scheduleLoadState.value.data?.workHierarchy.find(
-      (item) => item.subWorkTypeId === payload.subWorkTypeId,
-    );
+    const targetHierarchyItem = findHierarchyItemForSubWorkTypeRename(payload.subWorkTypeId);
 
     renamingSubWorkTypeId.value = null;
 
