@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import imageIcon from "@fluentui/svg-icons/icons/image_20_regular.svg";
 
 import { actualWorkApi } from "@/features/document-conversion-demo/api/actual-work.api";
@@ -14,29 +14,19 @@ type DailyReportEditorTabId =
   | "labor"
   | "material"
   | "equipment";
-type DailyReportResourceTabId = Exclude<
+type DailyReportResourceKind = Extract<
   DailyReportEditorTabId,
-  "todayWork" | "tomorrowWork" | "labor"
+  "labor" | "material" | "equipment"
 >;
-type DailyReportResourceColumnKey = "name" | "detail" | "quantity" | "note";
 
 type DailyReportEditorTab = {
   id: DailyReportEditorTabId;
   label: string;
 };
 
-type DailyReportResourceColumn = {
-  key: DailyReportResourceColumnKey;
+type DailyReportResourceColumnConfig = {
+  key: string;
   label: string;
-  placeholder: string;
-  inputMode?: "numeric" | "text";
-};
-
-type DailyReportResourceTab = {
-  id: DailyReportResourceTabId;
-  label: string;
-  addLabel: string;
-  columns: DailyReportResourceColumn[];
 };
 
 const DAILY_REPORT_EDITOR_TABS: DailyReportEditorTab[] = [
@@ -47,30 +37,46 @@ const DAILY_REPORT_EDITOR_TABS: DailyReportEditorTab[] = [
   { id: "equipment", label: "장비투입" },
 ];
 
-const DAILY_REPORT_RESOURCE_TABS: DailyReportResourceTab[] = [
-  {
-    id: "material",
-    label: "자재투입",
-    addLabel: "자재 추가",
-    columns: [
-      { key: "name", label: "자재명", placeholder: "자재명" },
-      { key: "detail", label: "규격", placeholder: "규격" },
-      { key: "quantity", label: "수량", placeholder: "수량", inputMode: "numeric" },
-    ],
-  },
-  {
-    id: "equipment",
-    label: "장비투입",
-    addLabel: "장비 추가",
-    columns: [
-      { key: "name", label: "장비명", placeholder: "장비명" },
-      { key: "detail", label: "규격", placeholder: "규격" },
-      { key: "quantity", label: "수량", placeholder: "수량", inputMode: "numeric" },
-    ],
-  },
-];
-
 const HOMEPAGE_IMPORT_MIN_DURATION_MS = 2500;
+const DAILY_REPORT_RESOURCE_COLUMN_WIDTH_STORAGE_KEY =
+  "conelp.dailyReport.resourceColumnWidths.v1";
+const DAILY_REPORT_RESOURCE_COLUMN_MIN_WIDTH = 32;
+const DAILY_REPORT_RESOURCE_COLUMN_MAX_WIDTH = 320;
+const DAILY_REPORT_RESOURCE_COLUMNS = {
+  labor: [
+    { key: "workType", label: "공종" },
+    { key: "subWorkType", label: "세부공종" },
+    { key: "todayQuantity", label: "금일" },
+    { key: "totalQuantity", label: "누계" },
+  ],
+  material: [
+    { key: "workType", label: "공종" },
+    { key: "type", label: "타입" },
+    { key: "specification", label: "규격" },
+    { key: "unit", label: "단위" },
+    { key: "todayQuantity", label: "금일" },
+    { key: "totalQuantity", label: "누계" },
+  ],
+  equipment: [
+    { key: "process", label: "공정" },
+    { key: "type", label: "타입" },
+    { key: "specification", label: "규격" },
+    { key: "unit", label: "단위" },
+    { key: "todayQuantity", label: "금일" },
+    { key: "totalQuantity", label: "누계" },
+  ],
+} satisfies Record<DailyReportResourceKind, readonly DailyReportResourceColumnConfig[]>;
+const DAILY_REPORT_RESOURCE_DEFAULT_COLUMN_WIDTHS = {
+  labor: [124, 124, 82, 88],
+  material: [124, 112, 112, 72, 82, 88],
+  equipment: [124, 112, 112, 72, 82, 88],
+} satisfies Record<DailyReportResourceKind, number[]>;
+
+const DAILY_REPORT_LABOR_SUMMARY_WORK_TYPE_ALIASES: Record<string, string> = {
+  RC공사: "철콘",
+  철근콘크리트공사: "철콘",
+  철콘공사: "철콘",
+};
 
 type DailyReportImageDraft = {
   id: string;
@@ -89,6 +95,13 @@ type DailyReportImageDragOverState = DailyReportImageDragState & {
   position: DailyReportImageDropPosition;
 };
 
+type DailyReportResourceColumnResizeState = {
+  kind: DailyReportResourceKind;
+  columnIndex: number;
+  startClientX: number;
+  startWidth: number;
+};
+
 type DailyReportTaskDraft = {
   id: string;
   text: string;
@@ -105,26 +118,54 @@ type DailyReportWorkTypeDraft = {
   tasks: DailyReportTaskDraft[];
 };
 
-type DailyReportLaborSubWorkDraft = {
+type DailyReportQuantityDraft = {
   id: string;
-  name: string;
-  quantity: string;
+  previousQuantity: number;
+  todayQuantity: string;
 };
 
-type DailyReportLaborWorkTypeDraft = {
-  id: string;
-  workTypeId: number | null;
-  workTypeName: string;
-  subWorks: DailyReportLaborSubWorkDraft[];
+type DailyReportMaterialDraft = DailyReportQuantityDraft & {
+  workType: string;
+  type: string;
+  specification: string;
+  unit: string;
 };
 
-type DailyReportResourceDraft = {
-  id: string;
-  name: string;
-  detail: string;
-  quantity: string;
-  note: string;
+type DailyReportEquipmentDraft = DailyReportQuantityDraft & {
+  process: string;
+  type: string;
+  specification: string;
+  unit: string;
 };
+
+type DailyReportLaborDraft = DailyReportQuantityDraft & {
+  workType: string;
+  subWorkType: string;
+};
+
+type DailyReportLaborGroup = {
+  key: string;
+  workType: string;
+  rows: DailyReportLaborDraft[];
+};
+
+type DailyReportMaterialAddDraft = Pick<
+  DailyReportMaterialDraft,
+  "workType" | "type" | "specification" | "unit"
+>;
+
+type DailyReportEquipmentAddDraft = Pick<
+  DailyReportEquipmentDraft,
+  "process" | "type" | "specification" | "unit"
+>;
+
+type DailyReportLaborAddDraft = Pick<
+  DailyReportLaborDraft,
+  "workType" | "subWorkType"
+>;
+
+type DailyReportResourceAddFormState = Record<DailyReportResourceKind, boolean>;
+type DailyReportResourceColumnWidthState = Record<DailyReportResourceKind, number[]>;
 
 type DailyReportWorkTypeSuggestionState = {
   suggestions: WorkTypeReferenceResponse[];
@@ -140,6 +181,8 @@ const todayImageInputRef = ref<HTMLInputElement | null>(null);
 const tomorrowImageInputRef = ref<HTMLInputElement | null>(null);
 const imageDragState = ref<DailyReportImageDragState | null>(null);
 const imageDragOverState = ref<DailyReportImageDragOverState | null>(null);
+const resourceColumnResizeState =
+  ref<DailyReportResourceColumnResizeState | null>(null);
 const todayWorkTypes = ref<DailyReportWorkTypeDraft[]>([
   createDailyReportWorkTypeDraft(),
 ]);
@@ -148,19 +191,91 @@ const tomorrowWorkTypes = ref<DailyReportWorkTypeDraft[]>([
 ]);
 const todayImages = ref<DailyReportImageDraft[]>([]);
 const tomorrowImages = ref<DailyReportImageDraft[]>([]);
-const laborWorkTypes = ref<DailyReportLaborWorkTypeDraft[]>([
-  createDailyReportLaborWorkTypeDraft(),
-]);
-const materialRows = ref<DailyReportResourceDraft[]>([
-  createDailyReportResourceDraft(),
-]);
-const equipmentRows = ref<DailyReportResourceDraft[]>([
-  createDailyReportResourceDraft(),
-]);
+const materialRows = ref<DailyReportMaterialDraft[]>(
+  createDefaultDailyReportMaterialRows(),
+);
+const equipmentRows = ref<DailyReportEquipmentDraft[]>(
+  createDefaultDailyReportEquipmentRows(),
+);
+const laborRows = ref<DailyReportLaborDraft[]>(createDefaultDailyReportLaborRows());
+const laborRowGroups = computed<DailyReportLaborGroup[]>(() => {
+  const groups: DailyReportLaborGroup[] = [];
+  const groupByWorkType = new Map<string, DailyReportLaborGroup>();
+
+  laborRows.value.forEach((row) => {
+    const groupKey = row.workType.trim() || row.id;
+    let group = groupByWorkType.get(groupKey);
+
+    if (!group) {
+      group = {
+        key: groupKey,
+        workType: row.workType,
+        rows: [],
+      };
+      groupByWorkType.set(groupKey, group);
+      groups.push(group);
+    }
+
+    group.rows.push(row);
+  });
+
+  return groups;
+});
+const dailyReportLaborSummaryItems = computed(() => {
+  return laborRowGroups.value
+    .map((group) => {
+      const details = group.rows
+        .map((row) => ({
+          label: getDailyReportLaborSummaryDetailName(row.subWorkType),
+          quantity: parseDailyReportQuantity(row.todayQuantity),
+        }))
+        .filter((detail) => detail.quantity > 0);
+      const totalQuantity = details.reduce(
+        (sum, detail) => sum + detail.quantity,
+        0,
+      );
+
+      return {
+        workType: getDailyReportLaborSummaryWorkTypeName(group.workType),
+        totalQuantity,
+        details,
+      };
+    })
+    .filter((summary) => summary.totalQuantity > 0)
+    .map((summary, summaryIndex) => {
+      const detailText =
+        summary.details.length > 1
+          ? `(${summary.details
+              .map(
+                (detail) =>
+                  `${detail.label}${formatDailyReportQuantity(detail.quantity)}`,
+              )
+              .join(",")})`
+          : "";
+
+      return `${summaryIndex + 1}.${summary.workType}:${formatDailyReportQuantity(
+        summary.totalQuantity,
+      )}명${detailText}`;
+    });
+});
+const resourceColumnWidths = ref<DailyReportResourceColumnWidthState>(
+  readStoredDailyReportResourceColumnWidths(),
+);
+const resourceAddFormsOpen = ref<DailyReportResourceAddFormState>({
+  labor: false,
+  material: false,
+  equipment: false,
+});
+const materialAddDraft = ref<DailyReportMaterialAddDraft>(
+  createDailyReportMaterialAddDraft(),
+);
+const equipmentAddDraft = ref<DailyReportEquipmentAddDraft>(
+  createDailyReportEquipmentAddDraft(),
+);
+const laborAddDraft = ref<DailyReportLaborAddDraft>(createDailyReportLaborAddDraft());
 const previewImage = ref<DailyReportImageDraft | null>(null);
 const activeDailyReportTab = ref<DailyReportEditorTabId>("todayWork");
 const workTypeSuggestionStates = ref<Record<string, DailyReportWorkTypeSuggestionState>>({});
-const laborWorkTypeSuggestionStates = ref<Record<string, DailyReportWorkTypeSuggestionState>>({});
 const homepageImportStatus = ref<"idle" | "loading" | "error">("idle");
 const taskSyncRequestIds = new Map<string, number>();
 const pendingTaskDeletes = new Set<string>();
@@ -208,37 +323,575 @@ function createDailyReportWorkTypeDraft(
   };
 }
 
-function createDailyReportLaborSubWorkDraft(
-  name = "",
-  quantity = "",
-): DailyReportLaborSubWorkDraft {
+function createDailyReportMaterialRow(
+  input: Omit<DailyReportMaterialDraft, "id" | "todayQuantity"> & {
+    todayQuantity?: string;
+  },
+): DailyReportMaterialDraft {
   return {
+    ...input,
     id: createDailyReportId(),
-    name,
-    quantity,
+    todayQuantity: input.todayQuantity ?? "",
   };
 }
 
-function createDailyReportLaborWorkTypeDraft(
-  subWorkName = "",
-  quantity = "",
-): DailyReportLaborWorkTypeDraft {
+function createDailyReportEquipmentRow(
+  input: Omit<DailyReportEquipmentDraft, "id" | "todayQuantity"> & {
+    todayQuantity?: string;
+  },
+): DailyReportEquipmentDraft {
   return {
+    ...input,
     id: createDailyReportId(),
-    workTypeId: null,
-    workTypeName: "",
-    subWorks: [createDailyReportLaborSubWorkDraft(subWorkName, quantity)],
+    todayQuantity: input.todayQuantity ?? "",
   };
 }
 
-function createDailyReportResourceDraft(): DailyReportResourceDraft {
+function createDailyReportLaborRow(
+  input: Omit<DailyReportLaborDraft, "id" | "todayQuantity"> & {
+    todayQuantity?: string;
+  },
+): DailyReportLaborDraft {
   return {
+    ...input,
     id: createDailyReportId(),
-    name: "",
-    detail: "",
-    quantity: "",
-    note: "",
+    todayQuantity: input.todayQuantity ?? "",
   };
+}
+
+function createDailyReportMaterialAddDraft(): DailyReportMaterialAddDraft {
+  return {
+    workType: "",
+    type: "",
+    specification: "",
+    unit: "",
+  };
+}
+
+function createDailyReportEquipmentAddDraft(): DailyReportEquipmentAddDraft {
+  return {
+    process: "",
+    type: "",
+    specification: "",
+    unit: "",
+  };
+}
+
+function createDailyReportLaborAddDraft(): DailyReportLaborAddDraft {
+  return {
+    workType: "",
+    subWorkType: "",
+  };
+}
+
+function createDefaultDailyReportMaterialRows(): DailyReportMaterialDraft[] {
+  return [
+    createDailyReportMaterialRow({
+      workType: "콘크리트공사",
+      type: "레미콘",
+      specification: "13-21-150",
+      unit: "m3",
+      previousQuantity: 36,
+    }),
+    createDailyReportMaterialRow({
+      workType: "콘크리트공사",
+      type: "레미콘",
+      specification: "25-18-120",
+      unit: "m3",
+      previousQuantity: 60,
+    }),
+    createDailyReportMaterialRow({
+      workType: "콘크리트공사",
+      type: "레미콘",
+      specification: "25-18-150",
+      unit: "m3",
+      previousQuantity: 78,
+    }),
+    createDailyReportMaterialRow({
+      workType: "콘크리트공사",
+      type: "레미콘",
+      specification: "25-30-150",
+      unit: "m3",
+      previousQuantity: 1326,
+    }),
+    createDailyReportMaterialRow({
+      workType: "철근공사",
+      type: "SD400",
+      specification: "D10",
+      unit: "TON",
+      previousQuantity: 39,
+    }),
+    createDailyReportMaterialRow({
+      workType: "철근공사",
+      type: "SD400",
+      specification: "D13",
+      unit: "TON",
+      previousQuantity: 54,
+    }),
+    createDailyReportMaterialRow({
+      workType: "철근공사",
+      type: "SD400",
+      specification: "D16",
+      unit: "TON",
+      previousQuantity: 14,
+    }),
+    createDailyReportMaterialRow({
+      workType: "철근공사",
+      type: "SD500",
+      specification: "D19",
+      unit: "TON",
+      previousQuantity: 30.5,
+    }),
+    createDailyReportMaterialRow({
+      workType: "철근공사",
+      type: "SD500",
+      specification: "D22",
+      unit: "TON",
+      previousQuantity: 125,
+    }),
+  ];
+}
+
+function createDefaultDailyReportEquipmentRows(): DailyReportEquipmentDraft[] {
+  return [
+    createDailyReportEquipmentRow({
+      process: "토공사",
+      type: "굴착기",
+      specification: "017",
+      unit: "대",
+      previousQuantity: 5,
+    }),
+    createDailyReportEquipmentRow({
+      process: "토공사",
+      type: "굴착기",
+      specification: "035",
+      unit: "대",
+      previousQuantity: 30,
+    }),
+    createDailyReportEquipmentRow({
+      process: "토공사",
+      type: "굴착기",
+      specification: "06",
+      unit: "대",
+      previousQuantity: 88,
+    }),
+    createDailyReportEquipmentRow({
+      process: "토공사",
+      type: "굴착기",
+      specification: "08",
+      unit: "대",
+      previousQuantity: 117,
+    }),
+    createDailyReportEquipmentRow({
+      process: "토공사",
+      type: "로더",
+      specification: "5.5ton",
+      unit: "대",
+      previousQuantity: 3,
+    }),
+    createDailyReportEquipmentRow({
+      process: "운반",
+      type: "지게차",
+      specification: "",
+      unit: "HR",
+      previousQuantity: 14,
+    }),
+    createDailyReportEquipmentRow({
+      process: "운반",
+      type: "덤프트럭",
+      specification: "25ton",
+      unit: "대",
+      previousQuantity: 564,
+    }),
+    createDailyReportEquipmentRow({
+      process: "운반",
+      type: "카고트럭",
+      specification: "1ton",
+      unit: "대",
+      previousQuantity: 12,
+    }),
+    createDailyReportEquipmentRow({
+      process: "운반",
+      type: "카고트럭",
+      specification: "2.5ton",
+      unit: "대",
+      previousQuantity: 33,
+    }),
+    createDailyReportEquipmentRow({
+      process: "운반",
+      type: "카고트럭",
+      specification: "3.5ton",
+      unit: "대",
+      previousQuantity: 1,
+    }),
+    createDailyReportEquipmentRow({
+      process: "운반",
+      type: "카고트럭",
+      specification: "5ton",
+      unit: "대",
+      previousQuantity: 4,
+    }),
+    createDailyReportEquipmentRow({
+      process: "운반",
+      type: "카고트럭",
+      specification: "25ton",
+      unit: "대",
+      previousQuantity: 0,
+    }),
+    createDailyReportEquipmentRow({
+      process: "양중",
+      type: "암롤트럭",
+      specification: "25ton",
+      unit: "대",
+      previousQuantity: 8,
+    }),
+    createDailyReportEquipmentRow({
+      process: "양중",
+      type: "기중기",
+      specification: "12ton",
+      unit: "대",
+      previousQuantity: 4,
+    }),
+    createDailyReportEquipmentRow({
+      process: "양중",
+      type: "기중기",
+      specification: "16ton",
+      unit: "대",
+      previousQuantity: 4,
+    }),
+    createDailyReportEquipmentRow({
+      process: "양중",
+      type: "기중기",
+      specification: "20ton",
+      unit: "대",
+      previousQuantity: 5,
+    }),
+    createDailyReportEquipmentRow({
+      process: "양중",
+      type: "기중기",
+      specification: "25ton",
+      unit: "대",
+      previousQuantity: 3,
+    }),
+    createDailyReportEquipmentRow({
+      process: "양중",
+      type: "기중기",
+      specification: "70ton",
+      unit: "대",
+      previousQuantity: 2,
+    }),
+    createDailyReportEquipmentRow({
+      process: "가설공사",
+      type: "거미크레인",
+      specification: "",
+      unit: "대",
+      previousQuantity: 1,
+    }),
+    createDailyReportEquipmentRow({
+      process: "타설",
+      type: "펌프카",
+      specification: "",
+      unit: "대",
+      previousQuantity: 13,
+    }),
+    createDailyReportEquipmentRow({
+      process: "기타",
+      type: "공기압축기",
+      specification: "",
+      unit: "대",
+      previousQuantity: 17,
+    }),
+    createDailyReportEquipmentRow({
+      process: "기타",
+      type: "천공기",
+      specification: "",
+      unit: "대",
+      previousQuantity: 23,
+    }),
+  ];
+}
+
+function createDefaultDailyReportLaborRows(): DailyReportLaborDraft[] {
+  return [
+    createDailyReportLaborRow({
+      workType: "관리",
+      subWorkType: "직원",
+      previousQuantity: 1165,
+      todayQuantity: "4",
+    }),
+    createDailyReportLaborRow({
+      workType: "관리",
+      subWorkType: "직영",
+      previousQuantity: 363,
+      todayQuantity: "2",
+    }),
+    createDailyReportLaborRow({
+      workType: "가설공사",
+      subWorkType: "가설휀스",
+      previousQuantity: 23,
+    }),
+    createDailyReportLaborRow({
+      workType: "가설공사",
+      subWorkType: "시스템비계",
+      previousQuantity: 0,
+    }),
+    createDailyReportLaborRow({
+      workType: "가설공사",
+      subWorkType: "타워크레인",
+      previousQuantity: 15,
+    }),
+    createDailyReportLaborRow({
+      workType: "RC공사",
+      subWorkType: "직영",
+      previousQuantity: 28,
+    }),
+    createDailyReportLaborRow({
+      workType: "RC공사",
+      subWorkType: "RC",
+      previousQuantity: 1766,
+      todayQuantity: "22",
+    }),
+    createDailyReportLaborRow({
+      workType: "철골공사",
+      subWorkType: "",
+      previousQuantity: 10,
+    }),
+    createDailyReportLaborRow({
+      workType: "조적공사",
+      subWorkType: "",
+      previousQuantity: 0,
+    }),
+    createDailyReportLaborRow({
+      workType: "석공사",
+      subWorkType: "석재",
+      previousQuantity: 25,
+    }),
+    createDailyReportLaborRow({
+      workType: "타일공사",
+      subWorkType: "",
+      previousQuantity: 0,
+    }),
+    createDailyReportLaborRow({
+      workType: "목공사",
+      subWorkType: "",
+      previousQuantity: 0,
+    }),
+    createDailyReportLaborRow({
+      workType: "한옥공사",
+      subWorkType: "",
+      previousQuantity: 0,
+    }),
+    createDailyReportLaborRow({
+      workType: "방수공사",
+      subWorkType: "",
+      previousQuantity: 67,
+    }),
+    createDailyReportLaborRow({
+      workType: "금속공사",
+      subWorkType: "금속",
+      previousQuantity: 90,
+    }),
+    createDailyReportLaborRow({
+      workType: "미장공사",
+      subWorkType: "종석미장",
+      previousQuantity: 6,
+    }),
+  ];
+}
+
+function createDefaultDailyReportResourceColumnWidths(): DailyReportResourceColumnWidthState {
+  return {
+    labor: [...DAILY_REPORT_RESOURCE_DEFAULT_COLUMN_WIDTHS.labor],
+    material: [...DAILY_REPORT_RESOURCE_DEFAULT_COLUMN_WIDTHS.material],
+    equipment: [...DAILY_REPORT_RESOURCE_DEFAULT_COLUMN_WIDTHS.equipment],
+  };
+}
+
+function clampDailyReportResourceColumnWidth(value: number) {
+  if (!Number.isFinite(value)) {
+    return DAILY_REPORT_RESOURCE_COLUMN_MIN_WIDTH;
+  }
+
+  return Math.min(
+    Math.max(value, DAILY_REPORT_RESOURCE_COLUMN_MIN_WIDTH),
+    DAILY_REPORT_RESOURCE_COLUMN_MAX_WIDTH,
+  );
+}
+
+function normalizeDailyReportResourceColumnWidths(
+  kind: DailyReportResourceKind,
+  value: unknown,
+) {
+  const defaultWidths = DAILY_REPORT_RESOURCE_DEFAULT_COLUMN_WIDTHS[kind];
+
+  if (!Array.isArray(value)) {
+    return [...defaultWidths];
+  }
+
+  return defaultWidths.map((defaultWidth, columnIndex) => {
+    const parsedWidth = Number(value[columnIndex]);
+    return clampDailyReportResourceColumnWidth(
+      Number.isFinite(parsedWidth) ? parsedWidth : defaultWidth,
+    );
+  });
+}
+
+function readStoredDailyReportResourceColumnWidths(): DailyReportResourceColumnWidthState {
+  const defaultWidths = createDefaultDailyReportResourceColumnWidths();
+
+  if (typeof window === "undefined") {
+    return defaultWidths;
+  }
+
+  try {
+    const storedValue = window.localStorage.getItem(
+      DAILY_REPORT_RESOURCE_COLUMN_WIDTH_STORAGE_KEY,
+    );
+
+    if (!storedValue) {
+      return defaultWidths;
+    }
+
+    const parsedValue = JSON.parse(storedValue) as Partial<
+      Record<DailyReportResourceKind, unknown>
+    >;
+
+    return {
+      labor: normalizeDailyReportResourceColumnWidths("labor", parsedValue.labor),
+      material: normalizeDailyReportResourceColumnWidths(
+        "material",
+        parsedValue.material,
+      ),
+      equipment: normalizeDailyReportResourceColumnWidths(
+        "equipment",
+        parsedValue.equipment,
+      ),
+    };
+  } catch (error) {
+    console.warn("daily report resource column width restore failed", error);
+    return defaultWidths;
+  }
+}
+
+function persistDailyReportResourceColumnWidths() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(
+    DAILY_REPORT_RESOURCE_COLUMN_WIDTH_STORAGE_KEY,
+    JSON.stringify(resourceColumnWidths.value),
+  );
+}
+
+function getDailyReportResourceColumnWidths(kind: DailyReportResourceKind) {
+  return resourceColumnWidths.value[kind];
+}
+
+function getDailyReportResourceTableWidth(kind: DailyReportResourceKind) {
+  return getDailyReportResourceColumnWidths(kind).reduce(
+    (sum, width) => sum + width,
+    0,
+  );
+}
+
+function getDailyReportResourceTableStyle(kind: DailyReportResourceKind) {
+  const tableWidth = getDailyReportResourceTableWidth(kind);
+
+  return {
+    width: `${tableWidth}px`,
+    minWidth: `${tableWidth}px`,
+  };
+}
+
+function getDailyReportResourceColumnStyle(
+  kind: DailyReportResourceKind,
+  columnIndex: number,
+) {
+  return {
+    width: `${getDailyReportResourceColumnWidths(kind)[columnIndex]}px`,
+  };
+}
+
+function setDailyReportResourceColumnWidth(
+  kind: DailyReportResourceKind,
+  columnIndex: number,
+  width: number,
+) {
+  const nextWidths = [...resourceColumnWidths.value[kind]];
+  nextWidths[columnIndex] = clampDailyReportResourceColumnWidth(width);
+  resourceColumnWidths.value = {
+    ...resourceColumnWidths.value,
+    [kind]: nextWidths,
+  };
+}
+
+function startDailyReportResourceColumnResize(
+  kind: DailyReportResourceKind,
+  columnIndex: number,
+  event: PointerEvent,
+) {
+  if (event.button !== 0) {
+    return;
+  }
+
+  event.preventDefault();
+  resourceColumnResizeState.value = {
+    kind,
+    columnIndex,
+    startClientX: event.clientX,
+    startWidth: getDailyReportResourceColumnWidths(kind)[columnIndex],
+  };
+
+  window.addEventListener("pointermove", handleDailyReportResourceColumnResize);
+  window.addEventListener("pointerup", stopDailyReportResourceColumnResize);
+  window.addEventListener("pointercancel", stopDailyReportResourceColumnResize);
+}
+
+function handleDailyReportResourceColumnResize(event: PointerEvent) {
+  const resizeState = resourceColumnResizeState.value;
+
+  if (!resizeState) {
+    return;
+  }
+
+  setDailyReportResourceColumnWidth(
+    resizeState.kind,
+    resizeState.columnIndex,
+    resizeState.startWidth + event.clientX - resizeState.startClientX,
+  );
+}
+
+function stopDailyReportResourceColumnResize() {
+  if (resourceColumnResizeState.value) {
+    persistDailyReportResourceColumnWidths();
+  }
+
+  resourceColumnResizeState.value = null;
+  window.removeEventListener("pointermove", handleDailyReportResourceColumnResize);
+  window.removeEventListener("pointerup", stopDailyReportResourceColumnResize);
+  window.removeEventListener("pointercancel", stopDailyReportResourceColumnResize);
+}
+
+function handleDailyReportResourceColumnResizeKeydown(
+  kind: DailyReportResourceKind,
+  columnIndex: number,
+  event: KeyboardEvent,
+) {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+    return;
+  }
+
+  event.preventDefault();
+  const direction = event.key === "ArrowLeft" ? -1 : 1;
+  const step = event.shiftKey ? 24 : 8;
+
+  setDailyReportResourceColumnWidth(
+    kind,
+    columnIndex,
+    getDailyReportResourceColumnWidths(kind)[columnIndex] + direction * step,
+  );
+  persistDailyReportResourceColumnWidths();
 }
 
 function pad2(value: number) {
@@ -276,14 +929,6 @@ function getWorkTypeDrafts(section: DailyReportWorkSection) {
 
 function ensureDefaultWorkTypes(workTypes: DailyReportWorkTypeDraft[]) {
   return workTypes.length > 0 ? workTypes : [createDailyReportWorkTypeDraft()];
-}
-
-function ensureDefaultLaborWorkTypes(
-  workTypes: DailyReportLaborWorkTypeDraft[],
-) {
-  return workTypes.length > 0
-    ? workTypes
-    : [createDailyReportLaborWorkTypeDraft()];
 }
 
 function setWorkTypeDrafts(
@@ -470,20 +1115,18 @@ function removeDailyReportWorkType(
   });
 }
 
-function addDailyReportTask(workType: DailyReportWorkTypeDraft) {
-  workType.tasks.push(createDailyReportTask());
+function getPrimaryDailyReportTask(workType: DailyReportWorkTypeDraft) {
+  if (workType.tasks.length === 0) {
+    workType.tasks = [createDailyReportTask()];
+  }
+
+  return workType.tasks[0]!;
 }
 
-function removeDailyReportTask(
-  workType: DailyReportWorkTypeDraft,
-  taskId: string,
-) {
-  const target = workType.tasks.find((task) => task.id === taskId);
-  workType.tasks = workType.tasks.filter((task) => task.id !== taskId);
-
-  if (target) {
-    void syncTaskDelete(target);
-  }
+function resizeDailyReportTaskTextarea(event: Event) {
+  const textarea = event.target as HTMLTextAreaElement;
+  textarea.style.height = "auto";
+  textarea.style.height = `${textarea.scrollHeight}px`;
 }
 
 async function handleTaskBlur(
@@ -970,269 +1613,176 @@ async function handleHomepageDataImport() {
   }
 }
 
-function addDailyReportLaborWorkType() {
-  laborWorkTypes.value = [
-    ...laborWorkTypes.value,
-    createDailyReportLaborWorkTypeDraft(),
+function normalizeDailyReportQuantityInput(value: string) {
+  const compactValue = value.replace(/,/g, "").replace(/[^\d.]/g, "");
+  const [integerPart = "", ...decimalParts] = compactValue.split(".");
+  const decimalPart = decimalParts.join("");
+
+  return decimalParts.length > 0
+    ? `${integerPart}.${decimalPart}`
+    : integerPart;
+}
+
+function parseDailyReportQuantity(value: string | number) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  const normalizedValue = normalizeDailyReportQuantityInput(value);
+  const parsedValue = Number.parseFloat(normalizedValue);
+
+  return Number.isFinite(parsedValue) ? parsedValue : 0;
+}
+
+function formatDailyReportQuantity(value: number) {
+  if (!Number.isFinite(value)) {
+    return "0";
+  }
+
+  return value.toLocaleString("ko-KR", {
+    maximumFractionDigits: 2,
+  });
+}
+
+function getDailyReportLaborSummaryWorkTypeName(workType: string) {
+  const trimmedWorkType = workType.trim();
+  const compactWorkType = trimmedWorkType.replace(/\s+/g, "");
+  const alias = DAILY_REPORT_LABOR_SUMMARY_WORK_TYPE_ALIASES[compactWorkType];
+
+  if (alias) {
+    return alias;
+  }
+
+  return trimmedWorkType.replace(/공사$/, "").trim() || "기타";
+}
+
+function getDailyReportLaborSummaryDetailName(subWorkType: string) {
+  return subWorkType.trim() || "기타";
+}
+
+function getDailyReportCumulativeQuantity(row: DailyReportQuantityDraft) {
+  return row.previousQuantity + parseDailyReportQuantity(row.todayQuantity);
+}
+
+function updateDailyReportTodayQuantity(
+  row: DailyReportQuantityDraft,
+  event: Event,
+) {
+  const input = event.target as HTMLInputElement | null;
+  const nextValue = normalizeDailyReportQuantityInput(input?.value ?? "");
+  row.todayQuantity = nextValue;
+
+  if (input && input.value !== nextValue) {
+    input.value = nextValue;
+  }
+}
+
+function toggleDailyReportResourceAddForm(kind: DailyReportResourceKind) {
+  resourceAddFormsOpen.value[kind] = !resourceAddFormsOpen.value[kind];
+}
+
+function closeDailyReportResourceAddForm(kind: DailyReportResourceKind) {
+  resourceAddFormsOpen.value[kind] = false;
+}
+
+function resetDailyReportResourceAddDraft(kind: DailyReportResourceKind) {
+  if (kind === "material") {
+    materialAddDraft.value = createDailyReportMaterialAddDraft();
+    return;
+  }
+
+  if (kind === "equipment") {
+    equipmentAddDraft.value = createDailyReportEquipmentAddDraft();
+    return;
+  }
+
+  laborAddDraft.value = createDailyReportLaborAddDraft();
+}
+
+function cancelDailyReportResourceAdd(kind: DailyReportResourceKind) {
+  resetDailyReportResourceAddDraft(kind);
+  closeDailyReportResourceAddForm(kind);
+}
+
+function hasEveryDailyReportResourceField(values: string[]) {
+  return values.every((value) => value.trim().length > 0);
+}
+
+function canAddDailyReportResource(kind: DailyReportResourceKind) {
+  if (kind === "material") {
+    return hasEveryDailyReportResourceField([
+      materialAddDraft.value.workType,
+      materialAddDraft.value.type,
+      materialAddDraft.value.specification,
+      materialAddDraft.value.unit,
+    ]);
+  }
+
+  if (kind === "equipment") {
+    return hasEveryDailyReportResourceField([
+      equipmentAddDraft.value.process,
+      equipmentAddDraft.value.type,
+      equipmentAddDraft.value.specification,
+      equipmentAddDraft.value.unit,
+    ]);
+  }
+
+  return hasEveryDailyReportResourceField([
+    laborAddDraft.value.workType,
+    laborAddDraft.value.subWorkType,
+  ]);
+}
+
+function addDailyReportMaterialResource() {
+  if (!canAddDailyReportResource("material")) {
+    return;
+  }
+
+  materialRows.value = [
+    ...materialRows.value,
+    createDailyReportMaterialRow({
+      workType: materialAddDraft.value.workType.trim(),
+      type: materialAddDraft.value.type.trim(),
+      specification: materialAddDraft.value.specification.trim(),
+      unit: materialAddDraft.value.unit.trim(),
+      previousQuantity: 0,
+    }),
   ];
+  cancelDailyReportResourceAdd("material");
 }
 
-function removeDailyReportLaborWorkType(workTypeId: string) {
-  clearLaborWorkTypeSuggestionCloseTimer(workTypeId);
-  laborWorkTypes.value = ensureDefaultLaborWorkTypes(
-    laborWorkTypes.value.filter((workType) => workType.id !== workTypeId),
-  );
-}
-
-function addDailyReportLaborSubWork(workType: DailyReportLaborWorkTypeDraft) {
-  workType.subWorks.push(createDailyReportLaborSubWorkDraft());
-}
-
-function removeDailyReportLaborSubWork(
-  workType: DailyReportLaborWorkTypeDraft,
-  subWorkId: string,
-) {
-  workType.subWorks = workType.subWorks.filter((subWork) => subWork.id !== subWorkId);
-}
-
-function getDailyReportResourceRows(tabId: DailyReportResourceTabId) {
-  if (tabId === "material") {
-    return materialRows.value;
-  }
-
-  return equipmentRows.value;
-}
-
-function addDailyReportResourceRow(tabId: DailyReportResourceTabId) {
-  getDailyReportResourceRows(tabId).push(createDailyReportResourceDraft());
-}
-
-function removeDailyReportResourceRow(tabId: DailyReportResourceTabId, rowId: string) {
-  const rows = getDailyReportResourceRows(tabId);
-  const nextRows = rows.filter((row) => row.id !== rowId);
-
-  if (tabId === "material") {
-    materialRows.value = nextRows;
+function addDailyReportEquipmentResource() {
+  if (!canAddDailyReportResource("equipment")) {
     return;
   }
 
-  equipmentRows.value = nextRows;
+  equipmentRows.value = [
+    ...equipmentRows.value,
+    createDailyReportEquipmentRow({
+      process: equipmentAddDraft.value.process.trim(),
+      type: equipmentAddDraft.value.type.trim(),
+      specification: equipmentAddDraft.value.specification.trim(),
+      unit: equipmentAddDraft.value.unit.trim(),
+      previousQuantity: 0,
+    }),
+  ];
+  cancelDailyReportResourceAdd("equipment");
 }
 
-function updateDailyReportResourceValue(
-  row: DailyReportResourceDraft,
-  key: DailyReportResourceColumnKey,
-  event: Event,
-) {
-  const input = event.target as HTMLInputElement | null;
-  row[key] = input?.value ?? "";
-}
-
-function getLaborWorkTypeSuggestionState(workTypeId: string) {
-  return laborWorkTypeSuggestionStates.value[workTypeId] ?? createSuggestionState();
-}
-
-function ensureLaborWorkTypeSuggestionState(workTypeId: string) {
-  const currentState = laborWorkTypeSuggestionStates.value[workTypeId];
-
-  if (currentState) {
-    return currentState;
-  }
-
-  const nextState = createSuggestionState();
-
-  laborWorkTypeSuggestionStates.value = {
-    ...laborWorkTypeSuggestionStates.value,
-    [workTypeId]: nextState,
-  };
-
-  return nextState;
-}
-
-function clearLaborWorkTypeSuggestionCloseTimer(workTypeId: string) {
-  const state = laborWorkTypeSuggestionStates.value[workTypeId];
-
-  if (state?.closeTimer) {
-    clearTimeout(state.closeTimer);
-    state.closeTimer = null;
-  }
-}
-
-function clearLaborWorkTypeSuggestions(workTypeId: string) {
-  const state = ensureLaborWorkTypeSuggestionState(workTypeId);
-  state.suggestions = [];
-  state.errorMessage = "";
-  state.isLoading = false;
-  state.isOpen = false;
-  state.highlightedIndex = -1;
-}
-
-async function loadLaborWorkTypeSuggestions(
-  workType: DailyReportLaborWorkTypeDraft,
-) {
-  const query = workType.workTypeName.trim();
-  const state = ensureLaborWorkTypeSuggestionState(workType.id);
-  const requestId = state.requestId + 1;
-  state.requestId = requestId;
-
-  if (!query) {
-    clearLaborWorkTypeSuggestions(workType.id);
+function addDailyReportLaborResource() {
+  if (!canAddDailyReportResource("labor")) {
     return;
   }
 
-  state.isLoading = true;
-  state.errorMessage = "";
-  state.isOpen = true;
-
-  try {
-    const suggestions =
-      await materialInspectionRequestApi.getWorkTypeListByName(query);
-
-    if (state.requestId !== requestId) {
-      return;
-    }
-
-    state.suggestions = suggestions;
-    state.highlightedIndex = suggestions.length > 0 ? 0 : -1;
-  } catch (error) {
-    if (state.requestId !== requestId) {
-      return;
-    }
-
-    state.suggestions = [];
-    state.highlightedIndex = -1;
-    state.errorMessage =
-      error instanceof Error ? error.message : "공종명을 불러오지 못했습니다.";
-  } finally {
-    if (state.requestId === requestId) {
-      state.isLoading = false;
-    }
-  }
-}
-
-function handleLaborWorkTypeNameInput(
-  workType: DailyReportLaborWorkTypeDraft,
-  event: Event,
-) {
-  const input = event.target as HTMLInputElement | null;
-  workType.workTypeName = input?.value ?? "";
-  workType.workTypeId = null;
-  void loadLaborWorkTypeSuggestions(workType);
-}
-
-function setLaborWorkTypeHighlightedIndex(
-  workTypeId: string,
-  index: number,
-) {
-  const state = ensureLaborWorkTypeSuggestionState(workTypeId);
-  state.highlightedIndex = Math.min(
-    Math.max(index, -1),
-    state.suggestions.length - 1,
-  );
-}
-
-function handleLaborWorkTypeKeydown(
-  workType: DailyReportLaborWorkTypeDraft,
-  event: KeyboardEvent,
-) {
-  const state = ensureLaborWorkTypeSuggestionState(workType.id);
-  const suggestionCount = state.suggestions.length;
-
-  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-    event.preventDefault();
-    clearLaborWorkTypeSuggestionCloseTimer(workType.id);
-
-    if (workType.workTypeName.trim()) {
-      state.isOpen = true;
-    }
-
-    if (suggestionCount === 0) {
-      return;
-    }
-
-    const offset = event.key === "ArrowDown" ? 1 : -1;
-    const baseIndex =
-      state.highlightedIndex >= 0
-        ? state.highlightedIndex
-        : event.key === "ArrowDown"
-          ? -1
-          : 0;
-    state.highlightedIndex = (baseIndex + offset + suggestionCount) % suggestionCount;
-    return;
-  }
-
-  if (event.key === "Enter" && !event.isComposing) {
-    if (!state.isOpen || suggestionCount === 0) {
-      return;
-    }
-
-    event.preventDefault();
-    const selectedIndex =
-      state.highlightedIndex >= 0 && state.highlightedIndex < suggestionCount
-        ? state.highlightedIndex
-        : 0;
-    const suggestion = state.suggestions[selectedIndex];
-
-    if (suggestion) {
-      selectLaborWorkTypeSuggestion(workType, suggestion);
-    }
-    return;
-  }
-
-  if (event.key === "Escape" && state.isOpen) {
-    event.preventDefault();
-    state.isOpen = false;
-    state.highlightedIndex = -1;
-  }
-}
-
-function openLaborWorkTypeSuggestionList(
-  workType: DailyReportLaborWorkTypeDraft,
-) {
-  clearLaborWorkTypeSuggestionCloseTimer(workType.id);
-
-  const state = ensureLaborWorkTypeSuggestionState(workType.id);
-  const query = workType.workTypeName.trim();
-
-  if (!query) {
-    return;
-  }
-
-  state.isOpen = true;
-  state.highlightedIndex =
-    state.highlightedIndex >= 0
-      ? state.highlightedIndex
-      : state.suggestions.length > 0
-        ? 0
-        : -1;
-
-  if (!state.isLoading && state.suggestions.length === 0) {
-    void loadLaborWorkTypeSuggestions(workType);
-  }
-}
-
-function scheduleCloseLaborWorkTypeSuggestionList(workTypeId: string) {
-  clearLaborWorkTypeSuggestionCloseTimer(workTypeId);
-  const state = ensureLaborWorkTypeSuggestionState(workTypeId);
-  state.closeTimer = setTimeout(() => {
-    state.isOpen = false;
-    state.closeTimer = null;
-  }, 120);
-}
-
-function selectLaborWorkTypeSuggestion(
-  workType: DailyReportLaborWorkTypeDraft,
-  suggestion: WorkTypeReferenceResponse,
-) {
-  clearLaborWorkTypeSuggestionCloseTimer(workType.id);
-  const state = ensureLaborWorkTypeSuggestionState(workType.id);
-  state.requestId += 1;
-  workType.workTypeId = suggestion.id;
-  workType.workTypeName = suggestion.name;
-  state.suggestions = [];
-  state.errorMessage = "";
-  state.isOpen = false;
-  state.highlightedIndex = -1;
+  laborRows.value = [
+    ...laborRows.value,
+    createDailyReportLaborRow({
+      workType: laborAddDraft.value.workType.trim(),
+      subWorkType: laborAddDraft.value.subWorkType.trim(),
+      previousQuantity: 0,
+    }),
+  ];
+  cancelDailyReportResourceAdd("labor");
 }
 
 function handleDailyReportSave() {
@@ -1287,13 +1837,8 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  stopDailyReportResourceColumnResize();
   Object.values(workTypeSuggestionStates.value).forEach((state) => {
-    if (state.closeTimer) {
-      clearTimeout(state.closeTimer);
-    }
-    state.requestId += 1;
-  });
-  Object.values(laborWorkTypeSuggestionStates.value).forEach((state) => {
     if (state.closeTimer) {
       clearTimeout(state.closeTimer);
     }
@@ -1363,7 +1908,7 @@ onUnmounted(() => {
             <article
               v-for="workType in todayWorkTypes"
               :key="workType.id"
-              class="daily-report-worktype-entry"
+              class="daily-report-worktype-entry daily-report-worktype-entry--freeform"
             >
               <label class="daily-report-worktype-field">
                 <span class="daily-report-worktype-field__control">
@@ -1457,52 +2002,35 @@ onUnmounted(() => {
                 </span>
               </label>
 
-              <button
-                type="button"
-                class="daily-report-task-add"
-                @click="addDailyReportTask(workType)"
-              >
-                + 작업 사항 추가
-              </button>
-
               <div class="daily-report-task-list">
-                <div
-                  v-for="task in workType.tasks"
-                  :key="task.id"
-                  class="daily-report-task-row"
-                >
-                  <span class="daily-report-task-row__bullet" aria-hidden="true">-</span>
-                  <div class="daily-report-task-field">
-                    <input
-                      v-model="task.text"
-                      class="daily-report-task-input"
-                      type="text"
+                <div class="daily-report-task-row daily-report-task-row--freeform">
+                  <div class="daily-report-task-field daily-report-task-field--freeform">
+                    <textarea
+                      v-model="getPrimaryDailyReportTask(workType).text"
+                      class="daily-report-task-input daily-report-task-textarea"
+                    rows="4"
                       placeholder="작업 사항을 입력해 주세요."
-                      @blur="handleTaskBlur(workType, task)"
+                      @input="resizeDailyReportTaskTextarea"
+                      @blur="handleTaskBlur(workType, getPrimaryDailyReportTask(workType))"
                     />
-                    <button
-                      type="button"
-                      class="daily-report-task-delete"
-                      aria-label="작업사항 삭제"
-                      @click="removeDailyReportTask(workType, task.id)"
-                    >
-                      ×
-                    </button>
                   </div>
                   <span
-                    v-if="task.isSyncing"
+                    v-if="getPrimaryDailyReportTask(workType).isSyncing"
                     class="daily-report-task-match-label daily-report-task-match-label--syncing"
                   >
                     동기화 중...
                   </span>
                   <span
-                    v-else-if="task.matchedWorkName"
+                    v-else-if="getPrimaryDailyReportTask(workType).matchedWorkName"
                     class="daily-report-task-match-label daily-report-task-match-label--matched"
                   >
-                    → {{ task.matchedWorkName }}
+                    → {{ getPrimaryDailyReportTask(workType).matchedWorkName }}
                   </span>
                   <span
-                    v-else-if="task.hasReceivedResponse && task.text.trim()"
+                    v-else-if="
+                      getPrimaryDailyReportTask(workType).hasReceivedResponse &&
+                      getPrimaryDailyReportTask(workType).text.trim()
+                    "
                     class="daily-report-task-match-label daily-report-task-match-label--unmatched"
                   >
                     매칭 없음
@@ -1611,7 +2139,7 @@ onUnmounted(() => {
             <article
               v-for="workType in tomorrowWorkTypes"
               :key="workType.id"
-              class="daily-report-worktype-entry"
+              class="daily-report-worktype-entry daily-report-worktype-entry--freeform"
             >
               <label class="daily-report-worktype-field">
                 <span class="daily-report-worktype-field__control">
@@ -1705,52 +2233,35 @@ onUnmounted(() => {
                 </span>
               </label>
 
-              <button
-                type="button"
-                class="daily-report-task-add"
-                @click="addDailyReportTask(workType)"
-              >
-                + 작업 사항 추가
-              </button>
-
               <div class="daily-report-task-list">
-                <div
-                  v-for="task in workType.tasks"
-                  :key="task.id"
-                  class="daily-report-task-row"
-                >
-                  <span class="daily-report-task-row__bullet" aria-hidden="true">-</span>
-                  <div class="daily-report-task-field">
-                    <input
-                      v-model="task.text"
-                      class="daily-report-task-input"
-                      type="text"
+                <div class="daily-report-task-row daily-report-task-row--freeform">
+                  <div class="daily-report-task-field daily-report-task-field--freeform">
+                    <textarea
+                      v-model="getPrimaryDailyReportTask(workType).text"
+                      class="daily-report-task-input daily-report-task-textarea"
+                    rows="4"
                       placeholder="작업 사항을 입력해 주세요."
-                      @blur="handleTaskBlur(workType, task)"
+                      @input="resizeDailyReportTaskTextarea"
+                      @blur="handleTaskBlur(workType, getPrimaryDailyReportTask(workType))"
                     />
-                    <button
-                      type="button"
-                      class="daily-report-task-delete"
-                      aria-label="작업사항 삭제"
-                      @click="removeDailyReportTask(workType, task.id)"
-                    >
-                      ×
-                    </button>
                   </div>
                   <span
-                    v-if="task.isSyncing"
+                    v-if="getPrimaryDailyReportTask(workType).isSyncing"
                     class="daily-report-task-match-label daily-report-task-match-label--syncing"
                   >
                     동기화 중...
                   </span>
                   <span
-                    v-else-if="task.matchedWorkName"
+                    v-else-if="getPrimaryDailyReportTask(workType).matchedWorkName"
                     class="daily-report-task-match-label daily-report-task-match-label--matched"
                   >
-                    → {{ task.matchedWorkName }}
+                    → {{ getPrimaryDailyReportTask(workType).matchedWorkName }}
                   </span>
                   <span
-                    v-else-if="task.hasReceivedResponse && task.text.trim()"
+                    v-else-if="
+                      getPrimaryDailyReportTask(workType).hasReceivedResponse &&
+                      getPrimaryDailyReportTask(workType).text.trim()
+                    "
                     class="daily-report-task-match-label daily-report-task-match-label--unmatched"
                   >
                     매칭 없음
@@ -1833,212 +2344,441 @@ onUnmounted(() => {
         role="tabpanel"
         aria-labelledby="daily-report-tab-labor"
       >
-        <div class="daily-report-write-work-cell daily-report-labor-cell">
-          <div class="daily-report-write-work-cell__header">
-            <span class="daily-report-write-work-cell__title">인력투입</span>
+        <div class="daily-report-resource-table daily-report-resource-table--labor">
+          <div class="daily-report-resource-table__header">
+            <h2 class="daily-report-resource-table__title">인력투입</h2>
             <button
               type="button"
-              class="daily-report-worktype-add"
-              @click="addDailyReportLaborWorkType"
+              class="daily-report-resource-add"
+              @click="toggleDailyReportResourceAddForm('labor')"
             >
-              + 공종 추가
+              + 추가하기
             </button>
           </div>
 
-          <div
-            v-if="laborWorkTypes.length > 0"
-            class="daily-report-worktype-list"
+          <form
+            v-if="resourceAddFormsOpen.labor"
+            class="daily-report-resource-add-form"
+            @submit.prevent="addDailyReportLaborResource"
           >
-            <article
-              v-for="workType in laborWorkTypes"
-              :key="workType.id"
-              class="daily-report-worktype-entry daily-report-worktype-entry--static"
-            >
-              <div class="daily-report-worktype-field">
-                <div class="daily-report-worktype-field__control">
-                  <span class="daily-report-worktype-field__marker" aria-hidden="true" />
-                  <div class="daily-report-worktype-field__input-wrap">
-                    <input
-                      :value="workType.workTypeName"
-                      class="daily-report-worktype-field__input"
-                      type="text"
-                      autocomplete="off"
-                      placeholder="공종명을 입력해 주세요."
-                      role="combobox"
-                      :aria-expanded="getLaborWorkTypeSuggestionState(workType.id).isOpen"
-                      aria-autocomplete="list"
-                      @input="handleLaborWorkTypeNameInput(workType, $event)"
-                      @keydown="handleLaborWorkTypeKeydown(workType, $event)"
-                      @focus="openLaborWorkTypeSuggestionList(workType)"
-                      @blur="scheduleCloseLaborWorkTypeSuggestionList(workType.id)"
-                    />
-                    <button
-                      type="button"
-                      class="daily-report-worktype-delete"
-                      aria-label="공종 삭제"
-                      @click="removeDailyReportLaborWorkType(workType.id)"
-                    >
-                      ×
-                    </button>
-
-                    <Transition name="daily-report-typeahead">
-                      <div
-                        v-if="getLaborWorkTypeSuggestionState(workType.id).isOpen"
-                        class="daily-report-typeahead"
-                        role="listbox"
-                        aria-label="공종명 후보"
-                        @mousedown.prevent
-                      >
-                        <p
-                          v-if="getLaborWorkTypeSuggestionState(workType.id).isLoading"
-                          class="daily-report-typeahead__state"
-                        >
-                          불러오는 중
-                        </p>
-                        <p
-                          v-else-if="getLaborWorkTypeSuggestionState(workType.id).errorMessage"
-                          class="daily-report-typeahead__state"
-                        >
-                          {{ getLaborWorkTypeSuggestionState(workType.id).errorMessage }}
-                        </p>
-                        <template
-                          v-else-if="
-                            getLaborWorkTypeSuggestionState(workType.id).suggestions.length > 0
-                          "
-                        >
-                          <button
-                            v-for="(suggestion, suggestionIndex) in getLaborWorkTypeSuggestionState(
-                              workType.id,
-                            ).suggestions"
-                            :key="suggestion.id"
-                            class="daily-report-typeahead__option"
-                            :class="{
-                              'daily-report-typeahead__option--highlighted':
-                                getLaborWorkTypeSuggestionState(workType.id).highlightedIndex ===
-                                suggestionIndex,
-                            }"
-                            type="button"
-                            role="option"
-                            :aria-selected="
-                              getLaborWorkTypeSuggestionState(workType.id).highlightedIndex ===
-                              suggestionIndex
-                            "
-                            @mouseenter="
-                              setLaborWorkTypeHighlightedIndex(
-                                workType.id,
-                                suggestionIndex,
-                              )
-                            "
-                            @click="selectLaborWorkTypeSuggestion(workType, suggestion)"
-                          >
-                            {{ suggestion.name }}
-                          </button>
-                        </template>
-                        <p
-                          v-else-if="workType.workTypeName.trim() && workType.workTypeId === null"
-                          class="daily-report-typeahead__state"
-                        >
-                          매칭되는 공종명이 없어요
-                        </p>
-                      </div>
-                    </Transition>
-                  </div>
-                </div>
-              </div>
-
+            <label class="daily-report-resource-add-form__field">
+              <span>공종</span>
+              <input
+                v-model="laborAddDraft.workType"
+                type="text"
+                placeholder="공종"
+              />
+            </label>
+            <label class="daily-report-resource-add-form__field">
+              <span>세부공종</span>
+              <input
+                v-model="laborAddDraft.subWorkType"
+                type="text"
+                placeholder="세부공종"
+              />
+            </label>
+            <div class="daily-report-resource-add-form__actions">
               <button
                 type="button"
-                class="daily-report-task-add"
-                @click="addDailyReportLaborSubWork(workType)"
+                class="daily-report-resource-add-form__button"
+                @click="cancelDailyReportResourceAdd('labor')"
               >
-                + 직종 추가
+                취소
               </button>
+              <button
+                type="submit"
+                class="daily-report-resource-add-form__button daily-report-resource-add-form__button--primary"
+                :disabled="!canAddDailyReportResource('labor')"
+              >
+                추가
+              </button>
+            </div>
+          </form>
 
-              <div class="daily-report-task-list daily-report-labor-subwork-list">
-                <div
-                  v-for="subWork in workType.subWorks"
-                  :key="subWork.id"
-                  class="daily-report-task-row daily-report-labor-subwork-row"
-                >
-                  <span class="daily-report-task-row__bullet" aria-hidden="true">-</span>
-                  <div class="daily-report-labor-subwork-field">
-                    <input
-                      v-model="subWork.name"
-                      class="daily-report-task-input daily-report-labor-subwork-input"
-                      type="text"
-                      placeholder="직종명"
-                    />
-                    <input
-                      v-model="subWork.quantity"
-                      class="daily-report-task-input daily-report-labor-quantity-input"
-                      inputmode="numeric"
-                      type="text"
-                      placeholder="0"
-                    />
+          <div
+            v-if="dailyReportLaborSummaryItems.length > 0"
+            class="daily-report-labor-summary"
+            aria-label="금일 인력 투입 요약"
+            aria-live="polite"
+          >
+            <p
+              v-for="(summaryItem, summaryIndex) in dailyReportLaborSummaryItems"
+              :key="`${summaryIndex}-${summaryItem}`"
+              class="daily-report-labor-summary__line"
+            >
+              {{ summaryItem }}
+            </p>
+          </div>
+
+          <div class="daily-report-resource-sheet" role="region" aria-label="인력 투입현황 표">
+            <table
+              class="daily-report-resource-sheet__table daily-report-resource-sheet__table--labor"
+              :style="getDailyReportResourceTableStyle('labor')"
+            >
+              <colgroup>
+                <col
+                  v-for="(column, columnIndex) in DAILY_REPORT_RESOURCE_COLUMNS.labor"
+                  :key="column.key"
+                  :style="getDailyReportResourceColumnStyle('labor', columnIndex)"
+                />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th
+                    v-for="(column, columnIndex) in DAILY_REPORT_RESOURCE_COLUMNS.labor"
+                    :key="column.key"
+                    scope="col"
+                  >
+                    <span class="daily-report-resource-sheet__header-label">
+                      {{ column.label }}
+                    </span>
                     <button
                       type="button"
-                      class="daily-report-task-delete daily-report-labor-subwork-delete"
-                      aria-label="직종 삭제"
-                      @click="removeDailyReportLaborSubWork(workType, subWork.id)"
+                      class="daily-report-resource-sheet__resize-handle"
+                      :aria-label="`${column.label} 컬럼 너비 조절`"
+                      @pointerdown="
+                        startDailyReportResourceColumnResize(
+                          'labor',
+                          columnIndex,
+                          $event,
+                        )
+                      "
+                      @keydown="
+                        handleDailyReportResourceColumnResizeKeydown(
+                          'labor',
+                          columnIndex,
+                          $event,
+                        )
+                      "
+                    />
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <template
+                  v-for="group in laborRowGroups"
+                  :key="group.key"
+                >
+                  <tr
+                    v-for="(row, rowIndex) in group.rows"
+                    :key="row.id"
+                  >
+                    <td
+                      v-if="rowIndex === 0"
+                      class="daily-report-resource-sheet__group-cell"
+                      :rowspan="group.rows.length"
                     >
-                      ×
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </article>
+                      {{ group.workType }}
+                    </td>
+                    <td>{{ row.subWorkType }}</td>
+                    <td class="daily-report-resource-sheet__today-cell">
+                      <input
+                        v-model="row.todayQuantity"
+                        class="daily-report-resource-sheet__today-input"
+                        inputmode="decimal"
+                        type="text"
+                        aria-label="인력 금일 수량"
+                        placeholder="0"
+                        @input="updateDailyReportTodayQuantity(row, $event)"
+                      />
+                    </td>
+                    <td class="daily-report-resource-sheet__number daily-report-resource-sheet__number--total">
+                      {{ formatDailyReportQuantity(getDailyReportCumulativeQuantity(row)) }}
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
           </div>
         </div>
       </section>
 
       <section
-        v-for="resourceTab in DAILY_REPORT_RESOURCE_TABS"
-        v-show="activeDailyReportTab === resourceTab.id"
-        :id="`daily-report-panel-${resourceTab.id}`"
-        :key="resourceTab.id"
+        v-show="activeDailyReportTab === 'material'"
+        id="daily-report-panel-material"
         class="daily-report-resource-panel"
         role="tabpanel"
-        :aria-labelledby="`daily-report-tab-${resourceTab.id}`"
+        aria-labelledby="daily-report-tab-material"
       >
-        <div
-          class="daily-report-resource-table"
-          :class="`daily-report-resource-table--${resourceTab.id}`"
-        >
+        <div class="daily-report-resource-table daily-report-resource-table--material">
           <div class="daily-report-resource-table__header">
-            <h2 class="daily-report-resource-table__title">
-              {{ resourceTab.label }}
-            </h2>
+            <h2 class="daily-report-resource-table__title">자재투입</h2>
             <button
               type="button"
               class="daily-report-resource-add"
-              @click="addDailyReportResourceRow(resourceTab.id)"
+              @click="toggleDailyReportResourceAddForm('material')"
             >
-              + {{ resourceTab.addLabel }}
+              + 추가하기
             </button>
           </div>
 
-          <div
-            v-for="row in getDailyReportResourceRows(resourceTab.id)"
-            :key="row.id"
-            class="daily-report-resource-table__row"
+          <form
+            v-if="resourceAddFormsOpen.material"
+            class="daily-report-resource-add-form"
+            @submit.prevent="addDailyReportMaterialResource"
           >
-            <input
-              v-for="column in resourceTab.columns"
-              :key="column.key"
-              class="daily-report-resource-table__input"
-              :inputmode="column.inputMode ?? 'text'"
-              :placeholder="column.placeholder"
-              :value="row[column.key]"
-              @input="updateDailyReportResourceValue(row, column.key, $event)"
-            />
+            <label class="daily-report-resource-add-form__field">
+              <span>공종</span>
+              <input
+                v-model="materialAddDraft.workType"
+                type="text"
+                placeholder="공종"
+              />
+            </label>
+            <label class="daily-report-resource-add-form__field">
+              <span>타입</span>
+              <input
+                v-model="materialAddDraft.type"
+                type="text"
+                placeholder="타입"
+              />
+            </label>
+            <label class="daily-report-resource-add-form__field">
+              <span>규격</span>
+              <input
+                v-model="materialAddDraft.specification"
+                type="text"
+                placeholder="규격"
+              />
+            </label>
+            <label class="daily-report-resource-add-form__field">
+              <span>단위</span>
+              <input
+                v-model="materialAddDraft.unit"
+                type="text"
+                placeholder="단위"
+              />
+            </label>
+            <div class="daily-report-resource-add-form__actions">
+              <button
+                type="button"
+                class="daily-report-resource-add-form__button"
+                @click="cancelDailyReportResourceAdd('material')"
+              >
+                취소
+              </button>
+              <button
+                type="submit"
+                class="daily-report-resource-add-form__button daily-report-resource-add-form__button--primary"
+                :disabled="!canAddDailyReportResource('material')"
+              >
+                추가
+              </button>
+            </div>
+          </form>
+
+          <div class="daily-report-resource-sheet" role="region" aria-label="주요자재 투입현황 표">
+            <table
+              class="daily-report-resource-sheet__table daily-report-resource-sheet__table--material"
+              :style="getDailyReportResourceTableStyle('material')"
+            >
+              <colgroup>
+                <col
+                  v-for="(column, columnIndex) in DAILY_REPORT_RESOURCE_COLUMNS.material"
+                  :key="column.key"
+                  :style="getDailyReportResourceColumnStyle('material', columnIndex)"
+                />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th
+                    v-for="(column, columnIndex) in DAILY_REPORT_RESOURCE_COLUMNS.material"
+                    :key="column.key"
+                    scope="col"
+                  >
+                    <span class="daily-report-resource-sheet__header-label">
+                      {{ column.label }}
+                    </span>
+                    <button
+                      type="button"
+                      class="daily-report-resource-sheet__resize-handle"
+                      :aria-label="`${column.label} 컬럼 너비 조절`"
+                      @pointerdown="
+                        startDailyReportResourceColumnResize(
+                          'material',
+                          columnIndex,
+                          $event,
+                        )
+                      "
+                      @keydown="
+                        handleDailyReportResourceColumnResizeKeydown(
+                          'material',
+                          columnIndex,
+                          $event,
+                        )
+                      "
+                    />
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in materialRows" :key="row.id">
+                  <td>{{ row.workType }}</td>
+                  <td>{{ row.type }}</td>
+                  <td>{{ row.specification }}</td>
+                  <td>{{ row.unit }}</td>
+                  <td class="daily-report-resource-sheet__today-cell">
+                    <input
+                      v-model="row.todayQuantity"
+                      class="daily-report-resource-sheet__today-input"
+                      inputmode="decimal"
+                      type="text"
+                      aria-label="자재 금일 수량"
+                      placeholder="0"
+                      @input="updateDailyReportTodayQuantity(row, $event)"
+                    />
+                  </td>
+                  <td class="daily-report-resource-sheet__number daily-report-resource-sheet__number--total">
+                    {{ formatDailyReportQuantity(getDailyReportCumulativeQuantity(row)) }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section
+        v-show="activeDailyReportTab === 'equipment'"
+        id="daily-report-panel-equipment"
+        class="daily-report-resource-panel"
+        role="tabpanel"
+        aria-labelledby="daily-report-tab-equipment"
+      >
+        <div class="daily-report-resource-table daily-report-resource-table--equipment">
+          <div class="daily-report-resource-table__header">
+            <h2 class="daily-report-resource-table__title">장비투입</h2>
             <button
               type="button"
-              class="daily-report-resource-table__delete"
-              :aria-label="`${resourceTab.label} 항목 삭제`"
-              @click="removeDailyReportResourceRow(resourceTab.id, row.id)"
+              class="daily-report-resource-add"
+              @click="toggleDailyReportResourceAddForm('equipment')"
             >
-              ×
+              + 추가하기
             </button>
+          </div>
+
+          <form
+            v-if="resourceAddFormsOpen.equipment"
+            class="daily-report-resource-add-form"
+            @submit.prevent="addDailyReportEquipmentResource"
+          >
+            <label class="daily-report-resource-add-form__field">
+              <span>공정</span>
+              <input
+                v-model="equipmentAddDraft.process"
+                type="text"
+                placeholder="공정"
+              />
+            </label>
+            <label class="daily-report-resource-add-form__field">
+              <span>타입</span>
+              <input
+                v-model="equipmentAddDraft.type"
+                type="text"
+                placeholder="타입"
+              />
+            </label>
+            <label class="daily-report-resource-add-form__field">
+              <span>규격</span>
+              <input
+                v-model="equipmentAddDraft.specification"
+                type="text"
+                placeholder="규격"
+              />
+            </label>
+            <label class="daily-report-resource-add-form__field">
+              <span>단위</span>
+              <input
+                v-model="equipmentAddDraft.unit"
+                type="text"
+                placeholder="단위"
+              />
+            </label>
+            <div class="daily-report-resource-add-form__actions">
+              <button
+                type="button"
+                class="daily-report-resource-add-form__button"
+                @click="cancelDailyReportResourceAdd('equipment')"
+              >
+                취소
+              </button>
+              <button
+                type="submit"
+                class="daily-report-resource-add-form__button daily-report-resource-add-form__button--primary"
+                :disabled="!canAddDailyReportResource('equipment')"
+              >
+                추가
+              </button>
+            </div>
+          </form>
+
+          <div class="daily-report-resource-sheet" role="region" aria-label="장비 투입현황 표">
+            <table
+              class="daily-report-resource-sheet__table daily-report-resource-sheet__table--equipment"
+              :style="getDailyReportResourceTableStyle('equipment')"
+            >
+              <colgroup>
+                <col
+                  v-for="(column, columnIndex) in DAILY_REPORT_RESOURCE_COLUMNS.equipment"
+                  :key="column.key"
+                  :style="getDailyReportResourceColumnStyle('equipment', columnIndex)"
+                />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th
+                    v-for="(column, columnIndex) in DAILY_REPORT_RESOURCE_COLUMNS.equipment"
+                    :key="column.key"
+                    scope="col"
+                  >
+                    <span class="daily-report-resource-sheet__header-label">
+                      {{ column.label }}
+                    </span>
+                    <button
+                      type="button"
+                      class="daily-report-resource-sheet__resize-handle"
+                      :aria-label="`${column.label} 컬럼 너비 조절`"
+                      @pointerdown="
+                        startDailyReportResourceColumnResize(
+                          'equipment',
+                          columnIndex,
+                          $event,
+                        )
+                      "
+                      @keydown="
+                        handleDailyReportResourceColumnResizeKeydown(
+                          'equipment',
+                          columnIndex,
+                          $event,
+                        )
+                      "
+                    />
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in equipmentRows" :key="row.id">
+                  <td>{{ row.process }}</td>
+                  <td>{{ row.type }}</td>
+                  <td>{{ row.specification }}</td>
+                  <td>{{ row.unit }}</td>
+                  <td class="daily-report-resource-sheet__today-cell">
+                    <input
+                      v-model="row.todayQuantity"
+                      class="daily-report-resource-sheet__today-input"
+                      inputmode="decimal"
+                      type="text"
+                      aria-label="장비 금일 수량"
+                      placeholder="0"
+                      @input="updateDailyReportTodayQuantity(row, $event)"
+                    />
+                  </td>
+                  <td class="daily-report-resource-sheet__number daily-report-resource-sheet__number--total">
+                    {{ formatDailyReportQuantity(getDailyReportCumulativeQuantity(row)) }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </section>
