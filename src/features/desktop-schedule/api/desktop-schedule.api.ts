@@ -642,7 +642,9 @@ export const desktopScheduleApi = {
       nextScheduleVersions = [createdScheduleVersion];
     }
 
-    setSelectedDesktopScheduleVersionId(selectedScheduleVersion.id);
+    if (options.persistSelection !== false) {
+      setSelectedDesktopScheduleVersionId(selectedScheduleVersion.id);
+    }
 
     const scheduleVersionId = selectedScheduleVersion.id;
     const worksPromise = options.period

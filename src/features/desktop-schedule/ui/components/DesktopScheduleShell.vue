@@ -27,7 +27,7 @@ import "@/features/desktop-schedule/ui/components/styles/DesktopScheduleShell.cs
 const SHELL_HEADER_HEIGHT = 116;
 const SHELL_HEADER_MONTH_HEIGHT = 32;
 const SHELL_HEADER_WEEK_HEIGHT = 28;
-const SHELL_TOOLBAR_HEIGHT = 48;
+const SHELL_TOOLBAR_HEIGHT = 56;
 const SHELL_STACK_GAP = 8;
 const SHELL_SURFACE_PADDING_Y = 10;
 const SHELL_SURFACE_GAP = 8;
@@ -680,7 +680,7 @@ function requestScheduleVersionDelete(version: ScheduleVersionOption) {
 
   activeVersionActionMenu.value = null;
   const confirmed = window.confirm(
-    `'${version.versionName}' 작업본을 삭제할까요?\n삭제하면 이 작업본의 공정표 데이터도 함께 정리됩니다.`,
+    `'${version.versionName}' 복제본을 삭제할까요?\n삭제하면 이 복제본의 공정표 데이터도 함께 정리됩니다.`,
   );
 
   if (!confirmed) {
@@ -865,7 +865,7 @@ onUnmounted(() => {
   >
     <p v-if="showReadonlyNotice" class="schedule-shell__readonly-notice" role="note">
       <span class="schedule-shell__readonly-notice-chip">읽기 전용</span>
-      <span>기준 공정표는 직접 수정할 수 없어요. 작업본을 만들어 수정해 주세요.</span>
+      <span>기준 공정표는 직접 수정할 수 없어요. 복제본을 만들어 수정해 주세요.</span>
     </p>
 
     <section class="schedule-shell__surface" aria-label="공정표">
@@ -968,7 +968,7 @@ onUnmounted(() => {
           ref="draftRailRef"
           class="schedule-shell__draft-rail"
           :class="{ 'schedule-shell__draft-rail--dragging': draftRailDragState }"
-          aria-label="작업본 목록"
+          aria-label="복제본 목록"
           @pointerdown="handleDraftRailPointerDown"
         >
           <div class="schedule-shell__draft-list">
@@ -1000,7 +1000,7 @@ onUnmounted(() => {
                 v-else
                 class="schedule-shell__draft-chip schedule-shell__draft-chip--editing"
                 role="textbox"
-                aria-label="작업본 이름"
+                aria-label="복제본 이름"
               >
                 <span
                   :ref="setScheduleVersionRenameEditorRef"
@@ -1024,7 +1024,7 @@ onUnmounted(() => {
               :disabled="!canCreateDraftVersion"
               @click="createDraftVersionWithDefaultName"
             >
-              + 작업본 만들기
+              + 복제본 만들기
             </button>
           </div>
         </div>
@@ -1258,11 +1258,11 @@ onUnmounted(() => {
           >
             <header class="schedule-shell__promotion-dialog-header">
               <h2 id="schedule-version-promotion-title">
-                이 작업본을 기준 공정표로 반영할까요?
+                이 복제본을 기준 공정표로 반영할까요?
               </h2>
               <p>
                 기존 공정표는 더 이상 기준으로 쓰이지 않아요.<br />
-                반영 후에는 이 작업본이 기준 공정표로 표시됩니다.
+                반영 후에는 이 복제본이 기준 공정표로 표시됩니다.
               </p>
             </header>
 

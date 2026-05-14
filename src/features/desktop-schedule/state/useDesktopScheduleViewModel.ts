@@ -115,6 +115,11 @@ type TimelineCalendarState = {
   >;
 };
 
+type ProjectScheduleDateRange = {
+  startDate: string;
+  endDate: string;
+};
+
 type ScheduleToastState = {
   visible: boolean;
   message: string;
@@ -201,6 +206,7 @@ const DEFAULT_WORK_TYPE_NAME = "공종명 (철콘공사)";
 const DEFAULT_SUB_WORK_TYPE_NAME = "세부공종명 (타설)";
 const DEFAULT_ROW_PANEL_WIDTH = 220;
 const DEFAULT_WORK_TYPE_COLUMN_WIDTH = 110;
+const DEFAULT_NEW_WORK_LEAD_TIME = 3;
 const ROW_PANEL_MIN_WIDTH = 180;
 const ROW_PANEL_MAX_WIDTH = 520;
 const WORK_TYPE_COLUMN_MIN_WIDTH = 72;
@@ -471,8 +477,61 @@ function createTimelineCalendarState(data: DesktopScheduleBootstrapData): Timeli
   };
 }
 
+function parseScheduleLocalDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year ?? 1970, (month ?? 1) - 1, day ?? 1);
+}
+
+function diffScheduleDays(startDate: string, endDate: string) {
+  const start = parseScheduleLocalDate(startDate);
+  const end = parseScheduleLocalDate(endDate);
+
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+
+  return Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
+}
+
+function clampScheduleNumber(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function isDateWithinProjectRange(date: string, range: ProjectScheduleDateRange) {
+  return date >= range.startDate && date <= range.endDate;
+}
+
+function getWorkLeadTimeWithinProject(
+  startDate: string,
+  range: ProjectScheduleDateRange | null,
+) {
+  if (!range) {
+    return DEFAULT_NEW_WORK_LEAD_TIME;
+  }
+
+  return clampScheduleNumber(
+    DEFAULT_NEW_WORK_LEAD_TIME,
+    1,
+    Math.max(diffScheduleDays(startDate, range.endDate) + 1, 1),
+  );
+}
+
 function normalizeError(error: unknown) {
   return error instanceof Error ? error : new Error("공정표 데이터를 불러오지 못했습니다.");
+}
+
+async function ignoreMissingHistoryDelete(
+  mutation: () => Promise<unknown>,
+  missingEntityPattern: RegExp,
+) {
+  try {
+    await mutation();
+  } catch (error) {
+    if (missingEntityPattern.test(normalizeError(error).message)) {
+      return;
+    }
+
+    throw error;
+  }
 }
 
 function isNetworkMutationError(error: Error) {
@@ -562,7 +621,7 @@ function formatDraftVersionDatePrefix(date = new Date()) {
 }
 
 function createSuggestedDraftVersionName(versions: DesktopScheduleVersionResponse[]) {
-  const prefix = `${formatDraftVersionDatePrefix()}_작업본`;
+  const prefix = `${formatDraftVersionDatePrefix()}_복제본`;
   const versionNameSet = new Set(versions.map((version) => version.versionName));
   let draftNumber = 1;
 
@@ -864,341 +923,177 @@ function createEmptyScheduleVersionReviewVisualSummary(): DesktopScheduleVersion
   };
 }
 
-function parseReviewWorkId(value: string) {
-  const parsedValue = Number(value);
-  return Number.isFinite(parsedValue) ? parsedValue : null;
-}
-
-function splitReviewEntityPair<TBaseline extends { id: string }, TDraft extends { id: string }>(
-  payload: string,
-  baselineEntities: TBaseline[],
-  draftEntities: TDraft[],
+function buildScheduleVersionReviewConnectionGeometry(
+  sourceBar: DesktopScheduleShellLayout["bars"][number],
+  targetBar: DesktopScheduleShellLayout["bars"][number],
 ) {
-  const draftEntityById = new Map(draftEntities.map((entity) => [entity.id, entity] as const));
-  const sortedBaselineEntities = [...baselineEntities].sort((a, b) => b.id.length - a.id.length);
+  const sourceX = sourceBar.left + sourceBar.width;
+  const sourceY = sourceBar.top + sourceBar.height / 2;
+  const targetX = targetBar.left;
+  const targetY = targetBar.top + targetBar.height / 2;
 
-  for (const baselineEntity of sortedBaselineEntities) {
-    const prefix = `${baselineEntity.id}:`;
-
-    if (!payload.startsWith(prefix)) {
-      continue;
+  function buildRoundedOrthogonalPath(points: Array<{ x: number; y: number }>, cornerRadius = 10) {
+    if (points.length <= 1) {
+      return "";
     }
 
-    const draftEntity = draftEntityById.get(payload.slice(prefix.length));
+    const segments = [`M ${points[0]!.x} ${points[0]!.y}`];
 
-    if (draftEntity) {
-      return {
-        baseline: baselineEntity,
-        draft: draftEntity,
-      };
+    for (let index = 1; index < points.length - 1; index += 1) {
+      const previous = points[index - 1]!;
+      const current = points[index]!;
+      const next = points[index + 1]!;
+      const previousDistance = Math.hypot(current.x - previous.x, current.y - previous.y);
+      const nextDistance = Math.hypot(next.x - current.x, next.y - current.y);
+      const radius = Math.min(cornerRadius, previousDistance / 2, nextDistance / 2);
+
+      if (radius <= 0) {
+        segments.push(`L ${current.x} ${current.y}`);
+        continue;
+      }
+
+      if (previous.y === current.y && current.x === next.x) {
+        const beforeX = current.x - Math.sign(current.x - previous.x) * radius;
+        const afterY = current.y + Math.sign(next.y - current.y) * radius;
+        segments.push(`L ${beforeX} ${current.y}`);
+        segments.push(`Q ${current.x} ${current.y} ${current.x} ${afterY}`);
+        continue;
+      }
+
+      if (previous.x === current.x && current.y === next.y) {
+        const beforeY = current.y - Math.sign(current.y - previous.y) * radius;
+        const afterX = current.x + Math.sign(next.x - current.x) * radius;
+        segments.push(`L ${current.x} ${beforeY}`);
+        segments.push(`Q ${current.x} ${current.y} ${afterX} ${current.y}`);
+        continue;
+      }
+
+      segments.push(`L ${current.x} ${current.y}`);
     }
+
+    const lastPoint = points[points.length - 1]!;
+    segments.push(`L ${lastPoint.x} ${lastPoint.y}`);
+
+    return segments.join(" ");
   }
 
-  return null;
+  if (sourceY === targetY) {
+    return {
+      path: `M ${sourceX} ${sourceY} L ${targetX} ${targetY}`,
+      labelX: (sourceX + targetX) / 2,
+      labelY: sourceY,
+    };
+  }
+
+  if (targetX >= sourceX + 24) {
+    const bendX = sourceX + Math.max((targetX - sourceX) / 2, 28);
+
+    return {
+      path: buildRoundedOrthogonalPath([
+        { x: sourceX, y: sourceY },
+        { x: bendX, y: sourceY },
+        { x: bendX, y: targetY },
+        { x: targetX, y: targetY },
+      ]),
+      labelX: bendX + 10,
+      labelY: (sourceY + targetY) / 2,
+    };
+  }
+
+  const bendX = Math.max(sourceX, targetX) + 36;
+
+  return {
+    path: buildRoundedOrthogonalPath([
+      { x: sourceX, y: sourceY },
+      { x: bendX, y: sourceY },
+      { x: bendX, y: targetY },
+      { x: targetX, y: targetY },
+    ]),
+    labelX: bendX + 10,
+    labelY: (sourceY + targetY) / 2,
+  };
 }
 
 function createDesktopScheduleVersionReviewVisualSummary(
-  details: DesktopScheduleVersionReviewDetail[],
-  baselineSnapshot: DesktopScheduleSnapshot,
-  draftSnapshot: Pick<DesktopScheduleSnapshot, "items" | "workConnections" | "milestones">,
   baselineLayout: DesktopScheduleShellLayout,
-  draftLayout: DesktopScheduleShellLayout,
+  currentLayout: DesktopScheduleShellLayout,
 ): DesktopScheduleVersionReviewVisualSummary {
   const visual = createEmptyScheduleVersionReviewVisualSummary();
-  const baselineItemByWorkId = new Map(
-    baselineSnapshot.items.map((item) => [item.workId, item] as const),
-  );
-  const draftItemByWorkId = new Map(draftSnapshot.items.map((item) => [item.workId, item] as const));
-  const baselineBarByItemId = new Map(
-    baselineLayout.bars
-      .filter((bar) => bar.kind === "item")
-      .map((bar) => [bar.itemId, bar] as const),
-  );
-  const baselineConnectionById = new Map(
-    baselineLayout.connections
-      .filter((connection) => connection.kind === "work-connection")
-      .map((connection) => [connection.id, connection] as const),
-  );
-  const baselineMilestoneById = new Map(
-    baselineLayout.milestones.map((milestone) => [milestone.id, milestone] as const),
-  );
-  const draftRowById = new Map(draftLayout.rows.map((row) => [row.id, row] as const));
-  const draftTopBarTopByRowId = new Map<string, number>();
+  const baselineRowById = new Map(baselineLayout.rows.map((row) => [row.id, row] as const));
+  const currentRowById = new Map(currentLayout.rows.map((row) => [row.id, row] as const));
+  const rebasedBaselineBarByItemId = new Map<string, DesktopScheduleShellLayout["bars"][number]>();
 
-  draftLayout.bars.forEach((bar) => {
-    if (bar.kind !== "item") {
-      return;
+  function rebaseTop(rowId: string, top: number) {
+    const baselineRow = baselineRowById.get(rowId);
+    const currentRow = currentRowById.get(rowId);
+
+    if (!baselineRow || !currentRow) {
+      return top;
     }
 
-    const currentTop = draftTopBarTopByRowId.get(bar.rowId);
-    draftTopBarTopByRowId.set(
-      bar.rowId,
-      currentTop === undefined ? bar.top : Math.min(currentTop, bar.top),
-    );
-  });
-
-  const draftMilestoneById = new Map(
-    draftLayout.milestones.map((milestone) => [milestone.id, milestone] as const),
-  );
-  const draftMilestoneRow = draftLayout.rows.find((row) => row.kind === "milestone") ?? null;
-  const draftTopMilestoneTop = draftLayout.milestones.reduce<number | null>(
-    (top, milestone) => (top === null ? milestone.top : Math.min(top, milestone.top)),
-    null,
-  );
-  const pushedBaselineBarOverlayIds = new Set<string>();
-  const pushedBaselineConnectionOverlayIds = new Set<string>();
-  const pushedBaselineMilestoneOverlayIds = new Set<string>();
-
-  function getTopLaneFallbackOffset(overlayHeight: number) {
-    return Math.max((draftLayout.rowHeight - overlayHeight) / 2, 6);
+    return currentRow.top + (top - baselineRow.top);
   }
 
-  function getTopAlignedBaselineBarOverlayTop(
-    baselineItem: DesktopScheduleItem,
-    baselineBar: DesktopScheduleShellLayout["bars"][number],
-    draftWorkId?: number,
-  ) {
-    const draftItem = draftWorkId !== undefined ? draftItemByWorkId.get(draftWorkId) : null;
-    const targetRowId = draftItem?.rowId ?? baselineItem.rowId;
-    const draftTopBarTop = draftTopBarTopByRowId.get(targetRowId);
+  baselineLayout.bars
+    .filter((bar) => bar.kind === "item")
+    .forEach((bar) => {
+      const rebasedBar = {
+        ...bar,
+        top: rebaseTop(bar.rowId, bar.top),
+      };
 
-    if (draftTopBarTop !== undefined) {
-      return draftTopBarTop;
-    }
-
-    const draftRow = draftRowById.get(targetRowId);
-    if (draftRow) {
-      return draftRow.top + getTopLaneFallbackOffset(baselineBar.height);
-    }
-
-    return baselineBar.top;
-  }
-
-  function getTopAlignedBaselineMilestoneOverlayTop(
-    baselineMilestoneLayout: DesktopScheduleShellLayout["milestones"][number],
-    draftMilestoneId?: string,
-  ) {
-    const draftMilestoneLayout =
-      draftMilestoneId !== undefined ? draftMilestoneById.get(draftMilestoneId) : null;
-
-    if (draftMilestoneLayout) {
-      return draftMilestoneLayout.top;
-    }
-
-    if (draftTopMilestoneTop !== null) {
-      return draftTopMilestoneTop;
-    }
-
-    if (draftMilestoneRow) {
-      return draftMilestoneRow.top + getTopLaneFallbackOffset(baselineMilestoneLayout.height);
-    }
-
-    return baselineMilestoneLayout.top;
-  }
-
-  function pushCurrentItemId(kind: "added" | "changed", workId: number) {
-    const draftItem = draftItemByWorkId.get(workId);
-
-    if (!draftItem) {
-      return;
-    }
-
-    const targetIds = kind === "added" ? visual.addedItemIds : visual.changedItemIds;
-
-    if (!targetIds.includes(draftItem.id)) {
-      targetIds.push(draftItem.id);
-    }
-  }
-
-  function pushBaselineBarOverlay(kind: "changed" | "deleted", workId: number, draftWorkId?: number) {
-    const baselineItem = baselineItemByWorkId.get(workId);
-    const baselineBar = baselineItem ? baselineBarByItemId.get(baselineItem.id) : null;
-
-    if (!baselineItem || !baselineBar) {
-      return;
-    }
-
-    const overlayId = `review-bar:${kind}:${baselineItem.id}`;
-
-    if (pushedBaselineBarOverlayIds.has(overlayId)) {
-      return;
-    }
-
-    pushedBaselineBarOverlayIds.add(overlayId);
-    visual.baselineBarOverlays.push({
-      id: overlayId,
-      changeKind: kind,
-      itemId: baselineItem.id,
-      name: baselineItem.name,
-      colorHex: baselineBar.colorHex,
-      left: baselineBar.left,
-      top: getTopAlignedBaselineBarOverlayTop(baselineItem, baselineBar, draftWorkId),
-      width: baselineBar.width,
-      height: baselineBar.height,
+      rebasedBaselineBarByItemId.set(bar.itemId, rebasedBar);
+      visual.baselineBarOverlays.push({
+        id: `review-bar:baseline:${bar.itemId}`,
+        changeKind: "changed",
+        itemId: bar.itemId,
+        name: bar.name,
+        colorHex: bar.colorHex,
+        left: bar.left,
+        top: rebasedBar.top,
+        width: bar.width,
+        height: bar.height,
+      });
     });
-  }
+  baselineLayout.connections
+    .filter((connection) => connection.kind === "work-connection")
+    .forEach((connection) => {
+      const sourceBar = rebasedBaselineBarByItemId.get(connection.sourceItemId);
+      const targetBar = rebasedBaselineBarByItemId.get(connection.targetItemId);
 
-  function pushCurrentWorkConnectionId(kind: "added" | "changed", connectionId: string) {
-    const targetIds =
-      kind === "added" ? visual.addedWorkConnectionIds : visual.changedWorkConnectionIds;
+      if (!sourceBar || !targetBar) {
+        return;
+      }
 
-    if (!targetIds.includes(connectionId)) {
-      targetIds.push(connectionId);
-    }
-  }
+      const geometry = buildScheduleVersionReviewConnectionGeometry(sourceBar, targetBar);
 
-  function pushBaselineConnectionOverlay(kind: "changed" | "deleted", connectionId: string) {
-    const baselineConnection = baselineConnectionById.get(connectionId);
-
-    if (!baselineConnection) {
-      return;
-    }
-
-    const overlayId = `review-connection:${kind}:${baselineConnection.id}`;
-
-    if (pushedBaselineConnectionOverlayIds.has(overlayId)) {
-      return;
-    }
-
-    pushedBaselineConnectionOverlayIds.add(overlayId);
-    visual.baselineConnectionOverlays.push({
-      id: overlayId,
-      changeKind: kind,
-      connectionId: baselineConnection.id,
-      path: baselineConnection.path,
-      label: baselineConnection.label,
-      labelX: baselineConnection.labelX,
-      labelY: baselineConnection.labelY,
+      visual.baselineConnectionOverlays.push({
+        id: `review-connection:baseline:${connection.id}`,
+        changeKind: "changed",
+        connectionId: connection.id,
+        path: geometry.path,
+        label: connection.label,
+        labelX: geometry.labelX,
+        labelY: geometry.labelY,
+      });
     });
-  }
+  baselineLayout.milestones.forEach((milestone) => {
+    const milestoneRow =
+      baselineLayout.rows.find((row) => row.kind === "milestone") ?? baselineLayout.rows[0] ?? null;
+    const rebasedTop = milestoneRow ? rebaseTop(milestoneRow.id, milestone.top) : milestone.top;
 
-  function pushCurrentMilestoneId(kind: "added" | "changed", milestoneId: string) {
-    const targetIds = kind === "added" ? visual.addedMilestoneIds : visual.changedMilestoneIds;
-
-    if (!targetIds.includes(milestoneId)) {
-      targetIds.push(milestoneId);
-    }
-  }
-
-  function pushBaselineMilestoneOverlay(
-    kind: "changed" | "deleted",
-    milestoneId: string,
-    draftMilestoneId?: string,
-  ) {
-    const baselineMilestone = baselineSnapshot.milestones.find(
-      (candidate) => candidate.id === milestoneId,
-    );
-    const baselineMilestoneLayout = baselineMilestoneById.get(milestoneId);
-
-    if (!baselineMilestone || !baselineMilestoneLayout) {
-      return;
-    }
-
-    const overlayId = `review-milestone:${kind}:${baselineMilestone.id}`;
-
-    if (pushedBaselineMilestoneOverlayIds.has(overlayId)) {
-      return;
-    }
-
-    pushedBaselineMilestoneOverlayIds.add(overlayId);
     visual.baselineMilestoneOverlays.push({
-      id: overlayId,
-      changeKind: kind,
-      milestoneId: baselineMilestone.id,
-      label: baselineMilestone.label,
-      left: baselineMilestoneLayout.left,
-      top: getTopAlignedBaselineMilestoneOverlayTop(baselineMilestoneLayout, draftMilestoneId),
-      width: baselineMilestoneLayout.width,
-      height: baselineMilestoneLayout.height,
-      labelWidth: baselineMilestoneLayout.labelWidth,
+      id: `review-milestone:baseline:${milestone.id}`,
+      changeKind: "changed",
+      milestoneId: milestone.id,
+      label: milestone.label,
+      left: milestone.left,
+      top: rebasedTop,
+      width: milestone.width,
+      height: milestone.height,
+      labelWidth: milestone.labelWidth,
     });
-  }
-
-  for (const detail of details) {
-    if (detail.id.startsWith("work-added:")) {
-      const workId = parseReviewWorkId(detail.id.slice("work-added:".length));
-      if (workId !== null) {
-        pushCurrentItemId("added", workId);
-      }
-      continue;
-    }
-
-    if (detail.id.startsWith("work-deleted:")) {
-      const workId = parseReviewWorkId(detail.id.slice("work-deleted:".length));
-      if (workId !== null) {
-        pushBaselineBarOverlay("deleted", workId);
-      }
-      continue;
-    }
-
-    if (detail.id.startsWith("work-changed:")) {
-      const [baselineWorkIdValue, draftWorkIdValue] = detail.id
-        .slice("work-changed:".length)
-        .split(":");
-      const baselineWorkId = parseReviewWorkId(baselineWorkIdValue ?? "");
-      const draftWorkId = parseReviewWorkId(draftWorkIdValue ?? "");
-
-      if (baselineWorkId !== null) {
-        pushBaselineBarOverlay(
-          "changed",
-          baselineWorkId,
-          draftWorkId === null ? undefined : draftWorkId,
-        );
-      }
-
-      if (draftWorkId !== null) {
-        pushCurrentItemId("changed", draftWorkId);
-      }
-      continue;
-    }
-
-    if (detail.id.startsWith("connection-added:")) {
-      pushCurrentWorkConnectionId("added", detail.id.slice("connection-added:".length));
-      continue;
-    }
-
-    if (detail.id.startsWith("connection-deleted:")) {
-      pushBaselineConnectionOverlay("deleted", detail.id.slice("connection-deleted:".length));
-      continue;
-    }
-
-    if (detail.id.startsWith("connection-changed:")) {
-      const pair = splitReviewEntityPair(
-        detail.id.slice("connection-changed:".length),
-        baselineSnapshot.workConnections,
-        draftSnapshot.workConnections,
-      );
-
-      if (pair) {
-        pushBaselineConnectionOverlay("changed", pair.baseline.id);
-        pushCurrentWorkConnectionId("changed", pair.draft.id);
-      }
-      continue;
-    }
-
-    if (detail.id.startsWith("milestone-added:")) {
-      pushCurrentMilestoneId("added", detail.id.slice("milestone-added:".length));
-      continue;
-    }
-
-    if (detail.id.startsWith("milestone-deleted:")) {
-      pushBaselineMilestoneOverlay("deleted", detail.id.slice("milestone-deleted:".length));
-      continue;
-    }
-
-    if (detail.id.startsWith("milestone-changed:")) {
-      const pair = splitReviewEntityPair(
-        detail.id.slice("milestone-changed:".length),
-        baselineSnapshot.milestones,
-        draftSnapshot.milestones,
-      );
-
-      if (pair) {
-        pushBaselineMilestoneOverlay("changed", pair.baseline.id, pair.draft.id);
-        pushCurrentMilestoneId("changed", pair.draft.id);
-      }
-    }
-  }
+  });
 
   return visual;
 }
@@ -1219,11 +1114,41 @@ function getItemProcessLabel(item: DesktopScheduleItem) {
   return [item.workType, item.subWorkType].filter(Boolean).join(" / ") || "공종 미지정";
 }
 
+function normalizeReviewSignaturePart(value: string | null | undefined) {
+  return (value ?? "").trim().replace(/\s+/g, " ");
+}
+
+function getItemProcessSignature(item: DesktopScheduleItem) {
+  return [
+    normalizeReviewSignaturePart(item.division),
+    normalizeReviewSignaturePart(item.workType),
+    normalizeReviewSignaturePart(item.subWorkType),
+  ].join("|");
+}
+
+function getRowProcessSignature(row: DesktopScheduleRow) {
+  const division = row.source.division;
+  const workType = row.source.workType;
+  const subWorkType = row.source.subWorkType || row.name;
+
+  if (!division && !workType && !subWorkType) {
+    return null;
+  }
+
+  return [
+    normalizeReviewSignaturePart(division),
+    normalizeReviewSignaturePart(workType),
+    normalizeReviewSignaturePart(subWorkType),
+  ].join("|");
+}
+
 function getItemSignature(item: DesktopScheduleItem, mode: "exact" | "lane" | "nameRow") {
+  const processSignature = getItemProcessSignature(item);
+
   if (mode === "exact") {
     return [
       item.name,
-      item.rowId,
+      processSignature,
       item.startDate,
       item.endDate,
       item.durationDays,
@@ -1232,10 +1157,10 @@ function getItemSignature(item: DesktopScheduleItem, mode: "exact" | "lane" | "n
   }
 
   if (mode === "lane") {
-    return [item.rowId, item.positionY].join("|");
+    return [processSignature, item.positionY].join("|");
   }
 
-  return [item.name, item.rowId].join("|");
+  return [item.name, processSignature].join("|");
 }
 
 function createUniqueItemSignatureMap(
@@ -1342,7 +1267,7 @@ function createWorkChangeDescription(
     changes.push(`날짜/기간: ${formatReviewDateRange(baseline)} -> ${formatReviewDateRange(draft)}`);
   }
 
-  if (baseline.rowId !== draft.rowId || baseline.subWorkType !== draft.subWorkType) {
+  if (getItemProcessSignature(baseline) !== getItemProcessSignature(draft)) {
     changes.push(`row 이동: ${getItemProcessLabel(baseline)} -> ${getItemProcessLabel(draft)}`);
   }
 
@@ -1354,7 +1279,7 @@ function createWorkChangeDescription(
 }
 
 function getWorkChangeKindLabel(baseline: DesktopScheduleItem, draft: DesktopScheduleItem) {
-  if (baseline.rowId !== draft.rowId || baseline.subWorkType !== draft.subWorkType) {
+  if (getItemProcessSignature(baseline) !== getItemProcessSignature(draft)) {
     return "row 이동";
   }
 
@@ -1450,6 +1375,114 @@ function createConnectionComparisonKey(
   getWorkKey: (workId: number) => string,
 ) {
   return `${getWorkKey(connection.sourceWorkId)}->${getWorkKey(connection.targetWorkId)}`;
+}
+
+function getMilestoneSignature(
+  milestone: DesktopScheduleMilestone,
+  mode: "exact" | "label" | "date",
+) {
+  const label = normalizeReviewSignaturePart(milestone.label);
+
+  if (mode === "exact") {
+    return `${label}|${milestone.date}`;
+  }
+
+  return mode === "label" ? label : milestone.date;
+}
+
+function createUniqueMilestoneSignatureMap(
+  milestones: DesktopScheduleMilestone[],
+  getSignature: (milestone: DesktopScheduleMilestone) => string,
+) {
+  const groupedMilestones = new Map<string, DesktopScheduleMilestone[]>();
+
+  for (const milestone of milestones) {
+    const signature = getSignature(milestone);
+    groupedMilestones.set(signature, [...(groupedMilestones.get(signature) ?? []), milestone]);
+  }
+
+  const uniqueMilestones = new Map<string, DesktopScheduleMilestone>();
+
+  for (const [signature, signatureMilestones] of groupedMilestones.entries()) {
+    if (signatureMilestones.length === 1) {
+      uniqueMilestones.set(signature, signatureMilestones[0]);
+    }
+  }
+
+  return uniqueMilestones;
+}
+
+function createScheduleVersionReviewMilestoneMatch(
+  baselineMilestones: DesktopScheduleMilestone[],
+  draftMilestones: DesktopScheduleMilestone[],
+) {
+  const pairs: Array<{ baseline: DesktopScheduleMilestone; draft: DesktopScheduleMilestone }> = [];
+  const pairedBaselineMilestoneIds = new Set<string>();
+  const pairedDraftMilestoneIds = new Set<string>();
+
+  function pairMilestones(baseline: DesktopScheduleMilestone, draft: DesktopScheduleMilestone) {
+    if (
+      pairedBaselineMilestoneIds.has(baseline.id) ||
+      pairedDraftMilestoneIds.has(draft.id)
+    ) {
+      return;
+    }
+
+    pairedBaselineMilestoneIds.add(baseline.id);
+    pairedDraftMilestoneIds.add(draft.id);
+    pairs.push({ baseline, draft });
+  }
+
+  const draftMilestoneByApiId = new Map(
+    draftMilestones
+      .map((milestone) => [getMilestoneApiId(milestone), milestone] as const)
+      .filter(
+        (entry): entry is [number, DesktopScheduleMilestone] => typeof entry[0] === "number",
+      ),
+  );
+
+  for (const baselineMilestone of baselineMilestones) {
+    const baselineApiId = getMilestoneApiId(baselineMilestone);
+    const draftMilestone =
+      baselineApiId === null ? undefined : draftMilestoneByApiId.get(baselineApiId);
+
+    if (draftMilestone) {
+      pairMilestones(baselineMilestone, draftMilestone);
+    }
+  }
+
+  for (const mode of ["exact", "label", "date"] as const) {
+    const unmatchedBaseline = baselineMilestones.filter(
+      (milestone) => !pairedBaselineMilestoneIds.has(milestone.id),
+    );
+    const unmatchedDraft = draftMilestones.filter(
+      (milestone) => !pairedDraftMilestoneIds.has(milestone.id),
+    );
+    const baselineBySignature = createUniqueMilestoneSignatureMap(unmatchedBaseline, (milestone) =>
+      getMilestoneSignature(milestone, mode),
+    );
+    const draftBySignature = createUniqueMilestoneSignatureMap(unmatchedDraft, (milestone) =>
+      getMilestoneSignature(milestone, mode),
+    );
+
+    for (const [signature, baselineMilestone] of baselineBySignature.entries()) {
+      const draftMilestone = draftBySignature.get(signature);
+
+      if (draftMilestone) {
+        pairMilestones(baselineMilestone, draftMilestone);
+      }
+    }
+  }
+
+  return {
+    pairs,
+    unmatchedBaselineMilestones: baselineMilestones.filter(
+      (milestone) => !pairedBaselineMilestoneIds.has(milestone.id),
+    ),
+    unmatchedDraftMilestones: draftMilestones.filter(
+      (milestone) => !pairedDraftMilestoneIds.has(milestone.id),
+    ),
+  };
 }
 
 function createMilestoneChangeDescription(
@@ -1671,26 +1704,12 @@ function createDesktopScheduleVersionReviewSummary(
     );
   }
 
-  const draftMilestoneByApiId = new Map(
-    draftSnapshot.milestones
-      .filter((milestone) => typeof milestone.apiId === "number")
-      .map((milestone) => [milestone.apiId!, milestone] as const),
+  const milestoneMatch = createScheduleVersionReviewMilestoneMatch(
+    baselineSnapshot.milestones,
+    draftSnapshot.milestones,
   );
-  const pairedBaselineMilestoneIds = new Set<string>();
-  const pairedDraftMilestoneIds = new Set<string>();
 
-  for (const baselineMilestone of baselineSnapshot.milestones) {
-    const draftMilestone =
-      typeof baselineMilestone.apiId === "number"
-        ? draftMilestoneByApiId.get(baselineMilestone.apiId)
-        : undefined;
-
-    if (!draftMilestone) {
-      continue;
-    }
-
-    pairedBaselineMilestoneIds.add(baselineMilestone.id);
-    pairedDraftMilestoneIds.add(draftMilestone.id);
+  for (const { baseline: baselineMilestone, draft: draftMilestone } of milestoneMatch.pairs) {
     const changes = createMilestoneChangeDescription(baselineMilestone, draftMilestone);
 
     if (changes.length > 0) {
@@ -1706,11 +1725,7 @@ function createDesktopScheduleVersionReviewSummary(
     }
   }
 
-  for (const draftMilestone of draftSnapshot.milestones) {
-    if (pairedDraftMilestoneIds.has(draftMilestone.id)) {
-      continue;
-    }
-
+  for (const draftMilestone of milestoneMatch.unmatchedDraftMilestones) {
     details.push(
       createScheduleVersionReviewDetail(
         "milestoneChanged",
@@ -1722,11 +1737,7 @@ function createDesktopScheduleVersionReviewSummary(
     );
   }
 
-  for (const baselineMilestone of baselineSnapshot.milestones) {
-    if (pairedBaselineMilestoneIds.has(baselineMilestone.id)) {
-      continue;
-    }
-
+  for (const baselineMilestone of milestoneMatch.unmatchedBaselineMilestones) {
     details.push(
       createScheduleVersionReviewDetail(
         "milestoneChanged",
@@ -1800,8 +1811,78 @@ function createDesktopScheduleViewModel() {
   const excludedScheduleVersionIds = ref<Set<DesktopScheduleVersionId>>(new Set());
   const scheduleVersionReviewBaselineCache = ref<ScheduleVersionReviewBaselineCache | null>(null);
   const scheduleVersionReviewSummaryCache = ref<ScheduleVersionReviewSummaryCache | null>(null);
+  const pendingWorkCreationByItemId = new Map<string, Promise<number>>();
+  const resolvedWorkIdByPendingItemId = new Map<string, number>();
   let scheduleToastTimer: number | null = null;
   let scheduleVersionPromotionRequestId = 0;
+
+  function getProjectScheduleDateRange(): ProjectScheduleDateRange | null {
+    const { startDate, endDate } = timelineCalendarState.value;
+
+    if (!startDate || !endDate) {
+      return null;
+    }
+
+    return { startDate, endDate };
+  }
+
+  function getPersistedWorkIdForItem(item: DesktopScheduleItem) {
+    return resolvedWorkIdByPendingItemId.get(item.id) ?? item.workId;
+  }
+
+  function withPersistedWorkIds(items: DesktopScheduleItem[]) {
+    return items.map((item) => ({
+      ...item,
+      workId: getPersistedWorkIdForItem(item),
+    }));
+  }
+
+  async function waitForPendingItemCreations(itemIds: string[]) {
+    const pendingCreations = Array.from(
+      new Set(
+        itemIds
+          .map((itemId) => pendingWorkCreationByItemId.get(itemId))
+          .filter((promise): promise is Promise<number> => !!promise),
+      ),
+    );
+
+    if (pendingCreations.length === 0) {
+      return;
+    }
+
+    await Promise.all(pendingCreations);
+  }
+
+  function mergeCreatedWorkIntoPendingItem(
+    itemId: string,
+    optimisticItem: DesktopScheduleItem,
+    createdWork: DesktopScheduleWorkResponse,
+  ) {
+    resolvedWorkIdByPendingItemId.set(itemId, createdWork.workId);
+
+    workingItems.value = workingItems.value.map((item) => {
+      if (item.id !== itemId) {
+        return item;
+      }
+
+      const didEditDateRange =
+        item.startDate !== optimisticItem.startDate ||
+        item.endDate !== optimisticItem.endDate ||
+        item.durationDays !== optimisticItem.durationDays;
+
+      return {
+        ...item,
+        workId: createdWork.workId,
+        name:
+          item.name === optimisticItem.name
+            ? createdWork.workName || item.name
+            : item.name,
+        startDate: didEditDateRange ? item.startDate : createdWork.startDate,
+        endDate: didEditDateRange ? item.endDate : createdWork.completionDate,
+        durationDays: didEditDateRange ? item.durationDays : createdWork.workLeadTime,
+      };
+    });
+  }
 
   const rowById = computed(() => new Map(workingRows.value.map((row) => [row.id, row])));
   const currentZoomIndex = computed(() => {
@@ -1893,7 +1974,7 @@ function createDesktopScheduleViewModel() {
     () => selectedScheduleVersion.value?.versionName ?? "공정표",
   );
   const scheduleVersionModeLabel = computed(() =>
-    isScheduleReadOnly.value ? "기준 공정표" : "작업본",
+    isScheduleReadOnly.value ? "기준 공정표" : "복제본",
   );
   const scheduleVersionAccessLabel = computed(() =>
     isScheduleReadOnly.value ? "읽기 전용" : "수정 가능",
@@ -2000,7 +2081,7 @@ function createDesktopScheduleViewModel() {
     closeContextMenu();
     closeColorPalette();
     showScheduleToast(
-      "기준 공정표는 직접 수정할 수 없어요. 작업본을 만들어 수정해 주세요.",
+      "기준 공정표는 직접 수정할 수 없어요. 복제본을 만들어 수정해 주세요.",
       "warning",
     );
   }
@@ -2061,6 +2142,8 @@ function createDesktopScheduleViewModel() {
     workingWorkConnections.value = cloneWorkConnections(nextSnapshot.workConnections);
     workingMilestones.value = cloneMilestones(nextSnapshot.milestones);
     lanePreferenceByItemId.value = {};
+    pendingWorkCreationByItemId.clear();
+    resolvedWorkIdByPendingItemId.clear();
     interactionSession.value = null;
     connectionCreationState.value = null;
     renamingDivisionId.value = null;
@@ -2858,7 +2941,14 @@ function createDesktopScheduleViewModel() {
     });
 
     if (workIdsToDelete.length > 0) {
-      await Promise.all(workIdsToDelete.map((workId) => desktopScheduleApi.deleteWork(workId)));
+      await Promise.all(
+        Array.from(new Set(workIdsToDelete)).map((workId) =>
+          ignoreMissingHistoryDelete(
+            () => desktopScheduleApi.deleteWork(workId),
+            /work\s+not\s+found/i,
+          ),
+        ),
+      );
     }
 
     if (updateItems.length > 0) {
@@ -2922,7 +3012,10 @@ function createDesktopScheduleViewModel() {
 
     await Promise.all(
       Array.from(new Set(workDepIdsToDelete)).map((workDepId) =>
-        desktopScheduleApi.deleteWorkDep(workDepId),
+        ignoreMissingHistoryDelete(
+          () => desktopScheduleApi.deleteWorkDep(workDepId),
+          /work\s*dep(?:endency)?\s+not\s+found/i,
+        ),
       ),
     );
   }
@@ -3017,10 +3110,14 @@ function createDesktopScheduleViewModel() {
 
     if (milestoneIdsToDelete.length > 0) {
       await Promise.all(
-        milestoneIdsToDelete.map((milestoneId) =>
-          desktopScheduleApi.deleteMilestone(
-            milestoneId,
-            getRequiredScheduleVersionIdForReferenceMutation(),
+        Array.from(new Set(milestoneIdsToDelete)).map((milestoneId) =>
+          ignoreMissingHistoryDelete(
+            () =>
+              desktopScheduleApi.deleteMilestone(
+                milestoneId,
+                getRequiredScheduleVersionIdForReferenceMutation(),
+              ),
+            /milestone\s+not\s+found/i,
           ),
         ),
       );
@@ -3809,17 +3906,17 @@ function createDesktopScheduleViewModel() {
     const trimmedVersionName = versionName.trim();
 
     if (!sourceScheduleVersionId) {
-      showScheduleToast("작업본을 만들 공정표 버전이 없습니다.");
+      showScheduleToast("복제본을 만들 공정표 버전이 없습니다.");
       return;
     }
 
     if (!trimmedVersionName) {
-      showScheduleToast("작업본 이름을 입력해 주세요.");
+      showScheduleToast("복제본 이름을 입력해 주세요.");
       return;
     }
 
     if (!canCreateDraftVersion.value) {
-      showScheduleToast(`작업본은 최대 ${MAX_DRAFT_SCHEDULE_VERSION_COUNT}개까지 만들 수 있어요.`);
+      showScheduleToast(`복제본은 최대 ${MAX_DRAFT_SCHEDULE_VERSION_COUNT}개까지 만들 수 있어요.`);
       return;
     }
 
@@ -3829,9 +3926,9 @@ function createDesktopScheduleViewModel() {
         { versionName: trimmedVersionName },
       );
       await loadSchedule({ scheduleVersionId: createdVersion.id });
-      showScheduleToast("작업본을 만들었어요.");
+      showScheduleToast("복제본을 만들었어요.");
     } catch (error) {
-      handleMutationError(error, "작업본을 만들지 못했습니다.");
+      handleMutationError(error, "복제본을 만들지 못했습니다.");
     }
   }
 
@@ -3849,7 +3946,7 @@ function createDesktopScheduleViewModel() {
     }
 
     if (!trimmedVersionName) {
-      showScheduleToast("작업본 이름을 입력해 주세요.");
+      showScheduleToast("복제본 이름을 입력해 주세요.");
       return;
     }
 
@@ -3876,10 +3973,10 @@ function createDesktopScheduleViewModel() {
         ...updatedVersion,
         versionName: updatedVersion.versionName || trimmedVersionName,
       });
-      showScheduleToast("작업본 이름을 변경했어요.");
+      showScheduleToast("복제본 이름을 변경했어요.");
     } catch (error) {
       replaceScheduleVersionInLoadedData(previousVersion);
-      handleMutationError(error, "작업본 이름을 변경하지 못했습니다.");
+      handleMutationError(error, "복제본 이름을 변경하지 못했습니다.");
     }
   }
 
@@ -3921,9 +4018,9 @@ function createDesktopScheduleViewModel() {
         );
       }
 
-      showScheduleToast("작업본을 삭제했어요.");
+      showScheduleToast("복제본을 삭제했어요.");
     } catch (error) {
-      handleMutationError(error, "작업본을 삭제하지 못했습니다.");
+      handleMutationError(error, "복제본을 삭제하지 못했습니다.");
     }
   }
 
@@ -3961,6 +4058,7 @@ function createDesktopScheduleViewModel() {
 
     const baselineData = await desktopScheduleApi.loadCurrentProjectSchedule({
       scheduleVersionId: mainVersion.id,
+      persistSelection: false,
     });
     const baselineSnapshot = createDesktopScheduleSnapshotFromApiData(baselineData);
     const nextCache = {
@@ -3998,23 +4096,85 @@ function createDesktopScheduleViewModel() {
     return cache.summary;
   }
 
+  function createCurrentSubProcessRowIdBySignature() {
+    const rowIdBySignature = new Map<string, string>();
+    const duplicateSignatures = new Set<string>();
+
+    workingRows.value.forEach((row) => {
+      if (row.kind !== "child-process") {
+        return;
+      }
+
+      const signature = getRowProcessSignature(row);
+
+      if (!signature) {
+        return;
+      }
+
+      if (rowIdBySignature.has(signature)) {
+        duplicateSignatures.add(signature);
+        return;
+      }
+
+      rowIdBySignature.set(signature, row.id);
+    });
+    duplicateSignatures.forEach((signature) => rowIdBySignature.delete(signature));
+
+    return rowIdBySignature;
+  }
+
+  function createBaselineItemsAlignedToCurrentRows(baselineItems: DesktopScheduleItem[]) {
+    const currentRowIdBySignature = createCurrentSubProcessRowIdBySignature();
+
+    return baselineItems
+      .map((item) => {
+        const currentRowId = currentRowIdBySignature.get(getItemProcessSignature(item));
+
+        return currentRowId ? { ...item, rowId: currentRowId } : null;
+      })
+      .filter((item): item is DesktopScheduleItem => item !== null);
+  }
+
+  function createScheduleVersionReviewBaselineLayout(
+    baselineCache: ScheduleVersionReviewBaselineCache,
+  ) {
+    return desktopScheduleService.buildShellLayout(
+      workingRows.value,
+      createBaselineItemsAlignedToCurrentRows(baselineCache.snapshot.items),
+      timeline.value,
+      {
+        rowHeight: rowHeight.value,
+        barHeight: barHeight.value,
+        workConnections: baselineCache.snapshot.workConnections,
+        milestones: baselineCache.snapshot.milestones,
+      },
+    );
+  }
+
+  function createScheduleVersionReviewGhostSummaryFromState(options: {
+    baselineCache: ScheduleVersionReviewBaselineCache;
+    draftVersion: DesktopScheduleVersionResponse;
+  }): DesktopScheduleVersionReviewSummary {
+    const details: DesktopScheduleVersionReviewDetail[] = [];
+    const baselineLayout = createScheduleVersionReviewBaselineLayout(options.baselineCache);
+
+    return {
+      baselineVersionName: options.baselineCache.versionName,
+      draftVersionName: options.draftVersion.versionName,
+      generatedAt: new Date().toISOString(),
+      totalCount: 0,
+      counts: createScheduleVersionReviewCounts(details),
+      details,
+      visual: createDesktopScheduleVersionReviewVisualSummary(baselineLayout, shellLayout.value),
+    };
+  }
+
   function createScheduleVersionReviewSummaryFromState(options: {
     baselineCache: ScheduleVersionReviewBaselineCache;
     draftVersion: DesktopScheduleVersionResponse;
     draftSnapshot: Pick<DesktopScheduleSnapshot, "items" | "workConnections" | "milestones">;
   }) {
-    const baselineLayout = desktopScheduleService.buildShellLayout(
-      workingRows.value,
-      options.baselineCache.snapshot.items,
-      timeline.value,
-      {
-        rowHeight: rowHeight.value,
-        barHeight: barHeight.value,
-        preferredLaneByItemId: lanePreferenceByItemId.value,
-        workConnections: options.baselineCache.snapshot.workConnections,
-        milestones: options.baselineCache.snapshot.milestones,
-      },
-    );
+    const baselineLayout = createScheduleVersionReviewBaselineLayout(options.baselineCache);
     const summaryBase = createDesktopScheduleVersionReviewSummary(
       options.baselineCache.snapshot,
       options.draftSnapshot,
@@ -4024,13 +4184,7 @@ function createDesktopScheduleViewModel() {
 
     return {
       ...summaryBase,
-      visual: createDesktopScheduleVersionReviewVisualSummary(
-        summaryBase.details,
-        options.baselineCache.snapshot,
-        options.draftSnapshot,
-        baselineLayout,
-        shellLayout.value,
-      ),
+      visual: createDesktopScheduleVersionReviewVisualSummary(baselineLayout, shellLayout.value),
     };
   }
 
@@ -4094,7 +4248,7 @@ function createDesktopScheduleViewModel() {
     }
 
     if (draftVersion.isMain) {
-      showScheduleToast("작업본에서만 기준 공정표와 비교할 수 있어요.");
+      showScheduleToast("복제본에서만 기준 공정표와 비교할 수 있어요.");
       return;
     }
 
@@ -4103,52 +4257,19 @@ function createDesktopScheduleViewModel() {
       return;
     }
 
-    const draftSnapshot = createCurrentScheduleVersionReviewDraftSnapshot();
-    const draftFingerprint = createScheduleVersionReviewDraftFingerprint(draftSnapshot);
-    const layoutFingerprint = createCurrentScheduleVersionReviewLayoutFingerprint();
-    const cachedSummary = getCachedScheduleVersionReviewSummary({
-      baselineVersion: mainVersion,
-      draftVersion,
-      draftFingerprint,
-      layoutFingerprint,
-    });
-
-    if (cachedSummary) {
-      scheduleVersionReviewState.value = {
-        open: true,
-        status: "success",
-        summary: cachedSummary,
-        errorMessage: null,
-      };
-      return;
-    }
-
-    if (scheduleVersionReviewBaselineCache.value?.versionId !== mainVersion.id) {
-      scheduleVersionReviewState.value = {
-        open: true,
-        status: "loading",
-        summary: scheduleVersionReviewState.value.summary,
-        errorMessage: null,
-      };
-    }
+    scheduleVersionReviewState.value = {
+      open: true,
+      status: "loading",
+      summary: scheduleVersionReviewState.value.summary,
+      errorMessage: null,
+    };
 
     try {
       const baselineCache = await getScheduleVersionReviewBaselineCache(mainVersion);
-      const summary = createScheduleVersionReviewSummaryFromState({
+      const summary = createScheduleVersionReviewGhostSummaryFromState({
         baselineCache,
         draftVersion,
-        draftSnapshot,
       });
-
-      scheduleVersionReviewSummaryCache.value = {
-        baselineVersionId: mainVersion.id,
-        baselineVersionName: mainVersion.versionName,
-        draftVersionId: draftVersion.id,
-        draftVersionName: draftVersion.versionName,
-        draftFingerprint,
-        layoutFingerprint,
-        summary,
-      };
 
       scheduleVersionReviewState.value = {
         open: true,
@@ -4158,7 +4279,7 @@ function createDesktopScheduleViewModel() {
       };
     } catch (error) {
       const normalizedError = normalizeError(error);
-      showScheduleToast("변경사항을 비교하지 못했어요.");
+      showScheduleToast("기준 공정표를 불러오지 못했어요.");
       scheduleVersionReviewState.value = {
         open: false,
         status: "error",
@@ -4184,7 +4305,7 @@ function createDesktopScheduleViewModel() {
     }
 
     if (draftVersion.isMain) {
-      showScheduleToast("작업본에서만 기준 공정표로 반영할 수 있어요.");
+      showScheduleToast("복제본에서만 기준 공정표로 반영할 수 있어요.");
       return;
     }
 
@@ -4256,7 +4377,7 @@ function createDesktopScheduleViewModel() {
 
     if (!promotionState.open || promotionState.status === "promoting") return;
     if (!draftVersion || draftVersion.isMain) {
-      showScheduleToast("작업본에서만 기준 공정표로 반영할 수 있어요.");
+      showScheduleToast("복제본에서만 기준 공정표로 반영할 수 있어요.");
       return;
     }
 
@@ -4341,7 +4462,7 @@ function createDesktopScheduleViewModel() {
     options: { omitStartDate?: boolean } = {},
   ): DesktopScheduleWorkUpdateItem {
     const request: DesktopScheduleWorkUpdateItem = {
-      workId: nextItem.workId,
+      workId: getPersistedWorkIdForItem(nextItem),
     };
 
     if (!options.omitStartDate && baseItem.startDate !== nextItem.startDate) {
@@ -4456,13 +4577,17 @@ function createDesktopScheduleViewModel() {
       })
       .filter((workConnection): workConnection is DesktopScheduleWorkConnection => !!workConnection);
 
-    await Promise.all(
-      changedWorkConnections.map((workConnection) =>
-        desktopScheduleApi.updateWorkDep(workConnection.pathId, {
+    const responses: DesktopScheduleMutationResponse[] = [];
+
+    for (const workConnection of changedWorkConnections) {
+      responses.push(
+        await desktopScheduleApi.updateWorkDep(workConnection.pathId, {
           lagDays: workConnection.gapDays,
         }),
-      ),
-    );
+      );
+    }
+
+    responses.forEach((response) => applyServerMutationPatch(response));
 
     return changedWorkConnections;
   }
@@ -4471,14 +4596,11 @@ function createDesktopScheduleViewModel() {
     baseItems: DesktopScheduleItem[],
     nextItems: DesktopScheduleItem[],
     itemIds: string[],
-    changedWorkConnections: DesktopScheduleWorkConnection[],
     workConnections: DesktopScheduleWorkConnection[],
   ) {
-    const nextItemById = new Map(nextItems.map((item) => [item.id, item] as const));
-    const changedWorkConnectionTargetIds = new Set(
-      changedWorkConnections.map((workConnection) => workConnection.targetItemId),
-    );
+    await waitForPendingItemCreations(itemIds);
 
+    const nextItemById = new Map(nextItems.map((item) => [item.id, item] as const));
     const updateItems: DesktopScheduleWorkUpdateItem[] = [];
 
     baseItems
@@ -4490,9 +4612,7 @@ function createDesktopScheduleViewModel() {
           return;
         }
 
-        const request = createWorkUpdateRequest(baseItem, nextItem, {
-          omitStartDate: changedWorkConnectionTargetIds.has(nextItem.id),
-        });
+        const request = createWorkUpdateRequest(baseItem, nextItem);
 
         if (Object.keys(request).length <= 1) {
           return;
@@ -4502,12 +4622,15 @@ function createDesktopScheduleViewModel() {
       });
 
     if (updateItems.length === 0) {
-      return;
+      return null;
     }
 
-    await desktopScheduleApi.updateWork({
+    const response = await desktopScheduleApi.updateWork({
       items: orderWorkUpdateItemsByDependency(updateItems, nextItems, workConnections),
     });
+
+    applyServerMutationPatch(response);
+    return response;
   }
 
   function addParentRow() {
@@ -5016,9 +5139,15 @@ function createDesktopScheduleViewModel() {
       .filter((item) => selectedRowIdSet.has(item.rowId))
       .map((item) => item.id);
     const itemIdsToDelete = Array.from(new Set([...selectionState.value.itemIds, ...rowItemIds]));
+    try {
+      await waitForPendingItemCreations(itemIdsToDelete);
+    } catch {
+      return;
+    }
+
     const workIdsToDelete = workingItems.value
       .filter((item) => itemIdsToDelete.includes(item.id))
-      .map((item) => item.workId);
+      .map(getPersistedWorkIdForItem);
     const workDepIdsToDelete = workingWorkConnections.value
       .filter((workConnection) =>
         selectionState.value.workConnectionIds.includes(workConnection.id),
@@ -5160,7 +5289,12 @@ function createDesktopScheduleViewModel() {
       return false;
     }
 
-    return rowById.value.get(target.rowId)?.kind === "child-process";
+    const projectDateRange = getProjectScheduleDateRange();
+
+    return (
+      rowById.value.get(target.rowId)?.kind === "child-process" &&
+      (!projectDateRange || isDateWithinProjectRange(target.date, projectDateRange))
+    );
   }
 
   function canCreateMilestoneOnCanvasTarget(
@@ -5381,6 +5515,7 @@ function createDesktopScheduleViewModel() {
     const targetRow = rowById.value.get(payload.rowId);
     const scheduleVersionId = getSelectedScheduleVersionId();
     const subWorkTypeId = targetRow?.source.subWorkTypeId;
+    const projectDateRange = getProjectScheduleDateRange();
 
     if (!scheduleVersionId || !subWorkTypeId) {
       handleMutationError(
@@ -5391,11 +5526,19 @@ function createDesktopScheduleViewModel() {
       return;
     }
 
+    if (projectDateRange && !isDateWithinProjectRange(payload.startDate, projectDateRange)) {
+      showScheduleToast("프로젝트 기간 안에서만 작업을 생성할 수 있어요.");
+      closeContextMenu();
+      return;
+    }
+
+    const workLeadTime = getWorkLeadTimeWithinProject(payload.startDate, projectDateRange);
     const snapshot = captureWorkingSnapshot();
     const previousItemIds = new Set(workingItems.value.map((item) => item.id));
     workingItems.value = desktopScheduleService.createItem(workingRows.value, workingItems.value, {
       rowId: payload.rowId,
       startDate: payload.startDate,
+      durationDays: workLeadTime,
       workType: targetRow.source.workType,
       subWorkType: targetRow.source.subWorkType,
       division: targetRow.source.division,
@@ -5410,13 +5553,37 @@ function createDesktopScheduleViewModel() {
 
     const didSave = await runScheduleMutation(
       async () => {
-        const response = await desktopScheduleApi.createWork({
+        if (!createdItem) {
+          throw new Error("생성된 작업을 확인하지 못했습니다.");
+        }
+
+        const creationPromise = desktopScheduleApi.createWork({
           startDate: payload.startDate,
-          workLeadTime: 3,
+          workLeadTime,
           subWorkTypeId,
           scheduleVersionId,
+        }).then((response) => {
+          const createdWork = response.updatedWorks?.[0];
+
+          if (!createdWork) {
+            throw new Error("생성된 작업 ID를 확인하지 못했습니다.");
+          }
+
+          if (getSelectedScheduleVersionId() === scheduleVersionId) {
+            applyServerMutationPatch(response);
+            mergeCreatedWorkIntoPendingItem(createdItem.id, createdItem, createdWork);
+          }
+
+          return createdWork.workId;
         });
-        applyServerMutationPatch(response, { rebuildSnapshot: true });
+
+        pendingWorkCreationByItemId.set(createdItem.id, creationPromise);
+
+        try {
+          await creationPromise;
+        } finally {
+          pendingWorkCreationByItemId.delete(createdItem.id);
+        }
       },
       "작업을 생성하지 못했습니다.",
       {
@@ -5484,10 +5651,12 @@ function createDesktopScheduleViewModel() {
 
     const didSave = await runScheduleMutation(
       async () => {
+        await waitForPendingItemCreations([payload.itemId]);
+        const persistedWorkId = getPersistedWorkIdForItem(targetItem);
         const response = await desktopScheduleApi.updateWork({
           items: [
             {
-              workId: targetItem.workId,
+              workId: persistedWorkId,
               workName: nextName,
             },
           ],
@@ -5501,7 +5670,7 @@ function createDesktopScheduleViewModel() {
     );
 
     if (didSave) {
-      syncLoadedWorkName(targetItem.workId, nextName);
+      syncLoadedWorkName(getPersistedWorkIdForItem(targetItem), nextName);
       pushLocalHistoryEntry(snapshot);
     }
   }
@@ -5609,6 +5778,137 @@ function createDesktopScheduleViewModel() {
     interactionSession.value = null;
     interactionCancelVersion.value += 1;
     showScheduleToast("작업 연결 상태에서 후행작업은 선행작업보다 빠를 수 없어요.");
+  }
+
+  function getDateChangedItems(
+    baseItems: DesktopScheduleItem[],
+    nextItems: DesktopScheduleItem[],
+  ) {
+    const baseItemById = new Map(baseItems.map((item) => [item.id, item] as const));
+
+    return nextItems.filter((item) => {
+      const baseItem = baseItemById.get(item.id);
+      return !!baseItem && hasDateOrLayoutChange(baseItem, item);
+    });
+  }
+
+  function getProjectRangeAdjustment(
+    items: DesktopScheduleItem[],
+    range: ProjectScheduleDateRange,
+  ) {
+    if (items.length === 0) {
+      return 0;
+    }
+
+    const minStartDate = items.reduce(
+      (minDate, item) => (item.startDate < minDate ? item.startDate : minDate),
+      items[0]!.startDate,
+    );
+    const maxEndDate = items.reduce(
+      (maxDate, item) => (item.endDate > maxDate ? item.endDate : maxDate),
+      items[0]!.endDate,
+    );
+
+    if (minStartDate < range.startDate) {
+      return diffScheduleDays(minStartDate, range.startDate);
+    }
+
+    if (maxEndDate > range.endDate) {
+      return diffScheduleDays(maxEndDate, range.endDate);
+    }
+
+    return 0;
+  }
+
+  function createProjectBoundMoveResult(
+    baseItems: DesktopScheduleItem[],
+    itemIds: string[],
+    deltaDays: number,
+    workConnections: DesktopScheduleWorkConnection[],
+  ) {
+    const projectDateRange = getProjectScheduleDateRange();
+    let nextDeltaDays = deltaDays;
+    let moveResult = desktopScheduleService.moveItemsWithWorkConnections(
+      baseItems,
+      itemIds,
+      nextDeltaDays,
+      workConnections,
+    );
+
+    if (!projectDateRange) {
+      return {
+        ...moveResult,
+        deltaDays: nextDeltaDays,
+      };
+    }
+
+    for (let index = 0; index < 6; index += 1) {
+      const adjustment = getProjectRangeAdjustment(
+        getDateChangedItems(baseItems, moveResult.items),
+        projectDateRange,
+      );
+
+      if (adjustment === 0) {
+        break;
+      }
+
+      nextDeltaDays += adjustment;
+      moveResult = desktopScheduleService.moveItemsWithWorkConnections(
+        baseItems,
+        itemIds,
+        nextDeltaDays,
+        workConnections,
+      );
+    }
+
+    return {
+      ...moveResult,
+      deltaDays: nextDeltaDays,
+    };
+  }
+
+  function createProjectBoundResizeResult(
+    baseItems: DesktopScheduleItem[],
+    itemId: string,
+    edge: "left" | "right",
+    deltaDays: number,
+    workConnections: DesktopScheduleWorkConnection[],
+  ) {
+    const projectDateRange = getProjectScheduleDateRange();
+    let nextDeltaDays = deltaDays;
+    let resizeResult = desktopScheduleService.resizeItemWithWorkConnections(
+      baseItems,
+      itemId,
+      edge,
+      nextDeltaDays,
+      workConnections,
+    );
+
+    if (!projectDateRange) {
+      return resizeResult;
+    }
+
+    for (let index = 0; index < 6; index += 1) {
+      const adjustment = getProjectRangeAdjustment(
+        getDateChangedItems(baseItems, resizeResult.items),
+        projectDateRange,
+      );
+
+      if (adjustment === 0) {
+        break;
+      }
+
+      nextDeltaDays += adjustment;
+      resizeResult = desktopScheduleService.resizeItemWithWorkConnections(
+        baseItems,
+        itemId,
+        edge,
+        nextDeltaDays,
+        workConnections,
+      );
+    }
+
+    return resizeResult;
   }
 
   const contextMenuItems = computed<DesktopScheduleContextMenuItem[]>(() => {
@@ -6216,12 +6516,13 @@ function createDesktopScheduleViewModel() {
 
       const didSave = await runScheduleMutation(
         async () => {
+          await waitForPendingItemCreations([nextSourceItem.id, nextTargetItem.id]);
           await Promise.all(
             overridingWorkDepIds.map((workDepId) => desktopScheduleApi.deleteWorkDep(workDepId)),
           );
           const response = await desktopScheduleApi.createWorkDep({
-            sourceWorkId: nextSourceItem.workId,
-            targetWorkId: nextTargetItem.workId,
+            sourceWorkId: getPersistedWorkIdForItem(nextSourceItem),
+            targetWorkId: getPersistedWorkIdForItem(nextTargetItem),
             lagDays: gapDays,
             scheduleVersionId,
           });
@@ -6472,7 +6773,7 @@ function createDesktopScheduleViewModel() {
       ),
     };
 
-    const moveResult = desktopScheduleService.moveItemsWithWorkConnections(
+    const moveResult = createProjectBoundMoveResult(
       session.baseItems,
       session.itemIds,
       payload.deltaDays,
@@ -6596,15 +6897,14 @@ function createDesktopScheduleViewModel() {
 
     const didSave = await runScheduleMutation(
       async () => {
-        const changedWorkConnections = await persistWorkConnectionGapChanges(
-          baseWorkConnections,
-          nextWorkConnections,
-        );
         await persistItemDateAndLayoutChanges(
           baseItems,
           nextItems,
           session.itemIds,
-          changedWorkConnections,
+          nextWorkConnections,
+        );
+        await persistWorkConnectionGapChanges(
+          baseWorkConnections,
           nextWorkConnections,
         );
       },
@@ -6619,7 +6919,10 @@ function createDesktopScheduleViewModel() {
     );
 
     if (didSave) {
-      syncLoadedDataFromWorkingItemsAndConnections(nextItems, nextWorkConnections);
+      syncLoadedDataFromWorkingItemsAndConnections(
+        withPersistedWorkIds(nextItems),
+        nextWorkConnections,
+      );
       pushLocalHistoryEntry(snapshot);
     }
   }
@@ -6682,7 +6985,7 @@ function createDesktopScheduleViewModel() {
       return;
     }
 
-    const resizeResult = desktopScheduleService.resizeItemWithWorkConnections(
+    const resizeResult = createProjectBoundResizeResult(
       session.baseItems,
       session.itemId,
       session.edge,
@@ -6734,15 +7037,14 @@ function createDesktopScheduleViewModel() {
 
     const didSave = await runScheduleMutation(
       async () => {
-        const changedWorkConnections = await persistWorkConnectionGapChanges(
-          baseWorkConnections,
-          nextWorkConnections,
-        );
         await persistItemDateAndLayoutChanges(
           baseItems,
           nextItems,
           [session.itemId],
-          changedWorkConnections,
+          nextWorkConnections,
+        );
+        await persistWorkConnectionGapChanges(
+          baseWorkConnections,
           nextWorkConnections,
         );
       },
@@ -6756,7 +7058,10 @@ function createDesktopScheduleViewModel() {
     );
 
     if (didSave) {
-      syncLoadedDataFromWorkingItemsAndConnections(nextItems, nextWorkConnections);
+      syncLoadedDataFromWorkingItemsAndConnections(
+        withPersistedWorkIds(nextItems),
+        nextWorkConnections,
+      );
       pushLocalHistoryEntry(snapshot);
     }
   }

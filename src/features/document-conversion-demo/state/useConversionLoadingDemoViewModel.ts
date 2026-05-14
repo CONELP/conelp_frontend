@@ -25,14 +25,6 @@ const EVEN_LOADING_STEP_TRANSITIONS = [
   { delayMs: LOADING_TEXT_SECOND_TRANSITION_MS, stepIndex: 2 },
 ] as const;
 
-const DAILY_REPORT_LOADING_STEPS = [
-  "홈페이지 공사일보를 추출하고 있어요.",
-  "문서 양식을 준비 중이에요.",
-  "문서를 생성하고 있어요.",
-] as const;
-
-const DAILY_REPORT_STEP_TRANSITIONS = EVEN_LOADING_STEP_TRANSITIONS;
-
 const MIR_ANALYSIS_LOADING_STEPS = [
   "업로드한 이미지를 정리하고 있어요.",
   "송장, 밀시트, 태그 내용을 분석하고 있어요.",
@@ -65,12 +57,18 @@ const CAT_CREATE_LOADING_STEPS = [
 
 const CAT_CREATE_STEP_TRANSITIONS = EVEN_LOADING_STEP_TRANSITIONS;
 
+const CONCRETE_STRENGTH_LOADING_STEPS = [
+  "업로드한 압축강도 사진을 로트별로 정리하고 있어요.",
+  "7일 강도와 28일 강도 자료를 구분하고 있어요.",
+  "콘크리트 압축강도 문서를 생성하고 있어요.",
+] as const;
+
+const CONCRETE_STRENGTH_STEP_TRANSITIONS = EVEN_LOADING_STEP_TRANSITIONS;
+
 const RESULT_ROUTE = "/preview/result";
 const OCR_VALIDATION_ROUTE = "/preview/upload-feedback";
 const DIRECT_DOCUMENT_BACK_ROUTE = "/preview/documents";
 const UPLOAD_DOCUMENT_ROUTE = "/preview/upload";
-const MIR_IMAGE_UPLOAD_LIMIT = 10;
-const CAT_IMAGE_UPLOAD_LIMIT = 10;
 const CAT_MIN_IMAGE_UPLOAD_COUNT = 2;
 
 function isDocumentCatalogType(value: string): value is DocumentCatalogType {
@@ -126,10 +124,6 @@ export function useConversionLoadingDemoViewModel() {
   });
 
   const baseLoadingDescription = computed(() => {
-    if (selectedDocument.value.type === "daily_report") {
-      return DAILY_REPORT_LOADING_STEPS[loadingStepIndex.value];
-    }
-
     if (selectedDocument.value.type === "material_registration") {
       return isMirCreateLoading.value
         ? MIR_CREATE_LOADING_STEPS[loadingStepIndex.value]
@@ -140,6 +134,10 @@ export function useConversionLoadingDemoViewModel() {
       return isCatCreateLoading.value
         ? CAT_CREATE_LOADING_STEPS[loadingStepIndex.value]
         : CAT_ANALYSIS_LOADING_STEPS[loadingStepIndex.value];
+    }
+
+    if (selectedDocument.value.type === "concrete_strength_csi") {
+      return CONCRETE_STRENGTH_LOADING_STEPS[loadingStepIndex.value];
     }
 
     return selectedDocument.value.generationMode === "direct"
@@ -167,24 +165,6 @@ export function useConversionLoadingDemoViewModel() {
     );
   }
 
-  function startDailyReportLoadingSequence() {
-    clearLoadingStepTimers();
-    loadingStepIndex.value = 0;
-
-    DAILY_REPORT_STEP_TRANSITIONS.forEach(({ delayMs, stepIndex }) => {
-      loadingStepTimers.push(
-        setTimeout(() => {
-          loadingStepIndex.value = stepIndex;
-        }, delayMs),
-      );
-    });
-
-    scheduleRouteNavigation(
-      toDocumentRoute(loadingDestinationPath.value),
-      LOADING_TEXT_TOTAL_DURATION_MS,
-    );
-  }
-
   function resolveMirAnalysisValidationMessage() {
     if (!store.mirUploadApplication.trim()) {
       return "사용 위치를 입력해 주세요.";
@@ -196,10 +176,6 @@ export function useConversionLoadingDemoViewModel() {
 
     if (store.uploadedImageFiles.length === 0) {
       return "이미지를 1장 이상 업로드해 주세요.";
-    }
-
-    if (store.uploadedImageFiles.length > MIR_IMAGE_UPLOAD_LIMIT) {
-      return "이미지는 최대 10장까지 업로드할 수 있어요.";
     }
 
     return "";
@@ -218,11 +194,50 @@ export function useConversionLoadingDemoViewModel() {
       return "송장 사진과 시험 사진을 각각 1장 이상 업로드해 주세요.";
     }
 
-    if (store.uploadedImageFiles.length > CAT_IMAGE_UPLOAD_LIMIT) {
-      return "이미지는 최대 10장까지 업로드할 수 있어요.";
+    return "";
+  }
+
+  function createCatAnalysisUploadPayload() {
+    const fileEntryById = new Map(
+      store.uploadedImageFiles.map((entry) => [entry.id, entry]),
+    );
+    const groupedBatches = store.concreteDeliveryUploadBatches
+      .map((batch) => ({
+        id: batch.id,
+        entries: batch.fileIds
+          .map((fileId) => fileEntryById.get(fileId))
+          .filter((entry): entry is (typeof store.uploadedImageFiles)[number] =>
+            Boolean(entry),
+          ),
+      }))
+      .filter((batch) => batch.entries.length > 0);
+
+    if (groupedBatches.length === 0) {
+      const [deliveryNoteEntry, ...batchPhotoEntries] = store.uploadedImageFiles;
+
+      return {
+        deliveryNote: deliveryNoteEntry ? [deliveryNoteEntry.file] : [],
+        metadata: [{ batch: 1, count: batchPhotoEntries.length }],
+        batchPhotos: batchPhotoEntries.map((entry) => entry.file),
+      };
     }
 
-    return "";
+    const deliveryNote = groupedBatches
+      .map((batch) => batch.entries[0]?.file)
+      .filter((file): file is File => Boolean(file));
+    const metadata = groupedBatches.map((batch, index) => ({
+      batch: index + 1,
+      count: Math.max(batch.entries.length - 1, 0),
+    }));
+    const batchPhotos = groupedBatches.flatMap((batch) =>
+      batch.entries.slice(1).map((entry) => entry.file),
+    );
+
+    return {
+      deliveryNote,
+      metadata,
+      batchPhotos,
+    };
   }
 
   function toCreateMirDocumentRequest(
@@ -351,15 +366,15 @@ export function useConversionLoadingDemoViewModel() {
       );
     });
 
-    const [deliveryNoteEntry, ...batchPhotoEntries] = store.uploadedImageFiles;
+    const uploadPayload = createCatAnalysisUploadPayload();
 
     try {
       const result = await materialInspectionRequestApi.analyzeCatPhoto({
         application: store.mirUploadApplication,
         workTypeId: store.mirUploadWorkTypeId,
-        deliveryNote: deliveryNoteEntry ? [deliveryNoteEntry.file] : [],
-        metadata: [{ batch: 1, count: batchPhotoEntries.length }],
-        batchPhotos: batchPhotoEntries.map((entry) => entry.file),
+        deliveryNote: uploadPayload.deliveryNote,
+        metadata: uploadPayload.metadata,
+        batchPhotos: uploadPayload.batchPhotos,
       });
 
       if (currentRunId !== loadingRunId) {
@@ -383,6 +398,25 @@ export function useConversionLoadingDemoViewModel() {
       clearLoadingStepTimers();
       scheduleRouteNavigation(toDocumentRoute(UPLOAD_DOCUMENT_ROUTE), 1800);
     }
+  }
+
+  function startConcreteStrengthLoadingSequence() {
+    clearLoadingStepTimers();
+    loadingStepIndex.value = 0;
+    loadingErrorMessage.value = "";
+
+    CONCRETE_STRENGTH_STEP_TRANSITIONS.forEach(({ delayMs, stepIndex }) => {
+      loadingStepTimers.push(
+        setTimeout(() => {
+          loadingStepIndex.value = stepIndex;
+        }, delayMs),
+      );
+    });
+
+    scheduleRouteNavigation(
+      toDocumentRoute(loadingDestinationPath.value),
+      LOADING_TEXT_TOTAL_DURATION_MS,
+    );
   }
 
   async function startMirCreateLoadingSequence() {
@@ -538,11 +572,6 @@ export function useConversionLoadingDemoViewModel() {
   watch(
     () => selectedDocument.value.type,
     (documentType) => {
-      if (documentType === "daily_report") {
-        startDailyReportLoadingSequence();
-        return;
-      }
-
       if (documentType === "material_registration") {
         if (isMirCreateLoading.value) {
           void startMirCreateLoadingSequence();
@@ -560,6 +589,11 @@ export function useConversionLoadingDemoViewModel() {
         }
 
         void startCatAnalysisLoadingSequence();
+        return;
+      }
+
+      if (documentType === "concrete_strength_csi") {
+        startConcreteStrengthLoadingSequence();
         return;
       }
 

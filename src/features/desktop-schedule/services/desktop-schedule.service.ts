@@ -1884,6 +1884,7 @@ function createItem(
     division?: string;
     workType?: string;
     subWorkType?: string;
+    durationDays?: number;
     annotation?: string;
     zoneIds?: number[];
     floorIds?: number[];
@@ -1902,6 +1903,7 @@ function createItem(
     payload.subWorkType?.trim() ||
     payload.workType?.trim() ||
     `새 작업 ${nextItemIndex}`;
+  const durationDays = Math.max(payload.durationDays ?? 3, 1);
   const nextItem: DesktopScheduleItem = {
     id: createLocalItemId(),
     workId: Date.now(),
@@ -1909,8 +1911,8 @@ function createItem(
     name: payload.name?.trim() || fallbackName,
     colorHex: null,
     startDate: payload.startDate,
-    endDate: shiftDateString(payload.startDate, 2),
-    durationDays: 3,
+    endDate: shiftDateString(payload.startDate, durationDays - 1),
+    durationDays,
     positionY: targetRow.order,
     appearance: "standard",
     division: payload.division ?? "",

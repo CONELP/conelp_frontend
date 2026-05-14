@@ -33,7 +33,7 @@ const DOCUMENT_LABEL_BY_TYPE: Record<string, string> = {
   SCHEDULE_3MONTH: "3개월 공정표",
 };
 const DOCUMENT_CATALOG_TYPE_BY_JOB_TYPE: Partial<Record<string, DocumentCatalogType>> = {
-  DR: "daily_report",
+  DR: "daily_report_write",
   MIR: "material_registration",
   CAT: "concrete_delivery_csi",
   CCST: "concrete_strength_csi",

@@ -31,14 +31,7 @@
         class="schedule-chart-body__day-column"
         :class="getDayColumnClass(day)"
         :style="{ left: `${day.left}px`, width: `${day.width}px`, height: `${shellLayout.chartHeight}px` }"
-      >
-        <span
-          v-if="day.isHoliday && day.holidayName"
-          class="schedule-chart-body__day-column-holiday-label"
-        >
-          {{ day.holidayName }}
-        </span>
-      </div>
+      />
 
       <div
         v-for="row in shellLayout.rows"
@@ -87,6 +80,45 @@
         }"
       />
 
+      <div
+        v-for="cell in divisionHolidayCells"
+        :key="cell.key"
+        class="schedule-chart-body__division-holiday-cell"
+        :style="{
+          left: `${cell.left}px`,
+          top: `${cell.top}px`,
+          width: `${cell.width}px`,
+          height: `${cell.height}px`,
+        }"
+      />
+
+      <svg
+        class="schedule-chart-body__division-holiday-grid"
+        :width="timeline.chartWidth"
+        :height="shellLayout.chartHeight"
+        :viewBox="`0 0 ${timeline.chartWidth} ${shellLayout.chartHeight}`"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <template
+          v-for="cell in divisionHolidayCells"
+          :key="`division-holiday-grid-${cell.key}`"
+        >
+          <line
+            :x1="cell.left"
+            :y1="cell.top"
+            :x2="cell.left"
+            :y2="cell.top + cell.height"
+          />
+          <line
+            :x1="cell.left + cell.width"
+            :y1="cell.top"
+            :x2="cell.left + cell.width"
+            :y2="cell.top + cell.height"
+          />
+        </template>
+      </svg>
+
       <svg
         class="schedule-chart-body__row-grid"
         :width="timeline.chartWidth"
@@ -116,6 +148,21 @@
       </svg>
 
       <div
+        v-for="day in holidayLabelDays"
+        :key="`holiday-label-${day.key}`"
+        class="schedule-chart-body__holiday-label-layer"
+        :style="{
+          left: `${day.left}px`,
+          width: `${day.width}px`,
+          height: `${shellLayout.chartHeight}px`,
+        }"
+      >
+        <span class="schedule-chart-body__day-column-holiday-label">
+          {{ day.holidayName }}
+        </span>
+      </div>
+
+      <div
         v-if="todayTimelineDay"
         class="schedule-chart-body__today-column-overlay"
         :style="{
@@ -124,6 +171,29 @@
           height: `${shellLayout.chartHeight}px`,
         }"
       />
+
+      <svg
+        v-if="todayTimelineDay"
+        class="schedule-chart-body__today-column-grid"
+        :width="timeline.chartWidth"
+        :height="shellLayout.chartHeight"
+        :viewBox="`0 0 ${timeline.chartWidth} ${shellLayout.chartHeight}`"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <line
+          :x1="todayTimelineDay.left"
+          y1="0"
+          :x2="todayTimelineDay.left"
+          :y2="shellLayout.chartHeight"
+        />
+        <line
+          :x1="todayTimelineDay.left + todayTimelineDay.width"
+          y1="0"
+          :x2="todayTimelineDay.left + todayTimelineDay.width"
+          :y2="shellLayout.chartHeight"
+        />
+      </svg>
 
       <div
         v-for="progressLine in shellLayout.progressLines"
@@ -649,6 +719,23 @@ const scheduleVersionReviewVisual = computed(() =>
 const timelineDayByDate = computed(
   () => new Map(props.timeline.days.map((day) => [day.date, day] as const)),
 );
+const holidayLabelDays = computed(() =>
+  props.timeline.days.filter((day) => day.isHoliday && day.holidayName),
+);
+const divisionHolidayCells = computed(() => {
+  const holidayDays = props.timeline.days.filter((day) => day.isHoliday);
+  const divisionRows = props.shellLayout.rows.filter((row) => row.kind === "division");
+
+  return divisionRows.flatMap((row) =>
+    holidayDays.map((day) => ({
+      key: `${row.id}:${day.key}`,
+      left: day.left,
+      top: row.top,
+      width: day.width,
+      height: row.height,
+    })),
+  );
+});
 const shellRowById = computed(
   () => new Map(props.shellLayout.rows.map((row) => [row.id, row] as const)),
 );
@@ -899,7 +986,7 @@ const hoveredIntersectionStyle = computed(() => {
   if (
     !hoveredTimelineDay.value ||
     !hoveredShellRow.value ||
-    hoveredShellRow.value.kind !== "child-process"
+    !isSelectableGridRow(hoveredShellRow.value)
   ) {
     return null;
   }
