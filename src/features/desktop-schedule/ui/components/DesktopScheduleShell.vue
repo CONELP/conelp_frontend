@@ -1070,6 +1070,7 @@ onUnmounted(() => {
         aria-label="공정표 작업"
       >
         <button
+          v-if="!isMainScheduleVersionSelected"
           type="button"
           class="schedule-shell__schedule-action-button"
           @click="emitImportSchedule"
