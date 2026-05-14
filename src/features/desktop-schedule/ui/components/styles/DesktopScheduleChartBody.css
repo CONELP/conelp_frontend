@@ -26,6 +26,7 @@
 
 .schedule-chart-body__surface {
   position: relative;
+  transition: height 180ms ease;
 }
 
 .schedule-chart-body__surface::after {
@@ -54,6 +55,7 @@
 .schedule-chart-body__cell-selection,
 .schedule-chart-body__today-column-overlay,
 .schedule-chart-body__today-column-grid,
+.schedule-chart-body__execution-compare,
 .schedule-chart-body__bar,
 .schedule-chart-body__review-bar-overlay,
 .schedule-chart-body__review-milestone,
@@ -101,7 +103,7 @@
   text-align: center;
   white-space: nowrap;
   writing-mode: vertical-rl;
-  text-orientation: upright;
+  text-orientation: mixed;
   letter-spacing: 0.02em;
   pointer-events: none;
 }
@@ -151,6 +153,22 @@
 .schedule-chart-body__row {
   left: 0;
   right: 0;
+  transition:
+    top 180ms ease,
+    height 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.schedule-chart-body__row--review-deleted {
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(148, 163, 184, 0.08) 0,
+    rgba(148, 163, 184, 0.08) 8px,
+    rgba(148, 163, 184, 0.03) 8px,
+    rgba(148, 163, 184, 0.03) 16px
+  );
+  pointer-events: none;
 }
 
 .schedule-chart-body__row--division {
@@ -281,6 +299,53 @@
   stroke: rgba(30, 24, 136, 0.22);
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
+}
+
+.schedule-chart-body__execution-compare {
+  top: 0;
+  left: 0;
+  z-index: 18;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.schedule-chart-body__execution-compare-transition-enter-active,
+.schedule-chart-body__execution-compare-transition-leave-active {
+  transition: opacity 160ms ease;
+}
+
+.schedule-chart-body__execution-compare-transition-enter-from,
+.schedule-chart-body__execution-compare-transition-leave-to {
+  opacity: 0;
+}
+
+.schedule-chart-body__execution-compare-transition-enter-to,
+.schedule-chart-body__execution-compare-transition-leave-from {
+  opacity: 1;
+}
+
+.schedule-chart-body__execution-compare-path {
+  filter: url("#scheduleExecutionCompareGlow");
+  vector-effect: non-scaling-stroke;
+}
+
+.schedule-chart-body__execution-compare-path--halo {
+  stroke: rgba(41, 211, 255, 0.2);
+  stroke-width: 8;
+}
+
+.schedule-chart-body__execution-compare-path--core {
+  stroke: rgba(30, 24, 136, 0.72);
+  stroke-width: 2;
+  filter: drop-shadow(0 0 3px rgba(30, 24, 136, 0.48))
+    drop-shadow(0 0 8px rgba(41, 211, 255, 0.36));
+}
+
+.schedule-chart-body__execution-compare-hit {
+  stroke: transparent;
+  stroke-width: 20;
+  cursor: ew-resize;
+  pointer-events: stroke;
 }
 
 .schedule-chart-body__progress-line {
@@ -481,7 +546,182 @@
   background: #e5e7eb;
   color: #111827;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-  transition: box-shadow 140ms ease, border-color 140ms ease, border-width 140ms ease;
+  transition:
+    top 180ms ease,
+    height 180ms ease,
+    background-color 180ms ease,
+    color 180ms ease,
+    box-shadow 140ms ease,
+    border-color 140ms ease,
+    border-width 140ms ease;
+}
+
+.schedule-chart-body--execution-progress .schedule-chart-body__bar {
+  border-color: #7f8a9a !important;
+  border-width: 1.5px !important;
+  background: #f8fafc !important;
+  box-shadow:
+    0 0 0 0.5px rgba(71, 85, 105, 0.28),
+    0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.schedule-chart-body__bar--execution-progress {
+  transition:
+    box-shadow 140ms ease,
+    border-color 140ms ease,
+    border-width 140ms ease,
+    background-color 160ms ease;
+}
+
+.schedule-chart-body__bar--execution-progress .schedule-chart-body__item-title {
+  z-index: 3;
+}
+
+.schedule-chart-body__execution-progress-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: visible;
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+
+.schedule-chart-body--execution-progress-active .schedule-chart-body__execution-progress-overlay {
+  opacity: 1;
+}
+
+.schedule-chart-body__execution-progress-hit-area {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: transparent;
+  pointer-events: none;
+}
+
+.schedule-chart-body--execution-progress-active .schedule-chart-body__execution-progress-hit-area {
+  pointer-events: auto;
+}
+
+.schedule-chart-body__execution-progress-day {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  box-sizing: border-box;
+  border-right: 1px solid rgba(148, 163, 184, 0.16);
+  background: transparent;
+  transition:
+    background-color 140ms ease,
+    opacity 140ms ease;
+}
+
+.schedule-chart-body__execution-progress-day:first-child {
+  left: 0;
+}
+
+.schedule-chart-body__execution-progress-day--start {
+  border-top-left-radius: inherit;
+  border-bottom-left-radius: inherit;
+}
+
+.schedule-chart-body__execution-progress-day--end {
+  border-top-right-radius: inherit;
+  border-bottom-right-radius: inherit;
+}
+
+.schedule-chart-body__execution-progress-day--done {
+  background: rgba(52, 211, 153, 0.48);
+}
+
+.schedule-chart-body__execution-progress-day--preview {
+  background: rgba(52, 211, 153, 0.28);
+}
+
+.schedule-chart-body__execution-progress-overflow-outline,
+.schedule-chart-body__execution-progress-overflow-hatch {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  box-sizing: border-box;
+}
+
+.schedule-chart-body__execution-progress-overflow-outline {
+  z-index: 2;
+  border: 0;
+  border-radius: 0 calc(0.46rem * var(--schedule-zoom-scale, 1))
+    calc(0.46rem * var(--schedule-zoom-scale, 1)) 0;
+  background: transparent;
+  box-shadow:
+    inset 1px 0 0 rgba(6, 95, 70, 0.48),
+    0 0 0 1px rgba(6, 95, 70, 0.26);
+}
+
+.schedule-chart-body__execution-progress-overflow-outline::before {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    repeating-linear-gradient(
+      to right,
+      rgba(6, 95, 70, 1) 0 5px,
+      transparent 5px 8px
+    )
+    top left / 100% 1px no-repeat,
+    repeating-linear-gradient(
+      to right,
+      rgba(6, 95, 70, 1) 0 5px,
+      transparent 5px 8px
+    )
+    bottom left / 100% 1px no-repeat,
+    repeating-linear-gradient(
+      to bottom,
+      rgba(6, 95, 70, 1) 0 5px,
+      transparent 5px 8px
+    )
+    right top / 1px 100% no-repeat;
+  content: "";
+  pointer-events: none;
+}
+
+.schedule-chart-body__execution-progress-overflow-hatch {
+  z-index: 1;
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      transparent 0,
+      transparent 2px,
+      rgba(52, 211, 153, 0.46) 2px,
+      rgba(52, 211, 153, 0.46) 3px,
+      transparent 3px,
+      transparent 5px
+    ),
+    rgba(52, 211, 153, 0.34);
+  overflow: hidden;
+}
+
+.schedule-chart-body__execution-progress-overflow-hatch--preview {
+  opacity: 0.58;
+}
+
+.schedule-chart-body__execution-progress-gap {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+
+.schedule-chart-body__execution-progress-gap-mark {
+  position: relative;
+  display: block;
+  width: var(--schedule-day-width, 100%);
+  height: 100%;
+  flex: 1 0 0;
+  background: rgba(226, 232, 240, 0.62);
 }
 
 .schedule-chart-body__bar--summary {

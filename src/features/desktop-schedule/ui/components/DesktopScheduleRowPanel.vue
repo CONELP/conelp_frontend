@@ -20,6 +20,7 @@ type WorkTypeGroupEntry = {
   workTypeId: number | null;
   top: number;
   height: number;
+  isReviewDeleted: boolean;
 };
 
 type DivisionGroupEntry = {
@@ -60,6 +61,7 @@ const WORK_TYPE_COLUMN_MIN_WIDTH = 72;
 const WORK_TYPE_COLUMN_MAX_WIDTH = 240;
 const COLUMN_RESIZE_LISTENER_OPTIONS = true;
 const SCROLL_SYNC_EPSILON = 0.01;
+const REVIEW_DELETED_ROW_ID_PREFIX = "review-deleted-row:";
 
 const props = defineProps<{
   rows: DesktopScheduleShellRow[];
@@ -143,6 +145,10 @@ const panelEntries = computed<RowPanelEntry[]>(() =>
   })),
 );
 
+function isReviewDeletedRow(row: DesktopScheduleShellRow) {
+  return row.id.startsWith(REVIEW_DELETED_ROW_ID_PREFIX);
+}
+
 function createHeaderLabel(
   value: string,
   options: { defaultNames: Set<string>; hintText: string },
@@ -182,6 +188,8 @@ const workTypeGroups = computed<WorkTypeGroupEntry[]>(() => {
 
     if (previousGroup?.key === groupKey) {
       previousGroup.height = row.top + row.height - previousGroup.top;
+      previousGroup.isReviewDeleted =
+        previousGroup.isReviewDeleted && isReviewDeletedRow(row);
       return;
     }
 
@@ -198,6 +206,7 @@ const workTypeGroups = computed<WorkTypeGroupEntry[]>(() => {
       workTypeId: row.workTypeId ?? null,
       top: row.top,
       height: row.height,
+      isReviewDeleted: isReviewDeletedRow(row),
     });
   });
 
@@ -480,7 +489,7 @@ function handleScroll(event: Event) {
 }
 
 function handleRowPointerDown(row: DesktopScheduleShellRow, event: PointerEvent) {
-  if (event.button !== 0 || row.kind !== "child-process") {
+  if (event.button !== 0 || row.kind !== "child-process" || isReviewDeletedRow(row)) {
     return;
   }
 
@@ -490,12 +499,12 @@ function handleRowPointerDown(row: DesktopScheduleShellRow, event: PointerEvent)
 function handleRowContextMenu(row: DesktopScheduleShellRow, event: MouseEvent) {
   event.preventDefault();
 
-  if (props.readOnly) {
+  if (props.readOnly || isReviewDeletedRow(row)) {
     emit("readonly-edit-attempt");
     return;
   }
 
-  if (row.kind === "division" && row.divisionId && row.divisionId > 0) {
+  if (row.kind === "division" && row.divisionId !== null && row.divisionId !== undefined) {
     emit("header-context-menu", {
       target: {
         kind: "division-header",
@@ -510,10 +519,10 @@ function handleRowContextMenu(row: DesktopScheduleShellRow, event: MouseEvent) {
 
   if (
     row.kind === "child-process" &&
-    row.workTypeId &&
-    row.workTypeId > 0 &&
-    row.subWorkTypeId &&
-    row.subWorkTypeId > 0
+    row.workTypeId !== null &&
+    row.workTypeId !== undefined &&
+    row.subWorkTypeId !== null &&
+    row.subWorkTypeId !== undefined
   ) {
     emit("header-context-menu", {
       target: {
@@ -539,12 +548,17 @@ function handleRowContextMenu(row: DesktopScheduleShellRow, event: MouseEvent) {
 function handleWorkTypeContextMenu(group: WorkTypeGroupEntry, event: MouseEvent) {
   event.preventDefault();
 
-  if (props.readOnly) {
+  if (props.readOnly || group.isReviewDeleted) {
     emit("readonly-edit-attempt");
     return;
   }
 
-  if (!group.divisionId || group.divisionId < 0 || !group.workTypeId || group.workTypeId < 0) {
+  if (
+    group.divisionId === null ||
+    group.divisionId === undefined ||
+    group.workTypeId === null ||
+    group.workTypeId === undefined
+  ) {
     return;
   }
 
@@ -830,7 +844,7 @@ function startDivisionDrag(row: DesktopScheduleShellRow, event: PointerEvent) {
 }
 
 function startWorkTypeDrag(group: WorkTypeGroupEntry, event: PointerEvent) {
-  if (props.readOnly) {
+  if (props.readOnly || group.isReviewDeleted) {
     return;
   }
 
@@ -937,7 +951,7 @@ function handleDivisionRenameEscape() {
 }
 
 function startWorkTypeRename(group: WorkTypeGroupEntry) {
-  if (props.readOnly) {
+  if (props.readOnly || group.isReviewDeleted) {
     return;
   }
 
@@ -1008,7 +1022,7 @@ function handleWorkTypeRenameEscape() {
 }
 
 function startSubWorkTypeRename(row: DesktopScheduleShellRow) {
-  if (props.readOnly) {
+  if (props.readOnly || isReviewDeletedRow(row)) {
     return;
   }
 
@@ -1106,6 +1120,7 @@ function handleSubWorkTypeRenameEscape() {
           'schedule-row-panel__row--division': entry.row.kind === 'division',
           'schedule-row-panel__row--milestone': entry.row.kind === 'milestone',
           'schedule-row-panel__row--child': entry.row.kind === 'child-process',
+          'schedule-row-panel__row--review-deleted': isReviewDeletedRow(entry.row),
           'schedule-row-panel__row--work-type-dragging':
             entry.row.kind === 'child-process' &&
             referenceDragState?.kind === 'work-type' &&
@@ -1210,6 +1225,7 @@ function handleSubWorkTypeRenameEscape() {
           class="schedule-row-panel__work-type-group"
           :class="{
             'schedule-row-panel__work-type-group--hint': group.displayLabel.isHint,
+            'schedule-row-panel__work-type-group--review-deleted': group.isReviewDeleted,
             'schedule-row-panel__work-type-group--dragging':
               referenceDragState?.kind === 'work-type' &&
               referenceDragState.workTypeId === group.workTypeId,

@@ -50,6 +50,23 @@
   box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.9);
 }
 
+.schedule-row-panel__row--review-deleted {
+  opacity: 0.68;
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.schedule-row-panel__row--review-deleted .schedule-row-panel__sub-work-type {
+  background: rgba(148, 163, 184, 0.1);
+  color: #64748b;
+  cursor: default;
+}
+
+.schedule-row-panel__row--review-deleted .schedule-row-panel__sub-work-type-label {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  text-decoration-color: rgba(100, 116, 139, 0.64);
+}
+
 .schedule-row-panel__milestone-label {
   display: flex;
   width: 100%;
@@ -358,6 +375,14 @@
   color: #9ca3af;
   font-style: italic;
   font-weight: 700;
+}
+
+.schedule-row-panel__work-type-group--review-deleted {
+  color: #94a3b8;
+  cursor: default;
+  opacity: 0.72;
+  text-decoration: line-through;
+  text-decoration-color: rgba(100, 116, 139, 0.56);
 }
 
 .schedule-row-panel__work-type-group--dragging {

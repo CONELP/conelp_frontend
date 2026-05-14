@@ -213,6 +213,7 @@ const WORK_TYPE_COLUMN_MIN_WIDTH = 72;
 const WORK_TYPE_COLUMN_MAX_WIDTH = 240;
 const LOCAL_HISTORY_MAX_ENTRIES = 200;
 const MAX_DRAFT_SCHEDULE_VERSION_COUNT = 5;
+const REVIEW_DELETED_ROW_ID_PREFIX = "review-deleted-row:";
 const SCHEDULE_VERSION_REVIEW_CATEGORY_LABELS: Record<
   DesktopScheduleVersionReviewCategory,
   string
@@ -1923,8 +1924,8 @@ function createDesktopScheduleViewModel() {
       calendarDates: timelineCalendarState.value.dates,
     }),
   );
-  const shellLayout = computed(() =>
-    desktopScheduleService.buildShellLayout(workingRows.value, workingItems.value, timeline.value, {
+  function createCurrentShellLayout(rows: DesktopScheduleRow[]) {
+    return desktopScheduleService.buildShellLayout(rows, workingItems.value, timeline.value, {
       rowHeight: rowHeight.value,
       barHeight: barHeight.value,
       preferredLaneByItemId: lanePreferenceByItemId.value,
@@ -1937,8 +1938,32 @@ function createDesktopScheduleViewModel() {
       workConnections: workingWorkConnections.value,
       milestones: workingMilestones.value,
       includeProgressLines: selectedScheduleVersion.value?.isMain === true,
-    }),
-  );
+    });
+  }
+
+  function getActiveScheduleVersionReviewBaselineCache() {
+    const reviewState = scheduleVersionReviewState.value;
+
+    if (
+      !reviewState.open ||
+      (reviewState.status !== "loading" && reviewState.status !== "success")
+    ) {
+      return null;
+    }
+
+    return scheduleVersionReviewBaselineCache.value;
+  }
+
+  const baseShellLayout = computed(() => createCurrentShellLayout(workingRows.value));
+  const shellLayout = computed(() => {
+    const baselineCache = getActiveScheduleVersionReviewBaselineCache();
+
+    if (!baselineCache) {
+      return baseShellLayout.value;
+    }
+
+    return createScheduleVersionReviewCurrentLayout(baselineCache);
+  });
 
   const scheduleMeta = computed(() => ({
     windowLabel: `${formatShortDate(timeline.value.startDate)} - ${formatShortDate(
@@ -3765,20 +3790,48 @@ function createDesktopScheduleViewModel() {
       { kind: "division-header" | "work-type-header" | "sub-work-type-header" }
     >,
   ) {
-    updateLoadedScheduleData((currentData) => ({
-      ...currentData,
-      workHierarchy: currentData.workHierarchy.filter((item) => {
-        if (target.kind === "division-header") {
-          return item.divisionId !== target.divisionId;
-        }
+    updateLoadedScheduleData((currentData) => {
+      const removedSubWorkTypeIds = new Set(
+        currentData.workHierarchy
+          .filter((item) => {
+            if (target.kind === "division-header") {
+              return item.divisionId === target.divisionId;
+            }
 
-        if (target.kind === "work-type-header") {
-          return item.workTypeId !== target.workTypeId;
-        }
+            if (target.kind === "work-type-header") {
+              return item.workTypeId === target.workTypeId;
+            }
 
-        return item.subWorkTypeId !== target.subWorkTypeId;
-      }),
-    }));
+            return item.subWorkTypeId === target.subWorkTypeId;
+          })
+          .map((item) => item.subWorkTypeId),
+      );
+      const removedWorkIds = new Set(
+        currentData.works
+          .filter((work) => removedSubWorkTypeIds.has(work.subWorkTypeId))
+          .map((work) => work.workId),
+      );
+
+      return {
+        ...currentData,
+        workHierarchy: currentData.workHierarchy.filter((item) => {
+          if (target.kind === "division-header") {
+            return item.divisionId !== target.divisionId;
+          }
+
+          if (target.kind === "work-type-header") {
+            return item.workTypeId !== target.workTypeId;
+          }
+
+          return item.subWorkTypeId !== target.subWorkTypeId;
+        }),
+        works: currentData.works.filter((work) => !removedSubWorkTypeIds.has(work.subWorkTypeId)),
+        workDeps: currentData.workDeps.filter(
+          (workDep) =>
+            !removedWorkIds.has(workDep.sourceWorkId) && !removedWorkIds.has(workDep.targetWorkId),
+        ),
+      };
+    });
     rebuildScheduleFromLoadedData();
   }
 
@@ -4096,11 +4149,11 @@ function createDesktopScheduleViewModel() {
     return cache.summary;
   }
 
-  function createCurrentSubProcessRowIdBySignature() {
+  function createSubProcessRowIdBySignature(rows: DesktopScheduleRow[]) {
     const rowIdBySignature = new Map<string, string>();
     const duplicateSignatures = new Set<string>();
 
-    workingRows.value.forEach((row) => {
+    rows.forEach((row) => {
       if (row.kind !== "child-process") {
         return;
       }
@@ -4123,24 +4176,123 @@ function createDesktopScheduleViewModel() {
     return rowIdBySignature;
   }
 
-  function createBaselineItemsAlignedToCurrentRows(baselineItems: DesktopScheduleItem[]) {
-    const currentRowIdBySignature = createCurrentSubProcessRowIdBySignature();
+  function createReviewDeletedRowId(rowId: string) {
+    return `${REVIEW_DELETED_ROW_ID_PREFIX}${rowId}`;
+  }
+
+  function getScheduleVersionReviewDisplayRows(baselineRows: DesktopScheduleRow[]) {
+    const displayRows = [...workingRows.value]
+      .sort((a, b) => a.order - b.order)
+      .map((row) => ({ ...row }));
+    const currentRowIdBySignature = createSubProcessRowIdBySignature(workingRows.value);
+    const currentSignatureSet = new Set(
+      workingRows.value
+        .map((row) => (row.kind === "child-process" ? getRowProcessSignature(row) : null))
+        .filter((signature): signature is string => !!signature),
+    );
+    const insertedGhostRowIdByBaselineRowId = new Map<string, string>();
+    const baselineRowsByOrder = [...baselineRows].sort((a, b) => a.order - b.order);
+
+    function findDisplayRowIndex(rowId: string) {
+      return displayRows.findIndex((row) => row.id === rowId);
+    }
+
+    function findAnchorRowId(
+      rowIndex: number,
+      direction: "previous" | "next",
+    ) {
+      for (
+        let index = rowIndex + (direction === "previous" ? -1 : 1);
+        index >= 0 && index < baselineRowsByOrder.length;
+        index += direction === "previous" ? -1 : 1
+      ) {
+        const baselineRow = baselineRowsByOrder[index]!;
+        const signature = getRowProcessSignature(baselineRow);
+        const currentRowId = signature ? currentRowIdBySignature.get(signature) : null;
+        const insertedGhostRowId = insertedGhostRowIdByBaselineRowId.get(baselineRow.id);
+
+        if (currentRowId && findDisplayRowIndex(currentRowId) >= 0) {
+          return currentRowId;
+        }
+
+        if (insertedGhostRowId && findDisplayRowIndex(insertedGhostRowId) >= 0) {
+          return insertedGhostRowId;
+        }
+      }
+
+      return null;
+    }
+
+    baselineRowsByOrder.forEach((baselineRow, rowIndex) => {
+      if (baselineRow.kind !== "child-process" || baselineRow.source.kind !== "sub-work-type") {
+        return;
+      }
+
+      const signature = getRowProcessSignature(baselineRow);
+
+      if (!signature || currentSignatureSet.has(signature)) {
+        return;
+      }
+
+      const ghostRow: DesktopScheduleRow = {
+        ...baselineRow,
+        id: createReviewDeletedRowId(baselineRow.id),
+        parentId: null,
+        collapsed: false,
+      };
+      const previousAnchorRowId = findAnchorRowId(rowIndex, "previous");
+      const nextAnchorRowId = previousAnchorRowId ? null : findAnchorRowId(rowIndex, "next");
+      const previousAnchorIndex = previousAnchorRowId
+        ? findDisplayRowIndex(previousAnchorRowId)
+        : -1;
+      const nextAnchorIndex = nextAnchorRowId ? findDisplayRowIndex(nextAnchorRowId) : -1;
+
+      if (previousAnchorIndex >= 0) {
+        displayRows.splice(previousAnchorIndex + 1, 0, ghostRow);
+      } else if (nextAnchorIndex >= 0) {
+        displayRows.splice(nextAnchorIndex, 0, ghostRow);
+      } else {
+        displayRows.push(ghostRow);
+      }
+
+      insertedGhostRowIdByBaselineRowId.set(baselineRow.id, ghostRow.id);
+    });
+
+    return displayRows.map((row, index) => ({
+      ...row,
+      order: index,
+    }));
+  }
+
+  function createBaselineItemsAlignedToReviewRows(
+    baselineItems: DesktopScheduleItem[],
+    reviewRows: DesktopScheduleRow[],
+  ) {
+    const reviewRowIdBySignature = createSubProcessRowIdBySignature(reviewRows);
 
     return baselineItems
       .map((item) => {
-        const currentRowId = currentRowIdBySignature.get(getItemProcessSignature(item));
+        const reviewRowId = reviewRowIdBySignature.get(getItemProcessSignature(item));
 
-        return currentRowId ? { ...item, rowId: currentRowId } : null;
+        return reviewRowId ? { ...item, rowId: reviewRowId } : null;
       })
       .filter((item): item is DesktopScheduleItem => item !== null);
+  }
+
+  function createScheduleVersionReviewCurrentLayout(
+    baselineCache: ScheduleVersionReviewBaselineCache,
+  ) {
+    return createCurrentShellLayout(getScheduleVersionReviewDisplayRows(baselineCache.snapshot.rows));
   }
 
   function createScheduleVersionReviewBaselineLayout(
     baselineCache: ScheduleVersionReviewBaselineCache,
   ) {
+    const reviewRows = getScheduleVersionReviewDisplayRows(baselineCache.snapshot.rows);
+
     return desktopScheduleService.buildShellLayout(
-      workingRows.value,
-      createBaselineItemsAlignedToCurrentRows(baselineCache.snapshot.items),
+      reviewRows,
+      createBaselineItemsAlignedToReviewRows(baselineCache.snapshot.items, reviewRows),
       timeline.value,
       {
         rowHeight: rowHeight.value,
@@ -4157,6 +4309,7 @@ function createDesktopScheduleViewModel() {
   }): DesktopScheduleVersionReviewSummary {
     const details: DesktopScheduleVersionReviewDetail[] = [];
     const baselineLayout = createScheduleVersionReviewBaselineLayout(options.baselineCache);
+    const currentLayout = createScheduleVersionReviewCurrentLayout(options.baselineCache);
 
     return {
       baselineVersionName: options.baselineCache.versionName,
@@ -4165,7 +4318,7 @@ function createDesktopScheduleViewModel() {
       totalCount: 0,
       counts: createScheduleVersionReviewCounts(details),
       details,
-      visual: createDesktopScheduleVersionReviewVisualSummary(baselineLayout, shellLayout.value),
+      visual: createDesktopScheduleVersionReviewVisualSummary(baselineLayout, currentLayout),
     };
   }
 
@@ -4175,6 +4328,7 @@ function createDesktopScheduleViewModel() {
     draftSnapshot: Pick<DesktopScheduleSnapshot, "items" | "workConnections" | "milestones">;
   }) {
     const baselineLayout = createScheduleVersionReviewBaselineLayout(options.baselineCache);
+    const currentLayout = createScheduleVersionReviewCurrentLayout(options.baselineCache);
     const summaryBase = createDesktopScheduleVersionReviewSummary(
       options.baselineCache.snapshot,
       options.draftSnapshot,
@@ -4184,7 +4338,7 @@ function createDesktopScheduleViewModel() {
 
     return {
       ...summaryBase,
-      visual: createDesktopScheduleVersionReviewVisualSummary(baselineLayout, shellLayout.value),
+      visual: createDesktopScheduleVersionReviewVisualSummary(baselineLayout, currentLayout),
     };
   }
 
@@ -4775,11 +4929,6 @@ function createDesktopScheduleViewModel() {
       return;
     }
 
-    if (payload.divisionId < 0) {
-      showScheduleToast("분류 저장이 끝난 뒤 공종을 추가할 수 있어요.");
-      return;
-    }
-
     const snapshot = captureWorkingSnapshot();
     const tempReferenceItem: DesktopScheduleReferenceHierarchyItem = {
       divisionId: payload.divisionId,
@@ -4806,12 +4955,6 @@ function createDesktopScheduleViewModel() {
     );
 
     if (!targetHierarchyItem) {
-      closeContextMenu();
-      return;
-    }
-
-    if (targetHierarchyItem.workTypeId < 0) {
-      showScheduleToast("공종명을 먼저 입력해 주세요.");
       closeContextMenu();
       return;
     }
@@ -5942,7 +6085,7 @@ function createDesktopScheduleViewModel() {
                 command: "create-work-type-reference" as const,
                 icon: "plus" as const,
               }
-            : target.kind === "work-type-header"
+            : target.kind === "work-type-header" || target.kind === "sub-work-type-header"
               ? {
                 id: "create-sub-work-type-reference",
                 label: "세부공종 생성",
@@ -6141,7 +6284,10 @@ function createDesktopScheduleViewModel() {
         return;
       }
 
-      if (command === "create-sub-work-type-reference" && target.kind === "work-type-header") {
+      if (
+        command === "create-sub-work-type-reference" &&
+        (target.kind === "work-type-header" || target.kind === "sub-work-type-header")
+      ) {
         createReferenceSubWorkTypeSet({
           workTypeId: target.workTypeId,
         });
@@ -6211,7 +6357,12 @@ function createDesktopScheduleViewModel() {
               await Promise.all(
                 workTypeIds.map((workTypeId) => desktopScheduleApi.deleteWorkType(workTypeId, getRequiredScheduleVersionIdForReferenceMutation())),
               );
-              await desktopScheduleApi.deleteDivision(target.divisionId, getRequiredScheduleVersionIdForReferenceMutation());
+              if (target.divisionId > 0) {
+                await desktopScheduleApi.deleteDivision(
+                  target.divisionId,
+                  getRequiredScheduleVersionIdForReferenceMutation(),
+                );
+              }
               return;
             }
 
@@ -6229,12 +6380,22 @@ function createDesktopScheduleViewModel() {
                   desktopScheduleApi.deleteSubWorkType(subWorkTypeId, getRequiredScheduleVersionIdForReferenceMutation()),
                 ),
               );
-              await desktopScheduleApi.deleteWorkType(target.workTypeId, getRequiredScheduleVersionIdForReferenceMutation());
+              if (target.workTypeId > 0) {
+                await desktopScheduleApi.deleteWorkType(
+                  target.workTypeId,
+                  getRequiredScheduleVersionIdForReferenceMutation(),
+                );
+              }
               return;
             }
 
             if (target.kind === "sub-work-type-header") {
-              await desktopScheduleApi.deleteSubWorkType(target.subWorkTypeId, getRequiredScheduleVersionIdForReferenceMutation());
+              if (target.subWorkTypeId > 0) {
+                await desktopScheduleApi.deleteSubWorkType(
+                  target.subWorkTypeId,
+                  getRequiredScheduleVersionIdForReferenceMutation(),
+                );
+              }
             }
           },
           "공정 항목을 삭제하지 못했습니다.",

@@ -15,6 +15,44 @@
   user-select: none;
 }
 
+.schedule-shell--execution-progress .schedule-row-panel {
+  background: #fff;
+  transition: background-color 180ms ease;
+}
+
+.schedule-row-panel__row,
+.schedule-row-panel__work-type-group,
+.schedule-row-panel__division-group {
+  transition:
+    top 180ms ease,
+    height 180ms ease,
+    background-color 180ms ease,
+    color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.schedule-shell--execution-progress .schedule-row-panel__row {
+  background: rgba(248, 250, 252, 0.42);
+}
+
+.schedule-shell--execution-progress .schedule-row-panel__row--division {
+  background: rgba(241, 245, 249, 0.52);
+}
+
+.schedule-shell--execution-progress .schedule-row-panel__row--milestone {
+  background: transparent;
+}
+
+.schedule-shell--execution-progress .schedule-row-panel__division-row,
+.schedule-shell--execution-progress .schedule-row-panel__grid,
+.schedule-shell--execution-progress .schedule-row-panel__work-type-group {
+}
+
+.schedule-shell--execution-progress .schedule-row-panel__sub-work-type-label,
+.schedule-shell--execution-progress .schedule-row-panel__work-type-label,
+.schedule-shell--execution-progress .schedule-row-panel__division-title {
+}
+
 .schedule-shell__surface {
   display: flex;
   flex: 1 1 auto;
