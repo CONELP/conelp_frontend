@@ -780,10 +780,9 @@
   overflow: hidden;
   padding: 0 calc(0.66rem * var(--schedule-zoom-scale, 1));
   border-radius: calc(0.46rem * var(--schedule-zoom-scale, 1));
-  border: 1px dashed rgba(71, 85, 105, 0.34);
-  background: rgba(148, 163, 184, 0.22);
-  color: #475569;
-  opacity: 0.58;
+  border: 2px dashed rgba(30, 41, 59, 0.78);
+  background: rgba(148, 163, 184, 0.13);
+  color: rgba(71, 85, 105, 0.58);
   pointer-events: none;
 }
 
