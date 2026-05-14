@@ -22,6 +22,19 @@
   border-color: var(--primary-outline);
 }
 
+.document-chip:disabled {
+  cursor: not-allowed;
+}
+
+.document-chip--disabled {
+  color: rgba(15, 23, 42, 0.42);
+  background: #f8fafc;
+}
+
+.document-chip--disabled:hover {
+  border-color: var(--outline-soft);
+}
+
 .document-chip:focus-visible {
   box-shadow: 0 0 0 3px rgba(30, 24, 136, 0.12);
 }
@@ -64,6 +77,11 @@
 
 .document-chip--selected .document-chip__icon {
   opacity: 0.6;
+}
+
+.document-chip--disabled .document-chip__icon,
+.document-chip--disabled .document-chip__icon-frame {
+  opacity: 0.48;
 }
 
 .document-chip__label {

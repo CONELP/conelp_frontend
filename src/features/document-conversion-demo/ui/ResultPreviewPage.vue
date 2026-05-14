@@ -134,30 +134,35 @@ async function fetchExternalResultFile(value: string) {
   return response.blob();
 }
 
-async function downloadResultBlob() {
+async function downloadResultAttachment() {
   const sourceUrl = resultDownloadUrl.value;
 
   if (sourceUrl) {
     if (isStorageObjectKey(sourceUrl)) {
-      return materialInspectionRequestApi.downloadDocumentFile(sourceUrl);
+      return materialInspectionRequestApi.downloadDocumentFileAttachment(sourceUrl);
     }
 
-    return fetchExternalResultFile(sourceUrl);
+    return {
+      blob: await fetchExternalResultFile(sourceUrl),
+      filename: "",
+    };
   }
 
   if (resultDownloadJobId.value !== null) {
-    return materialInspectionRequestApi.downloadDocumentJob(resultDownloadJobId.value);
+    return materialInspectionRequestApi.downloadDocumentJobAttachment(
+      resultDownloadJobId.value,
+    );
   }
 
   throw new Error("다운로드할 문서가 없습니다.");
 }
 
-function saveBlob(blob: Blob) {
+function saveBlob(blob: Blob, filename = "") {
   const objectUrl = URL.createObjectURL(blob);
   const link = document.createElement("a");
 
   link.href = objectUrl;
-  link.download = resultDownloadFileName.value;
+  link.download = filename || resultDownloadFileName.value;
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -172,7 +177,8 @@ async function handleDownloadResult() {
   isDownloadingResult.value = true;
 
   try {
-    saveBlob(await downloadResultBlob());
+    const attachment = await downloadResultAttachment();
+    saveBlob(attachment.blob, attachment.filename);
   } catch {
     window.alert("문서 다운로드에 실패했습니다.");
   } finally {

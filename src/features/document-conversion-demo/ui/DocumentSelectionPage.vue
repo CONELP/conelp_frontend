@@ -128,6 +128,7 @@ const {
   pageCopy,
   documents,
   resolveNextRoute,
+  isDocumentCatalogType,
   clearSelectedDocument,
   selectDocument,
 } = useDocumentConversionDemoViewModel();
@@ -141,10 +142,18 @@ const router = useRouter();
 clearSelectedDocument();
 
 function handleSelectDocument(type: string) {
+  if (!isDocumentCatalogType(type)) {
+    return;
+  }
+
   selectDocument(type);
   const nextRoute = resolveNextRoute(type);
 
-  if (nextRoute === "/preview/upload") {
+  if (nextRoute === "/preview/documents") {
+    return;
+  }
+
+  if (nextRoute.startsWith("/preview/")) {
     void router.push({
       path: nextRoute,
       query: { documentType: type },
@@ -152,7 +161,10 @@ function handleSelectDocument(type: string) {
     return;
   }
 
-  void router.push(nextRoute);
+  void router.push({
+    path: nextRoute,
+    query: { documentType: type },
+  });
 }
 
 const logoSrc = new URL("../../../../conelp_logo.png", import.meta.url).href;

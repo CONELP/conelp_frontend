@@ -17,6 +17,8 @@ import type {
 import DesktopScheduleChartBody from "@/features/desktop-schedule/ui/components/DesktopScheduleChartBody.vue";
 import DesktopScheduleRowPanel from "@/features/desktop-schedule/ui/components/DesktopScheduleRowPanel.vue";
 import DesktopScheduleTimelineHeader from "@/features/desktop-schedule/ui/components/DesktopScheduleTimelineHeader.vue";
+import panelRightContractIcon from "@fluentui/svg-icons/icons/panel_right_contract_20_regular.svg";
+import panelRightExpandIcon from "@fluentui/svg-icons/icons/panel_right_expand_20_regular.svg";
 import redoIcon from "@fluentui/svg-icons/icons/arrow_redo_20_regular.svg";
 import undoIcon from "@fluentui/svg-icons/icons/arrow_undo_20_regular.svg";
 import "@/features/desktop-schedule/ui/components/styles/DesktopScheduleContextMenu.css";
@@ -25,8 +27,12 @@ import "@/features/desktop-schedule/ui/components/styles/DesktopScheduleShell.cs
 const SHELL_HEADER_HEIGHT = 116;
 const SHELL_HEADER_MONTH_HEIGHT = 32;
 const SHELL_HEADER_WEEK_HEIGHT = 28;
-const SHELL_TOOLBAR_HEIGHT = 48;
+const SHELL_TOOLBAR_HEIGHT = 56;
 const SHELL_STACK_GAP = 8;
+const SHELL_SURFACE_PADDING_Y = 10;
+const SHELL_SURFACE_GAP = 8;
+const SHELL_SURFACE_BORDER_WIDTH = 1;
+const SHELL_FRAME_BORDER_WIDTH = 1;
 const READONLY_NOTICE_HEIGHT = 40;
 const ROW_PANEL_MIN_WIDTH = 180;
 const ROW_PANEL_MAX_WIDTH = 520;
@@ -90,6 +96,10 @@ const props = defineProps<{
   canZoomOut: boolean;
   canUndo: boolean;
   canRedo: boolean;
+  panelOpen?: boolean;
+  showPanelToggle?: boolean;
+  panelToggleOpenLabel?: string;
+  panelToggleClosedLabel?: string;
 }>();
 
 const emit = defineEmits<{
@@ -174,6 +184,7 @@ const emit = defineEmits<{
   "zoom-in": [];
   "zoom-out": [];
   "zoom-change": [zoomIndex: number];
+  "toggle-panel": [];
 }>();
 
 const hoveredRowId = ref<string | null>(null);
@@ -220,11 +231,17 @@ const showReadonlyNotice = computed(() => props.readOnly && !props.referenceOnly
 const readonlyNoticeStackHeight = computed(() =>
   showReadonlyNotice.value ? READONLY_NOTICE_HEIGHT + SHELL_STACK_GAP : 0,
 );
+const scheduleSurfaceChromeHeight =
+  SHELL_SURFACE_PADDING_Y * 2 +
+  SHELL_SURFACE_GAP +
+  SHELL_SURFACE_BORDER_WIDTH * 2 +
+  SHELL_FRAME_BORDER_WIDTH * 2;
 const bodyViewportHeight = computed(() =>
   Math.max(
     shellHeight.value -
       scaledShellHeaderHeight.value -
       SHELL_TOOLBAR_HEIGHT -
+      scheduleSurfaceChromeHeight -
       readonlyNoticeStackHeight.value,
     200,
   ),
@@ -259,6 +276,16 @@ const isMainScheduleVersionSelected = computed(
   () =>
     mainScheduleVersion.value !== null &&
     mainScheduleVersion.value.id === props.selectedScheduleVersionId,
+);
+const isPanelOpen = computed(() => props.panelOpen ?? true);
+const showPanelToggle = computed(() => props.showPanelToggle ?? false);
+const panelToggleLabel = computed(() =>
+  isPanelOpen.value
+    ? (props.panelToggleOpenLabel ?? "패널 숨기기")
+    : (props.panelToggleClosedLabel ?? "패널 보기"),
+);
+const panelToggleIcon = computed(() =>
+  isPanelOpen.value ? panelRightContractIcon : panelRightExpandIcon,
 );
 const isScheduleVersionReviewActive = computed(
   () =>
@@ -653,7 +680,7 @@ function requestScheduleVersionDelete(version: ScheduleVersionOption) {
 
   activeVersionActionMenu.value = null;
   const confirmed = window.confirm(
-    `'${version.versionName}' 작업본을 삭제할까요?\n삭제하면 이 작업본의 공정표 데이터도 함께 정리됩니다.`,
+    `'${version.versionName}' 복제본을 삭제할까요?\n삭제하면 이 복제본의 공정표 데이터도 함께 정리됩니다.`,
   );
 
   if (!confirmed) {
@@ -838,9 +865,10 @@ onUnmounted(() => {
   >
     <p v-if="showReadonlyNotice" class="schedule-shell__readonly-notice" role="note">
       <span class="schedule-shell__readonly-notice-chip">읽기 전용</span>
-      <span>기준 공정표는 직접 수정할 수 없어요. 작업본을 만들어 수정해 주세요.</span>
+      <span>기준 공정표는 직접 수정할 수 없어요. 복제본을 만들어 수정해 주세요.</span>
     </p>
 
+    <section class="schedule-shell__surface" aria-label="공정표">
     <div class="schedule-shell__toolbar" aria-label="공정표 도구">
       <div ref="versionMenuRootRef" class="schedule-shell__version">
         <div
@@ -940,7 +968,7 @@ onUnmounted(() => {
           ref="draftRailRef"
           class="schedule-shell__draft-rail"
           :class="{ 'schedule-shell__draft-rail--dragging': draftRailDragState }"
-          aria-label="작업본 목록"
+          aria-label="복제본 목록"
           @pointerdown="handleDraftRailPointerDown"
         >
           <div class="schedule-shell__draft-list">
@@ -972,7 +1000,7 @@ onUnmounted(() => {
                 v-else
                 class="schedule-shell__draft-chip schedule-shell__draft-chip--editing"
                 role="textbox"
-                aria-label="작업본 이름"
+                aria-label="복제본 이름"
               >
                 <span
                   :ref="setScheduleVersionRenameEditorRef"
@@ -996,7 +1024,7 @@ onUnmounted(() => {
               :disabled="!canCreateDraftVersion"
               @click="createDraftVersionWithDefaultName"
             >
-              + 작업본 만들기
+              + 복제본 만들기
             </button>
           </div>
         </div>
@@ -1189,6 +1217,29 @@ onUnmounted(() => {
           +
         </button>
       </div>
+
+      <span
+        v-if="showPanelToggle"
+        class="schedule-shell__toolbar-divider"
+        aria-hidden="true"
+      />
+
+      <button
+        v-if="showPanelToggle"
+        type="button"
+        class="schedule-shell__panel-toggle"
+        :aria-label="panelToggleLabel"
+        :aria-pressed="isPanelOpen"
+        :title="panelToggleLabel"
+        @click="emit('toggle-panel')"
+      >
+        <img
+          class="schedule-shell__panel-toggle-icon"
+          :src="panelToggleIcon"
+          alt=""
+          aria-hidden="true"
+        />
+      </button>
     </div>
 
     <Teleport to="body">
@@ -1207,11 +1258,11 @@ onUnmounted(() => {
           >
             <header class="schedule-shell__promotion-dialog-header">
               <h2 id="schedule-version-promotion-title">
-                이 작업본을 기준 공정표로 반영할까요?
+                이 복제본을 기준 공정표로 반영할까요?
               </h2>
               <p>
                 기존 공정표는 더 이상 기준으로 쓰이지 않아요.<br />
-                반영 후에는 이 작업본이 기준 공정표로 표시됩니다.
+                반영 후에는 이 복제본이 기준 공정표로 표시됩니다.
               </p>
             </header>
 
@@ -1390,5 +1441,6 @@ onUnmounted(() => {
 
       </div>
     </div>
+    </section>
   </div>
 </template>

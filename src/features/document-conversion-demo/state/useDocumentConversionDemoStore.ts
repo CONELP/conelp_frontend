@@ -12,8 +12,7 @@ import type {
   UpdateMirDataRequest,
 } from "@/features/document-conversion-demo/api/material-inspection-request-api.types";
 import { documentCatalog } from "@/features/document-conversion-demo/data/document-conversion-demo.seed";
-
-const MIR_IMAGE_UPLOAD_LIMIT = 10;
+import type { DocumentCatalogType } from "@/features/document-conversion-demo/model/document-conversion-demo.types";
 
 function createUploadFileKey(file: File) {
   return `${file.name}:${file.size}:${file.lastModified}`;
@@ -45,10 +44,21 @@ interface CatDocumentSubmissionDraft {
   active: boolean;
 }
 
+interface ConcreteDeliveryUploadBatchDraft {
+  id: string;
+  fileIds: string[];
+}
+
+interface ConcreteStrengthUploadLotDraft {
+  id: string;
+  sevenDayFileIds: string[];
+  twentyEightDayFileIds: string[];
+}
+
 export const useDocumentConversionDemoStore = defineStore(
   "document-conversion-demo",
   () => {
-    const selectedDocumentType = ref("");
+    const selectedDocumentType = ref<DocumentCatalogType | "">("");
     const uploadMode = ref<"uploaded" | "empty">("empty");
     const uploadedImageFiles = ref<UploadedImageFileEntry[]>([]);
     const mirUploadApplication = ref("");
@@ -63,6 +73,10 @@ export const useDocumentConversionDemoStore = defineStore(
       ref<MirDocumentSubmissionDraft | null>(null);
     const catDocumentSubmissionDraft =
       ref<CatDocumentSubmissionDraft | null>(null);
+    const concreteDeliveryUploadBatches = ref<
+      ConcreteDeliveryUploadBatchDraft[]
+    >([]);
+    const concreteStrengthUploadLots = ref<ConcreteStrengthUploadLotDraft[]>([]);
 
     const selectedDocument = computed(() =>
       documentCatalog.find((document) => document.type === selectedDocumentType.value),
@@ -78,10 +92,16 @@ export const useDocumentConversionDemoStore = defineStore(
       catDocumentSubmissionDraft.value = null;
     }
 
-    function selectDocument(type: string) {
+    function clearUploadGrouping() {
+      concreteDeliveryUploadBatches.value = [];
+      concreteStrengthUploadLots.value = [];
+    }
+
+    function selectDocument(type: DocumentCatalogType) {
       selectedDocumentType.value = type;
       uploadMode.value = "empty";
       uploadedImageFiles.value = [];
+      clearUploadGrouping();
       clearMirResult();
     }
 
@@ -89,6 +109,7 @@ export const useDocumentConversionDemoStore = defineStore(
       selectedDocumentType.value = "";
       uploadMode.value = "empty";
       uploadedImageFiles.value = [];
+      clearUploadGrouping();
       mirUploadApplication.value = "";
       mirUploadWorkTypeName.value = "";
       mirUploadWorkTypeId.value = null;
@@ -100,20 +121,20 @@ export const useDocumentConversionDemoStore = defineStore(
       const existingKeys = new Set(
         uploadedImageFiles.value.map((entry) => entry.fileKey),
       );
-      const remainingSlots = Math.max(
-        MIR_IMAGE_UPLOAD_LIMIT - uploadedImageFiles.value.length,
-        0,
-      );
+      const addedEntries: UploadedImageFileEntry[] = [];
 
-      nextFiles.slice(0, remainingSlots).forEach((file) => {
+      nextFiles.forEach((file) => {
         const fileKey = createUploadFileKey(file);
 
         if (!existingKeys.has(fileKey)) {
-          uploadedImageFiles.value.push({
+          const entry = {
             id: createUploadFileId(file),
             file,
             fileKey,
-          });
+          };
+
+          uploadedImageFiles.value.push(entry);
+          addedEntries.push(entry);
           existingKeys.add(fileKey);
         }
       });
@@ -121,11 +142,28 @@ export const useDocumentConversionDemoStore = defineStore(
       uploadMode.value =
         uploadedImageFiles.value.length > 0 ? "uploaded" : "empty";
       clearMirResult();
+      return addedEntries;
     }
 
     function removeUploadedImageFile(fileIdToRemove: string) {
       uploadedImageFiles.value = uploadedImageFiles.value.filter(
         (entry) => entry.id !== fileIdToRemove,
+      );
+      concreteDeliveryUploadBatches.value =
+        concreteDeliveryUploadBatches.value.map((batch) => ({
+          ...batch,
+          fileIds: batch.fileIds.filter((fileId) => fileId !== fileIdToRemove),
+        }));
+      concreteStrengthUploadLots.value = concreteStrengthUploadLots.value.map(
+        (lot) => ({
+          ...lot,
+          sevenDayFileIds: lot.sevenDayFileIds.filter(
+            (fileId) => fileId !== fileIdToRemove,
+          ),
+          twentyEightDayFileIds: lot.twentyEightDayFileIds.filter(
+            (fileId) => fileId !== fileIdToRemove,
+          ),
+        }),
       );
 
       uploadMode.value =
@@ -133,9 +171,50 @@ export const useDocumentConversionDemoStore = defineStore(
       clearMirResult();
     }
 
+    function reorderUploadedImageFiles(orderedFileIds: string[]) {
+      const fileById = new Map(
+        uploadedImageFiles.value.map((entry) => [entry.id, entry]),
+      );
+      const orderedEntries = orderedFileIds
+        .map((fileId) => fileById.get(fileId))
+        .filter((entry): entry is UploadedImageFileEntry => Boolean(entry));
+
+      if (orderedEntries.length === 0) {
+        return;
+      }
+
+      const orderedIdSet = new Set(orderedEntries.map((entry) => entry.id));
+      const remainingEntries = uploadedImageFiles.value.filter(
+        (entry) => !orderedIdSet.has(entry.id),
+      );
+
+      uploadedImageFiles.value = [...orderedEntries, ...remainingEntries];
+      clearMirResult();
+    }
+
+    function setConcreteDeliveryUploadBatches(
+      batches: ConcreteDeliveryUploadBatchDraft[],
+    ) {
+      concreteDeliveryUploadBatches.value = batches.map((batch) => ({
+        id: batch.id,
+        fileIds: [...batch.fileIds],
+      }));
+    }
+
+    function setConcreteStrengthUploadLots(
+      lots: ConcreteStrengthUploadLotDraft[],
+    ) {
+      concreteStrengthUploadLots.value = lots.map((lot) => ({
+        id: lot.id,
+        sevenDayFileIds: [...lot.sevenDayFileIds],
+        twentyEightDayFileIds: [...lot.twentyEightDayFileIds],
+      }));
+    }
+
     function clearUpload() {
       uploadMode.value = "empty";
       uploadedImageFiles.value = [];
+      clearUploadGrouping();
       clearMirResult();
     }
 
@@ -219,10 +298,15 @@ export const useDocumentConversionDemoStore = defineStore(
       mirAnalysisErrorMessage,
       mirDocumentSubmissionDraft,
       catDocumentSubmissionDraft,
+      concreteDeliveryUploadBatches,
+      concreteStrengthUploadLots,
       selectDocument,
       clearSelectedDocument,
       addUploadedImageFiles,
       removeUploadedImageFile,
+      reorderUploadedImageFiles,
+      setConcreteDeliveryUploadBatches,
+      setConcreteStrengthUploadLots,
       clearUpload,
       setMirUploadApplication,
       setMirUploadWorkTypeName,

@@ -15,6 +15,20 @@
   user-select: none;
 }
 
+.schedule-shell__surface {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 1rem;
+  background: #fff;
+}
+
 .schedule-shell__frame {
   position: relative;
   display: grid;
@@ -23,19 +37,20 @@
   min-height: 0;
   min-width: 0;
   grid-template-columns: var(--schedule-row-panel-width, 220px) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
   border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 0.95rem;
+  border-radius: 0.78rem;
   background: #fff;
 }
 
 .schedule-shell__toolbar {
   display: flex;
-  flex: 0 0 2.9rem;
-  min-height: 2.9rem;
+  flex: 0 0 3.5rem;
+  min-height: 3.5rem;
   align-items: center;
-  gap: 0.55rem;
-  padding: 0.28rem 0.6rem;
+  gap: 0.68rem;
+  padding: 0.38rem 0.76rem;
   overflow: visible;
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 0.8rem;
@@ -49,17 +64,17 @@
 
 .schedule-shell__compare-toggle {
   display: inline-flex;
-  min-height: 1.9rem;
+  min-height: 2.22rem;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  padding: 0 0.78rem;
+  padding: 0 0.9rem;
   border: 1px solid rgba(15, 23, 42, 0.12);
   border-radius: 0.5rem;
   background: #fff;
   color: #475569;
   font-family: inherit;
-  font-size: 0.78rem;
+  font-size: 0.88rem;
   font-weight: 800;
   line-height: 1;
   white-space: nowrap;
@@ -85,16 +100,48 @@
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
 }
 
+.schedule-shell__panel-toggle {
+  display: inline-flex;
+  width: 2.24rem;
+  height: 2.22rem;
+  flex: 0 0 2.24rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 0.5rem;
+  background: #fff;
+  color: #475569;
+}
+
+.schedule-shell__panel-toggle:hover,
+.schedule-shell__panel-toggle:focus-visible {
+  border-color: rgba(37, 99, 235, 0.24);
+  background: #f8fafc;
+  color: #111827;
+}
+
+.schedule-shell__panel-toggle:focus-visible {
+  outline: 2px solid rgba(107, 114, 128, 0.42);
+  outline-offset: -2px;
+}
+
+.schedule-shell__panel-toggle-icon {
+  width: 1.24rem;
+  height: 1.24rem;
+  flex: 0 0 auto;
+}
+
 .schedule-shell__promote-button {
   display: inline-flex;
-  min-height: 1.9rem;
+  min-height: 2.22rem;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  padding: 0 0.78rem;
+  padding: 0 0.9rem;
   border: 1px solid rgba(37, 99, 235, 0.2);
   font-family: inherit;
-  font-size: 0.78rem;
+  font-size: 0.88rem;
   font-weight: 800;
   line-height: 1;
   white-space: nowrap;
@@ -119,7 +166,7 @@
 
 .schedule-shell__toolbar-divider {
   width: 1px;
-  height: 1.55rem;
+  height: 1.9rem;
   flex: 0 0 auto;
   background: rgba(0, 0, 0, 0.14);
 }
@@ -137,11 +184,11 @@
 .schedule-shell__draft-button {
   display: inline-flex;
   align-items: center;
-  min-height: 1.9rem;
+  min-height: 2.22rem;
   border-radius: 0.5rem;
   background: #fff;
   color: #111827;
-  font-size: 0.78rem;
+  font-size: 0.88rem;
   line-height: 1;
   white-space: nowrap;
 }
@@ -149,7 +196,7 @@
 .schedule-shell__version-chip {
   gap: 0.42rem;
   flex: 0 0 auto;
-  padding: 0 0.62rem;
+  padding: 0 0.78rem;
   overflow: hidden;
   border: 1px solid rgba(0, 0, 0, 0.12);
   cursor: pointer;
@@ -196,7 +243,7 @@
 
 .schedule-shell__version-divider {
   width: 1px;
-  height: 1.35rem;
+  height: 1.68rem;
   flex: 0 0 auto;
   background: rgba(0, 0, 0, 0.16);
 }
@@ -251,18 +298,18 @@
 
 .schedule-shell__draft-chip {
   display: inline-flex;
-  min-height: 1.9rem;
+  min-height: 2.22rem;
   max-width: 15rem;
   min-width: 0;
   align-items: center;
   gap: 0.38rem;
-  padding: 0 0.66rem;
+  padding: 0 0.78rem;
   border: 0;
   border-radius: 0.5rem;
   background: transparent;
   color: #111827;
   font-family: inherit;
-  font-size: 0.78rem;
+  font-size: 0.88rem;
   line-height: 1;
   white-space: nowrap;
 }
@@ -298,7 +345,7 @@
 
 .schedule-shell__draft-button {
   flex: 0 0 auto;
-  padding: 0 0.72rem;
+  padding: 0 0.86rem;
   border: 1px solid rgba(0, 0, 0, 0.12);
   background: #f8fafc;
   color: #475569;
@@ -337,14 +384,14 @@
 .schedule-shell__schedule-action-button {
   display: inline-flex;
   align-items: center;
-  min-height: 1.9rem;
-  padding: 0 0.72rem;
+  min-height: 2.22rem;
+  padding: 0 0.86rem;
   border: 1px solid rgba(0, 0, 0, 0.12);
   border-radius: 0.5rem;
   background: #fff;
   color: #475569;
   font-family: inherit;
-  font-size: 0.78rem;
+  font-size: 0.88rem;
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;
@@ -683,9 +730,10 @@
 }
 
 .schedule-shell__left-column {
-  display: flex;
+  display: grid;
   min-height: 0;
-  flex-direction: column;
+  grid-template-rows: var(--schedule-header-height, 116px) minmax(0, 1fr);
+  overflow: hidden;
   border-right: 1px solid rgba(0, 0, 0, 0.16);
 }
 
@@ -739,10 +787,11 @@
 
 .schedule-shell__main {
   position: relative;
-  display: flex;
+  display: grid;
   min-width: 0;
   min-height: 0;
-  flex-direction: column;
+  grid-template-rows: var(--schedule-header-height, 116px) minmax(0, 1fr);
+  overflow: hidden;
 }
 
 .schedule-shell__left-resize-handle {
@@ -804,7 +853,7 @@
 .schedule-shell__actions {
   display: flex;
   align-items: center;
-  height: 1.9rem;
+  height: 2.22rem;
   overflow: hidden;
   border: 1px solid rgba(0, 0, 0, 0.12);
   border-radius: 0.5rem;
@@ -820,14 +869,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 1.9rem;
-  height: 1.9rem;
+  min-width: 2.22rem;
+  height: 2.22rem;
   padding: 0;
   border: 0;
   border-radius: 0;
   background: #fff;
   color: #6b7280;
-  font-size: 0.88rem;
+  font-size: 1rem;
   font-weight: 800;
   line-height: 1;
 }
@@ -837,13 +886,13 @@
 }
 
 .schedule-shell__action--history {
-  font-size: 0.98rem;
+  font-size: 1.08rem;
   font-weight: 700;
 }
 
 .schedule-shell__action-icon {
-  width: 1rem;
-  height: 1rem;
+  width: 1.12rem;
+  height: 1.12rem;
   opacity: 0.82;
   pointer-events: none;
 }
@@ -851,7 +900,7 @@
 .schedule-shell__zoom-slider {
   appearance: none;
   width: 7.4rem;
-  height: 1.9rem;
+  height: 2.22rem;
   padding: 0 0.6rem;
   border: 0;
   border-left: 1px solid rgba(0, 0, 0, 0.12);

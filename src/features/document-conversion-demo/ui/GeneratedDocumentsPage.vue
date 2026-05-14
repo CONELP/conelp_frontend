@@ -75,6 +75,20 @@
                     aria-hidden="true"
                   />
                 </button>
+
+                <button
+                  class="generated-row__open"
+                  type="button"
+                  aria-label="생성된 문서 열기"
+                  @click="handleOpenGeneratedDocument(document)"
+                >
+                  <img
+                    class="generated-row__open-icon"
+                    :src="chevronRightIcon"
+                    alt=""
+                    aria-hidden="true"
+                  />
+                </button>
               </div>
             </article>
           </div>
@@ -90,9 +104,10 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import { RouterLink } from "vue-router";
+import { RouterLink, useRouter } from "vue-router";
 import downloadIcon from "@fluentui/svg-icons/icons/arrow_download_20_regular.svg";
 import backIcon from "@fluentui/svg-icons/icons/chevron_left_24_regular.svg";
+import chevronRightIcon from "@fluentui/svg-icons/icons/chevron_right_20_regular.svg";
 import documentIcon from "@fluentui/svg-icons/icons/document_20_regular.svg";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
@@ -106,6 +121,7 @@ const {
   generatedDocumentsErrorMessage,
 } = useGeneratedDocumentsDemoViewModel();
 
+const router = useRouter();
 const downloadingDocumentId = ref<string | null>(null);
 
 function isStorageObjectKey(value: string) {
@@ -124,29 +140,35 @@ async function fetchExternalGeneratedDocument(value: string) {
   return response.blob();
 }
 
-async function downloadGeneratedDocumentBlob(document: GeneratedDocumentListItem) {
+async function downloadGeneratedDocumentAttachment(
+  document: GeneratedDocumentListItem,
+) {
   const sourceUrl = document.resultUrl ?? document.pdfUrl;
 
   if (sourceUrl) {
     if (isStorageObjectKey(sourceUrl)) {
-      return materialInspectionRequestApi.downloadDocumentFile(sourceUrl);
+      return materialInspectionRequestApi.downloadDocumentFileAttachment(sourceUrl);
     }
 
-    return fetchExternalGeneratedDocument(sourceUrl);
+    return {
+      blob: await fetchExternalGeneratedDocument(sourceUrl),
+      filename: "",
+    };
   }
 
-  return materialInspectionRequestApi.downloadDocumentJob(document.jobId);
+  return materialInspectionRequestApi.downloadDocumentJobAttachment(document.jobId);
 }
 
 function saveGeneratedDocumentBlob(
   generatedDocument: GeneratedDocumentListItem,
   blob: Blob,
+  filename = "",
 ) {
   const objectUrl = URL.createObjectURL(blob);
   const link = document.createElement("a");
 
   link.href = objectUrl;
-  link.download = generatedDocument.downloadFileName;
+  link.download = filename || generatedDocument.downloadFileName;
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -161,15 +183,33 @@ async function handleDownloadGeneratedDocument(document: GeneratedDocumentListIt
   downloadingDocumentId.value = document.id;
 
   try {
+    const attachment = await downloadGeneratedDocumentAttachment(document);
+
     saveGeneratedDocumentBlob(
       document,
-      await downloadGeneratedDocumentBlob(document),
+      attachment.blob,
+      attachment.filename,
     );
   } catch {
     window.alert("문서 다운로드에 실패했습니다.");
   } finally {
     downloadingDocumentId.value = null;
   }
+}
+
+function handleOpenGeneratedDocument(document: GeneratedDocumentListItem) {
+  const query: Record<string, string> = {
+    jobId: String(document.jobId),
+  };
+
+  if (document.documentType) {
+    query.documentType = document.documentType;
+  }
+
+  void router.push({
+    path: "/preview/result",
+    query,
+  });
 }
 </script>
 

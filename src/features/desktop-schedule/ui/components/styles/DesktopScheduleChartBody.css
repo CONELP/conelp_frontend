@@ -1,4 +1,5 @@
 .schedule-chart-body {
+  min-height: 0;
   overflow: auto;
   background: #fff;
 }
@@ -44,11 +45,15 @@
 .schedule-chart-body__row-grid,
 .schedule-chart-body__row,
 .schedule-chart-body__division-grid-mask,
+.schedule-chart-body__division-holiday-cell,
+.schedule-chart-body__division-holiday-grid,
+.schedule-chart-body__holiday-label-layer,
 .schedule-chart-body__hover-day,
 .schedule-chart-body__hover-row,
 .schedule-chart-body__hover-cell,
 .schedule-chart-body__cell-selection,
 .schedule-chart-body__today-column-overlay,
+.schedule-chart-body__today-column-grid,
 .schedule-chart-body__bar,
 .schedule-chart-body__review-bar-overlay,
 .schedule-chart-body__review-milestone,
@@ -69,15 +74,29 @@
   background: rgba(244, 63, 94, 0.05);
 }
 
+.schedule-chart-body__holiday-label-layer {
+  top: 0;
+  z-index: 4;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow: visible;
+  pointer-events: none;
+}
+
 .schedule-chart-body__day-column-holiday-label {
   position: sticky;
   top: 0.5rem;
+  box-sizing: border-box;
   display: block;
-  width: 100%;
-  padding-block: 0.4rem;
-  color: #be123c;
+  width: max-content;
+  padding: 0.42rem 0.24rem;
+  border: 1px solid rgba(244, 63, 94, 0.16);
+  border-radius: 999px;
+  background: rgb(255, 251, 252);
+  color: #94a3b8;
   font-size: clamp(0.55rem, calc(0.78rem * var(--schedule-zoom-scale, 1)), 0.95rem);
-  font-weight: 600;
+  font-weight: 400;
   line-height: 1.05;
   text-align: center;
   white-space: nowrap;
@@ -150,6 +169,28 @@
   box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.9);
 }
 
+.schedule-chart-body__division-holiday-cell {
+  z-index: 2;
+  background: rgba(244, 63, 94, 0.05);
+  pointer-events: none;
+}
+
+.schedule-chart-body__division-holiday-grid {
+  top: 0;
+  left: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  shape-rendering: crispEdges;
+}
+
+.schedule-chart-body__division-holiday-grid line {
+  stroke: rgba(0, 0, 0, 0.08);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
 .schedule-chart-body__row--selected {
   background: rgba(125, 211, 252, 0.18);
   box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.9);
@@ -167,18 +208,21 @@
   top: 0;
   z-index: 4;
   background: rgba(125, 211, 252, 0.18);
+  pointer-events: none;
 }
 
 .schedule-chart-body__hover-row {
   left: 0;
   z-index: 4;
   background: rgba(125, 211, 252, 0.18);
+  pointer-events: none;
 }
 
 .schedule-chart-body__hover-cell {
   z-index: 4;
   background: rgba(125, 211, 252, 0.18);
   box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.8);
+  pointer-events: none;
 }
 
 .schedule-chart-body__cell-selection {
@@ -218,20 +262,25 @@
 
 .schedule-chart-body__today-column-overlay {
   top: 0;
-  z-index: 30;
-  background: transparent;
+  z-index: 4;
+  background: rgba(30, 24, 136, 0.16);
   pointer-events: none;
 }
 
-.schedule-chart-body__today-column-overlay::before {
-  position: absolute;
+.schedule-chart-body__today-column-grid {
   top: 0;
-  bottom: 0;
-  left: 50%;
-  width: 2px;
-  background: var(--primary);
-  content: "";
-  transform: translateX(-50%);
+  left: 0;
+  z-index: 5;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  shape-rendering: crispEdges;
+}
+
+.schedule-chart-body__today-column-grid line {
+  stroke: rgba(30, 24, 136, 0.22);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
 }
 
 .schedule-chart-body__progress-line {
@@ -294,7 +343,7 @@
 }
 
 .schedule-chart-body__milestone-deadline {
-  z-index: 2;
+  z-index: 14;
   display: block;
   appearance: none;
   overflow: visible;
@@ -366,7 +415,7 @@
 }
 
 .schedule-chart-body__milestone-cell {
-  z-index: 2;
+  z-index: 14;
   display: flex;
   appearance: none;
   align-items: center;

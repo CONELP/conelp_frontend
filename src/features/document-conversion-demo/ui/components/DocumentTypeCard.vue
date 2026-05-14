@@ -1,10 +1,14 @@
 <template>
   <button
     class="document-chip"
-    :class="{ 'document-chip--selected': selected }"
+    :class="{
+      'document-chip--selected': selected,
+      'document-chip--disabled': !document.isAvailable,
+    }"
     type="button"
     :aria-label="document.selectLabel"
     :aria-pressed="selected"
+    :disabled="!document.isAvailable"
     @click="$emit('select')"
   >
     <span class="document-chip__icon-frame" aria-hidden="true">

@@ -8,11 +8,9 @@ import type {
   UploadFeedbackPageCopy,
   UploadPageCopy,
 } from "@/features/document-conversion-demo/model/document-conversion-demo.types";
-import documentTextIcon from "@fluentui/svg-icons/icons/document_text_24_regular.svg";
 import clipboardTaskIcon from "@fluentui/svg-icons/icons/clipboard_task_24_regular.svg";
 import beakerIcon from "@fluentui/svg-icons/icons/beaker_24_regular.svg";
 import cylinderIcon from "@fluentui/svg-icons/icons/database_24_regular.svg";
-import checkmarkIcon from "@fluentui/svg-icons/icons/checkmark_circle_24_regular.svg";
 import noteEditIcon from "@fluentui/svg-icons/icons/note_edit_24_regular.svg";
 
 export const selectionPageCopy: SelectionPageCopy = {
@@ -61,18 +59,6 @@ export const documentCatalog: DocumentDemoCard[] = [
     generationMode: "direct",
   },
   {
-    type: "daily_report",
-    label: "홈페이지 공사일보 변환",
-    chipLabel: "홈페이지 공사일보 변환",
-    iconSrc: documentTextIcon,
-    description: "일일 작업 현황과 투입 인력, 장비 기록을 정리하는 기본 문서",
-    uploadGuide: "추가 자료 없이 바로 생성할 수 있어요.",
-    resultLabel: "홈페이지 공사일보 변환 결과 시안",
-    status: "available",
-    accentLabel: "즉시 데모 가능",
-    generationMode: "direct",
-  },
-  {
     type: "material_registration",
     label: "자재 반입 검수요청",
     chipLabel: "자재 반입 검수요청",
@@ -108,18 +94,6 @@ export const documentCatalog: DocumentDemoCard[] = [
     accentLabel: "즉시 데모 가능",
     generationMode: "upload_required",
   },
-  {
-    type: "inspection_request",
-    label: "검측 요청서",
-    chipLabel: "검측 요청서",
-    iconSrc: checkmarkIcon,
-    description: "공정별 검측 요청 정보를 빠르게 정리하는 요청 문서",
-    uploadGuide: "검측 대상 위치 사진과 체크 포인트 메모를 올려 주세요.",
-    resultLabel: "검측 요청서 결과 시안",
-    status: "available",
-    accentLabel: "즉시 데모 가능",
-    generationMode: "upload_required",
-  },
 ];
 
 export const uploadPageCopy: UploadPageCopy = {
@@ -143,43 +117,6 @@ export const uploadFeedbackPageCopy: UploadFeedbackPageCopy = {
 };
 
 export const uploadDocumentPresets: UploadDocumentPreset[] = [
-  {
-    documentType: "daily_report",
-    guideItems: [
-      "작업 전경 사진",
-      "당일 작업 메모 사진",
-      "인력 또는 장비 기록 사진",
-    ],
-    sampleFiles: [
-      {
-        id: "daily-report-1",
-        name: "IMG_2407_작업전경.jpg",
-        previewType: "image",
-      },
-      {
-        id: "daily-report-2",
-        name: "IMG_2408_작업메모.jpg",
-        previewType: "image",
-      },
-    ],
-    feedbackItems: [
-      {
-        id: "daily-report-check-1",
-        label: "작업 전경 사진",
-        status: "matched",
-      },
-      {
-        id: "daily-report-check-2",
-        label: "당일 작업 메모 사진",
-        status: "matched",
-      },
-      {
-        id: "daily-report-check-3",
-        label: "인력 또는 장비 기록 사진",
-        status: "missing",
-      },
-    ],
-  },
   {
     documentType: "material_registration",
     guideItems: ["송장 사진", "자재 반입 사진", "밀시트 사진"],
@@ -221,9 +158,11 @@ export const uploadDocumentPresets: UploadDocumentPreset[] = [
   {
     documentType: "concrete_delivery_csi",
     guideItems: [
-      "송장 사진",
+      "출하증명서 사진",
       "슬럼프 시험 전경 사진",
       "보드판 사진",
+      "공기량 사진",
+      "온도 사진",
       "염화물 사진",
       "함수율 사진",
     ],
@@ -242,7 +181,7 @@ export const uploadDocumentPresets: UploadDocumentPreset[] = [
     feedbackItems: [
       {
         id: "delivery-check-1",
-        label: "송장 사진",
+        label: "출하증명서 사진",
         status: "matched",
       },
       {
@@ -257,11 +196,21 @@ export const uploadDocumentPresets: UploadDocumentPreset[] = [
       },
       {
         id: "delivery-check-4",
-        label: "염화물 사진",
+        label: "공기량 사진",
         status: "missing",
       },
       {
         id: "delivery-check-5",
+        label: "온도 사진",
+        status: "missing",
+      },
+      {
+        id: "delivery-check-6",
+        label: "염화물 사진",
+        status: "missing",
+      },
+      {
+        id: "delivery-check-7",
         label: "함수율 사진",
         status: "missing",
       },
@@ -292,43 +241,6 @@ export const uploadDocumentPresets: UploadDocumentPreset[] = [
       },
     ],
   },
-  {
-    documentType: "inspection_request",
-    guideItems: [
-      "검측 대상 위치 사진",
-      "체크 포인트 메모 사진",
-      "도면 또는 표기 사진",
-    ],
-    sampleFiles: [
-      {
-        id: "inspection-1",
-        name: "IMG_2440_검측위치.jpg",
-        previewType: "image",
-      },
-      {
-        id: "inspection-2",
-        name: "IMG_2441_체크포인트.jpg",
-        previewType: "image",
-      },
-    ],
-    feedbackItems: [
-      {
-        id: "inspection-check-1",
-        label: "검측 대상 위치 사진",
-        status: "matched",
-      },
-      {
-        id: "inspection-check-2",
-        label: "체크 포인트 메모 사진",
-        status: "matched",
-      },
-      {
-        id: "inspection-check-3",
-        label: "도면 또는 표기 사진",
-        status: "missing",
-      },
-    ],
-  },
 ];
 
 export const conversionLoadingSteps: ConversionDemoStep[] = [
@@ -350,11 +262,11 @@ export const conversionLoadingSteps: ConversionDemoStep[] = [
 ];
 
 export const demoResultState: DemoResultState = {
-  documentType: "daily_report",
-  title: "홈페이지 공사일보 변환 결과 시안",
+  documentType: "daily_report_write",
+  title: "공사일보 작성 결과 시안",
   statusLabel: "변환 완료",
   summaryItems: [
-    { label: "문서 타입", value: "홈페이지 공사일보 변환" },
+    { label: "문서 타입", value: "공사일보 작성" },
     { label: "입력 자료", value: "현장 이미지 2건" },
     { label: "데모 상태", value: "검토 가능한 시안 준비" },
   ],

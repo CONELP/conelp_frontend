@@ -7,6 +7,7 @@ import { actualWorkApi } from "@/features/document-conversion-demo/api/actual-wo
 import type { ActualWorkResponse } from "@/features/document-conversion-demo/api/actual-work-api.types";
 import { materialInspectionRequestApi } from "@/features/document-conversion-demo/api/material-inspection-request.api";
 import type { WorkTypeReferenceResponse } from "@/features/document-conversion-demo/api/material-inspection-request-api.types";
+import DailyReportEditorPanel from "@/features/document-conversion-demo/ui/components/DailyReportEditorPanel.vue";
 import { desktopScheduleService } from "@/features/desktop-schedule/services/desktop-schedule.service";
 import { useDesktopScheduleViewModel } from "@/features/desktop-schedule/state/useDesktopScheduleViewModel";
 import DesktopScheduleColorPalette from "@/features/desktop-schedule/ui/components/DesktopScheduleColorPalette.vue";
@@ -1349,7 +1350,7 @@ onMounted(() => {
     void ensureBaselineScheduleSelected();
   }
 
-  void hydrateDailyReportFromServer();
+  // DailyReportEditorPanel owns actualWork hydration and CRUD.
 });
 
 onUnmounted(() => {
@@ -1606,7 +1607,13 @@ watch(
         <span class="daily-report-write-splitter__line" aria-hidden="true" />
       </button>
 
-      <aside class="daily-report-write-panel" aria-label="공사일보 작성">
+      <DailyReportEditorPanel />
+
+      <aside
+        v-if="false"
+        class="daily-report-write-panel"
+        aria-label="공사일보 작성"
+      >
         <div class="daily-report-write-panel__content">
 	          <section class="daily-report-write-editor">
 	            <label class="daily-report-write-editor__label">
@@ -2109,7 +2116,7 @@ watch(
 
     <Transition name="daily-report-image-preview">
       <div
-        v-if="previewImage"
+        v-if="false && previewImage"
         class="daily-report-image-preview"
         role="presentation"
         @click.self="closeDailyReportImagePreview"
@@ -2130,14 +2137,14 @@ watch(
           </button>
           <img
             class="daily-report-image-preview__image"
-            :src="previewImage.src"
+            :src="previewImage?.src"
             alt=""
           />
           <p
-            v-if="previewImage.description"
+            v-if="previewImage?.description"
             class="daily-report-image-preview__description"
           >
-            {{ previewImage.description }}
+            {{ previewImage?.description }}
           </p>
         </section>
       </div>

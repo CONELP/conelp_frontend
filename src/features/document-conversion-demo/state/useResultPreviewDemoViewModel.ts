@@ -1,6 +1,8 @@
-import { computed } from "vue";
+import { computed, watch } from "vue";
+import { useRoute } from "vue-router";
 
 import { documentCatalog } from "@/features/document-conversion-demo/data/document-conversion-demo.seed";
+import type { DocumentCatalogType } from "@/features/document-conversion-demo/model/document-conversion-demo.types";
 import { useDocumentConversionDemoStore } from "@/features/document-conversion-demo/state/useDocumentConversionDemoStore";
 
 const DEFAULT_REVIEW_ITEMS = [
@@ -57,15 +59,52 @@ function formatResultTime(value: string | null | undefined) {
   return `${hours}:${minutes}`;
 }
 
+function isDocumentCatalogType(value: string): value is DocumentCatalogType {
+  return documentCatalog.some((document) => document.type === value);
+}
+
+function resolveRouteJobId(value: unknown) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const jobId = Number(value);
+
+  return Number.isInteger(jobId) && jobId > 0 ? jobId : null;
+}
+
 export function useResultPreviewDemoViewModel() {
   const store = useDocumentConversionDemoStore();
+  const route = useRoute();
 
+  watch(
+    () => route.query.documentType,
+    (documentType) => {
+      if (
+        typeof documentType === "string" &&
+        isDocumentCatalogType(documentType) &&
+        store.selectedDocumentType !== documentType
+      ) {
+        store.selectDocument(documentType);
+      }
+    },
+    { immediate: true },
+  );
+
+  const routeDocument = computed(() => {
+    const documentType = route.query.documentType;
+
+    return typeof documentType === "string" && isDocumentCatalogType(documentType)
+      ? documentCatalog.find((document) => document.type === documentType)
+      : undefined;
+  });
   const selectedDocument = computed(
-    () => store.selectedDocument ?? documentCatalog[0],
+    () => routeDocument.value ?? store.selectedDocument ?? documentCatalog[0],
   );
   const activeCreateResult = computed(
     () => store.catCreateResult ?? store.mirCreateResult,
   );
+  const routeJobId = computed(() => resolveRouteJobId(route.query.jobId));
 
   const resultFileName = computed(() =>
     activeCreateResult.value?.docNo
@@ -78,7 +117,7 @@ export function useResultPreviewDemoViewModel() {
   );
 
   const resultDownloadJobId = computed(
-    () => activeCreateResult.value?.jobId ?? null,
+    () => activeCreateResult.value?.jobId ?? routeJobId.value,
   );
 
   const resultDocumentTitle = computed(() => {
@@ -123,7 +162,7 @@ export function useResultPreviewDemoViewModel() {
   );
 
   const reviewItems = computed(() =>
-    activeCreateResult.value
+    activeCreateResult.value || routeJobId.value
       ? []
       : DEFAULT_REVIEW_ITEMS,
   );

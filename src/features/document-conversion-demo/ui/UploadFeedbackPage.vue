@@ -129,6 +129,7 @@
                     class="feedback-review-field__input"
                     type="text"
                     aria-label="사용 위치"
+                    :placeholder="workContextHint.application"
                     :title="toHoverTitle(materialReview.application)"
                   />
                 </div>
@@ -140,6 +141,7 @@
                     class="feedback-review-field__input"
                     type="text"
                     aria-label="공종 이름"
+                    :placeholder="workContextHint.workTypeName"
                     :title="toHoverTitle(materialReview.workTypeName)"
                   />
                 </div>
@@ -506,6 +508,7 @@ const {
   missingCount,
   primaryFeedbackActionLabel,
   primaryFeedbackRoute,
+  workContextHint,
 } = useDocumentUploadDemoViewModel();
 const documentStore = useDocumentConversionDemoStore();
 const router = useRouter();
@@ -1094,7 +1097,10 @@ function handleCreateMirDocumentDraft(active: boolean) {
   );
   void router.push({
     path: "/preview/loading",
-    query: { phase: "mir-create" },
+    query: {
+      documentType: selectedDocument.value.type,
+      phase: "mir-create",
+    },
   });
 }
 
@@ -1140,7 +1146,10 @@ function handleCreateCatDocumentDraft(active: boolean) {
   );
   void router.push({
     path: "/preview/loading",
-    query: { phase: "cat-create" },
+    query: {
+      documentType: selectedDocument.value.type,
+      phase: "cat-create",
+    },
   });
 }
 

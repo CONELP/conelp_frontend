@@ -204,6 +204,7 @@ export interface DesktopScheduleWorkPeriodQuery {
 export interface DesktopScheduleBootstrapOptions {
   projectId?: DesktopScheduleProjectId;
   scheduleVersionId?: DesktopScheduleVersionId;
+  persistSelection?: boolean;
   period?: {
     startDate: string;
     endDate: string;
