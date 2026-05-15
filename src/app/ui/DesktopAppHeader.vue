@@ -45,7 +45,7 @@ import { RouterLink, useRoute } from "vue-router";
 
 import ProjectPicker from "@/shared/ui/ProjectPicker.vue";
 
-type DesktopHeaderSection = "dashboard" | "schedule" | "documents";
+type DesktopHeaderSection = "dashboard" | "schedule" | "documents" | "ai-agent";
 
 const route = useRoute();
 const attrs = useAttrs();
@@ -66,6 +66,11 @@ const navItems: Array<{ id: DesktopHeaderSection; label: string; to: string }> =
     label: "문서생성",
     to: "/documents",
   },
+  {
+    id: "ai-agent",
+    label: "AI에이전트",
+    to: "/ai-agent",
+  },
 ];
 
 function isActive(section: DesktopHeaderSection) {
@@ -77,6 +82,10 @@ function isActive(section: DesktopHeaderSection) {
 
   if (section === "schedule") {
     return currentPath.startsWith("/schedule");
+  }
+
+  if (section === "ai-agent") {
+    return currentPath.startsWith("/ai-agent");
   }
 
   return currentPath.startsWith("/documents") || currentPath.startsWith("/preview");

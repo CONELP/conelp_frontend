@@ -1,0 +1,84 @@
+.connection-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--outline-soft);
+  border-radius: var(--radius-pill);
+  background: var(--surface-1);
+  color: var(--ink-muted);
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1;
+  cursor: default;
+  transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.connection-badge:disabled {
+  cursor: default;
+}
+
+.connection-badge:not(:disabled) {
+  cursor: pointer;
+}
+
+.connection-badge__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--ink-faint);
+}
+
+.connection-badge--open {
+  color: #1f7a3a;
+  border-color: rgba(31, 122, 58, 0.3);
+}
+
+.connection-badge--open .connection-badge__dot {
+  background: #2bb673;
+  box-shadow: 0 0 0 4px rgba(43, 182, 115, 0.16);
+}
+
+.connection-badge--connecting,
+.connection-badge--reconnecting {
+  color: var(--primary);
+  border-color: var(--primary-outline);
+}
+
+.connection-badge--connecting .connection-badge__dot,
+.connection-badge--reconnecting .connection-badge__dot {
+  background: var(--primary);
+  animation: connection-pulse 1.4s ease-in-out infinite;
+}
+
+.connection-badge--closed {
+  color: #b3261e;
+  border-color: rgba(179, 38, 30, 0.3);
+}
+
+.connection-badge--closed .connection-badge__dot {
+  background: #b3261e;
+}
+
+.connection-badge--closed:hover {
+  background: rgba(179, 38, 30, 0.06);
+}
+
+.connection-badge__attempts {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.1rem;
+  padding: 0 0.35rem;
+  border-radius: var(--radius-pill);
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+@keyframes connection-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}

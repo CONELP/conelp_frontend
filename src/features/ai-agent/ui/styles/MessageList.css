@@ -1,0 +1,65 @@
+.message-list {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 1.4rem 1.2rem;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  background: var(--canvas);
+}
+
+.message-list__sentinel {
+  height: 1px;
+  width: 100%;
+}
+
+.message-list__hint,
+.message-list__empty {
+  margin: 0.5rem 0;
+  text-align: center;
+  color: var(--ink-faint);
+  font-size: 0.78rem;
+}
+
+.message-list__divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0.5rem 0;
+  color: var(--ink-faint);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.message-list__divider span {
+  padding: 0.2rem 0.7rem;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+}
+
+.message-list__scroll-bottom {
+  position: sticky;
+  bottom: 0.5rem;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  margin-top: 0.5rem;
+  border: 1px solid var(--outline-soft);
+  border-radius: var(--radius-pill);
+  background: var(--surface-1);
+  color: var(--ink);
+  font-size: 1.1rem;
+  cursor: pointer;
+  box-shadow: var(--shadow-soft);
+}
+
+.message-list__scroll-bottom:hover {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}

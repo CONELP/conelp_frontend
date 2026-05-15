@@ -1,0 +1,44 @@
+export const aiAgentCopy = {
+  pageTitle: "AI 에이전트",
+  pageEyebrow: "Hermes AI 에이전트와 대화",
+  newThreadCard: {
+    title: "새 대화 시작하기",
+    description: "Hermes AI 에이전트와 새로운 대화를 시작합니다",
+  },
+  newThreadDialog: {
+    title: "새 대화",
+    description: "대화 제목을 입력해주세요",
+    placeholder: "예: 콘크리트 타설 일정 협의",
+    submit: "대화 시작",
+    cancel: "취소",
+  },
+  emptyState: {
+    title: "아직 대화가 없어요",
+    description: "왼쪽 카드를 눌러 새 대화를 시작해보세요",
+  },
+  composer: {
+    placeholder: "메시지를 입력하세요…",
+    send: "전송",
+    sending: "전송 중…",
+  },
+  connection: {
+    open: "연결됨",
+    connecting: "연결 중…",
+    reconnecting: "재연결 중",
+    closed: "연결 끊김",
+    reconnect: "다시 연결",
+    idle: "대기",
+  },
+  participants: {
+    bot: "Hermes",
+    botBadge: "AI 에이전트",
+  },
+  errors: {
+    sendFailed: "메시지 전송에 실패했어요. 잠시 후 다시 시도해주세요.",
+    createThreadFailed: "대화 생성에 실패했어요.",
+    deleteThreadFailed: "대화 삭제에 실패했어요.",
+    loadOlderFailed: "이전 메시지를 불러오지 못했어요.",
+    threadLoadFailed: "대화 정보를 불러오지 못했어요.",
+    echoTimeout: "메시지가 전송되었지만 갱신이 지연되고 있어요.",
+  },
+} as const;

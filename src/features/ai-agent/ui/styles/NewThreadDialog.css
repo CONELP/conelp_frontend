@@ -1,0 +1,102 @@
+.new-thread-dialog__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.new-thread-dialog {
+  width: min(28rem, 100%);
+  padding: 1.6rem;
+  border-radius: var(--radius-panel);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-soft);
+  font-family: var(--font-body);
+}
+
+.new-thread-dialog__title {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.new-thread-dialog__description {
+  margin: 0.35rem 0 0;
+  color: var(--ink-muted);
+  font-size: 0.85rem;
+}
+
+.new-thread-dialog__form {
+  margin-top: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.new-thread-dialog__input {
+  width: 100%;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--outline-soft);
+  border-radius: var(--radius-control);
+  background: var(--surface-2);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.92rem;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.new-thread-dialog__input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-outline);
+}
+
+.new-thread-dialog__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.new-thread-dialog__cancel,
+.new-thread-dialog__submit {
+  height: 2.4rem;
+  padding: 0 1rem;
+  border-radius: var(--radius-control);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+.new-thread-dialog__cancel {
+  border: 1px solid var(--outline-soft);
+  background: var(--surface-1);
+  color: var(--ink);
+}
+
+.new-thread-dialog__cancel:hover:not(:disabled) {
+  background: var(--surface-3);
+}
+
+.new-thread-dialog__submit {
+  border: 1px solid var(--primary);
+  background: var(--primary);
+  color: #fff;
+}
+
+.new-thread-dialog__submit:hover:not(:disabled) {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+
+.new-thread-dialog__submit:disabled,
+.new-thread-dialog__cancel:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

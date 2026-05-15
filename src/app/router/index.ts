@@ -1,5 +1,7 @@
 import { createRouter, createWebHistory } from "vue-router";
 
+import AiAgentChatPage from "@/features/ai-agent/ui/AiAgentChatPage.vue";
+import AiAgentThreadListPage from "@/features/ai-agent/ui/AiAgentThreadListPage.vue";
 import DesktopDashboardPage from "@/features/desktop-dashboard/ui/DesktopDashboardPage.vue";
 import DesktopSchedulePage from "@/features/desktop-schedule/ui/DesktopSchedulePage.vue";
 import LoginPage from "@/features/auth/ui/LoginPage.vue";
@@ -99,6 +101,17 @@ export const router = createRouter({
       path: "/preview/generated-documents",
       name: "generated-documents-preview",
       component: GeneratedDocumentsPage,
+    },
+    {
+      path: "/ai-agent",
+      name: "ai-agent-threads",
+      component: AiAgentThreadListPage,
+    },
+    {
+      path: "/ai-agent/threads/:threadId",
+      name: "ai-agent-chat",
+      component: AiAgentChatPage,
+      props: (route) => ({ threadId: Number(route.params.threadId) }),
     },
     {
       path: "/system-admin",

@@ -17,6 +17,12 @@ export default defineConfig({
         changeOrigin: true,
         secure: true,
       },
+      "/ws": {
+        target: "wss://dev.conelp.kr",
+        ws: true,
+        changeOrigin: true,
+        secure: true,
+      },
     },
   },
 });

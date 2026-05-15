@@ -1,0 +1,104 @@
+.ai-agent-list-frame {
+  min-height: 100vh;
+  background: var(--canvas);
+}
+
+.ai-agent-list {
+  width: min(100%, var(--page-max-width));
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+.ai-agent-list__hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.6rem;
+}
+
+.ai-agent-list__hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.ai-agent-list__eyebrow {
+  margin: 0;
+  color: var(--primary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ai-agent-list__title {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 2vw, 1.9rem);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.ai-agent-list__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1.1rem;
+}
+
+.ai-agent-list__empty {
+  margin: 2rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.ai-agent-list__empty strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.ai-agent-list__toasts {
+  position: fixed;
+  top: 1.5rem;
+  right: 1.5rem;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: min(22rem, 90vw);
+}
+
+.ai-agent-list__toast {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--outline-soft);
+  border-radius: var(--radius-control);
+  background: var(--surface-1);
+  color: var(--ink);
+  font-size: 0.85rem;
+  box-shadow: var(--shadow-soft);
+}
+
+.ai-agent-list__toast-close {
+  margin-left: auto;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--ink-faint);
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.ai-agent-list__toast-close:hover {
+  background: var(--surface-3);
+  color: var(--ink);
+}
