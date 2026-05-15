@@ -581,11 +581,15 @@
         <div
           v-if="bar.kind === 'item'"
           class="schedule-chart-body__execution-progress-overlay"
+          :class="`schedule-chart-body__execution-progress-overlay--tone-${getExecutionProgressTone(bar)}`"
           aria-hidden="true"
         >
           <span
             class="schedule-chart-body__execution-progress-hit-area"
-            :style="{ width: `${bar.width + timeline.dayWidth * 14}px` }"
+            :style="{
+              left: `${-timeline.dayWidth * 3}px`,
+              width: `${bar.width + timeline.dayWidth * 6}px`,
+            }"
           />
           <span
             v-for="segment in getExecutionProgressPlanSegments(bar)"
@@ -617,6 +621,26 @@
               class="schedule-chart-body__execution-progress-gap-mark"
             />
           </span>
+          <span
+            v-for="segment in getExecutionProgressUnderflowSegments(bar)"
+            :key="segment.key"
+            class="schedule-chart-body__execution-progress-overflow-hatch schedule-chart-body__execution-progress-overflow-hatch--underflow"
+            :class="{
+              'schedule-chart-body__execution-progress-overflow-hatch--preview': segment.preview,
+            }"
+            :style="{
+              left: `${segment.left}px`,
+              width: `${segment.width}px`,
+            }"
+          />
+          <span
+            v-if="getExecutionProgressUnderflowOutline(bar)"
+            class="schedule-chart-body__execution-progress-overflow-outline schedule-chart-body__execution-progress-overflow-outline--underflow"
+            :style="{
+              left: `${getExecutionProgressUnderflowOutline(bar)!.left}px`,
+              width: `${getExecutionProgressUnderflowOutline(bar)!.width}px`,
+            }"
+          />
           <span
             v-for="segment in getExecutionProgressOverflowSegments(bar)"
             :key="segment.key"
@@ -1451,10 +1475,10 @@ function getExecutionProgressDayIndexFromPointer(
 
   const rect = element.getBoundingClientRect();
   const pointerChartX = event.clientX - rect.left + element.scrollLeft;
-  const maxDayIndex = Math.max(Math.ceil(bar.width / props.timeline.dayWidth) + 13, 0);
+  const maxDayIndex = Math.max(Math.ceil(bar.width / props.timeline.dayWidth) + 2, 0);
   const dayIndex = Math.floor((pointerChartX - bar.left) / props.timeline.dayWidth);
 
-  return Math.min(Math.max(dayIndex, 0), maxDayIndex);
+  return Math.min(Math.max(dayIndex, -3), maxDayIndex);
 }
 
 function handleExecutionProgressBarPointerMove(
@@ -1508,6 +1532,31 @@ function getExecutionProgressPreviewDayIndex(bar: DesktopScheduleBarLayout) {
     : null;
 }
 
+function getExecutionProgressTone(bar: DesktopScheduleBarLayout): "green" | "yellow" | "red" {
+  const completedDayIndexes = getExecutionProgressCompletedDayIndexSet(bar.itemId);
+  if (completedDayIndexes.size === 0) {
+    return "green";
+  }
+
+  const plannedDayCount = Math.max(Math.ceil(bar.width / props.timeline.dayWidth), 1);
+
+  let minDayIndex = Number.POSITIVE_INFINITY;
+  let maxDayIndex = Number.NEGATIVE_INFINITY;
+  for (const dayIndex of completedDayIndexes) {
+    if (dayIndex < minDayIndex) minDayIndex = dayIndex;
+    if (dayIndex > maxDayIndex) maxDayIndex = dayIndex;
+  }
+
+  const span = maxDayIndex - minDayIndex + 1;
+  if (span > plannedDayCount) {
+    return "red";
+  }
+  if (minDayIndex > 0) {
+    return "yellow";
+  }
+  return "green";
+}
+
 function getExecutionProgressPlanSegments(bar: DesktopScheduleBarLayout) {
   const completedDayIndexes = getExecutionProgressCompletedDayIndexSet(bar.itemId);
   const previewDayIndex = getExecutionProgressPreviewDayIndex(bar);
@@ -1535,6 +1584,58 @@ function getExecutionProgressPlanSegments(bar: DesktopScheduleBarLayout) {
       };
     })
     .filter((segment): segment is NonNullable<typeof segment> => segment !== null);
+}
+
+function getExecutionProgressUnderflowSegments(bar: DesktopScheduleBarLayout) {
+  const completedDayIndexes = getExecutionProgressCompletedDayIndexSet(bar.itemId);
+  const previewDayIndex = getExecutionProgressPreviewDayIndex(bar);
+  const underflowDayIndexes = new Set(
+    Array.from(completedDayIndexes).filter((dayIndex) => dayIndex < 0),
+  );
+
+  if (previewDayIndex !== null && previewDayIndex < 0) {
+    underflowDayIndexes.add(previewDayIndex);
+  }
+
+  const sortedDayIndexes = Array.from(underflowDayIndexes).sort((first, second) => first - second);
+  const segments: Array<{ start: number; end: number }> = [];
+
+  sortedDayIndexes.forEach((dayIndex) => {
+    const lastSegment = segments[segments.length - 1];
+
+    if (lastSegment && dayIndex === lastSegment.end + 1) {
+      lastSegment.end = dayIndex;
+      return;
+    }
+
+    segments.push({ start: dayIndex, end: dayIndex });
+  });
+
+  return segments.map((segment) => ({
+    key: `${bar.itemId}:underflow:${segment.start}-${segment.end}`,
+    left: segment.start * props.timeline.dayWidth,
+    width: (segment.end - segment.start + 1) * props.timeline.dayWidth,
+    preview:
+      previewDayIndex !== null &&
+      previewDayIndex >= segment.start &&
+      previewDayIndex <= segment.end &&
+      !completedDayIndexes.has(previewDayIndex),
+  }));
+}
+
+function getExecutionProgressUnderflowOutline(bar: DesktopScheduleBarLayout) {
+  const underflowSegments = getExecutionProgressUnderflowSegments(bar);
+
+  if (underflowSegments.length === 0) {
+    return null;
+  }
+
+  const left = Math.min(...underflowSegments.map((segment) => segment.left));
+
+  return {
+    left,
+    width: -left,
+  };
 }
 
 function getExecutionProgressOverflowSegments(bar: DesktopScheduleBarLayout) {
@@ -1667,7 +1768,7 @@ function normalizeExecutionProgressStorageValue(value: unknown) {
         new Set(
           dayIndexes
             .filter((dayIndex): dayIndex is number =>
-              typeof dayIndex === "number" && Number.isFinite(dayIndex) && dayIndex >= 0,
+              typeof dayIndex === "number" && Number.isFinite(dayIndex),
             )
             .map((dayIndex) => Math.round(dayIndex)),
         ),
