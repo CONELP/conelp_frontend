@@ -13,6 +13,19 @@ export interface Participant {
   joinedAt: string;
 }
 
+export interface MessageAttachment {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  blobUrl?: string;
+}
+
+export interface MessageMention {
+  participantType: ParticipantType;
+  participantId: string;
+}
+
 export interface Message {
   id: number;
   threadId: number;
@@ -21,6 +34,17 @@ export interface Message {
   senderName: string;
   text: string;
   createdAt: string;
+  attachments: MessageAttachment[];
+  replyToMessageId: number | null;
+  mentions: MessageMention[];
+}
+
+export interface SendMessageInput {
+  threadId: number;
+  text?: string;
+  files?: File[];
+  replyToMessageId?: number;
+  mentions?: MessageMention[];
 }
 
 export interface Thread {
@@ -43,7 +67,26 @@ export interface ThreadSnapshotPayload {
   threads: Thread[];
 }
 
-export type MessageCreatedPayload = Message;
+export interface RawAttachment {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  contentBase64?: string;
+}
+
+export interface MessageCreatedPayload {
+  id: number;
+  threadId: number;
+  senderType: SenderType;
+  senderId: string;
+  senderName: string;
+  text: string;
+  createdAt: string;
+  attachments?: RawAttachment[];
+  replyToMessageId?: number | null;
+  mentions?: MessageMention[];
+}
 
 export interface MessageDeletedPayload {
   threadId: number;

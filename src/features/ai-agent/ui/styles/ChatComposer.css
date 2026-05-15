@@ -1,10 +1,103 @@
 .chat-composer {
   display: flex;
-  align-items: flex-end;
-  gap: 0.6rem;
+  flex-direction: column;
+  gap: 0.5rem;
   padding: 0.85rem 1.2rem 1rem;
   border-top: 1px solid var(--outline-soft);
   background: var(--surface-1);
+}
+
+.chat-composer__row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+}
+
+.chat-composer__files {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.chat-composer__file {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: 100%;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--outline-soft);
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  color: var(--ink);
+  font-size: 0.78rem;
+}
+
+.chat-composer__file-icon {
+  font-size: 0.85rem;
+}
+
+.chat-composer__file-name {
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-composer__file-size {
+  color: var(--ink-faint);
+  font-size: 0.72rem;
+}
+
+.chat-composer__file-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-faint);
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.chat-composer__file-remove:hover {
+  background: var(--surface-1);
+  color: var(--ink);
+}
+
+.chat-composer__attach {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  border: 1px solid var(--outline-soft);
+  border-radius: var(--radius-pill);
+  background: var(--surface-1);
+  color: var(--ink-muted);
+  font-size: 1.05rem;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+.chat-composer__attach:hover:not(:disabled) {
+  background: var(--primary-soft);
+  color: var(--primary);
+  border-color: var(--primary-outline);
+}
+
+.chat-composer__attach:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.chat-composer__file-input {
+  display: none;
 }
 
 .chat-composer__textarea {

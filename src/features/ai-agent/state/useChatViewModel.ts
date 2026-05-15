@@ -44,9 +44,9 @@ export function useChatViewModel(threadIdRef: () => number) {
     }
   }
 
-  async function send(text: string) {
+  async function send(text: string, files: File[] = []) {
     const trimmed = text.trim();
-    if (!trimmed) return false;
+    if (!trimmed && files.length === 0) return false;
 
     const id = threadIdRef();
     if (!id) return false;
@@ -60,7 +60,11 @@ export function useChatViewModel(threadIdRef: () => number) {
     let echoArrived = false;
 
     try {
-      const promise = chatMessageApi.send(id, trimmed);
+      const promise = chatMessageApi.send({
+        threadId: id,
+        text: trimmed.length > 0 ? trimmed : undefined,
+        files: files.length > 0 ? files : undefined,
+      });
       const safetyPromise = new Promise<void>((resolve) => {
         timer = window.setTimeout(() => {
           if (response && !messages.value.some((m) => m.id === response!.id)) {
@@ -74,7 +78,6 @@ export function useChatViewModel(threadIdRef: () => number) {
       response = await promise;
       echoArrived = messages.value.some((m) => m.id === response!.id);
 
-      // Wait for either the WS echo or the safety timer to elapse.
       await Promise.race([
         new Promise<void>((resolve) => {
           const unwatch = watchForEcho(response!.id, () => {
@@ -96,11 +99,7 @@ export function useChatViewModel(threadIdRef: () => number) {
       if (timer !== null) {
         window.clearTimeout(timer);
       }
-      if (echoArrived || response) {
-        store.clearPendingSend(id);
-      } else {
-        store.clearPendingSend(id);
-      }
+      store.clearPendingSend(id);
     }
   }
 

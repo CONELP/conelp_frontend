@@ -87,6 +87,117 @@
   margin: 0;
 }
 
+.message-bubble__attachments {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.message-bubble__attachment-image {
+  display: block;
+  max-width: 16rem;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--outline-soft);
+}
+
+.message-bubble__attachment-image img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 18rem;
+  object-fit: cover;
+}
+
+.message-bubble__attachment-link,
+.message-bubble__attachment-stale {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 100%;
+  padding: 0.5rem 0.7rem;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.04);
+  color: inherit;
+  font-size: 0.82rem;
+  text-decoration: none;
+  transition: background 160ms ease;
+}
+
+.message-bubble--me .message-bubble__attachment-link,
+.message-bubble--me .message-bubble__attachment-stale {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.message-bubble__attachment-link:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.message-bubble--me .message-bubble__attachment-link:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+.message-bubble__attachment-icon {
+  font-size: 0.95rem;
+}
+
+.message-bubble__attachment-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.message-bubble__attachment-size {
+  color: var(--ink-faint);
+  font-size: 0.72rem;
+}
+
+.message-bubble--me .message-bubble__attachment-size {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.message-bubble__attachment-action {
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-pill);
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.message-bubble--me .message-bubble__attachment-action {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+.message-bubble__attachment--stale .message-bubble__attachment-stale {
+  border: 1px dashed var(--outline-soft);
+  background: transparent;
+  color: var(--ink-muted);
+  font-style: italic;
+}
+
+.message-bubble--me .message-bubble__attachment--stale .message-bubble__attachment-stale {
+  border-color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.message-bubble__attachment-stale-hint {
+  font-size: 0.7rem;
+  color: var(--ink-faint);
+}
+
+.message-bubble--me .message-bubble__attachment-stale-hint {
+  color: rgba(255, 255, 255, 0.7);
+}
+
 .message-bubble__time {
   display: block;
   margin-top: 0.4rem;

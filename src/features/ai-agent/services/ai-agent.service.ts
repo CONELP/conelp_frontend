@@ -1,4 +1,94 @@
-import type { Message, Thread } from "@/features/ai-agent/model/ai-agent.types";
+import type {
+  Message,
+  MessageAttachment,
+  RawAttachment,
+  Thread,
+} from "@/features/ai-agent/model/ai-agent.types";
+
+export const MAX_ATTACHMENTS_PER_MESSAGE = 10;
+export const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024;
+export const BLOCKED_ATTACHMENT_EXTENSIONS = [
+  "exe", "bat", "cmd", "sh", "ps1", "jar", "com", "scr", "msi",
+];
+
+export interface AttachmentValidationError {
+  kind: "tooMany" | "tooLarge" | "blockedExt";
+  fileName?: string;
+}
+
+export function validateAttachments(
+  files: File[],
+): AttachmentValidationError | null {
+  if (files.length > MAX_ATTACHMENTS_PER_MESSAGE) {
+    return { kind: "tooMany" };
+  }
+  for (const file of files) {
+    if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+      return { kind: "tooLarge", fileName: file.name };
+    }
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+    if (ext && BLOCKED_ATTACHMENT_EXTENSIONS.includes(ext)) {
+      return { kind: "blockedExt", fileName: file.name };
+    }
+  }
+  return null;
+}
+
+function base64ToBlob(base64: string, mimeType: string): Blob | null {
+  try {
+    const binary = atob(base64);
+    const len = binary.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new Blob([bytes], { type: mimeType || "application/octet-stream" });
+  } catch {
+    return null;
+  }
+}
+
+export function materializeAttachment(raw: RawAttachment): MessageAttachment {
+  const base: MessageAttachment = {
+    id: raw.id,
+    fileName: raw.fileName,
+    mimeType: raw.mimeType,
+    sizeBytes: raw.sizeBytes,
+  };
+  if (raw.contentBase64) {
+    const blob = base64ToBlob(raw.contentBase64, raw.mimeType);
+    if (blob) base.blobUrl = URL.createObjectURL(blob);
+  }
+  return base;
+}
+
+export function materializeAttachments(
+  raws: RawAttachment[] | undefined,
+): MessageAttachment[] {
+  if (!raws || raws.length === 0) return [];
+  return raws.map(materializeAttachment);
+}
+
+export function revokeAttachmentBlobs(messages: Message[] | undefined): void {
+  if (!messages) return;
+  for (const message of messages) {
+    for (const attachment of message.attachments) {
+      if (attachment.blobUrl) {
+        URL.revokeObjectURL(attachment.blobUrl);
+      }
+    }
+  }
+}
+
+export function isImageAttachment(attachment: MessageAttachment): boolean {
+  return attachment.mimeType.startsWith("image/");
+}
+
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 interface RawThread {
   id?: number;

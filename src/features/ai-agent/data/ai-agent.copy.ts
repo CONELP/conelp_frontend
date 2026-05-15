@@ -20,6 +20,19 @@ export const aiAgentCopy = {
     placeholder: "메시지를 입력하세요…",
     send: "전송",
     sending: "전송 중…",
+    attach: "파일 첨부",
+    removeFile: "파일 제거",
+  },
+  attachments: {
+    stale: "다시 받을 수 없는 첨부파일",
+    staleHint: "재접속 후에는 다운로드할 수 없어요",
+    download: "다운로드",
+  },
+  validation: {
+    tooMany: "첨부 파일은 최대 10개까지 가능합니다.",
+    tooLarge: "파일 크기는 10MB 이하여야 합니다.",
+    blockedExt: "이 형식은 첨부할 수 없어요",
+    emptyMessage: "메시지나 파일을 입력해주세요.",
   },
   connection: {
     open: "연결됨",

@@ -1,7 +1,11 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 
-import { normalizeThread } from "@/features/ai-agent/services/ai-agent.service";
+import {
+  materializeAttachments,
+  normalizeThread,
+  revokeAttachmentBlobs,
+} from "@/features/ai-agent/services/ai-agent.service";
 import type {
   ConnectionStatus,
   Message,
@@ -9,12 +13,41 @@ import type {
   MessageDeletedPayload,
   Participant,
   ParticipantChangedPayload,
+  RawAttachment,
   Thread,
   ThreadDeletedPayload,
   ThreadSnapshotPayload,
   ThreadUpdatedPayload,
   WsEnvelope,
 } from "@/features/ai-agent/model/ai-agent.types";
+
+interface RawMessageLike {
+  id: number;
+  threadId: number;
+  senderType: Message["senderType"];
+  senderId: string;
+  senderName: string;
+  text?: string;
+  createdAt: string;
+  attachments?: RawAttachment[];
+  replyToMessageId?: number | null;
+  mentions?: Message["mentions"];
+}
+
+function normalizeMessageRaw(raw: RawMessageLike): Message {
+  return {
+    id: raw.id,
+    threadId: raw.threadId,
+    senderType: raw.senderType,
+    senderId: raw.senderId,
+    senderName: raw.senderName,
+    text: raw.text ?? "",
+    createdAt: raw.createdAt,
+    attachments: materializeAttachments(raw.attachments),
+    replyToMessageId: raw.replyToMessageId ?? null,
+    mentions: raw.mentions ?? [],
+  };
+}
 
 interface PendingSend {
   sentAt: number;
@@ -74,6 +107,10 @@ export const useAiAgentStore = defineStore("ai-agent", () => {
   }
 
   function applySnapshot(payload: ThreadSnapshotPayload): void {
+    for (const messages of messagesByThread.value.values()) {
+      revokeAttachmentBlobs(messages);
+    }
+
     const nextThreads = new Map<number, Thread>();
     const nextMessages = new Map<number, Message[]>();
 
@@ -85,7 +122,9 @@ export const useAiAgentStore = defineStore("ai-agent", () => {
         participants: [...t.participants],
         recentMessages: [],
       });
-      const sorted = [...t.recentMessages].sort(sortMessagesAsc);
+      const sorted = (t.recentMessages as unknown as RawMessageLike[])
+        .map((m) => normalizeMessageRaw(m))
+        .sort(sortMessagesAsc);
       nextMessages.set(t.threadId, sorted);
     }
 
@@ -110,6 +149,7 @@ export const useAiAgentStore = defineStore("ai-agent", () => {
   }
 
   function removeThread(threadId: number): void {
+    removeThreadInternal(threadId);
     if (threads.value.has(threadId)) {
       threads.value.delete(threadId);
       threads.value = new Map(threads.value);
@@ -133,7 +173,10 @@ export const useAiAgentStore = defineStore("ai-agent", () => {
 
   function appendMessage(msg: Message): void {
     const list = messagesByThread.value.get(msg.threadId) ?? [];
-    if (list.some((m) => m.id === msg.id)) return;
+    if (list.some((m) => m.id === msg.id)) {
+      revokeAttachmentBlobs([msg]);
+      return;
+    }
     const next = [...list, msg].sort(sortMessagesAsc);
     messagesByThread.value.set(msg.threadId, next);
     messagesByThread.value = new Map(messagesByThread.value);
@@ -154,6 +197,11 @@ export const useAiAgentStore = defineStore("ai-agent", () => {
     const next = [...additions, ...existing].sort(sortMessagesAsc);
     messagesByThread.value.set(threadId, next);
     messagesByThread.value = new Map(messagesByThread.value);
+  }
+
+  function removeThreadInternal(threadId: number): void {
+    const messages = messagesByThread.value.get(threadId);
+    revokeAttachmentBlobs(messages);
   }
 
   function removeMessage(threadId: number, messageId: number): void {
@@ -241,6 +289,9 @@ export const useAiAgentStore = defineStore("ai-agent", () => {
   }
 
   function reset(): void {
+    for (const messages of messagesByThread.value.values()) {
+      revokeAttachmentBlobs(messages);
+    }
     threads.value = new Map();
     messagesByThread.value = new Map();
     pendingSendByThread.value = new Map();
@@ -255,7 +306,9 @@ export const useAiAgentStore = defineStore("ai-agent", () => {
         applySnapshot(env.payload as ThreadSnapshotPayload);
         break;
       case "message.created":
-        appendMessage(env.payload as MessageCreatedPayload);
+        appendMessage(
+          normalizeMessageRaw(env.payload as MessageCreatedPayload),
+        );
         break;
       case "message.deleted": {
         const p = env.payload as MessageDeletedPayload;

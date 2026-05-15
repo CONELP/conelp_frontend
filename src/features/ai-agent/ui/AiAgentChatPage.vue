@@ -24,7 +24,11 @@
         @load-older="loadOlder"
       />
 
-      <ChatComposer :disabled="isAwaitingEcho || !isConnected" @send="handleSend" />
+      <ChatComposer
+        :disabled="isAwaitingEcho || !isConnected"
+        @send="handleSend"
+        @validation-error="handleValidationError"
+      />
     </main>
   </div>
 </template>
@@ -79,8 +83,12 @@ watch(
   },
 );
 
-async function handleSend(text: string) {
-  await send(text);
+async function handleSend(text: string, files: File[]) {
+  await send(text, files);
+}
+
+function handleValidationError(message: string) {
+  store.pushError(message);
 }
 
 function handleBack() {
