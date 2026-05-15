@@ -301,6 +301,7 @@ const {
   selectedScheduleVersionId,
   scheduleVersionReviewState,
   scheduleVersionPromotionState,
+  scheduleImportDialogState,
   selectionState,
   contextMenuState,
   contextMenuItems,
@@ -1492,6 +1493,7 @@ watch(
             :can-promote-schedule-version="false"
             :schedule-version-review="scheduleVersionReviewState"
             :schedule-version-promotion="scheduleVersionPromotionState"
+            :schedule-import-dialog="scheduleImportDialogState"
             :viewport-height="shellViewportHeight"
             :scroll-top="chartScrollTop"
             :scroll-left="chartScrollLeft"

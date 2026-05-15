@@ -152,6 +152,22 @@ export interface DesktopScheduleExportRequest {
   excludedSubWorkTypeIds: number[];
 }
 
+export interface DesktopScheduleImportExcelRequest {
+  scheduleVersionId: DesktopScheduleVersionId;
+  file: File;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface DesktopScheduleImportExcelResponse {
+  createdDivisions: number;
+  createdWorkTypes: number;
+  createdSubWorkTypes: number;
+  createdWorks: number;
+  createdDependencies: number;
+  createdWorkIds: number[];
+}
+
 export interface DesktopScheduleWorkCreateRequest {
   startDate: string;
   workLeadTime: number;

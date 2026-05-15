@@ -351,3 +351,12 @@ export interface DesktopScheduleVersionPromotionState {
   summary: DesktopScheduleVersionReviewSummary | null;
   errorMessage: string | null;
 }
+
+export interface DesktopScheduleImportDialogState {
+  open: boolean;
+  status: "idle" | "submitting" | "error";
+  fileName: string | null;
+  startDate: string;
+  endDate: string;
+  errorMessage: string | null;
+}

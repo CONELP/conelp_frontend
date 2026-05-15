@@ -19,6 +19,8 @@ import type {
   DesktopScheduleSubWorkTypeId,
   DesktopScheduleSubWorkTypeResponse,
   DesktopScheduleExportRequest,
+  DesktopScheduleImportExcelRequest,
+  DesktopScheduleImportExcelResponse,
   DesktopScheduleVersionCreateRequest,
   DesktopScheduleVersionId,
   DesktopScheduleVersionResponse,
@@ -408,6 +410,23 @@ export const desktopScheduleApi = {
   getWorkListByVersion(scheduleVersionId: DesktopScheduleVersionId) {
     return apiFetch<DesktopScheduleWorkResponse[]>(
       `/work/getWorkListByVersion${buildQuery({ scheduleVersionId })}`,
+    );
+  },
+
+  // POST /api/schedule/importExcel/{scheduleVersionId}
+  importScheduleExcel(request: DesktopScheduleImportExcelRequest) {
+    const formData = new FormData();
+    formData.append("file", request.file);
+
+    return apiFetch<DesktopScheduleImportExcelResponse>(
+      `/schedule/importExcel/${encodePathSegment(request.scheduleVersionId)}${buildQuery({
+        startDate: request.startDate,
+        endDate: request.endDate,
+      })}`,
+      {
+        method: "POST",
+        body: formData,
+      },
     );
   },
 

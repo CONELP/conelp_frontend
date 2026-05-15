@@ -10,6 +10,7 @@ import {
 } from "vue";
 
 import type {
+  DesktopScheduleImportDialogState,
   DesktopScheduleShellLayout,
   DesktopScheduleTimelineLayout,
   DesktopScheduleVersionPromotionState,
@@ -74,6 +75,7 @@ const props = defineProps<{
   canPromoteScheduleVersion: boolean;
   scheduleVersionReview: DesktopScheduleVersionReviewState;
   scheduleVersionPromotion: DesktopScheduleVersionPromotionState;
+  scheduleImportDialog: DesktopScheduleImportDialogState;
   viewportHeight?: number;
   scrollTop: number;
   scrollLeft: number;
@@ -172,7 +174,12 @@ const emit = defineEmits<{
   redo: [];
   "select-schedule-version": [scheduleVersionId: number];
   "create-draft-version": [versionName: string];
-  "import-schedule": [];
+  "open-import-dialog": [];
+  "close-import-dialog": [];
+  "import-dialog-file-change": [file: File | null];
+  "import-dialog-start-date-change": [value: string];
+  "import-dialog-end-date-change": [value: string];
+  "import-dialog-submit": [];
   "export-schedule-excel": [range: "3week" | "3month"];
   "rename-schedule-version": [payload: { scheduleVersionId: number; versionName: string }];
   "delete-schedule-version": [scheduleVersionId: number];
@@ -443,6 +450,11 @@ function handleDocumentKeyDown(event: KeyboardEvent) {
       return;
     }
 
+    if (props.scheduleImportDialog.open) {
+      closeImportDialog();
+      return;
+    }
+
     closeVersionOverlays();
   }
 }
@@ -520,7 +532,40 @@ function selectExportRange(range: "3week" | "3month") {
 }
 
 function emitImportSchedule() {
-  emit("import-schedule");
+  emit("open-import-dialog");
+}
+
+function handleImportDialogFileChange(event: Event) {
+  const target = event.target as HTMLInputElement | null;
+  const file = target?.files?.item(0) ?? null;
+  emit("import-dialog-file-change", file);
+}
+
+function handleImportDialogStartDateChange(event: Event) {
+  const target = event.target as HTMLInputElement | null;
+  emit("import-dialog-start-date-change", target?.value ?? "");
+}
+
+function handleImportDialogEndDateChange(event: Event) {
+  const target = event.target as HTMLInputElement | null;
+  emit("import-dialog-end-date-change", target?.value ?? "");
+}
+
+function closeImportDialog() {
+  if (props.scheduleImportDialog.status === "submitting") {
+    return;
+  }
+  emit("close-import-dialog");
+}
+
+function submitImportDialog() {
+  if (
+    props.scheduleImportDialog.status === "submitting" ||
+    !props.scheduleImportDialog.fileName
+  ) {
+    return;
+  }
+  emit("import-dialog-submit");
 }
 
 function selectScheduleVersion(version: ScheduleVersionOption) {
@@ -1439,6 +1484,109 @@ onUnmounted(() => {
                 @click="emit('confirm-schedule-version-promotion')"
               >
                 {{ promotionConfirmLabel }}
+              </button>
+            </footer>
+          </section>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <Teleport to="body">
+      <Transition name="schedule-shell__promotion-dialog-transition">
+        <div
+          v-if="showWorkflowControls && scheduleImportDialog.open"
+          class="schedule-shell__promotion-dialog-backdrop"
+          role="presentation"
+          @click.self="closeImportDialog"
+        >
+          <section
+            class="schedule-shell__promotion-dialog schedule-shell__import-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="schedule-import-dialog-title"
+          >
+            <header class="schedule-shell__promotion-dialog-header">
+              <h2 id="schedule-import-dialog-title">공정표 불러오기</h2>
+              <p>
+                엑셀 파일과 기간을 선택하면 자동으로 공종/작업/의존성을 추출해 현재 작업본에
+                추가해요.
+              </p>
+            </header>
+
+            <div class="schedule-shell__promotion-dialog-body">
+              <label class="schedule-shell__import-field">
+                <span class="schedule-shell__import-field-label">엑셀 파일</span>
+                <span class="schedule-shell__import-file">
+                  <input
+                    class="schedule-shell__import-file-input"
+                    type="file"
+                    accept=".xlsx"
+                    :disabled="scheduleImportDialog.status === 'submitting'"
+                    @change="handleImportDialogFileChange"
+                  />
+                  <span class="schedule-shell__import-file-name">
+                    {{ scheduleImportDialog.fileName ?? "선택된 파일 없음" }}
+                  </span>
+                </span>
+              </label>
+
+              <div class="schedule-shell__import-field-row">
+                <label class="schedule-shell__import-field">
+                  <span class="schedule-shell__import-field-label">시작일 (선택)</span>
+                  <input
+                    class="schedule-shell__import-date-input"
+                    type="date"
+                    :value="scheduleImportDialog.startDate"
+                    :disabled="scheduleImportDialog.status === 'submitting'"
+                    @change="handleImportDialogStartDateChange"
+                    @input="handleImportDialogStartDateChange"
+                  />
+                </label>
+
+                <label class="schedule-shell__import-field">
+                  <span class="schedule-shell__import-field-label">종료일 (선택)</span>
+                  <input
+                    class="schedule-shell__import-date-input"
+                    type="date"
+                    :value="scheduleImportDialog.endDate"
+                    :disabled="scheduleImportDialog.status === 'submitting'"
+                    @change="handleImportDialogEndDateChange"
+                    @input="handleImportDialogEndDateChange"
+                  />
+                </label>
+              </div>
+
+              <p class="schedule-shell__import-help">
+                기간을 비워두면 엑셀 전체 일정을 추출합니다. LLM 처리에 시간이 걸릴 수 있어요.
+              </p>
+
+              <p
+                v-if="scheduleImportDialog.status === 'error' && scheduleImportDialog.errorMessage"
+                class="schedule-shell__promotion-dialog-error"
+              >
+                {{ scheduleImportDialog.errorMessage }}
+              </p>
+            </div>
+
+            <footer class="schedule-shell__promotion-dialog-footer">
+              <button
+                type="button"
+                class="schedule-shell__promotion-dialog-secondary"
+                :disabled="scheduleImportDialog.status === 'submitting'"
+                @click="closeImportDialog"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                class="schedule-shell__promotion-dialog-primary"
+                :disabled="
+                  scheduleImportDialog.status === 'submitting' ||
+                  !scheduleImportDialog.fileName
+                "
+                @click="submitImportDialog"
+              >
+                {{ scheduleImportDialog.status === 'submitting' ? '불러오는 중' : '불러오기' }}
               </button>
             </footer>
           </section>

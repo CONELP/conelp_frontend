@@ -64,6 +64,7 @@ const {
   canPromoteScheduleVersion,
   scheduleVersionReviewState,
   scheduleVersionPromotionState,
+  scheduleImportDialogState,
   selectionState,
   contextMenuState,
   contextMenuItems,
@@ -148,7 +149,12 @@ const {
   confirmScheduleVersionPromotion,
   closeScheduleVersionPromotionDialog,
   exportScheduleAsExcel,
-  importScheduleStub,
+  openScheduleImportDialog,
+  closeScheduleImportDialog,
+  setScheduleImportFile,
+  setScheduleImportStartDate,
+  setScheduleImportEndDate,
+  submitScheduleImport,
   pastMainScheduleVersions,
 } = useDesktopScheduleViewModel();
 
@@ -498,6 +504,7 @@ watch(
               :can-promote-schedule-version="canPromoteScheduleVersion"
               :schedule-version-review="scheduleVersionReviewState"
               :schedule-version-promotion="scheduleVersionPromotionState"
+              :schedule-import-dialog="scheduleImportDialogState"
               :viewport-height="shellViewportHeight"
               :scroll-top="chartScrollTop"
               :scroll-left="chartScrollLeft"
@@ -532,7 +539,12 @@ watch(
               @undo="undoLocalHistory"
               @redo="redoLocalHistory"
               @create-draft-version="createDraftVersionFromCurrent"
-              @import-schedule="importScheduleStub"
+              @open-import-dialog="openScheduleImportDialog"
+              @close-import-dialog="closeScheduleImportDialog"
+              @import-dialog-file-change="setScheduleImportFile"
+              @import-dialog-start-date-change="setScheduleImportStartDate"
+              @import-dialog-end-date-change="setScheduleImportEndDate"
+              @import-dialog-submit="submitScheduleImport"
               @export-schedule-excel="exportScheduleAsExcel"
               @select-schedule-version="selectScheduleVersion"
               @rename-schedule-version="renameScheduleVersion"

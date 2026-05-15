@@ -20,6 +20,7 @@ import type {
   DesktopScheduleWorkUpdateRequest,
 } from "@/features/desktop-schedule/api/desktop-schedule-api.types";
 import type {
+  DesktopScheduleImportDialogState,
   DesktopScheduleItem,
   DesktopScheduleMilestone,
   DesktopScheduleRow,
@@ -125,6 +126,8 @@ type ScheduleToastState = {
   message: string;
   tone: "neutral" | "warning";
 };
+
+type ScheduleImportDialogState = DesktopScheduleImportDialogState;
 
 type ScheduleMutationOptions = {
   reloadOnSuccess?: boolean;
@@ -334,6 +337,17 @@ function createHiddenScheduleToast(): ScheduleToastState {
     visible: false,
     message: "",
     tone: "neutral",
+  };
+}
+
+function createClosedScheduleImportDialogState(): ScheduleImportDialogState {
+  return {
+    open: false,
+    status: "idle",
+    fileName: null,
+    startDate: "",
+    endDate: "",
+    errorMessage: null,
   };
 }
 
@@ -1809,6 +1823,10 @@ function createDesktopScheduleViewModel() {
   const scheduleVersionPromotionState = ref<DesktopScheduleVersionPromotionState>(
     createClosedScheduleVersionPromotionState(),
   );
+  const scheduleImportDialogState = ref<ScheduleImportDialogState>(
+    createClosedScheduleImportDialogState(),
+  );
+  let scheduleImportSelectedFile: File | null = null;
   const excludedScheduleVersionIds = ref<Set<DesktopScheduleVersionId>>(new Set());
   const scheduleVersionReviewBaselineCache = ref<ScheduleVersionReviewBaselineCache | null>(null);
   const scheduleVersionReviewSummaryCache = ref<ScheduleVersionReviewSummaryCache | null>(null);
@@ -7342,8 +7360,140 @@ function createDesktopScheduleViewModel() {
     }
   }
 
-  function importScheduleStub() {
-    showScheduleToast("공정표 불러오기는 준비 중이에요.");
+  function openScheduleImportDialog() {
+    const scheduleVersionId = selectedScheduleVersionId.value;
+
+    if (!scheduleVersionId) {
+      showScheduleToast("공정표 버전이 선택되지 않았어요.");
+      return;
+    }
+
+    if (isScheduleReadOnly.value) {
+      notifyReadOnlyScheduleAction();
+      return;
+    }
+
+    scheduleImportSelectedFile = null;
+    scheduleImportDialogState.value = createClosedScheduleImportDialogState();
+    scheduleImportDialogState.value = {
+      ...scheduleImportDialogState.value,
+      open: true,
+    };
+  }
+
+  function closeScheduleImportDialog() {
+    if (scheduleImportDialogState.value.status === "submitting") {
+      return;
+    }
+
+    scheduleImportSelectedFile = null;
+    scheduleImportDialogState.value = createClosedScheduleImportDialogState();
+  }
+
+  function setScheduleImportFile(file: File | null) {
+    scheduleImportSelectedFile = file;
+    scheduleImportDialogState.value = {
+      ...scheduleImportDialogState.value,
+      fileName: file?.name ?? null,
+      errorMessage: null,
+    };
+  }
+
+  function setScheduleImportStartDate(value: string) {
+    scheduleImportDialogState.value = {
+      ...scheduleImportDialogState.value,
+      startDate: value,
+      errorMessage: null,
+    };
+  }
+
+  function setScheduleImportEndDate(value: string) {
+    scheduleImportDialogState.value = {
+      ...scheduleImportDialogState.value,
+      endDate: value,
+      errorMessage: null,
+    };
+  }
+
+  async function submitScheduleImport() {
+    if (scheduleImportDialogState.value.status === "submitting") {
+      return;
+    }
+
+    const scheduleVersionId = selectedScheduleVersionId.value;
+
+    if (!scheduleVersionId) {
+      scheduleImportDialogState.value = {
+        ...scheduleImportDialogState.value,
+        status: "error",
+        errorMessage: "공정표 버전이 선택되지 않았어요.",
+      };
+      return;
+    }
+
+    const file = scheduleImportSelectedFile;
+    if (!file) {
+      scheduleImportDialogState.value = {
+        ...scheduleImportDialogState.value,
+        status: "error",
+        errorMessage: "엑셀 파일을 선택해 주세요.",
+      };
+      return;
+    }
+
+    const startDate = scheduleImportDialogState.value.startDate.trim();
+    const endDate = scheduleImportDialogState.value.endDate.trim();
+
+    if ((startDate && !endDate) || (!startDate && endDate)) {
+      scheduleImportDialogState.value = {
+        ...scheduleImportDialogState.value,
+        status: "error",
+        errorMessage: "시작일과 종료일을 모두 입력하거나 모두 비워주세요.",
+      };
+      return;
+    }
+
+    if (startDate && endDate && endDate < startDate) {
+      scheduleImportDialogState.value = {
+        ...scheduleImportDialogState.value,
+        status: "error",
+        errorMessage: "종료일은 시작일 이후여야 해요.",
+      };
+      return;
+    }
+
+    scheduleImportDialogState.value = {
+      ...scheduleImportDialogState.value,
+      status: "submitting",
+      errorMessage: null,
+    };
+
+    try {
+      const result = await desktopScheduleApi.importScheduleExcel({
+        scheduleVersionId,
+        file,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+      });
+
+      scheduleImportSelectedFile = null;
+      scheduleImportDialogState.value = createClosedScheduleImportDialogState();
+
+      await loadSchedule({ scheduleVersionId });
+
+      showScheduleToast(
+        `공정표를 불러왔어요. 작업 ${result.createdWorks}건, 의존성 ${result.createdDependencies}건 추가됨.`,
+      );
+    } catch (error) {
+      scheduleImportDialogState.value = {
+        ...scheduleImportDialogState.value,
+        status: "error",
+        errorMessage:
+          error instanceof Error
+            ? error.message
+            : "공정표를 불러오지 못했어요.",
+      };
+    }
   }
 
   return {
@@ -7453,7 +7603,13 @@ function createDesktopScheduleViewModel() {
     confirmScheduleVersionPromotion,
     closeScheduleVersionPromotionDialog,
     exportScheduleAsExcel,
-    importScheduleStub,
+    scheduleImportDialogState,
+    openScheduleImportDialog,
+    closeScheduleImportDialog,
+    setScheduleImportFile,
+    setScheduleImportStartDate,
+    setScheduleImportEndDate,
+    submitScheduleImport,
     pastMainScheduleVersions,
   };
 }
