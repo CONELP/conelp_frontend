@@ -2013,6 +2013,11 @@ function createDesktopScheduleViewModel() {
     getPastMainScheduleVersions(scheduleVersions.value),
   );
   const isScheduleReadOnly = computed(() => selectedScheduleVersion.value?.isMain === true);
+  const isCurrentMainScheduleVersionSelected = computed(() => {
+    const selected = selectedScheduleVersion.value;
+    const currentMain = currentMainScheduleVersion.value;
+    return Boolean(selected && currentMain && selected.id === currentMain.id);
+  });
   const scheduleVersionDisplayName = computed(
     () => selectedScheduleVersion.value?.versionName ?? "공정표",
   );
@@ -7499,6 +7504,7 @@ function createDesktopScheduleViewModel() {
   return {
     scheduleMeta,
     isScheduleReadOnly,
+    isCurrentMainScheduleVersionSelected,
     scheduleVersions,
     selectedScheduleVersionId,
     scheduleVersionDisplayName,

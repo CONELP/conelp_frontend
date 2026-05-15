@@ -2014,27 +2014,6 @@ onUnmounted(() => {
                       @blur="handleTaskBlur(workType, getPrimaryDailyReportTask(workType))"
                     />
                   </div>
-                  <span
-                    v-if="getPrimaryDailyReportTask(workType).isSyncing"
-                    class="daily-report-task-match-label daily-report-task-match-label--syncing"
-                  >
-                    동기화 중...
-                  </span>
-                  <span
-                    v-else-if="getPrimaryDailyReportTask(workType).matchedWorkName"
-                    class="daily-report-task-match-label daily-report-task-match-label--matched"
-                  >
-                    → {{ getPrimaryDailyReportTask(workType).matchedWorkName }}
-                  </span>
-                  <span
-                    v-else-if="
-                      getPrimaryDailyReportTask(workType).hasReceivedResponse &&
-                      getPrimaryDailyReportTask(workType).text.trim()
-                    "
-                    class="daily-report-task-match-label daily-report-task-match-label--unmatched"
-                  >
-                    매칭 없음
-                  </span>
                 </div>
               </div>
             </article>
@@ -2245,27 +2224,6 @@ onUnmounted(() => {
                       @blur="handleTaskBlur(workType, getPrimaryDailyReportTask(workType))"
                     />
                   </div>
-                  <span
-                    v-if="getPrimaryDailyReportTask(workType).isSyncing"
-                    class="daily-report-task-match-label daily-report-task-match-label--syncing"
-                  >
-                    동기화 중...
-                  </span>
-                  <span
-                    v-else-if="getPrimaryDailyReportTask(workType).matchedWorkName"
-                    class="daily-report-task-match-label daily-report-task-match-label--matched"
-                  >
-                    → {{ getPrimaryDailyReportTask(workType).matchedWorkName }}
-                  </span>
-                  <span
-                    v-else-if="
-                      getPrimaryDailyReportTask(workType).hasReceivedResponse &&
-                      getPrimaryDailyReportTask(workType).text.trim()
-                    "
-                    class="daily-report-task-match-label daily-report-task-match-label--unmatched"
-                  >
-                    매칭 없음
-                  </span>
                 </div>
               </div>
             </article>

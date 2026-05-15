@@ -53,6 +53,7 @@ const {
   scheduleLoadErrorMessage,
   scheduleToast,
   isScheduleReadOnly,
+  isCurrentMainScheduleVersionSelected,
   scheduleVersions,
   selectedScheduleVersionId,
   scheduleVersionDisplayName,
@@ -176,7 +177,7 @@ const isScheduleRefreshing = computed(
     selectedScheduleVersionId.value !== null,
 );
 const showDailyReportEditor = computed(
-  () => isScheduleReadOnly.value && isDailyReportPanelOpen.value,
+  () => isCurrentMainScheduleVersionSelected.value && isDailyReportPanelOpen.value,
 );
 const scheduleShellStyle = computed(() => ({
   "--desktop-schedule-daily-report-panel-width": showDailyReportEditor.value
@@ -227,7 +228,7 @@ function handleScheduleReload() {
 }
 
 function handleToggleDailyReportPanel() {
-  if (!isScheduleReadOnly.value) {
+  if (!isCurrentMainScheduleVersionSelected.value) {
     return;
   }
 
@@ -448,7 +449,7 @@ watch(
       ref="shellLayoutRef"
       class="desktop-schedule-page__shell"
       :class="{
-        'desktop-schedule-page__shell--with-daily-report-panel': isScheduleReadOnly,
+        'desktop-schedule-page__shell--with-daily-report-panel': isCurrentMainScheduleVersionSelected,
         'desktop-schedule-page__shell--panel-open': showDailyReportEditor,
         'desktop-schedule-page__shell--panel-resizing': dailyReportPanelResizeState,
       }"
@@ -529,7 +530,7 @@ watch(
               :can-undo="canUndoLocalHistory"
               :can-redo="canRedoLocalHistory"
               :panel-open="showDailyReportEditor"
-              :show-panel-toggle="isScheduleReadOnly"
+              :show-panel-toggle="isCurrentMainScheduleVersionSelected"
               panel-toggle-open-label="패널 숨기기"
               panel-toggle-closed-label="패널 보기"
               @scroll-sync="syncChartScroll"
