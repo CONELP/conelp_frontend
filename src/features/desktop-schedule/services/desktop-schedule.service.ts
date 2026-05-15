@@ -1152,7 +1152,7 @@ function buildShellLayout(
       const intervals = laneIntervals.get(laneIndex) ?? [];
       const draftRight = draft.left + draft.collisionWidth;
       return intervals.every(
-        (interval) => draft.left >= interval.right || draftRight <= interval.left,
+        (interval) => draft.left > interval.right || draftRight < interval.left,
       );
     }
 
