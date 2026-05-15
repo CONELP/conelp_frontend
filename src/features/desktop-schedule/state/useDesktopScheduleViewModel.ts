@@ -1,4 +1,4 @@
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 
 import {
   desktopScheduleApi,
@@ -1827,6 +1827,8 @@ function createDesktopScheduleViewModel() {
     createClosedScheduleImportDialogState(),
   );
   let scheduleImportSelectedFile: File | null = null;
+  const isAiVerificationModeActive = ref(false);
+  const aiVerificationCommentByItemId = ref<Record<string, string>>({});
   const excludedScheduleVersionIds = ref<Set<DesktopScheduleVersionId>>(new Set());
   const scheduleVersionReviewBaselineCache = ref<ScheduleVersionReviewBaselineCache | null>(null);
   const scheduleVersionReviewSummaryCache = ref<ScheduleVersionReviewSummaryCache | null>(null);
@@ -7501,6 +7503,38 @@ function createDesktopScheduleViewModel() {
     }
   }
 
+  function toggleAiVerificationMode() {
+    if (isAiVerificationModeActive.value) {
+      isAiVerificationModeActive.value = false;
+      aiVerificationCommentByItemId.value = {};
+      return;
+    }
+    isAiVerificationModeActive.value = true;
+  }
+
+  function setAiVerificationComment(payload: { itemId: string; comment: string }) {
+    const trimmed = payload.comment.trim();
+    const next = { ...aiVerificationCommentByItemId.value };
+    if (!trimmed) {
+      delete next[payload.itemId];
+    } else {
+      next[payload.itemId] = trimmed;
+    }
+    aiVerificationCommentByItemId.value = next;
+  }
+
+  watch(
+    () => selectedScheduleVersionId.value,
+    () => {
+      if (isAiVerificationModeActive.value) {
+        isAiVerificationModeActive.value = false;
+      }
+      if (Object.keys(aiVerificationCommentByItemId.value).length > 0) {
+        aiVerificationCommentByItemId.value = {};
+      }
+    },
+  );
+
   return {
     scheduleMeta,
     isScheduleReadOnly,
@@ -7616,6 +7650,10 @@ function createDesktopScheduleViewModel() {
     setScheduleImportStartDate,
     setScheduleImportEndDate,
     submitScheduleImport,
+    isAiVerificationModeActive,
+    aiVerificationCommentByItemId,
+    toggleAiVerificationMode,
+    setAiVerificationComment,
     pastMainScheduleVersions,
   };
 }

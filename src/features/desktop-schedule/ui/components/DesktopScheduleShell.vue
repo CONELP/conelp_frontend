@@ -76,6 +76,8 @@ const props = defineProps<{
   scheduleVersionReview: DesktopScheduleVersionReviewState;
   scheduleVersionPromotion: DesktopScheduleVersionPromotionState;
   scheduleImportDialog: DesktopScheduleImportDialogState;
+  isAiVerificationModeActive: boolean;
+  aiVerificationCommentByItemId: Record<string, string>;
   viewportHeight?: number;
   scrollTop: number;
   scrollLeft: number;
@@ -180,6 +182,8 @@ const emit = defineEmits<{
   "import-dialog-start-date-change": [value: string];
   "import-dialog-end-date-change": [value: string];
   "import-dialog-submit": [];
+  "toggle-ai-verification": [];
+  "set-ai-verification-comment": [payload: { itemId: string; comment: string }];
   "export-schedule-excel": [range: "3week" | "3month"];
   "rename-schedule-version": [payload: { scheduleVersionId: number; versionName: string }];
   "delete-schedule-version": [scheduleVersionId: number];
@@ -1301,6 +1305,19 @@ onUnmounted(() => {
         <span>시행비교ii</span>
       </button>
 
+      <button
+        v-if="showWorkflowControls && !readOnly"
+        type="button"
+        class="schedule-shell__compare-toggle"
+        :class="{
+          'schedule-shell__compare-toggle--active': isAiVerificationModeActive,
+        }"
+        :aria-pressed="isAiVerificationModeActive"
+        @click="emit('toggle-ai-verification')"
+      >
+        <span>AI 검증</span>
+      </button>
+
       <div class="schedule-shell__toolbar-spacer" aria-hidden="true" />
 
       <span
@@ -1673,6 +1690,9 @@ onUnmounted(() => {
           :execution-progress-compare-visible="isExecutionProgressCompareEnabled"
           :execution-progress-compare-leaving="isExecutionProgressCompareLeaving"
           :execution-progress-storage-key="executionProgressStorageKey"
+          :is-ai-verification-mode-active="isAiVerificationModeActive"
+          :ai-verification-comment-by-item-id="aiVerificationCommentByItemId"
+          @set-ai-verification-comment="emit('set-ai-verification-comment', $event)"
           :zoom-scale="zoomScale"
           @scroll-change="handleChartScroll"
           @clear-selection="emit('clear-selection')"

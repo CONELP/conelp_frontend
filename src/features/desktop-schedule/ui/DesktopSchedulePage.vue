@@ -156,6 +156,10 @@ const {
   setScheduleImportStartDate,
   setScheduleImportEndDate,
   submitScheduleImport,
+  isAiVerificationModeActive,
+  aiVerificationCommentByItemId,
+  toggleAiVerificationMode,
+  setAiVerificationComment,
   pastMainScheduleVersions,
 } = useDesktopScheduleViewModel();
 
@@ -506,6 +510,8 @@ watch(
               :schedule-version-review="scheduleVersionReviewState"
               :schedule-version-promotion="scheduleVersionPromotionState"
               :schedule-import-dialog="scheduleImportDialogState"
+              :is-ai-verification-mode-active="isAiVerificationModeActive"
+              :ai-verification-comment-by-item-id="aiVerificationCommentByItemId"
               :viewport-height="shellViewportHeight"
               :scroll-top="chartScrollTop"
               :scroll-left="chartScrollLeft"
@@ -546,6 +552,8 @@ watch(
               @import-dialog-start-date-change="setScheduleImportStartDate"
               @import-dialog-end-date-change="setScheduleImportEndDate"
               @import-dialog-submit="submitScheduleImport"
+              @toggle-ai-verification="toggleAiVerificationMode"
+              @set-ai-verification-comment="setAiVerificationComment"
               @export-schedule-excel="exportScheduleAsExcel"
               @select-schedule-version="selectScheduleVersion"
               @rename-schedule-version="renameScheduleVersion"

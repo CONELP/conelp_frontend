@@ -680,6 +680,23 @@
       </div>
 
       <template
+        v-for="bar in isAiVerificationModeActive
+          ? shellLayout.bars.filter((candidate) => candidate.kind === 'item' && aiVerificationCommentByItemId[candidate.itemId])
+          : []"
+        :key="`ai-bubble-${bar.id}`"
+      >
+        <div
+          class="schedule-chart-body__ai-verification-bubble"
+          :style="{
+            left: `${bar.left + bar.width / 2}px`,
+            top: `${bar.top}px`,
+          }"
+        >
+          {{ aiVerificationCommentByItemId[bar.itemId] }}
+        </div>
+      </template>
+
+      <template
         v-for="bar in shellLayout.bars.filter((candidate) => candidate.kind === 'summary' && (candidate.overflowRangeSegments?.length ?? 0) > 0)"
         :key="`summary-overflow-${bar.id}`"
       >
@@ -801,6 +818,8 @@ const props = defineProps<{
   executionProgressCompareVisible: boolean;
   executionProgressCompareLeaving: boolean;
   executionProgressStorageKey: string;
+  isAiVerificationModeActive: boolean;
+  aiVerificationCommentByItemId: Record<string, string>;
   zoomScale: number;
 }>();
 
@@ -820,6 +839,7 @@ const emit = defineEmits<{
   "canvas-context-menu": [payload: { x: number; y: number; rowId: string | null; date: string | null }];
   "cancel-connection-create": [];
   "complete-connection-create": [targetItemId: string];
+  "set-ai-verification-comment": [payload: { itemId: string; comment: string }];
   "start-item-rename": [itemId: string];
   "commit-item-rename": [payload: { itemId: string; name: string }];
   "cancel-item-rename": [];
@@ -1727,6 +1747,20 @@ function handleBarPointerDownWithExecutionProgress(
   bar: DesktopScheduleBarLayout,
   event: PointerEvent,
 ) {
+  if (
+    props.isAiVerificationModeActive &&
+    bar.kind === "item" &&
+    event.button === 0
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    const current = props.aiVerificationCommentByItemId[bar.itemId] ?? "";
+    const next = window.prompt("AI 검증 코멘트", current);
+    if (next === null) return;
+    emit("set-ai-verification-comment", { itemId: bar.itemId, comment: next });
+    return;
+  }
+
   if (isExecutionProgressItemBar(bar)) {
     event.preventDefault();
     event.stopPropagation();
@@ -2830,6 +2864,9 @@ function getBarClassList(bar: DesktopScheduleBarLayout) {
       !props.readOnly &&
       !!props.connectionCreationState &&
       hoveredConnectionTargetItemId.value === bar.itemId,
+    "schedule-chart-body__bar--ai-flagged":
+      props.isAiVerificationModeActive &&
+      bar.itemId in props.aiVerificationCommentByItemId,
   };
 }
 
