@@ -4,6 +4,12 @@
   overflow-y: auto;
   overflow-x: hidden;
   background: #fff;
+  scrollbar-width: none;
+}
+
+.schedule-row-panel::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .schedule-row-panel--resizing-column {
