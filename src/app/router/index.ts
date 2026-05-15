@@ -12,6 +12,28 @@ import MaterialRegistrationResultPage from "@/features/document-conversion-demo/
 import ResultPreviewPage from "@/features/document-conversion-demo/ui/ResultPreviewPage.vue";
 import UploadFeedbackPage from "@/features/document-conversion-demo/ui/UploadFeedbackPage.vue";
 
+const SystemAdminLayout = () => import("@/features/system-admin/ui/SystemAdminLayout.vue");
+const AdminPlaceholderPage = () =>
+  import("@/features/system-admin/ui/components/AdminPlaceholderPage.vue");
+const MasterDataPage = () =>
+  import("@/features/project-admin/master-data/ui/MasterDataPage.vue");
+const GlobalProjectPage = () =>
+  import("@/features/system-admin/ui/pages/GlobalProjectPage.vue");
+const GlobalUserCompanyPage = () =>
+  import("@/features/system-admin/ui/pages/GlobalUserCompanyPage.vue");
+const GlobalRolePage = () => import("@/features/system-admin/ui/pages/GlobalRolePage.vue");
+const GlobalStandardPage = () =>
+  import("@/features/system-admin/ui/pages/GlobalStandardPage.vue");
+const GlobalApiKeyPage = () => import("@/features/system-admin/ui/pages/GlobalApiKeyPage.vue");
+const DocumentSettingPage = () =>
+  import("@/features/project-admin/document-setting/ui/DocumentSettingPage.vue");
+const BulkDeploymentPage = () =>
+  import("@/features/project-admin/bulk-deployment/ui/BulkDeploymentPage.vue");
+const HomepageSettingPage = () =>
+  import("@/features/project-admin/homepage-setting/ui/HomepageSettingPage.vue");
+const HolidayManagementPage = () =>
+  import("@/features/project-admin/holiday/ui/HolidayManagementPage.vue");
+
 export const router = createRouter({
   history: createWebHistory(),
   routes: [
@@ -78,6 +100,75 @@ export const router = createRouter({
       name: "generated-documents-preview",
       component: GeneratedDocumentsPage,
     },
+    {
+      path: "/system-admin",
+      component: SystemAdminLayout,
+      meta: { requiresSuper: true },
+      redirect: "/system-admin/global/project",
+      children: [
+        {
+          path: "global/project",
+          name: "system-admin-global-project",
+          component: GlobalProjectPage,
+        },
+        {
+          path: "global/user-company",
+          name: "system-admin-global-user-company",
+          component: GlobalUserCompanyPage,
+        },
+        {
+          path: "global/role",
+          name: "system-admin-global-role",
+          component: GlobalRolePage,
+        },
+        {
+          path: "global/standard",
+          name: "system-admin-global-standard",
+          component: GlobalStandardPage,
+        },
+        {
+          path: "global/api-key",
+          name: "system-admin-global-api-key",
+          component: GlobalApiKeyPage,
+        },
+        {
+          path: "project/master-data",
+          name: "system-admin-project-master-data",
+          component: MasterDataPage,
+        },
+        {
+          path: "project/document-setting",
+          name: "system-admin-project-document-setting",
+          component: DocumentSettingPage,
+        },
+        {
+          path: "project/holiday",
+          name: "system-admin-project-holiday",
+          component: HolidayManagementPage,
+        },
+        {
+          path: "project/daily-report",
+          name: "system-admin-project-daily-report",
+          component: AdminPlaceholderPage,
+          props: {
+            title: "작업일보 설정",
+            description:
+              "원본 hook 432줄 + area 631줄 — native 재작성 분량이 매우 커서 별도 단계 필요. " +
+              "원본: constructionHelperFrontend/src/features/project-admin/daily-report-setting/",
+          },
+        },
+        {
+          path: "project/bulk-deployment",
+          name: "system-admin-project-bulk-deployment",
+          component: BulkDeploymentPage,
+        },
+        {
+          path: "project/homepage-setting",
+          name: "system-admin-project-homepage-setting",
+          component: HomepageSettingPage,
+        },
+      ],
+    },
   ],
 });
 
@@ -104,6 +195,11 @@ router.beforeEach(async (to) => {
         redirect: to.fullPath,
       },
     };
+  }
+
+  const requiresSuper = to.matched.some((route) => route.meta.requiresSuper);
+  if (requiresSuper && authStore.user?.systemRole !== "SUPER") {
+    return "/dashboard";
   }
 
   return true;
