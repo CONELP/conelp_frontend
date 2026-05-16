@@ -27,6 +27,8 @@ export const aiAgentCopy = {
     stale: "다시 받을 수 없는 첨부파일",
     staleHint: "재접속 후에는 다운로드할 수 없어요",
     download: "다운로드",
+    downloading: "받는 중…",
+    downloadFailed: "첨부파일을 받지 못했어요.",
   },
   validation: {
     tooMany: "첨부 파일은 최대 10개까지 가능합니다.",

@@ -84,4 +84,15 @@ export const chatMessageApi = {
   async remove(messageId: number): Promise<void> {
     await axiosClient.delete(`/chatMessage/deleteMessage/${messageId}`);
   },
+
+  async fetchAttachment(attachmentId: string, download = false): Promise<Blob> {
+    const { data } = await axiosClient.get<Blob>(
+      `/chatMessage/getAttachment/${attachmentId}`,
+      {
+        params: { download },
+        responseType: "blob",
+      },
+    );
+    return data;
+  },
 };

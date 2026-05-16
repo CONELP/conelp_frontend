@@ -28,17 +28,20 @@
           v-for="attachment in message.attachments"
           :key="attachment.id"
           class="message-bubble__attachment"
-          :class="{ 'message-bubble__attachment--stale': !attachment.blobUrl }"
+          :class="{ 'message-bubble__attachment--stale': isStale(attachment) }"
         >
           <a
-            v-if="isImage(attachment) && attachment.blobUrl"
+            v-if="isImage(attachment) && previewUrlOf(attachment)"
             class="message-bubble__attachment-image"
-            :href="attachment.blobUrl"
+            :href="previewUrlOf(attachment) ?? ''"
             :download="attachment.fileName"
             target="_blank"
             rel="noopener"
           >
-            <img :src="attachment.blobUrl" :alt="attachment.fileName" />
+            <img
+              :src="previewUrlOf(attachment) ?? ''"
+              :alt="attachment.fileName"
+            />
           </a>
 
           <a
@@ -58,6 +61,27 @@
               {{ attachmentsCopy.download }}
             </span>
           </a>
+
+          <button
+            v-else-if="attachment.downloadUrl"
+            class="message-bubble__attachment-link message-bubble__attachment-link--button"
+            type="button"
+            :disabled="downloadingIds.has(attachment.id)"
+            @click="handleDownload(attachment)"
+          >
+            <span class="message-bubble__attachment-icon" aria-hidden="true">📎</span>
+            <span class="message-bubble__attachment-name">{{ attachment.fileName }}</span>
+            <span class="message-bubble__attachment-size">
+              {{ formatSize(attachment.sizeBytes) }}
+            </span>
+            <span class="message-bubble__attachment-action">
+              {{
+                downloadingIds.has(attachment.id)
+                  ? attachmentsCopy.downloading
+                  : attachmentsCopy.download
+              }}
+            </span>
+          </button>
 
           <div v-else class="message-bubble__attachment-stale">
             <span class="message-bubble__attachment-icon" aria-hidden="true">📎</span>
@@ -80,14 +104,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onBeforeUnmount, reactive, watchEffect } from "vue";
 
+import { chatMessageApi } from "@/features/ai-agent/api/chat-message.api";
 import { aiAgentCopy } from "@/features/ai-agent/data/ai-agent.copy";
 import {
   formatBubbleTime,
   formatFileSize,
   isImageAttachment,
 } from "@/features/ai-agent/services/ai-agent.service";
+import { useAiAgentStore } from "@/features/ai-agent/state/useAiAgentStore";
 import type {
   Message,
   MessageAttachment,
@@ -98,7 +124,12 @@ const props = defineProps<{
   currentUserId: string | null;
 }>();
 
+const store = useAiAgentStore();
 const attachmentsCopy = aiAgentCopy.attachments;
+
+const lazyPreviewUrls = reactive(new Map<string, string>());
+const downloadingIds = reactive(new Set<string>());
+const lazyAttempted = new Set<string>();
 
 const role = computed<"me" | "user" | "bot">(() => {
   if (props.message.senderType === "BOT") return "bot";
@@ -125,6 +156,65 @@ function isImage(attachment: MessageAttachment) {
 function formatSize(bytes: number) {
   return formatFileSize(bytes);
 }
+
+function previewUrlOf(attachment: MessageAttachment): string | null {
+  return attachment.blobUrl ?? lazyPreviewUrls.get(attachment.id) ?? null;
+}
+
+function isStale(attachment: MessageAttachment): boolean {
+  return !previewUrlOf(attachment) && !attachment.downloadUrl;
+}
+
+async function ensureImagePreview(attachment: MessageAttachment) {
+  if (!isImage(attachment)) return;
+  if (attachment.blobUrl) return;
+  if (lazyPreviewUrls.has(attachment.id)) return;
+  if (lazyAttempted.has(attachment.id)) return;
+  if (!attachment.downloadUrl) return;
+  lazyAttempted.add(attachment.id);
+  try {
+    const blob = await chatMessageApi.fetchAttachment(attachment.id);
+    lazyPreviewUrls.set(attachment.id, URL.createObjectURL(blob));
+  } catch {
+    // 미리보기 실패 — 사용자는 다운로드 버튼으로 재시도 가능
+  }
+}
+
+async function handleDownload(attachment: MessageAttachment) {
+  if (downloadingIds.has(attachment.id)) return;
+  if (!attachment.downloadUrl) return;
+  downloadingIds.add(attachment.id);
+  try {
+    const blob = await chatMessageApi.fetchAttachment(attachment.id, true);
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = attachment.fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : attachmentsCopy.downloadFailed;
+    store.pushError(message);
+  } finally {
+    downloadingIds.delete(attachment.id);
+  }
+}
+
+watchEffect(() => {
+  for (const attachment of props.message.attachments) {
+    void ensureImagePreview(attachment);
+  }
+});
+
+onBeforeUnmount(() => {
+  for (const url of lazyPreviewUrls.values()) {
+    URL.revokeObjectURL(url);
+  }
+  lazyPreviewUrls.clear();
+});
 </script>
 
 <style scoped src="../styles/MessageBubble.css"></style>

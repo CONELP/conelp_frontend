@@ -19,6 +19,7 @@ export interface MessageAttachment {
   mimeType: string;
   sizeBytes: number;
   blobUrl?: string;
+  downloadUrl?: string;
 }
 
 export interface MessageMention {
@@ -73,6 +74,7 @@ export interface RawAttachment {
   mimeType: string;
   sizeBytes: number;
   contentBase64?: string;
+  downloadUrl?: string;
 }
 
 export interface MessageCreatedPayload {

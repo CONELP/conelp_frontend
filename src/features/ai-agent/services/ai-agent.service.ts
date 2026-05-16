@@ -54,6 +54,7 @@ export function materializeAttachment(raw: RawAttachment): MessageAttachment {
     fileName: raw.fileName,
     mimeType: raw.mimeType,
     sizeBytes: raw.sizeBytes,
+    downloadUrl: raw.downloadUrl,
   };
   if (raw.contentBase64) {
     const blob = base64ToBlob(raw.contentBase64, raw.mimeType);
