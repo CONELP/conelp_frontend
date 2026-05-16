@@ -110,7 +110,6 @@
   display: block;
   width: 100%;
   min-height: 2.6rem;
-  max-height: 10rem;
   padding: 0.7rem 0.9rem;
   border: 1px solid var(--outline-soft);
   border-radius: var(--radius-control);
@@ -121,7 +120,15 @@
   line-height: 1.45;
   resize: none;
   overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.chat-composer__textarea::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 .chat-composer__mention-list {

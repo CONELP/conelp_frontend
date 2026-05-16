@@ -166,11 +166,18 @@ watch(filteredCandidates, (next) => {
   }
 });
 
+const MAX_VISIBLE_LINES = 3;
+
 function autoResize() {
   const el = textareaRef.value;
   if (!el) return;
   el.style.height = "auto";
-  el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  const styles = window.getComputedStyle(el);
+  const lineHeight = parseFloat(styles.lineHeight) || 0;
+  const paddingY =
+    parseFloat(styles.paddingTop) + parseFloat(styles.paddingBottom);
+  const maxHeight = lineHeight * MAX_VISIBLE_LINES + paddingY;
+  el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
 }
 
 function handleInput() {
