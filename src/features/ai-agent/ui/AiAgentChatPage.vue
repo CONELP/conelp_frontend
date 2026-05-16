@@ -8,12 +8,14 @@
         :participants="participants"
         :participant-names-by-id="participantNamesById"
         :current-user-id="currentUserId"
+        :owner-user-id="thread?.ownerUserId ?? null"
         :connection-status="connectionStatus"
         :reconnect-attempts="reconnectAttempts"
         @back="handleBack"
         @rename="handleRename"
         @delete="handleDelete"
         @reconnect="handleReconnect"
+        @invite="handleOpenInvite"
       />
 
       <MessageList
@@ -32,19 +34,30 @@
         @validation-error="handleValidationError"
       />
     </main>
+
+    <InviteParticipantDialog
+      :open="isInviteOpen"
+      :members="invitableMembers"
+      :loading="isLoadingMembers"
+      :inviting-id="invitingUserId"
+      @update:open="handleInviteOpenChange"
+      @invite="handleInviteUser"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
+import type { ProjectMember } from "@/features/ai-agent/model/ai-agent.types";
 import { aiAgentWsClient } from "@/features/ai-agent/services/ai-agent-ws-client";
 import { useAiAgentStore } from "@/features/ai-agent/state/useAiAgentStore";
 import { useChatViewModel } from "@/features/ai-agent/state/useChatViewModel";
 import ChatComposer from "@/features/ai-agent/ui/components/ChatComposer.vue";
 import ChatThreadHeader from "@/features/ai-agent/ui/components/ChatThreadHeader.vue";
+import InviteParticipantDialog from "@/features/ai-agent/ui/components/InviteParticipantDialog.vue";
 import MessageList from "@/features/ai-agent/ui/components/MessageList.vue";
 
 const props = defineProps<{
@@ -71,7 +84,14 @@ const {
   loadOlder,
   rename,
   deleteThread,
+  loadInvitableMembers,
+  inviteUser,
 } = useChatViewModel(() => props.threadId);
+
+const isInviteOpen = ref(false);
+const invitableMembers = ref<ProjectMember[]>([]);
+const isLoadingMembers = ref(false);
+const invitingUserId = ref<string | null>(null);
 
 const reconnectAttempts = computed(() => store.reconnectAttempts);
 const isConnected = computed(() => connectionStatus.value === "open");
@@ -116,6 +136,42 @@ async function handleDelete() {
 
 function handleReconnect() {
   aiAgentWsClient.manualReconnect();
+}
+
+async function refreshInvitableMembers() {
+  isLoadingMembers.value = true;
+  try {
+    invitableMembers.value = await loadInvitableMembers();
+  } finally {
+    isLoadingMembers.value = false;
+  }
+}
+
+async function handleOpenInvite() {
+  isInviteOpen.value = true;
+  await refreshInvitableMembers();
+}
+
+function handleInviteOpenChange(open: boolean) {
+  isInviteOpen.value = open;
+  if (!open) {
+    invitableMembers.value = [];
+  }
+}
+
+async function handleInviteUser(userId: string) {
+  if (invitingUserId.value !== null) return;
+  invitingUserId.value = userId;
+  try {
+    const ok = await inviteUser(userId);
+    if (ok) {
+      invitableMembers.value = invitableMembers.value.filter(
+        (m) => m.userId !== userId,
+      );
+    }
+  } finally {
+    invitingUserId.value = null;
+  }
 }
 </script>
 

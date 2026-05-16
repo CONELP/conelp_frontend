@@ -34,6 +34,10 @@
   gap: 0.58rem;
 }
 
+.desktop-app-header__settings-wrap {
+  position: relative;
+}
+
 .desktop-app-header__settings {
   display: inline-flex;
   align-items: center;
@@ -45,12 +49,89 @@
   border-radius: 999px;
   background: #fff;
   box-shadow: none;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.desktop-app-header__settings:hover,
+.desktop-app-header__settings[aria-expanded="true"] {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.16);
 }
 
 .desktop-app-header__settings-icon {
   width: 1.1rem;
   height: 1.1rem;
   opacity: 0.72;
+}
+
+.desktop-app-header__menu {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 50;
+  min-width: 11rem;
+  display: flex;
+  flex-direction: column;
+  padding: 0.3rem;
+  border: 1px solid var(--outline-soft);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.14);
+}
+
+.desktop-app-header__menu-user {
+  padding: 0.5rem 0.7rem 0.3rem;
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.desktop-app-header__menu-divider {
+  height: 1px;
+  margin: 0.2rem 0.3rem;
+  background: var(--outline-soft);
+}
+
+.desktop-app-header__menu-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 2.3rem;
+  padding: 0.5rem 0.7rem;
+  border: 0;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink, #1a1a1a);
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.desktop-app-header__menu-item:hover:not(:disabled),
+.desktop-app-header__menu-item:focus-visible {
+  background: #f3f4f6;
+}
+
+.desktop-app-header__menu-item:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.desktop-app-header__menu-transition-enter-active,
+.desktop-app-header__menu-transition-leave-active {
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.desktop-app-header__menu-transition-enter-from,
+.desktop-app-header__menu-transition-leave-to {
+  opacity: 0;
+  transform: translateY(-0.2rem);
 }
 
 .desktop-app-header__nav {

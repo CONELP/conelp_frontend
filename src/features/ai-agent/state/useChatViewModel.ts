@@ -2,9 +2,14 @@ import { computed, ref } from "vue";
 
 import { chatMessageApi } from "@/features/ai-agent/api/chat-message.api";
 import { chatThreadApi } from "@/features/ai-agent/api/chat-thread.api";
+import { userProjectApi } from "@/features/ai-agent/api/user-project.api";
 import { aiAgentCopy } from "@/features/ai-agent/data/ai-agent.copy";
 import { useAiAgentStore } from "@/features/ai-agent/state/useAiAgentStore";
-import type { Message, TypingEntry } from "@/features/ai-agent/model/ai-agent.types";
+import type {
+  Message,
+  ProjectMember,
+  TypingEntry,
+} from "@/features/ai-agent/model/ai-agent.types";
 import { useAuthStore } from "@/features/auth/state/useAuthStore";
 
 const ECHO_TIMEOUT_MS = 10_000;
@@ -190,6 +195,38 @@ export function useChatViewModel(threadIdRef: () => number) {
     }
   }
 
+  async function loadInvitableMembers(): Promise<ProjectMember[]> {
+    try {
+      const members = await userProjectApi.listMembers();
+      const joined = new Set(
+        (thread.value?.participants ?? [])
+          .filter((p) => p.participantType === "USER")
+          .map((p) => p.participantId),
+      );
+      return members.filter((m) => !joined.has(m.userId));
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : aiAgentCopy.errors.loadMembersFailed;
+      store.pushError(message);
+      return [];
+    }
+  }
+
+  async function inviteUser(userId: string): Promise<boolean> {
+    const id = threadIdRef();
+    if (!id) return false;
+    try {
+      const updated = await chatThreadApi.addParticipant(id, "USER", userId);
+      store.upsertThread(updated);
+      return true;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : aiAgentCopy.errors.inviteFailed;
+      store.pushError(message);
+      return false;
+    }
+  }
+
   async function deleteThread() {
     const id = threadIdRef();
     if (!id) return false;
@@ -222,5 +259,7 @@ export function useChatViewModel(threadIdRef: () => number) {
     loadOlder,
     rename,
     deleteThread,
+    loadInvitableMembers,
+    inviteUser,
   };
 }

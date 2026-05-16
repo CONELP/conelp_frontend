@@ -13,13 +13,49 @@
         <div class="desktop-app-header__controls">
           <ProjectPicker />
 
-          <button
-            class="desktop-app-header__settings"
-            type="button"
-            aria-label="설정"
-          >
-            <img class="desktop-app-header__settings-icon" :src="settingsIcon" alt="" />
-          </button>
+          <div ref="settingsRef" class="desktop-app-header__settings-wrap">
+            <button
+              class="desktop-app-header__settings"
+              type="button"
+              aria-label="설정"
+              aria-haspopup="menu"
+              :aria-expanded="isMenuOpen"
+              @click="toggleMenu"
+            >
+              <img
+                class="desktop-app-header__settings-icon"
+                :src="settingsIcon"
+                alt=""
+              />
+            </button>
+
+            <Transition name="desktop-app-header__menu-transition">
+              <div
+                v-if="isMenuOpen"
+                class="desktop-app-header__menu"
+                role="menu"
+                aria-label="설정 메뉴"
+              >
+                <div v-if="userLabel" class="desktop-app-header__menu-user">
+                  {{ userLabel }}
+                </div>
+                <div
+                  v-if="userLabel"
+                  class="desktop-app-header__menu-divider"
+                  aria-hidden="true"
+                />
+                <button
+                  class="desktop-app-header__menu-item"
+                  type="button"
+                  role="menuitem"
+                  :disabled="isLoggingOut"
+                  @click="handleLogout"
+                >
+                  {{ isLoggingOut ? "로그아웃 중…" : "로그아웃" }}
+                </button>
+              </div>
+            </Transition>
+          </div>
         </div>
       </div>
 
@@ -40,15 +76,68 @@
 
 <script setup lang="ts">
 import settingsIcon from "@fluentui/svg-icons/icons/settings_20_regular.svg";
-import { useAttrs } from "vue";
-import { RouterLink, useRoute } from "vue-router";
+import { computed, onMounted, onUnmounted, ref, useAttrs } from "vue";
+import { RouterLink, useRoute, useRouter } from "vue-router";
 
+import { useAuthStore } from "@/features/auth/state/useAuthStore";
 import ProjectPicker from "@/shared/ui/ProjectPicker.vue";
 
 type DesktopHeaderSection = "dashboard" | "schedule" | "documents" | "ai-agent";
 
 const route = useRoute();
+const router = useRouter();
 const attrs = useAttrs();
+const authStore = useAuthStore();
+
+const isMenuOpen = ref(false);
+const isLoggingOut = ref(false);
+const settingsRef = ref<HTMLElement | null>(null);
+
+const userLabel = computed(() => authStore.user?.userName ?? "");
+
+function toggleMenu() {
+  isMenuOpen.value = !isMenuOpen.value;
+}
+
+function closeMenu() {
+  isMenuOpen.value = false;
+}
+
+async function handleLogout() {
+  if (isLoggingOut.value) return;
+  isLoggingOut.value = true;
+  try {
+    await authStore.logout();
+    closeMenu();
+    await router.push("/login");
+  } finally {
+    isLoggingOut.value = false;
+  }
+}
+
+function handleDocumentPointerDown(event: PointerEvent) {
+  if (!isMenuOpen.value) return;
+  const target = event.target;
+  if (!(target instanceof Node)) return;
+  if (settingsRef.value?.contains(target)) return;
+  closeMenu();
+}
+
+function handleDocumentKeydown(event: KeyboardEvent) {
+  if (event.key === "Escape") closeMenu();
+}
+
+onMounted(() => {
+  if (typeof window === "undefined") return;
+  document.addEventListener("pointerdown", handleDocumentPointerDown);
+  document.addEventListener("keydown", handleDocumentKeydown);
+});
+
+onUnmounted(() => {
+  if (typeof window === "undefined") return;
+  document.removeEventListener("pointerdown", handleDocumentPointerDown);
+  document.removeEventListener("keydown", handleDocumentKeydown);
+});
 
 const navItems: Array<{ id: DesktopHeaderSection; label: string; to: string }> = [
   {

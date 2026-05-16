@@ -49,6 +49,16 @@
         @reconnect="emit('reconnect')"
       />
       <button
+        v-if="canInvite"
+        class="chat-header__invite"
+        type="button"
+        aria-label="참가자 초대"
+        @click="emit('invite')"
+      >
+        <span class="chat-header__invite-icon" aria-hidden="true">＋</span>
+        초대
+      </button>
+      <button
         class="chat-header__delete"
         type="button"
         aria-label="대화 삭제"
@@ -75,6 +85,7 @@ const props = defineProps<{
   participants: Participant[];
   participantNamesById: Map<string, string>;
   currentUserId: string | null;
+  ownerUserId: string | null;
   connectionStatus: ConnectionStatus;
   reconnectAttempts: number;
 }>();
@@ -84,7 +95,15 @@ const emit = defineEmits<{
   rename: [title: string];
   delete: [];
   reconnect: [];
+  invite: [];
 }>();
+
+const canInvite = computed(
+  () =>
+    props.currentUserId !== null &&
+    props.ownerUserId !== null &&
+    props.currentUserId === props.ownerUserId,
+);
 
 const editing = ref(false);
 const draft = ref("");

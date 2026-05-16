@@ -130,3 +130,14 @@ export interface TypingEntry {
   participantName?: string;
   startedAt: number;
 }
+
+export interface ProjectMember {
+  id: number;
+  userId: string;
+  userName: string | null;
+  userEmail: string | null;
+  profileImageUrl: string | null;
+  jobTitle: string | null;
+  companyId: string | null;
+  companyName: string | null;
+}

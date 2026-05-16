@@ -49,6 +49,17 @@ export const aiAgentCopy = {
   typing: {
     suffix: "님이 입력 중",
   },
+  inviteDialog: {
+    title: "참가자 초대",
+    description: "현재 프로젝트 멤버 중에서 대화에 초대할 사람을 선택하세요",
+    searchPlaceholder: "이름, 이메일, 회사로 검색",
+    empty: "초대할 수 있는 멤버가 없어요",
+    loading: "멤버를 불러오는 중…",
+    inviting: "초대 중…",
+    invite: "초대",
+    close: "닫기",
+    ownerOnly: "대화 소유자만 참가자를 초대할 수 있어요.",
+  },
   errors: {
     sendFailed: "메시지 전송에 실패했어요. 잠시 후 다시 시도해주세요.",
     createThreadFailed: "대화 생성에 실패했어요.",
@@ -56,5 +67,7 @@ export const aiAgentCopy = {
     loadOlderFailed: "이전 메시지를 불러오지 못했어요.",
     threadLoadFailed: "대화 정보를 불러오지 못했어요.",
     echoTimeout: "메시지가 전송되었지만 갱신이 지연되고 있어요.",
+    loadMembersFailed: "프로젝트 멤버 목록을 불러오지 못했어요.",
+    inviteFailed: "참가자 초대에 실패했어요.",
   },
 } as const;

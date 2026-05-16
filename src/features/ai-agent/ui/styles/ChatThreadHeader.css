@@ -117,6 +117,33 @@
   margin-left: auto;
 }
 
+.chat-header__invite {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--primary-outline);
+  border-radius: var(--radius-control);
+  background: var(--primary-soft);
+  color: var(--primary);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+.chat-header__invite:hover {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+.chat-header__invite-icon {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
 .chat-header__delete {
   padding: 0.4rem 0.7rem;
   border: 1px solid var(--outline-soft);
