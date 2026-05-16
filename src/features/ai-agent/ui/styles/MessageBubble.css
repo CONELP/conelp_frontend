@@ -87,6 +87,50 @@
   margin: 0;
 }
 
+.message-bubble__mention {
+  display: inline-block;
+  padding: 0 0.3rem;
+  border-radius: 4px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.message-bubble--me .message-bubble__mention {
+  background: rgba(255, 255, 255, 0.24);
+  color: #fff;
+}
+
+.message-bubble__mention--bot {
+  background: linear-gradient(
+    135deg,
+    var(--primary-gradient-start),
+    var(--primary-gradient-end)
+  );
+  color: #fff;
+}
+
+.message-bubble--me .message-bubble__mention--bot {
+  background: rgba(255, 255, 255, 0.34);
+  color: #fff;
+}
+
+.message-bubble__mention--self {
+  background: #fff3b0;
+  color: #6b4f00;
+  outline: 1px solid #f0c419;
+}
+
+.message-bubble--me .message-bubble__mention--self {
+  background: rgba(255, 240, 170, 0.7);
+  color: #5a3f00;
+  outline: 1px solid rgba(255, 220, 120, 0.7);
+}
+
+.message-bubble--mentions-me .message-bubble__body {
+  box-shadow: 0 0 0 2px #f0c419, 0 4px 10px rgba(240, 196, 25, 0.18);
+}
+
 .message-bubble__attachments {
   list-style: none;
   margin: 0.5rem 0 0;

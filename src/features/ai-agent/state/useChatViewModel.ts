@@ -7,10 +7,21 @@ import { aiAgentCopy } from "@/features/ai-agent/data/ai-agent.copy";
 import { useAiAgentStore } from "@/features/ai-agent/state/useAiAgentStore";
 import type {
   Message,
+  MessageMention,
   ProjectMember,
   TypingEntry,
 } from "@/features/ai-agent/model/ai-agent.types";
 import { useAuthStore } from "@/features/auth/state/useAuthStore";
+
+export interface MentionCandidate {
+  participantType: "USER" | "BOT";
+  participantId: string;
+  displayName: string;
+  sublabel?: string;
+  profileImageUrl?: string | null;
+}
+
+const BOT_DISPLAY_NAME = "Hermes";
 
 const ECHO_TIMEOUT_MS = 10_000;
 
@@ -21,6 +32,8 @@ export function useChatViewModel(threadIdRef: () => number) {
   const isLoadingOlder = ref(false);
   const hasMoreOlder = ref(true);
   const isLoadingThread = ref(false);
+  const projectMembers = ref<ProjectMember[]>([]);
+  const isLoadingMembers = ref(false);
 
   const thread = computed(() => store.threads.get(threadIdRef()));
   const messages = computed<Message[]>(() => store.messagesOf(threadIdRef()));
@@ -37,8 +50,21 @@ export function useChatViewModel(threadIdRef: () => number) {
     );
   });
 
+  const projectMembersByUserId = computed<Map<string, ProjectMember>>(() => {
+    const map = new Map<string, ProjectMember>();
+    for (const member of projectMembers.value) {
+      map.set(member.userId, member);
+    }
+    return map;
+  });
+
   const participantNamesById = computed<Map<string, string>>(() => {
     const map = new Map<string, string>();
+    for (const member of projectMembers.value) {
+      if (member.userName) {
+        map.set(member.userId, member.userName);
+      }
+    }
     for (const m of messages.value) {
       if (m.senderName && !map.has(m.senderId)) {
         map.set(m.senderId, m.senderName);
@@ -49,7 +75,41 @@ export function useChatViewModel(threadIdRef: () => number) {
         map.set(t.participantId, t.participantName);
       }
     }
+    for (const p of participants.value) {
+      if (p.participantType === "BOT" && !map.has(p.participantId)) {
+        map.set(p.participantId, BOT_DISPLAY_NAME);
+      }
+    }
     return map;
+  });
+
+  const mentionCandidates = computed<MentionCandidate[]>(() => {
+    const out: MentionCandidate[] = [];
+    for (const p of participants.value) {
+      if (p.participantType === "USER") {
+        if (p.participantId === currentUserId.value) continue;
+        const member = projectMembersByUserId.value.get(p.participantId);
+        const displayName =
+          member?.userName ??
+          participantNamesById.value.get(p.participantId) ??
+          "알 수 없는 사용자";
+        out.push({
+          participantType: "USER",
+          participantId: p.participantId,
+          displayName,
+          sublabel: member?.jobTitle ?? member?.companyName ?? undefined,
+          profileImageUrl: member?.profileImageUrl ?? null,
+        });
+      } else {
+        out.push({
+          participantType: "BOT",
+          participantId: p.participantId,
+          displayName: BOT_DISPLAY_NAME,
+          sublabel: aiAgentCopy.participants.botBadge,
+        });
+      }
+    }
+    return out;
   });
 
   async function ensureLoaded() {
@@ -72,7 +132,26 @@ export function useChatViewModel(threadIdRef: () => number) {
     }
   }
 
-  async function send(text: string, files: File[] = []) {
+  async function ensureProjectMembersLoaded() {
+    if (projectMembers.value.length > 0) return;
+    if (isLoadingMembers.value) return;
+    isLoadingMembers.value = true;
+    try {
+      projectMembers.value = await userProjectApi.listMembers();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : aiAgentCopy.errors.loadMembersFailed;
+      store.pushError(message);
+    } finally {
+      isLoadingMembers.value = false;
+    }
+  }
+
+  async function send(
+    text: string,
+    files: File[] = [],
+    mentions: MessageMention[] = [],
+  ) {
     const trimmed = text.trim();
     if (!trimmed && files.length === 0) return false;
 
@@ -92,6 +171,7 @@ export function useChatViewModel(threadIdRef: () => number) {
         threadId: id,
         text: trimmed.length > 0 ? trimmed : undefined,
         files: files.length > 0 ? files : undefined,
+        mentions: mentions.length > 0 ? mentions : undefined,
       });
       const safetyPromise = new Promise<void>((resolve) => {
         timer = window.setTimeout(() => {
@@ -198,6 +278,7 @@ export function useChatViewModel(threadIdRef: () => number) {
   async function loadInvitableMembers(): Promise<ProjectMember[]> {
     try {
       const members = await userProjectApi.listMembers();
+      projectMembers.value = members;
       const joined = new Set(
         (thread.value?.participants ?? [])
           .filter((p) => p.participantType === "USER")
@@ -254,7 +335,9 @@ export function useChatViewModel(threadIdRef: () => number) {
     currentUserId,
     typingParticipants,
     participantNamesById,
+    mentionCandidates,
     ensureLoaded,
+    ensureProjectMembersLoaded,
     send,
     loadOlder,
     rename,

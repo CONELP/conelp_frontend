@@ -22,6 +22,7 @@
         :messages="messages"
         :typing-participants="typingParticipants"
         :current-user-id="currentUserId"
+        :participant-names-by-id="participantNamesById"
         :has-more-older="hasMoreOlder"
         :is-loading-older="isLoadingOlder"
         :is-loading-thread="isLoadingThread"
@@ -30,6 +31,7 @@
 
       <ChatComposer
         :disabled="isAwaitingEcho || !isConnected"
+        :mention-candidates="mentionCandidates"
         @send="handleSend"
         @validation-error="handleValidationError"
       />
@@ -51,7 +53,10 @@ import { computed, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
-import type { ProjectMember } from "@/features/ai-agent/model/ai-agent.types";
+import type {
+  MessageMention,
+  ProjectMember,
+} from "@/features/ai-agent/model/ai-agent.types";
 import { aiAgentWsClient } from "@/features/ai-agent/services/ai-agent-ws-client";
 import { useAiAgentStore } from "@/features/ai-agent/state/useAiAgentStore";
 import { useChatViewModel } from "@/features/ai-agent/state/useChatViewModel";
@@ -79,7 +84,9 @@ const {
   currentUserId,
   typingParticipants,
   participantNamesById,
+  mentionCandidates,
   ensureLoaded,
+  ensureProjectMembersLoaded,
   send,
   loadOlder,
   rename,
@@ -98,6 +105,7 @@ const isConnected = computed(() => connectionStatus.value === "open");
 
 onMounted(() => {
   void ensureLoaded();
+  void ensureProjectMembersLoaded();
 });
 
 watch(
@@ -107,8 +115,12 @@ watch(
   },
 );
 
-async function handleSend(text: string, files: File[]) {
-  await send(text, files);
+async function handleSend(
+  text: string,
+  files: File[],
+  mentions: MessageMention[],
+) {
+  await send(text, files, mentions);
 }
 
 function handleValidationError(message: string) {

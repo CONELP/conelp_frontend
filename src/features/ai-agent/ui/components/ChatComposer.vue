@@ -39,16 +39,64 @@
         @change="handleFilesSelected"
       />
 
-      <textarea
-        ref="textareaRef"
-        v-model="text"
-        class="chat-composer__textarea"
-        :placeholder="copy.placeholder"
-        :disabled="disabled"
-        rows="1"
-        @keydown="handleKeydown"
-        @input="autoResize"
-      />
+      <div class="chat-composer__textarea-wrap">
+        <textarea
+          ref="textareaRef"
+          v-model="text"
+          class="chat-composer__textarea"
+          :placeholder="copy.placeholder"
+          :disabled="disabled"
+          rows="1"
+          @keydown="handleKeydown"
+          @input="handleInput"
+          @click="updateMentionState"
+          @keyup="updateMentionState"
+        />
+
+        <ul
+          v-if="isMentionOpen && filteredCandidates.length > 0"
+          class="chat-composer__mention-list"
+          role="listbox"
+          aria-label="멘션 후보"
+        >
+          <li
+            v-for="(candidate, index) in filteredCandidates"
+            :key="`${candidate.participantType}:${candidate.participantId}`"
+            class="chat-composer__mention-item"
+            :class="{
+              'chat-composer__mention-item--active': index === activeMentionIndex,
+              'chat-composer__mention-item--bot': candidate.participantType === 'BOT',
+            }"
+            role="option"
+            :aria-selected="index === activeMentionIndex"
+            @mousedown.prevent="selectMention(candidate)"
+            @mouseenter="activeMentionIndex = index"
+          >
+            <span
+              class="chat-composer__mention-avatar"
+              aria-hidden="true"
+            >
+              <img
+                v-if="candidate.profileImageUrl"
+                :src="candidate.profileImageUrl"
+                alt=""
+              />
+              <span v-else>{{ initialOf(candidate.displayName) }}</span>
+            </span>
+            <span class="chat-composer__mention-info">
+              <span class="chat-composer__mention-name">
+                @{{ candidate.displayName }}
+              </span>
+              <span
+                v-if="candidate.sublabel"
+                class="chat-composer__mention-sub"
+              >
+                {{ candidate.sublabel }}
+              </span>
+            </span>
+          </li>
+        </ul>
+      </div>
 
       <button
         class="chat-composer__send"
@@ -72,13 +120,16 @@ import {
   MAX_ATTACHMENTS_PER_MESSAGE,
   validateAttachments,
 } from "@/features/ai-agent/services/ai-agent.service";
+import type { MessageMention } from "@/features/ai-agent/model/ai-agent.types";
+import type { MentionCandidate } from "@/features/ai-agent/state/useChatViewModel";
 
 const props = defineProps<{
   disabled: boolean;
+  mentionCandidates?: MentionCandidate[];
 }>();
 
 const emit = defineEmits<{
-  send: [text: string, files: File[]];
+  send: [text: string, files: File[], mentions: MessageMention[]];
   validationError: [message: string];
 }>();
 
@@ -90,11 +141,30 @@ const pendingFiles = ref<File[]>([]);
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 
+const mentionTokens = ref<Map<string, MentionCandidate>>(new Map());
+const isMentionOpen = ref(false);
+const mentionAnchor = ref<number>(-1);
+const mentionQuery = ref<string>("");
+const activeMentionIndex = ref(0);
+
 const canSend = computed(
   () =>
     !props.disabled &&
     (text.value.trim().length > 0 || pendingFiles.value.length > 0),
 );
+
+const filteredCandidates = computed<MentionCandidate[]>(() => {
+  const all = props.mentionCandidates ?? [];
+  const q = mentionQuery.value.trim().toLowerCase();
+  if (!q) return all;
+  return all.filter((c) => c.displayName.toLowerCase().includes(q));
+});
+
+watch(filteredCandidates, (next) => {
+  if (activeMentionIndex.value >= next.length) {
+    activeMentionIndex.value = 0;
+  }
+});
 
 function autoResize() {
   const el = textareaRef.value;
@@ -103,20 +173,131 @@ function autoResize() {
   el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
 }
 
+function handleInput() {
+  autoResize();
+  updateMentionState();
+}
+
+function updateMentionState() {
+  const el = textareaRef.value;
+  if (!el) {
+    isMentionOpen.value = false;
+    return;
+  }
+  const value = text.value;
+  const caret = el.selectionStart ?? value.length;
+  let i = caret - 1;
+  while (i >= 0) {
+    const ch = value[i];
+    if (ch === "@") break;
+    if (/\s/.test(ch)) {
+      i = -1;
+      break;
+    }
+    i--;
+  }
+  if (i < 0) {
+    isMentionOpen.value = false;
+    mentionAnchor.value = -1;
+    mentionQuery.value = "";
+    return;
+  }
+  const isBoundary = i === 0 || /\s/.test(value[i - 1]);
+  if (!isBoundary) {
+    isMentionOpen.value = false;
+    return;
+  }
+  mentionAnchor.value = i;
+  mentionQuery.value = value.slice(i + 1, caret);
+  isMentionOpen.value = true;
+}
+
+function closeMentionMenu() {
+  isMentionOpen.value = false;
+  mentionAnchor.value = -1;
+  mentionQuery.value = "";
+}
+
+async function selectMention(candidate: MentionCandidate) {
+  const el = textareaRef.value;
+  if (!el) return;
+  const anchor = mentionAnchor.value;
+  if (anchor < 0) return;
+
+  const caret = el.selectionStart ?? text.value.length;
+  const before = text.value.slice(0, anchor);
+  const after = text.value.slice(caret);
+  const insertion = `@${candidate.displayName} `;
+  text.value = before + insertion + after;
+  mentionTokens.value.set(
+    `${candidate.participantType}:${candidate.participantId}`,
+    candidate,
+  );
+  closeMentionMenu();
+  await nextTick();
+  autoResize();
+  el.focus();
+  const newCaret = before.length + insertion.length;
+  el.setSelectionRange(newCaret, newCaret);
+}
+
 function handleKeydown(event: KeyboardEvent) {
+  if (isMentionOpen.value && filteredCandidates.value.length > 0) {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      activeMentionIndex.value =
+        (activeMentionIndex.value + 1) % filteredCandidates.value.length;
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      activeMentionIndex.value =
+        (activeMentionIndex.value - 1 + filteredCandidates.value.length) %
+        filteredCandidates.value.length;
+      return;
+    }
+    if (event.key === "Enter" || event.key === "Tab") {
+      event.preventDefault();
+      const candidate = filteredCandidates.value[activeMentionIndex.value];
+      if (candidate) void selectMention(candidate);
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeMentionMenu();
+      return;
+    }
+  }
+
   if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
     event.preventDefault();
     handleSubmit();
   }
 }
 
+function buildMentions(value: string): MessageMention[] {
+  const out: MessageMention[] = [];
+  for (const token of mentionTokens.value.values()) {
+    if (value.includes(`@${token.displayName}`)) {
+      out.push({
+        participantType: token.participantType,
+        participantId: token.participantId,
+      });
+    }
+  }
+  return out;
+}
+
 async function handleSubmit() {
   if (!canSend.value) return;
   const value = text.value.trim();
   const files = [...pendingFiles.value];
-  emit("send", value, files);
+  const mentions = buildMentions(value);
+  emit("send", value, files, mentions);
   text.value = "";
   pendingFiles.value = [];
+  mentionTokens.value.clear();
+  closeMentionMenu();
   await nextTick();
   autoResize();
 }
@@ -157,6 +338,10 @@ function appendFiles(files: File[]) {
 
 function removeFile(index: number) {
   pendingFiles.value = pendingFiles.value.filter((_, i) => i !== index);
+}
+
+function initialOf(name: string): string {
+  return name.trim().charAt(0).toUpperCase() || "?";
 }
 
 watch(

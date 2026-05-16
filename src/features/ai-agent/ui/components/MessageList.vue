@@ -26,6 +26,7 @@
         v-else
         :message="item.message"
         :current-user-id="currentUserId"
+        :participant-names-by-id="participantNamesById"
       />
     </template>
 
@@ -92,6 +93,7 @@ const props = defineProps<{
   messages: Message[];
   typingParticipants: TypingEntry[];
   currentUserId: string | null;
+  participantNamesById: Map<string, string>;
   hasMoreOlder: boolean;
   isLoadingOlder: boolean;
   isLoadingThread: boolean;

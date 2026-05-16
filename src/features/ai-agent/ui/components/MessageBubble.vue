@@ -3,7 +3,10 @@
     class="message-bubble"
     :class="[
       `message-bubble--${role}`,
-      { 'message-bubble--with-name': showSenderName },
+      {
+        'message-bubble--with-name': showSenderName,
+        'message-bubble--mentions-me': mentionsMe,
+      },
     ]"
   >
     <span v-if="showSenderName" class="message-bubble__sender">
@@ -18,7 +21,19 @@
     </span>
 
     <div class="message-bubble__body">
-      <p v-if="message.text" class="message-bubble__text">{{ message.text }}</p>
+      <p v-if="message.text" class="message-bubble__text">
+        <template v-for="(part, idx) in textParts" :key="idx">
+          <span
+            v-if="part.kind === 'mention'"
+            class="message-bubble__mention"
+            :class="{
+              'message-bubble__mention--self': part.isSelf,
+              'message-bubble__mention--bot': part.isBot,
+            }"
+          >{{ part.text }}</span>
+          <template v-else>{{ part.text }}</template>
+        </template>
+      </p>
 
       <ul
         v-if="message.attachments.length > 0"
@@ -122,7 +137,18 @@ import type {
 const props = defineProps<{
   message: Message;
   currentUserId: string | null;
+  participantNamesById?: Map<string, string>;
 }>();
+
+const BOT_DISPLAY_NAME = "Hermes";
+const UNKNOWN_USER_LABEL = "알 수 없는 사용자";
+
+interface TextPart {
+  kind: "text" | "mention";
+  text: string;
+  isSelf?: boolean;
+  isBot?: boolean;
+}
 
 const store = useAiAgentStore();
 const attachmentsCopy = aiAgentCopy.attachments;
@@ -148,6 +174,68 @@ const displayName = computed(
 
 const showSenderName = computed(() => role.value !== "me");
 const time = computed(() => formatBubbleTime(props.message.createdAt));
+
+const mentionsMe = computed(() => {
+  if (!props.currentUserId) return false;
+  return props.message.mentions.some(
+    (m) => m.participantType === "USER" && m.participantId === props.currentUserId,
+  );
+});
+
+const textParts = computed<TextPart[]>(() => {
+  const text = props.message.text;
+  if (!text) return [];
+  const mentions = props.message.mentions;
+  if (!mentions || mentions.length === 0) {
+    return [{ kind: "text", text }];
+  }
+
+  const resolved = mentions.map((m) => {
+    const name =
+      m.participantType === "BOT"
+        ? BOT_DISPLAY_NAME
+        : props.participantNamesById?.get(m.participantId) ?? UNKNOWN_USER_LABEL;
+    return {
+      participantType: m.participantType,
+      participantId: m.participantId,
+      displayName: name,
+      isSelf:
+        m.participantType === "USER" && m.participantId === props.currentUserId,
+      isBot: m.participantType === "BOT",
+    };
+  });
+
+  let parts: TextPart[] = [{ kind: "text", text }];
+  for (const m of resolved) {
+    const pattern = `@${m.displayName}`;
+    if (!pattern || pattern === "@") continue;
+    const next: TextPart[] = [];
+    for (const part of parts) {
+      if (part.kind !== "text" || !part.text.includes(pattern)) {
+        next.push(part);
+        continue;
+      }
+      let remaining = part.text;
+      let idx = remaining.indexOf(pattern);
+      while (idx >= 0) {
+        if (idx > 0) {
+          next.push({ kind: "text", text: remaining.slice(0, idx) });
+        }
+        next.push({
+          kind: "mention",
+          text: pattern,
+          isSelf: m.isSelf,
+          isBot: m.isBot,
+        });
+        remaining = remaining.slice(idx + pattern.length);
+        idx = remaining.indexOf(pattern);
+      }
+      if (remaining) next.push({ kind: "text", text: remaining });
+    }
+    parts = next;
+  }
+  return parts;
+});
 
 function isImage(attachment: MessageAttachment) {
   return isImageAttachment(attachment);
