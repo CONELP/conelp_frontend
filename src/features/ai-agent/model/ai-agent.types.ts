@@ -110,3 +110,23 @@ export interface ThreadDeletedPayload {
   threadId: number;
   action: "deleted";
 }
+
+export interface TypingStartedPayload {
+  threadId: number;
+  participantType: ParticipantType;
+  participantId: string;
+  participantName?: string;
+}
+
+export interface TypingStoppedPayload {
+  threadId: number;
+  participantType: ParticipantType;
+  participantId: string;
+}
+
+export interface TypingEntry {
+  participantType: ParticipantType;
+  participantId: string;
+  participantName?: string;
+  startedAt: number;
+}

@@ -46,6 +46,9 @@ export const aiAgentCopy = {
     bot: "Hermes",
     botBadge: "AI 에이전트",
   },
+  typing: {
+    suffix: "님이 입력 중",
+  },
   errors: {
     sendFailed: "메시지 전송에 실패했어요. 잠시 후 다시 시도해주세요.",
     createThreadFailed: "대화 생성에 실패했어요.",

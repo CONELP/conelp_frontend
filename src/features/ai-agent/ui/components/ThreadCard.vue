@@ -49,6 +49,7 @@ import type { Message, Thread } from "@/features/ai-agent/model/ai-agent.types";
 const props = defineProps<{
   thread: Thread;
   lastMessage: Message | undefined;
+  botName?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -56,7 +57,7 @@ const emit = defineEmits<{
   delete: [];
 }>();
 
-const botLabel = aiAgentCopy.participants.bot;
+const botLabel = computed(() => props.botName || aiAgentCopy.participants.bot);
 const menuOpen = ref(false);
 const menuButton = ref<HTMLButtonElement | null>(null);
 

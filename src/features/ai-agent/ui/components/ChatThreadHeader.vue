@@ -73,6 +73,7 @@ import ConnectionBadge from "@/features/ai-agent/ui/components/ConnectionBadge.v
 const props = defineProps<{
   title: string;
   participants: Participant[];
+  participantNamesById: Map<string, string>;
   currentUserId: string | null;
   connectionStatus: ConnectionStatus;
   reconnectAttempts: number;
@@ -94,12 +95,13 @@ const participantChips = computed(() => {
     const isMe =
       p.participantType === "USER" && p.participantId === props.currentUserId;
     const kind = p.participantType === "BOT" ? "bot" : isMe ? "me" : "user";
-    const label =
-      p.participantType === "BOT"
-        ? aiAgentCopy.participants.bot
-        : isMe
-          ? "나"
-          : "참여자";
+    const knownName = props.participantNamesById.get(p.participantId);
+    const label = isMe
+      ? "나"
+      : knownName ??
+        (p.participantType === "BOT"
+          ? aiAgentCopy.participants.bot
+          : "참여자");
     return {
       key: `${p.participantType}-${p.participantId}`,
       label,

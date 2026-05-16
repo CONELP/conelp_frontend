@@ -4,7 +4,7 @@ import { chatMessageApi } from "@/features/ai-agent/api/chat-message.api";
 import { chatThreadApi } from "@/features/ai-agent/api/chat-thread.api";
 import { aiAgentCopy } from "@/features/ai-agent/data/ai-agent.copy";
 import { useAiAgentStore } from "@/features/ai-agent/state/useAiAgentStore";
-import type { Message } from "@/features/ai-agent/model/ai-agent.types";
+import type { Message, TypingEntry } from "@/features/ai-agent/model/ai-agent.types";
 import { useAuthStore } from "@/features/auth/state/useAuthStore";
 
 const ECHO_TIMEOUT_MS = 10_000;
@@ -23,6 +23,29 @@ export function useChatViewModel(threadIdRef: () => number) {
   const connectionStatus = computed(() => store.connectionStatus);
   const isAwaitingEcho = computed(() => store.isPendingSend(threadIdRef()));
   const currentUserId = computed(() => authStore.user?.id ?? null);
+  const typingParticipants = computed<TypingEntry[]>(() => {
+    const entries = store.typingByThread.get(threadIdRef());
+    if (!entries) return [];
+    return Array.from(entries.values()).filter(
+      (e) =>
+        !(e.participantType === "USER" && e.participantId === currentUserId.value),
+    );
+  });
+
+  const participantNamesById = computed<Map<string, string>>(() => {
+    const map = new Map<string, string>();
+    for (const m of messages.value) {
+      if (m.senderName && !map.has(m.senderId)) {
+        map.set(m.senderId, m.senderName);
+      }
+    }
+    for (const t of typingParticipants.value) {
+      if (t.participantName && !map.has(t.participantId)) {
+        map.set(t.participantId, t.participantName);
+      }
+    }
+    return map;
+  });
 
   async function ensureLoaded() {
     const id = threadIdRef();
@@ -192,6 +215,8 @@ export function useChatViewModel(threadIdRef: () => number) {
     isLoadingThread,
     hasMoreOlder,
     currentUserId,
+    typingParticipants,
+    participantNamesById,
     ensureLoaded,
     send,
     loadOlder,

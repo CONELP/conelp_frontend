@@ -24,6 +24,7 @@
           :key="thread.threadId"
           :thread="thread"
           :last-message="lastMessageOf(thread.threadId)"
+          :bot-name="botNameOf(thread.threadId)"
           @click="openThread(thread.threadId)"
           @delete="handleDelete(thread.threadId)"
         />
@@ -85,6 +86,7 @@ const {
   connectionStatus,
   errors,
   lastMessageOf,
+  botNameOf,
   createThread,
   deleteThread,
   refreshThreads,

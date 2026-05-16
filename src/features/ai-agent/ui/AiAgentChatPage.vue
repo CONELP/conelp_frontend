@@ -6,6 +6,7 @@
       <ChatThreadHeader
         :title="thread?.title ?? '대화'"
         :participants="participants"
+        :participant-names-by-id="participantNamesById"
         :current-user-id="currentUserId"
         :connection-status="connectionStatus"
         :reconnect-attempts="reconnectAttempts"
@@ -17,6 +18,7 @@
 
       <MessageList
         :messages="messages"
+        :typing-participants="typingParticipants"
         :current-user-id="currentUserId"
         :has-more-older="hasMoreOlder"
         :is-loading-older="isLoadingOlder"
@@ -62,6 +64,8 @@ const {
   isLoadingThread,
   hasMoreOlder,
   currentUserId,
+  typingParticipants,
+  participantNamesById,
   ensureLoaded,
   send,
   loadOlder,

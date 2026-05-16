@@ -29,9 +29,18 @@
       />
     </template>
 
-    <p v-if="messages.length === 0 && !isLoadingThread" class="message-list__empty">
+    <p
+      v-if="messages.length === 0 && !isLoadingThread && typingParticipants.length === 0"
+      class="message-list__empty"
+    >
       메시지를 보내 대화를 시작하세요
     </p>
+
+    <TypingIndicator
+      v-for="entry in typingParticipants"
+      :key="`${entry.participantType}:${entry.participantId}`"
+      :entry="entry"
+    />
 
     <button
       v-if="!isPinnedToBottom && messages.length > 0"
@@ -59,9 +68,13 @@ import {
   formatDayDivider,
   isSameDay,
 } from "@/features/ai-agent/services/ai-agent.service";
-import type { Message } from "@/features/ai-agent/model/ai-agent.types";
+import type {
+  Message,
+  TypingEntry,
+} from "@/features/ai-agent/model/ai-agent.types";
 import MessageBubble from "@/features/ai-agent/ui/components/MessageBubble.vue";
 import SystemMessageBanner from "@/features/ai-agent/ui/components/SystemMessageBanner.vue";
+import TypingIndicator from "@/features/ai-agent/ui/components/TypingIndicator.vue";
 
 interface DividerItem {
   kind: "divider";
@@ -77,6 +90,7 @@ type ListItem = DividerItem | MessageItem;
 
 const props = defineProps<{
   messages: Message[];
+  typingParticipants: TypingEntry[];
   currentUserId: string | null;
   hasMoreOlder: boolean;
   isLoadingOlder: boolean;
@@ -143,6 +157,16 @@ watch(
       return;
     }
     if (next > prev) {
+      scrollToBottom();
+    }
+  },
+);
+
+watch(
+  () => props.typingParticipants.length,
+  async (next, prev) => {
+    if (next > prev) {
+      await nextTick();
       scrollToBottom();
     }
   },

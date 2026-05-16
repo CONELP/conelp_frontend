@@ -111,8 +111,8 @@ const role = computed<"me" | "user" | "bot">(() => {
   return "user";
 });
 
-const displayName = computed(() =>
-  role.value === "bot" ? aiAgentCopy.participants.bot : props.message.senderName,
+const displayName = computed(
+  () => props.message.senderName || aiAgentCopy.participants.bot,
 );
 
 const showSenderName = computed(() => role.value !== "me");

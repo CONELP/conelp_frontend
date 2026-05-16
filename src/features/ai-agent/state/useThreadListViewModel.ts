@@ -15,6 +15,15 @@ export function useThreadListViewModel() {
     return store.lastMessageOf(threadId);
   }
 
+  function botNameOf(threadId: number): string | null {
+    const list = store.messagesOf(threadId);
+    for (let i = list.length - 1; i >= 0; i--) {
+      const m = list[i];
+      if (m.senderType === "BOT" && m.senderName) return m.senderName;
+    }
+    return null;
+  }
+
   async function createThread(title: string) {
     const trimmed = title.trim();
     if (!trimmed) return null;
@@ -58,6 +67,7 @@ export function useThreadListViewModel() {
     connectionStatus,
     errors,
     lastMessageOf,
+    botNameOf,
     createThread,
     deleteThread,
     refreshThreads,

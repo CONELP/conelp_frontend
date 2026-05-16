@@ -18,8 +18,34 @@ import type {
   ThreadDeletedPayload,
   ThreadSnapshotPayload,
   ThreadUpdatedPayload,
+  TypingEntry,
+  TypingStartedPayload,
+  TypingStoppedPayload,
   WsEnvelope,
 } from "@/features/ai-agent/model/ai-agent.types";
+
+const TYPING_TTL_MS = 60_000;
+
+function participantKey(type: string, id: string): string {
+  return `${type}:${id}`;
+}
+
+const typingTimers = new Map<string, number>();
+
+function cancelTypingTimer(timerKey: string): void {
+  const handle = typingTimers.get(timerKey);
+  if (handle !== undefined) {
+    window.clearTimeout(handle);
+    typingTimers.delete(timerKey);
+  }
+}
+
+function cancelAllTypingTimers(): void {
+  for (const handle of typingTimers.values()) {
+    window.clearTimeout(handle);
+  }
+  typingTimers.clear();
+}
 
 interface RawMessageLike {
   id: number;
@@ -73,6 +99,7 @@ function generateId(): string {
 export const useAiAgentStore = defineStore("ai-agent", () => {
   const threads = ref<Map<number, Thread>>(new Map());
   const messagesByThread = ref<Map<number, Message[]>>(new Map());
+  const typingByThread = ref<Map<number, Map<string, TypingEntry>>>(new Map());
   const connectionStatus = ref<ConnectionStatus>("idle");
   const reconnectAttempts = ref(0);
   const pendingSendByThread = ref<Map<number, PendingSend>>(new Map());
@@ -99,6 +126,11 @@ export const useAiAgentStore = defineStore("ai-agent", () => {
 
   function messagesOf(threadId: number): Message[] {
     return messagesByThread.value.get(threadId) ?? [];
+  }
+
+  function typingOf(threadId: number): TypingEntry[] {
+    const map = typingByThread.value.get(threadId);
+    return map ? Array.from(map.values()) : [];
   }
 
   function lastMessageOf(threadId: number): Message | undefined {
@@ -150,6 +182,7 @@ export const useAiAgentStore = defineStore("ai-agent", () => {
 
   function removeThread(threadId: number): void {
     removeThreadInternal(threadId);
+    clearTypingForThread(threadId);
     if (threads.value.has(threadId)) {
       threads.value.delete(threadId);
       threads.value = new Map(threads.value);
@@ -260,6 +293,59 @@ export const useAiAgentStore = defineStore("ai-agent", () => {
     reconnectAttempts.value = 0;
   }
 
+  function startTyping(payload: TypingStartedPayload): void {
+    const key = participantKey(payload.participantType, payload.participantId);
+    const timerKey = `${payload.threadId}:${key}`;
+    cancelTypingTimer(timerKey);
+
+    const existing = typingByThread.value.get(payload.threadId) ?? new Map();
+    const next = new Map(existing);
+    next.set(key, {
+      participantType: payload.participantType,
+      participantId: payload.participantId,
+      participantName: payload.participantName,
+      startedAt: Date.now(),
+    });
+    typingByThread.value.set(payload.threadId, next);
+    typingByThread.value = new Map(typingByThread.value);
+
+    const handle = window.setTimeout(() => {
+      stopTyping({
+        threadId: payload.threadId,
+        participantType: payload.participantType,
+        participantId: payload.participantId,
+      });
+    }, TYPING_TTL_MS);
+    typingTimers.set(timerKey, handle);
+  }
+
+  function stopTyping(payload: TypingStoppedPayload): void {
+    const key = participantKey(payload.participantType, payload.participantId);
+    const timerKey = `${payload.threadId}:${key}`;
+    cancelTypingTimer(timerKey);
+
+    const existing = typingByThread.value.get(payload.threadId);
+    if (!existing || !existing.has(key)) return;
+    const next = new Map(existing);
+    next.delete(key);
+    if (next.size === 0) {
+      typingByThread.value.delete(payload.threadId);
+    } else {
+      typingByThread.value.set(payload.threadId, next);
+    }
+    typingByThread.value = new Map(typingByThread.value);
+  }
+
+  function clearTypingForThread(threadId: number): void {
+    const existing = typingByThread.value.get(threadId);
+    if (!existing) return;
+    for (const key of existing.keys()) {
+      cancelTypingTimer(`${threadId}:${key}`);
+    }
+    typingByThread.value.delete(threadId);
+    typingByThread.value = new Map(typingByThread.value);
+  }
+
   function markPendingSend(threadId: number): void {
     pendingSendByThread.value.set(threadId, { sentAt: Date.now() });
     pendingSendByThread.value = new Map(pendingSendByThread.value);
@@ -292,8 +378,10 @@ export const useAiAgentStore = defineStore("ai-agent", () => {
     for (const messages of messagesByThread.value.values()) {
       revokeAttachmentBlobs(messages);
     }
+    cancelAllTypingTimers();
     threads.value = new Map();
     messagesByThread.value = new Map();
+    typingByThread.value = new Map();
     pendingSendByThread.value = new Map();
     errors.value = [];
     connectionStatus.value = "idle";
@@ -339,6 +427,12 @@ export const useAiAgentStore = defineStore("ai-agent", () => {
         removeThread(p.threadId);
         break;
       }
+      case "typing.started":
+        startTyping(env.payload as TypingStartedPayload);
+        break;
+      case "typing.stopped":
+        stopTyping(env.payload as TypingStoppedPayload);
+        break;
       default:
         // unknown event types are ignored
         break;
@@ -348,6 +442,7 @@ export const useAiAgentStore = defineStore("ai-agent", () => {
   return {
     threads,
     messagesByThread,
+    typingByThread,
     connectionStatus,
     reconnectAttempts,
     pendingSendByThread,
@@ -356,6 +451,7 @@ export const useAiAgentStore = defineStore("ai-agent", () => {
     isWsOpen,
     messagesOf,
     lastMessageOf,
+    typingOf,
     applySnapshot,
     upsertThread,
     removeThread,
@@ -371,6 +467,9 @@ export const useAiAgentStore = defineStore("ai-agent", () => {
     markPendingSend,
     clearPendingSend,
     isPendingSend,
+    startTyping,
+    stopTyping,
+    clearTypingForThread,
     pushError,
     dismissError,
     reset,
