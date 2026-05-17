@@ -119,8 +119,220 @@
 }
 
 .daily-report-write-panel--with-tabs {
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   padding: 0.6rem;
+}
+
+.daily-report-date-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.5rem;
+  padding: 0.42rem 0.6rem;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 0.8rem;
+  background: #fff;
+}
+
+.daily-report-date-bar__controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.daily-report-date-bar__nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.5rem;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 0.45rem;
+  background: #fff;
+  color: #334155;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.daily-report-date-bar__nav:hover,
+.daily-report-date-bar__nav:focus-visible {
+  border-color: rgba(30, 24, 136, 0.32);
+  background: #f8fafc;
+  color: #111827;
+}
+
+.daily-report-date-bar__nav-icon {
+  width: 1.05rem;
+  height: 1.05rem;
+  display: block;
+}
+
+.daily-report-date-bar__current {
+  min-width: 11rem;
+  height: 2rem;
+  padding: 0 0.8rem;
+  border: 1px solid rgba(30, 24, 136, 0.22);
+  border-radius: 0.45rem;
+  background: #fff;
+  color: #1e1888;
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.daily-report-date-bar__current:hover,
+.daily-report-date-bar__current:focus-visible {
+  background: rgba(30, 24, 136, 0.06);
+}
+
+.daily-report-date-calendar {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 50%;
+  z-index: 20;
+  width: 17.5rem;
+  padding: 0.7rem;
+  transform: translateX(-50%);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 0.7rem;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
+}
+
+.daily-report-date-calendar__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.daily-report-date-calendar__nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 0.4rem;
+  background: #fff;
+  color: #334155;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.daily-report-date-calendar__nav:hover,
+.daily-report-date-calendar__nav:focus-visible {
+  border-color: rgba(30, 24, 136, 0.32);
+  background: #f8fafc;
+}
+
+.daily-report-date-calendar__nav-icon {
+  width: 1rem;
+  height: 1rem;
+  display: block;
+}
+
+.daily-report-date-calendar__title {
+  color: #111827;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.daily-report-date-calendar__weekdays,
+.daily-report-date-calendar__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.15rem;
+}
+
+.daily-report-date-calendar__weekday {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.6rem;
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.daily-report-date-calendar__cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: #111827;
+  font-family: inherit;
+  font-size: 0.84rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.daily-report-date-calendar__cell:hover:not(:disabled),
+.daily-report-date-calendar__cell:focus-visible:not(:disabled) {
+  background: rgba(30, 24, 136, 0.08);
+}
+
+.daily-report-date-calendar__cell:disabled {
+  cursor: default;
+}
+
+.daily-report-date-calendar__cell--muted {
+  color: transparent;
+}
+
+.daily-report-date-calendar__cell--today {
+  border-color: rgba(30, 24, 136, 0.45);
+  color: #1e1888;
+  font-weight: 700;
+}
+
+.daily-report-date-calendar__cell--selected {
+  background: #1e1888;
+  color: #fff;
+  font-weight: 700;
+}
+
+.daily-report-date-calendar__cell--selected:hover:not(:disabled),
+.daily-report-date-calendar__cell--selected:focus-visible:not(:disabled) {
+  background: #1e1888;
+}
+
+.daily-report-date-calendar__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+
+.daily-report-date-calendar__action {
+  height: 1.85rem;
+  padding: 0 0.7rem;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 0.4rem;
+  background: #fff;
+  color: #334155;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.daily-report-date-calendar__action:hover,
+.daily-report-date-calendar__action:focus-visible {
+  border-color: rgba(30, 24, 136, 0.32);
+  background: #f8fafc;
 }
 
 .daily-report-write-panel__tabs {

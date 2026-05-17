@@ -1,6 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import imageIcon from "@fluentui/svg-icons/icons/image_20_regular.svg";
+import chevronLeftIcon from "@fluentui/svg-icons/icons/chevron_left_20_regular.svg";
+import chevronRightIcon from "@fluentui/svg-icons/icons/chevron_right_20_regular.svg";
+import chevronDoubleLeftIcon from "@fluentui/svg-icons/icons/chevron_double_left_20_regular.svg";
+import chevronDoubleRightIcon from "@fluentui/svg-icons/icons/chevron_double_right_20_regular.svg";
 
 import { actualWorkApi } from "@/features/document-conversion-demo/api/actual-work.api";
 import type { ActualWorkResponse } from "@/features/document-conversion-demo/api/actual-work-api.types";
@@ -910,21 +914,155 @@ function formatLocalDate(date: Date) {
   return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
 }
 
-function getReportDates() {
-  const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
-
-  return {
-    today: formatLocalDate(today),
-    tomorrow: formatLocalDate(tomorrow),
-  };
+function parseLocalDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, (month ?? 1) - 1, day ?? 1);
 }
 
-const reportDates = getReportDates();
+function addDays(value: string, delta: number) {
+  const date = parseLocalDate(value);
+  date.setDate(date.getDate() + delta);
+  return formatLocalDate(date);
+}
+
+function addMonths(value: string, delta: number) {
+  const date = parseLocalDate(value);
+  const targetMonth = date.getMonth() + delta;
+  const targetYear = date.getFullYear();
+  const lastDayOfTarget = new Date(targetYear, targetMonth + 1, 0).getDate();
+  date.setDate(Math.min(date.getDate(), lastDayOfTarget));
+  date.setMonth(targetMonth);
+  return formatLocalDate(date);
+}
+
+const selectedReportDate = ref<string>(formatLocalDate(new Date()));
+
+const reportDates = computed(() => ({
+  today: selectedReportDate.value,
+  tomorrow: addDays(selectedReportDate.value, 1),
+}));
+
+const isCalendarOpen = ref(false);
+const calendarViewMonth = ref<string>(selectedReportDate.value.slice(0, 7));
+const calendarRootRef = ref<HTMLDivElement | null>(null);
+
+const REPORT_DATE_WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"] as const;
+
+const calendarMonthLabel = computed(() => {
+  const [year, month] = calendarViewMonth.value.split("-").map(Number);
+  return `${year}년 ${month}월`;
+});
+
+type CalendarCell = {
+  key: string;
+  date: string | null;
+  day: number | null;
+  isCurrentMonth: boolean;
+  isSelected: boolean;
+  isToday: boolean;
+};
+
+const calendarCells = computed<CalendarCell[]>(() => {
+  const [year, month] = calendarViewMonth.value.split("-").map(Number);
+  const firstOfMonth = new Date(year, month - 1, 1);
+  const startWeekday = firstOfMonth.getDay();
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const todayStr = formatLocalDate(new Date());
+  const cells: CalendarCell[] = [];
+
+  for (let i = 0; i < startWeekday; i += 1) {
+    cells.push({
+      key: `lead-${i}`,
+      date: null,
+      day: null,
+      isCurrentMonth: false,
+      isSelected: false,
+      isToday: false,
+    });
+  }
+
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const dateStr = `${year}-${pad2(month)}-${pad2(day)}`;
+    cells.push({
+      key: dateStr,
+      date: dateStr,
+      day,
+      isCurrentMonth: true,
+      isSelected: dateStr === selectedReportDate.value,
+      isToday: dateStr === todayStr,
+    });
+  }
+
+  while (cells.length % 7 !== 0) {
+    cells.push({
+      key: `tail-${cells.length}`,
+      date: null,
+      day: null,
+      isCurrentMonth: false,
+      isSelected: false,
+      isToday: false,
+    });
+  }
+
+  return cells;
+});
+
+const selectedReportDateLabel = computed(() => {
+  const date = parseLocalDate(selectedReportDate.value);
+  const weekday = REPORT_DATE_WEEKDAYS[date.getDay()];
+  return `${date.getFullYear()}.${pad2(date.getMonth() + 1)}.${pad2(date.getDate())} (${weekday})`;
+});
+
+function shiftReportDate(delta: number, unit: "day" | "month") {
+  selectedReportDate.value =
+    unit === "day"
+      ? addDays(selectedReportDate.value, delta)
+      : addMonths(selectedReportDate.value, delta);
+}
+
+function toggleReportDateCalendar() {
+  isCalendarOpen.value = !isCalendarOpen.value;
+  if (isCalendarOpen.value) {
+    calendarViewMonth.value = selectedReportDate.value.slice(0, 7);
+  }
+}
+
+function closeReportDateCalendar() {
+  isCalendarOpen.value = false;
+}
+
+function shiftCalendarMonth(delta: number) {
+  calendarViewMonth.value = addMonths(`${calendarViewMonth.value}-01`, delta).slice(0, 7);
+}
+
+function pickCalendarDate(date: string | null) {
+  if (!date) {
+    return;
+  }
+  selectedReportDate.value = date;
+  isCalendarOpen.value = false;
+}
+
+function jumpToToday() {
+  pickCalendarDate(formatLocalDate(new Date()));
+}
+
+function handleReportDateOutsideClick(event: MouseEvent) {
+  if (!isCalendarOpen.value) {
+    return;
+  }
+  const target = event.target as Node | null;
+  if (target && calendarRootRef.value && !calendarRootRef.value.contains(target)) {
+    isCalendarOpen.value = false;
+  }
+}
+
+watch(selectedReportDate, () => {
+  void hydrateDailyReportFromServer();
+});
 
 function getSectionDate(section: DailyReportWorkSection) {
-  return section === "today" ? reportDates.today : reportDates.tomorrow;
+  return section === "today" ? reportDates.value.today : reportDates.value.tomorrow;
 }
 
 function getImageInputRef(section: DailyReportWorkSection) {
@@ -1829,8 +1967,8 @@ function buildWorkTypeDraftsFromResponses(
 async function hydrateDailyReportFromServer() {
   try {
     const [todayResponses, tomorrowResponses] = await Promise.all([
-      actualWorkApi.listByDate(reportDates.today),
-      actualWorkApi.listByDate(reportDates.tomorrow),
+      actualWorkApi.listByDate(reportDates.value.today),
+      actualWorkApi.listByDate(reportDates.value.tomorrow),
     ]);
     todayWorkTypes.value = ensureDefaultWorkTypes(
       buildWorkTypeDraftsFromResponses(todayResponses),
@@ -1845,10 +1983,12 @@ async function hydrateDailyReportFromServer() {
 
 onMounted(() => {
   void hydrateDailyReportFromServer();
+  document.addEventListener("mousedown", handleReportDateOutsideClick);
 });
 
 onUnmounted(() => {
   stopDailyReportResourceColumnResize();
+  document.removeEventListener("mousedown", handleReportDateOutsideClick);
   Object.values(workTypeSuggestionStates.value).forEach((state) => {
     if (state.closeTimer) {
       clearTimeout(state.closeTimer);
@@ -1864,6 +2004,157 @@ onUnmounted(() => {
     class="daily-report-write-panel daily-report-write-panel--with-tabs"
     aria-label="공사일보 작성"
   >
+    <header
+      ref="calendarRootRef"
+      class="daily-report-date-bar"
+      aria-label="작업일보 날짜 선택"
+    >
+      <div class="daily-report-date-bar__controls">
+        <button
+          type="button"
+          class="daily-report-date-bar__nav"
+          aria-label="이전 달"
+          @click="shiftReportDate(-1, 'month')"
+        >
+          <img
+            class="daily-report-date-bar__nav-icon"
+            :src="chevronDoubleLeftIcon"
+            alt=""
+            aria-hidden="true"
+          />
+        </button>
+        <button
+          type="button"
+          class="daily-report-date-bar__nav"
+          aria-label="이전 날"
+          @click="shiftReportDate(-1, 'day')"
+        >
+          <img
+            class="daily-report-date-bar__nav-icon"
+            :src="chevronLeftIcon"
+            alt=""
+            aria-hidden="true"
+          />
+        </button>
+        <button
+          type="button"
+          class="daily-report-date-bar__current"
+          :aria-expanded="isCalendarOpen"
+          aria-haspopup="dialog"
+          @click="toggleReportDateCalendar"
+        >
+          {{ selectedReportDateLabel }}
+        </button>
+        <button
+          type="button"
+          class="daily-report-date-bar__nav"
+          aria-label="다음 날"
+          @click="shiftReportDate(1, 'day')"
+        >
+          <img
+            class="daily-report-date-bar__nav-icon"
+            :src="chevronRightIcon"
+            alt=""
+            aria-hidden="true"
+          />
+        </button>
+        <button
+          type="button"
+          class="daily-report-date-bar__nav"
+          aria-label="다음 달"
+          @click="shiftReportDate(1, 'month')"
+        >
+          <img
+            class="daily-report-date-bar__nav-icon"
+            :src="chevronDoubleRightIcon"
+            alt=""
+            aria-hidden="true"
+          />
+        </button>
+      </div>
+
+      <div
+        v-if="isCalendarOpen"
+        class="daily-report-date-calendar"
+        role="dialog"
+        aria-label="달력"
+      >
+        <div class="daily-report-date-calendar__header">
+          <button
+            type="button"
+            class="daily-report-date-calendar__nav"
+            aria-label="이전 달"
+            @click="shiftCalendarMonth(-1)"
+          >
+            <img
+              class="daily-report-date-calendar__nav-icon"
+              :src="chevronLeftIcon"
+              alt=""
+              aria-hidden="true"
+            />
+          </button>
+          <span class="daily-report-date-calendar__title">
+            {{ calendarMonthLabel }}
+          </span>
+          <button
+            type="button"
+            class="daily-report-date-calendar__nav"
+            aria-label="다음 달"
+            @click="shiftCalendarMonth(1)"
+          >
+            <img
+              class="daily-report-date-calendar__nav-icon"
+              :src="chevronRightIcon"
+              alt=""
+              aria-hidden="true"
+            />
+          </button>
+        </div>
+        <div class="daily-report-date-calendar__weekdays">
+          <span
+            v-for="weekday in REPORT_DATE_WEEKDAYS"
+            :key="weekday"
+            class="daily-report-date-calendar__weekday"
+          >
+            {{ weekday }}
+          </span>
+        </div>
+        <div class="daily-report-date-calendar__grid">
+          <button
+            v-for="cell in calendarCells"
+            :key="cell.key"
+            type="button"
+            class="daily-report-date-calendar__cell"
+            :class="{
+              'daily-report-date-calendar__cell--muted': !cell.isCurrentMonth,
+              'daily-report-date-calendar__cell--today': cell.isToday,
+              'daily-report-date-calendar__cell--selected': cell.isSelected,
+            }"
+            :disabled="!cell.date"
+            @click="pickCalendarDate(cell.date)"
+          >
+            {{ cell.day ?? "" }}
+          </button>
+        </div>
+        <div class="daily-report-date-calendar__footer">
+          <button
+            type="button"
+            class="daily-report-date-calendar__action"
+            @click="jumpToToday"
+          >
+            오늘로
+          </button>
+          <button
+            type="button"
+            class="daily-report-date-calendar__action"
+            @click="closeReportDateCalendar"
+          >
+            닫기
+          </button>
+        </div>
+      </div>
+    </header>
+
     <nav
       class="daily-report-write-panel__tabs"
       role="tablist"
