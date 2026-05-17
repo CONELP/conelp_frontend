@@ -225,7 +225,6 @@ const pastMainMenuRootRef = ref<HTMLElement | null>(null);
 const pastMainMenuRef = ref<HTMLElement | null>(null);
 const isPastMainMenuOpen = ref(false);
 const pastMainMenuPosition = ref({ x: 0, y: 0 });
-const isExecutionCompareGlowEnabled = ref(false);
 const isExecutionProgressCompareEnabled = ref(false);
 const isExecutionProgressCompareLeaving = ref(false);
 let executionProgressCompareExitTimer: ReturnType<typeof setTimeout> | null = null;
@@ -268,18 +267,6 @@ const zoomSliderProgress = computed(() =>
 );
 const leftHeaderVersionLabel = computed(() =>
   props.readOnly ? props.versionModeLabel : props.versionName,
-);
-const executionProgressStorageKey = computed(
-  () => `desktop-schedule:execution-progress:${props.selectedScheduleVersionId ?? "unselected"}`,
-);
-const legacyExecutionCompareStorageKey = computed(
-  () => `desktop-schedule:execution-compare:${props.selectedScheduleVersionId ?? "unselected"}`,
-);
-const executionCompareVisibleStorageKey = computed(
-  () => `desktop-schedule:execution-compare-visible:${props.selectedScheduleVersionId ?? "unselected"}`,
-);
-const executionCompareOffsetsStorageKey = computed(
-  () => `desktop-schedule:execution-compare-offsets:${props.selectedScheduleVersionId ?? "unselected"}`,
 );
 const mainScheduleVersion = computed<ScheduleVersionOption | null>(() => {
   const mains = props.scheduleVersions.filter((version) => version.isMain);
@@ -839,37 +826,6 @@ function handleZoomSliderInput(event: Event) {
   emit("zoom-change", nextZoomIndex);
 }
 
-function toggleExecutionCompareGlow() {
-  isExecutionCompareGlowEnabled.value = !isExecutionCompareGlowEnabled.value;
-}
-
-function loadExecutionCompareVisibleFromStorage() {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  try {
-    const storedValue =
-      window.localStorage.getItem(executionCompareVisibleStorageKey.value) ??
-      window.localStorage.getItem(legacyExecutionCompareStorageKey.value);
-    isExecutionCompareGlowEnabled.value = storedValue === "true";
-  } catch {
-    isExecutionCompareGlowEnabled.value = false;
-  }
-}
-
-function saveExecutionCompareVisibleToStorage(isVisible: boolean) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  try {
-    window.localStorage.setItem(executionCompareVisibleStorageKey.value, String(isVisible));
-  } catch {
-    // Ignore localStorage write failures; state remains available in-memory.
-  }
-}
-
 function toggleExecutionProgressCompare() {
   if (isExecutionProgressCompareEnabled.value) {
     isExecutionProgressCompareEnabled.value = false;
@@ -959,17 +915,12 @@ function startRowPanelResize(event: PointerEvent) {
 }
 
 onMounted(() => {
-  loadExecutionCompareVisibleFromStorage();
   document.addEventListener("pointerdown", handleDocumentPointerDown, true);
   document.addEventListener("keydown", handleDocumentKeyDown, true);
   document.addEventListener("pointermove", handleDraftRailPointerMove, true);
   document.addEventListener("pointerup", endDraftRailPointerDrag, true);
   document.addEventListener("pointercancel", endDraftRailPointerDrag, true);
 });
-
-watch(executionCompareVisibleStorageKey, loadExecutionCompareVisibleFromStorage);
-
-watch(isExecutionCompareGlowEnabled, saveExecutionCompareVisibleToStorage);
 
 onUnmounted(() => {
   document.removeEventListener("pointerdown", handleDocumentPointerDown, true);
@@ -1284,25 +1235,12 @@ onUnmounted(() => {
         type="button"
         class="schedule-shell__compare-toggle"
         :class="{
-          'schedule-shell__compare-toggle--active': isExecutionCompareGlowEnabled,
-        }"
-        :aria-pressed="isExecutionCompareGlowEnabled"
-        @click="toggleExecutionCompareGlow"
-      >
-        <span>시행 비교</span>
-      </button>
-
-      <button
-        v-if="showWorkflowControls && readOnly"
-        type="button"
-        class="schedule-shell__compare-toggle"
-        :class="{
           'schedule-shell__compare-toggle--active': isExecutionProgressCompareEnabled,
         }"
         :aria-pressed="isExecutionProgressCompareEnabled"
         @click="toggleExecutionProgressCompare"
       >
-        <span>시행비교ii</span>
+        <span>작업일보 비교</span>
       </button>
 
       <button
@@ -1685,11 +1623,8 @@ onUnmounted(() => {
           :editing-item-id="editingItemId"
           :editing-milestone-id="editingMilestoneId"
           :schedule-version-review="scheduleVersionReview"
-          :execution-compare-visible="isExecutionCompareGlowEnabled"
-          :execution-compare-storage-key="executionCompareOffsetsStorageKey"
           :execution-progress-compare-visible="isExecutionProgressCompareEnabled"
           :execution-progress-compare-leaving="isExecutionProgressCompareLeaving"
-          :execution-progress-storage-key="executionProgressStorageKey"
           :is-ai-verification-mode-active="isAiVerificationModeActive"
           :ai-verification-comment-by-item-id="aiVerificationCommentByItemId"
           @set-ai-verification-comment="emit('set-ai-verification-comment', $event)"

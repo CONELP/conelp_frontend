@@ -1,29 +1,26 @@
-export interface ActualWorkPhotoResponse {
-  photoId: number;
-  url: string;
-  thumbnailUrl: string;
-  description: string | null;
+export interface ActualWorkAffectedWork {
+  workId: number;
+  workName: string;
+  actualDates: string[];
 }
 
 export interface ActualWorkResponse {
   id: number;
   date: string;
-  actualWorkName: string;
+  context: string;
   workTypeId: number;
   workTypeName: string;
-  workId: number | null;
-  workName: string | null;
-  photos: ActualWorkPhotoResponse[];
+  affectedWorks: ActualWorkAffectedWork[];
 }
 
 export interface ActualWorkCreateRequest {
   date: string;
   workTypeId: number;
-  workName: string;
+  context: string;
 }
 
 export interface ActualWorkUpdateRequest {
   date?: string;
   workTypeId?: number;
-  workName?: string;
+  context?: string;
 }

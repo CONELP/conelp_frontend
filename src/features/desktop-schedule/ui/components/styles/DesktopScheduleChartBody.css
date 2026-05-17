@@ -55,7 +55,6 @@
 .schedule-chart-body__cell-selection,
 .schedule-chart-body__today-column-overlay,
 .schedule-chart-body__today-column-grid,
-.schedule-chart-body__execution-compare,
 .schedule-chart-body__bar,
 .schedule-chart-body__review-bar-overlay,
 .schedule-chart-body__review-milestone,
@@ -299,53 +298,6 @@
   stroke: rgba(30, 24, 136, 0.22);
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
-}
-
-.schedule-chart-body__execution-compare {
-  top: 0;
-  left: 0;
-  z-index: 18;
-  overflow: visible;
-  pointer-events: none;
-}
-
-.schedule-chart-body__execution-compare-transition-enter-active,
-.schedule-chart-body__execution-compare-transition-leave-active {
-  transition: opacity 160ms ease;
-}
-
-.schedule-chart-body__execution-compare-transition-enter-from,
-.schedule-chart-body__execution-compare-transition-leave-to {
-  opacity: 0;
-}
-
-.schedule-chart-body__execution-compare-transition-enter-to,
-.schedule-chart-body__execution-compare-transition-leave-from {
-  opacity: 1;
-}
-
-.schedule-chart-body__execution-compare-path {
-  filter: url("#scheduleExecutionCompareGlow");
-  vector-effect: non-scaling-stroke;
-}
-
-.schedule-chart-body__execution-compare-path--halo {
-  stroke: rgba(41, 211, 255, 0.2);
-  stroke-width: 8;
-}
-
-.schedule-chart-body__execution-compare-path--core {
-  stroke: rgba(30, 24, 136, 0.72);
-  stroke-width: 2;
-  filter: drop-shadow(0 0 3px rgba(30, 24, 136, 0.48))
-    drop-shadow(0 0 8px rgba(41, 211, 255, 0.36));
-}
-
-.schedule-chart-body__execution-compare-hit {
-  stroke: transparent;
-  stroke-width: 20;
-  cursor: ew-resize;
-  pointer-events: stroke;
 }
 
 .schedule-chart-body__progress-line {

@@ -49,7 +49,7 @@ export interface DesktopScheduleItem {
   zoneIds?: number[];
   floorIds?: number[];
   componentTypeIds?: number[];
-  progress?: number | null;
+  actualDates?: string[];
 }
 
 export interface DesktopScheduleWorkConnection {
@@ -96,7 +96,7 @@ export interface DesktopScheduleSourceTask {
   zoneIds?: number[];
   floorIds?: number[];
   componentTypeIds?: number[];
-  progress?: number | null;
+  actualDates?: string[];
 }
 
 export interface DesktopScheduleSourceRow {
@@ -221,6 +221,7 @@ export interface DesktopScheduleBarLayout {
   endDate: string;
   durationDays: number;
   appearance: DesktopScheduleItemAppearance;
+  actualDates?: string[];
 }
 
 export interface DesktopScheduleConnectionLayout {

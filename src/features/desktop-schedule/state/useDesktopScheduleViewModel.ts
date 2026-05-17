@@ -3492,6 +3492,36 @@ function createDesktopScheduleViewModel() {
     }));
   }
 
+  function patchLoadedWorkActualDates(
+    affectedWorks: { workId: number; actualDates: string[] }[],
+  ) {
+    if (!affectedWorks || affectedWorks.length === 0) {
+      return;
+    }
+
+    const actualDatesByWorkId = new Map<number, string[]>(
+      affectedWorks.map((entry) => [entry.workId, [...entry.actualDates]]),
+    );
+
+    const nextData = updateLoadedScheduleData((currentData) => ({
+      ...currentData,
+      works: currentData.works.map((work) => {
+        const actualDates = actualDatesByWorkId.get(work.workId);
+        if (!actualDates) {
+          return work;
+        }
+        return {
+          ...work,
+          actualDates,
+        };
+      }),
+    }));
+
+    if (nextData) {
+      applyScheduleSnapshot(createDesktopScheduleSnapshotFromApiData(nextData));
+    }
+  }
+
   function syncLoadedSubWorkTypeColor(subWorkTypeId: number, colorHex: string | null) {
     updateLoadedScheduleData((currentData) => ({
       ...currentData,
@@ -7655,6 +7685,7 @@ function createDesktopScheduleViewModel() {
     toggleAiVerificationMode,
     setAiVerificationComment,
     pastMainScheduleVersions,
+    patchLoadedWorkActualDates,
   };
 }
 

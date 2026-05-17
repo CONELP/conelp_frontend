@@ -60,7 +60,6 @@ type DailyReportTaskDraft = {
   id: string;
   text: string;
   actualWorkId: number | null;
-  matchedWorkName: string | null;
   isSyncing: boolean;
   hasReceivedResponse: boolean;
 };
@@ -121,7 +120,6 @@ function createDailyReportTask(text = ""): DailyReportTaskDraft {
     id: createDailyReportImageId(),
     text,
     actualWorkId: null,
-    matchedWorkName: null,
     isSyncing: false,
     hasReceivedResponse: false,
   };
@@ -130,9 +128,8 @@ function createDailyReportTask(text = ""): DailyReportTaskDraft {
 function createDailyReportTaskFromResponse(response: ActualWorkResponse): DailyReportTaskDraft {
   return {
     id: createDailyReportImageId(),
-    text: response.actualWorkName,
+    text: response.context,
     actualWorkId: response.id,
-    matchedWorkName: response.workName,
     isSyncing: false,
     hasReceivedResponse: true,
   };
@@ -202,7 +199,6 @@ function normalizeDailyReportTasks(value: unknown): DailyReportTaskDraft[] {
         typeof task.actualWorkId === "number" && Number.isFinite(task.actualWorkId)
           ? task.actualWorkId
           : null,
-      matchedWorkName: typeof task.matchedWorkName === "string" ? task.matchedWorkName : null,
       isSyncing: false,
       hasReceivedResponse: typeof task.actualWorkId === "number",
     }));
@@ -374,7 +370,14 @@ const {
   zoomIn,
   zoomOut,
   notifyReadOnlyScheduleAction,
+  patchLoadedWorkActualDates,
 } = useDesktopScheduleViewModel();
+
+function applyActualWorkAffectedWorks(response: ActualWorkResponse) {
+  if (response.affectedWorks?.length) {
+    patchLoadedWorkActualDates(response.affectedWorks);
+  }
+}
 
 const layoutRef = ref<HTMLElement | null>(null);
 const shellHostRef = ref<HTMLElement | null>(null);
@@ -755,7 +758,6 @@ function isLatestSync(taskId: string, requestId: number) {
 
 function applyResponseToTask(task: DailyReportTaskDraft, response: ActualWorkResponse) {
   task.actualWorkId = response.id;
-  task.matchedWorkName = response.workName;
   task.hasReceivedResponse = true;
 }
 
@@ -775,7 +777,7 @@ async function syncTaskCreate(
     const response = await actualWorkApi.create({
       date: getSectionDate(section),
       workTypeId: workType.workTypeId,
-      workName: trimmedName,
+      context: trimmedName,
     });
 
     if (!isLatestSync(task.id, requestId)) return;
@@ -783,7 +785,8 @@ async function syncTaskCreate(
     if (pendingTaskDeletes.has(task.id)) {
       pendingTaskDeletes.delete(task.id);
       try {
-        await actualWorkApi.delete(response.id);
+        const deleteResponse = await actualWorkApi.delete(response.id);
+        applyActualWorkAffectedWorks(deleteResponse);
       } catch (error) {
         console.error("deleteActualWork (after create) failed", error);
       }
@@ -791,6 +794,7 @@ async function syncTaskCreate(
     }
 
     applyResponseToTask(task, response);
+    applyActualWorkAffectedWorks(response);
   } catch (error) {
     console.error("createActualWork failed", error);
   } finally {
@@ -802,12 +806,12 @@ async function syncTaskCreate(
 
 async function syncTaskUpdate(
   task: DailyReportTaskDraft,
-  patch: { workTypeId?: number; workName?: string },
+  patch: { workTypeId?: number; context?: string },
 ) {
   if (task.actualWorkId === null) return;
   const body = {
     ...(typeof patch.workTypeId === "number" ? { workTypeId: patch.workTypeId } : {}),
-    ...(typeof patch.workName === "string" ? { workName: patch.workName } : {}),
+    ...(typeof patch.context === "string" ? { context: patch.context } : {}),
   };
   if (Object.keys(body).length === 0) return;
 
@@ -818,6 +822,7 @@ async function syncTaskUpdate(
     const response = await actualWorkApi.update(task.actualWorkId, body);
     if (!isLatestSync(task.id, requestId)) return;
     applyResponseToTask(task, response);
+    applyActualWorkAffectedWorks(response);
   } catch (error) {
     console.error("updateActualWork failed", error);
   } finally {
@@ -833,7 +838,8 @@ async function syncTaskDelete(task: DailyReportTaskDraft) {
     return;
   }
   try {
-    await actualWorkApi.delete(task.actualWorkId);
+    const response = await actualWorkApi.delete(task.actualWorkId);
+    applyActualWorkAffectedWorks(response);
   } catch (error) {
     console.error("deleteActualWork failed", error);
   }
@@ -863,7 +869,7 @@ async function handleTaskBlur(
     if (!section) return;
     await syncTaskCreate(task, workType, section);
   } else {
-    await syncTaskUpdate(task, { workName: trimmedName });
+    await syncTaskUpdate(task, { context: trimmedName });
   }
 }
 
@@ -1758,16 +1764,10 @@ watch(
 	                        동기화 중...
 	                      </span>
 	                      <span
-	                        v-else-if="task.matchedWorkName"
+	                        v-else-if="task.hasReceivedResponse && task.text.trim()"
 	                        class="daily-report-task-match-label daily-report-task-match-label--matched"
 	                      >
-	                        → {{ task.matchedWorkName }}
-	                      </span>
-	                      <span
-	                        v-else-if="task.hasReceivedResponse && task.text.trim()"
-	                        class="daily-report-task-match-label daily-report-task-match-label--unmatched"
-	                      >
-	                        매칭 없음
+	                        저장됨
 	                      </span>
 	                      <button
 	                        type="button"
@@ -2001,16 +2001,10 @@ watch(
 	                        동기화 중...
 	                      </span>
 	                      <span
-	                        v-else-if="task.matchedWorkName"
+	                        v-else-if="task.hasReceivedResponse && task.text.trim()"
 	                        class="daily-report-task-match-label daily-report-task-match-label--matched"
 	                      >
-	                        → {{ task.matchedWorkName }}
-	                      </span>
-	                      <span
-	                        v-else-if="task.hasReceivedResponse && task.text.trim()"
-	                        class="daily-report-task-match-label daily-report-task-match-label--unmatched"
-	                      >
-	                        매칭 없음
+	                        저장됨
 	                      </span>
 	                      <button
 	                        type="button"

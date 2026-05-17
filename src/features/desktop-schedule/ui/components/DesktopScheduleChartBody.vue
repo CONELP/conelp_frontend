@@ -7,7 +7,7 @@
       'schedule-chart-body--grabbing': !!panState,
       'schedule-chart-body--crosshair': !!connectionCreationState,
       'schedule-chart-body--locked':
-        marqueeState || moveState || resizeState || panState || executionCompareDragState,
+        marqueeState || moveState || resizeState || panState,
       'schedule-chart-body--readonly': readOnly,
       'schedule-chart-body--execution-progress': executionProgressCompareVisible,
       'schedule-chart-body--execution-progress-active': executionProgressCompareVisible,
@@ -199,79 +199,6 @@
           :y2="shellLayout.chartHeight"
         />
       </svg>
-
-      <Transition name="schedule-chart-body__execution-compare-transition">
-        <svg
-          v-if="executionComparePath"
-          class="schedule-chart-body__execution-compare"
-          :width="timeline.chartWidth"
-          :height="shellLayout.chartHeight"
-          :viewBox="`0 0 ${timeline.chartWidth} ${shellLayout.chartHeight}`"
-          preserveAspectRatio="none"
-          aria-label="시행 비교 glow 라인"
-        >
-        <defs>
-          <filter
-            id="scheduleExecutionCompareGlow"
-            x="-30%"
-            y="-30%"
-            width="160%"
-            height="160%"
-          >
-            <feGaussianBlur stdDeviation="4" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
-
-        <path
-          class="schedule-chart-body__execution-compare-path schedule-chart-body__execution-compare-path--halo"
-          :d="executionComparePath"
-          fill="none"
-          pointer-events="none"
-          stroke-linecap="round"
-          stroke-linejoin="miter"
-        />
-
-        <path
-          class="schedule-chart-body__execution-compare-path schedule-chart-body__execution-compare-path--core"
-          :d="executionComparePath"
-          fill="none"
-          pointer-events="none"
-          stroke-linecap="round"
-          stroke-linejoin="miter"
-        />
-
-        <g
-          v-for="segment in executionCompareRowSegments"
-          :key="segment.rowId"
-          class="schedule-chart-body__execution-compare-segment"
-          :class="{
-            'schedule-chart-body__execution-compare-segment--adjusted': segment.isAdjusted,
-            'schedule-chart-body__execution-compare-segment--dragging':
-              executionCompareDragState?.rowId === segment.rowId,
-          }"
-        >
-          <line
-            class="schedule-chart-body__execution-compare-hit"
-            :x1="segment.x"
-            :y1="segment.top"
-            :x2="segment.x"
-            :y2="segment.bottom"
-            :aria-label="segment.label"
-            role="button"
-            tabindex="0"
-            @pointerdown.stop.prevent="startExecutionCompareDrag(segment.rowId, $event)"
-            @pointermove.stop.prevent="handleExecutionComparePointerMove"
-            @pointerup.stop.prevent="endExecutionCompareDrag"
-            @pointercancel.stop.prevent="endExecutionCompareDrag"
-          />
-
-        </g>
-        </svg>
-      </Transition>
 
       <div
         v-if="hoveredDayOverlayStyle"
@@ -542,7 +469,6 @@
         ]"
         :style="getBarInlineStyle(bar)"
         @pointerdown="handleBarPointerDownWithExecutionProgress(bar, $event)"
-        @pointermove="handleExecutionProgressBarPointerMove(bar, $event)"
         @pointerenter="handleBarPointerEnter(bar)"
         @pointerleave="handleBarPointerLeaveWithExecutionProgress(bar)"
         @contextmenu.prevent.stop="handleBarContextMenu(bar, $event)"
@@ -606,21 +532,6 @@
               width: `${segment.width}px`,
             }"
           />
-          <span
-            v-for="gap in getExecutionProgressGapSegments(bar)"
-            :key="gap.key"
-            class="schedule-chart-body__execution-progress-gap"
-            :style="{
-              left: `${gap.left}px`,
-              width: `${gap.width}px`,
-            }"
-          >
-            <span
-              v-for="mark in gap.markCount"
-              :key="`${gap.key}:${mark}`"
-              class="schedule-chart-body__execution-progress-gap-mark"
-            />
-          </span>
           <span
             v-for="segment in getExecutionProgressUnderflowSegments(bar)"
             :key="segment.key"
@@ -779,16 +690,6 @@ type GridCellSelectionPoint = {
   date: string;
 };
 
-type ExecutionCompareDragState = {
-  rowId: string;
-  pointerId: number;
-};
-
-type HoveredExecutionProgressState = {
-  itemId: string;
-  dayIndex: number;
-};
-
 type ConnectionCreationState = {
   kind: "work-connection" | "critical-path";
   sourceItemId: string;
@@ -813,11 +714,8 @@ const props = defineProps<{
   editingItemId: string | null;
   editingMilestoneId: string | null;
   scheduleVersionReview: DesktopScheduleVersionReviewState;
-  executionCompareVisible: boolean;
-  executionCompareStorageKey: string;
   executionProgressCompareVisible: boolean;
   executionProgressCompareLeaving: boolean;
-  executionProgressStorageKey: string;
   isAiVerificationModeActive: boolean;
   aiVerificationCommentByItemId: Record<string, string>;
   zoomScale: number;
@@ -875,10 +773,6 @@ const previewConnectionPoint = ref<PreviewConnectionPoint | null>(null);
 const hoveredCell = ref<HoveredCellState>({ rowId: null, date: null });
 const cellSelectionAnchor = ref<GridCellSelectionPoint | null>(null);
 const cellSelectionFocus = ref<GridCellSelectionPoint | null>(null);
-const executionCompareOffsets = ref<Record<string, number>>({});
-const executionCompareDragState = ref<ExecutionCompareDragState | null>(null);
-const executionProgressCompletedDayIndexesByItemId = ref<Record<string, number[]>>({});
-const hoveredExecutionProgress = ref<HoveredExecutionProgressState | null>(null);
 const renameEditorRef = ref<HTMLElement | null>(null);
 const milestoneRenameEditorRef = ref<HTMLElement | null>(null);
 const renameDraft = ref("");
@@ -1011,78 +905,6 @@ const hoveredTimelineDay = computed(() =>
     : null,
 );
 const todayTimelineDay = computed(() => props.timeline.days.find((day) => day.isToday) ?? null);
-const executionCompareTodayX = computed(() =>
-  todayTimelineDay.value
-    ? todayTimelineDay.value.left + todayTimelineDay.value.width / 2
-    : null,
-);
-const executionCompareDraggableRows = computed(() =>
-  props.shellLayout.rows.filter(
-    (row) =>
-      (row.kind === "child-process" || row.kind === "parent-process") &&
-      !isReviewDeletedRow(row),
-  ),
-);
-const executionCompareRowSegments = computed(() => {
-  const todayX = executionCompareTodayX.value;
-
-  if (!props.executionCompareVisible || todayX === null) {
-    return [];
-  }
-
-  return executionCompareDraggableRows.value.map((row) => {
-    const inset = Math.min(6, Math.max(row.height / 4, 2));
-    const x = getExecutionCompareRowX(row.id);
-
-    return {
-      rowId: row.id,
-      label: `${row.name} 시행 비교선 위치 조정`,
-      x,
-      top: row.top + inset,
-      bottom: row.top + row.height - inset,
-      centerY: row.top + row.height / 2,
-      isAdjusted: Math.abs(x - todayX) >= 0.5,
-    };
-  });
-});
-const executionComparePath = computed(() => {
-  const todayX = executionCompareTodayX.value;
-
-  if (!props.executionCompareVisible || todayX === null) {
-    return null;
-  }
-
-  const baselineX = clampExecutionCompareX(todayX);
-  const segments = [`M ${baselineX} 0`];
-  let currentX = baselineX;
-  let previousBottom = 0;
-
-  executionCompareDraggableRows.value
-    .slice()
-    .sort((firstRow, secondRow) => firstRow.top - secondRow.top)
-    .forEach((row) => {
-      const rowX = getExecutionCompareRowX(row.id);
-      const top = Math.max(row.top, 0);
-      const bottom = Math.min(row.top + row.height, props.shellLayout.chartHeight);
-
-      if (top > previousBottom + 0.5 && Math.abs(currentX - baselineX) >= 0.5) {
-        segments.push(`L ${currentX} ${previousBottom}`, `L ${baselineX} ${previousBottom}`);
-        currentX = baselineX;
-      }
-
-      segments.push(`L ${currentX} ${top}`);
-
-      if (Math.abs(rowX - currentX) >= 0.5) {
-        segments.push(`L ${rowX} ${top}`);
-      }
-
-      segments.push(`L ${rowX} ${bottom}`);
-      currentX = rowX;
-      previousBottom = bottom;
-    });
-
-  return segments.join(" ");
-});
 const cellSelectionRangeStyle = computed(() => {
   if (!cellSelectionAnchor.value || !cellSelectionFocus.value) {
     return null;
@@ -1294,266 +1116,26 @@ function syncContainerScrollFromProps() {
   });
 }
 
-function clampExecutionCompareX(value: number) {
-  return Math.min(Math.max(value, 0), props.timeline.chartWidth);
+function diffActualDateToDayIndex(bar: DesktopScheduleBarLayout, date: string) {
+  const [barYear, barMonth, barDay] = bar.startDate.split("-").map(Number);
+  const [year, month, day] = date.split("-").map(Number);
+  const start = new Date(barYear ?? 1970, (barMonth ?? 1) - 1, barDay ?? 1);
+  const target = new Date(year ?? 1970, (month ?? 1) - 1, day ?? 1);
+  start.setHours(0, 0, 0, 0);
+  target.setHours(0, 0, 0, 0);
+  return Math.round((target.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
 }
 
-function snapExecutionCompareXToGrid(value: number) {
-  const clampedX = clampExecutionCompareX(value);
-
-  if (props.timeline.days.length === 0) {
-    return clampedX;
+function getExecutionProgressCompletedDayIndexSet(bar: DesktopScheduleBarLayout) {
+  const indexes = new Set<number>();
+  for (const date of bar.actualDates ?? []) {
+    indexes.add(diffActualDateToDayIndex(bar, date));
   }
-
-  const gridEdges = [
-    ...props.timeline.days.map((day) => day.left),
-    props.timeline.days[props.timeline.days.length - 1]!.left +
-      props.timeline.days[props.timeline.days.length - 1]!.width,
-  ];
-  const todayCenterX = executionCompareTodayX.value;
-  const snapPoints = todayCenterX === null ? gridEdges : [...gridEdges, todayCenterX];
-
-  return snapPoints.reduce((nearestX, snapX) => {
-    return Math.abs(snapX - clampedX) < Math.abs(nearestX - clampedX)
-      ? snapX
-      : nearestX;
-  }, snapPoints[0]!);
-}
-
-function getExecutionCompareRowX(rowId: string) {
-  return clampExecutionCompareX(
-    executionCompareOffsets.value[rowId] ?? executionCompareTodayX.value ?? 0,
-  );
-}
-
-function getExecutionComparePointerX(event: PointerEvent) {
-  const element = containerRef.value;
-
-  if (!element) {
-    return null;
-  }
-
-  const rect = element.getBoundingClientRect();
-  return event.clientX - rect.left + element.scrollLeft;
-}
-
-function updateExecutionCompareOffset(rowId: string, event: PointerEvent) {
-  const pointerX = getExecutionComparePointerX(event);
-  const todayX = executionCompareTodayX.value;
-
-  if (pointerX === null || todayX === null) {
-    return;
-  }
-
-  const nextX = snapExecutionCompareXToGrid(pointerX);
-  const resetThreshold = Math.max(props.timeline.dayWidth * 0.25, 6);
-  const nextOffsets = { ...executionCompareOffsets.value };
-
-  if (Math.abs(nextX - todayX) <= resetThreshold) {
-    delete nextOffsets[rowId];
-  } else {
-    nextOffsets[rowId] = nextX;
-  }
-
-  executionCompareOffsets.value = nextOffsets;
-}
-
-function normalizeExecutionCompareOffsetStorageValue(value: unknown) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return {};
-  }
-
-  return Object.entries(value).reduce<Record<string, number>>((offsetsByRowId, [rowId, dayOffset]) => {
-    if (typeof dayOffset !== "number" || !Number.isFinite(dayOffset)) {
-      return offsetsByRowId;
-    }
-
-    offsetsByRowId[rowId] = dayOffset;
-    return offsetsByRowId;
-  }, {});
-}
-
-function loadExecutionCompareOffsetsFromStorage() {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  try {
-    const storedValue = window.localStorage.getItem(props.executionCompareStorageKey);
-    const storedOffsets = storedValue
-      ? normalizeExecutionCompareOffsetStorageValue(JSON.parse(storedValue))
-      : {};
-    const todayX = executionCompareTodayX.value;
-
-    if (todayX === null) {
-      executionCompareOffsets.value = {};
-      return;
-    }
-
-    executionCompareOffsets.value = Object.entries(storedOffsets).reduce<Record<string, number>>(
-      (offsetsByRowId, [rowId, dayOffset]) => {
-        offsetsByRowId[rowId] = clampExecutionCompareX(
-          todayX + dayOffset * props.timeline.dayWidth,
-        );
-        return offsetsByRowId;
-      },
-      {},
-    );
-  } catch {
-    executionCompareOffsets.value = {};
-  }
-}
-
-function saveExecutionCompareOffsetsToStorage(offsetsByRowId: Record<string, number>) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  const todayX = executionCompareTodayX.value;
-
-  if (todayX === null || props.timeline.dayWidth <= 0) {
-    return;
-  }
-
-  const serializableOffsets = Object.entries(offsetsByRowId).reduce<Record<string, number>>(
-    (storedOffsets, [rowId, x]) => {
-      storedOffsets[rowId] = Math.round(((x - todayX) / props.timeline.dayWidth) * 1000) / 1000;
-      return storedOffsets;
-    },
-    {},
-  );
-
-  try {
-    window.localStorage.setItem(
-      props.executionCompareStorageKey,
-      JSON.stringify(serializableOffsets),
-    );
-  } catch {
-    // Ignore localStorage write failures; offsets remain available in-memory.
-  }
-}
-
-function startExecutionCompareDrag(rowId: string, event: PointerEvent) {
-  if (!props.executionCompareVisible) {
-    return;
-  }
-
-  const target = event.currentTarget;
-  if (target instanceof Element) {
-    target.setPointerCapture(event.pointerId);
-  }
-
-  executionCompareDragState.value = {
-    rowId,
-    pointerId: event.pointerId,
-  };
-  updateExecutionCompareOffset(rowId, event);
-}
-
-function handleExecutionComparePointerMove(event: PointerEvent) {
-  const dragState = executionCompareDragState.value;
-
-  if (!dragState || dragState.pointerId !== event.pointerId) {
-    return;
-  }
-
-  updateExecutionCompareOffset(dragState.rowId, event);
-}
-
-function endExecutionCompareDrag(event: PointerEvent) {
-  const dragState = executionCompareDragState.value;
-
-  if (!dragState || dragState.pointerId !== event.pointerId) {
-    return;
-  }
-
-  const target = event.currentTarget;
-  if (target instanceof Element && target.hasPointerCapture(event.pointerId)) {
-    target.releasePointerCapture(event.pointerId);
-  }
-
-  executionCompareDragState.value = null;
-}
-
-function isExecutionProgressItemBar(bar: DesktopScheduleBarLayout) {
-  return props.executionProgressCompareVisible && bar.kind === "item";
-}
-
-function getExecutionProgressCompletedDayIndexSet(itemId: string) {
-  return new Set(executionProgressCompletedDayIndexesByItemId.value[itemId] ?? []);
-}
-
-function getExecutionProgressDayIndexFromPointer(
-  bar: DesktopScheduleBarLayout,
-  event: PointerEvent,
-) {
-  const element = containerRef.value;
-
-  if (!(element instanceof HTMLElement)) {
-    return null;
-  }
-
-  const rect = element.getBoundingClientRect();
-  const pointerChartX = event.clientX - rect.left + element.scrollLeft;
-  const maxDayIndex = Math.max(Math.ceil(bar.width / props.timeline.dayWidth) + 2, 0);
-  const dayIndex = Math.floor((pointerChartX - bar.left) / props.timeline.dayWidth);
-
-  return Math.min(Math.max(dayIndex, -3), maxDayIndex);
-}
-
-function handleExecutionProgressBarPointerMove(
-  bar: DesktopScheduleBarLayout,
-  event: PointerEvent,
-) {
-  if (!isExecutionProgressItemBar(bar)) {
-    return;
-  }
-
-  const dayIndex = getExecutionProgressDayIndexFromPointer(bar, event);
-
-  if (dayIndex === null) {
-    return;
-  }
-
-  hoveredExecutionProgress.value = {
-    itemId: bar.itemId,
-    dayIndex,
-  };
-}
-
-function commitExecutionProgressFromPointer(bar: DesktopScheduleBarLayout, event: PointerEvent) {
-  const dayIndex = getExecutionProgressDayIndexFromPointer(bar, event);
-
-  if (dayIndex === null) {
-    return;
-  }
-
-  const completedDayIndexes = getExecutionProgressCompletedDayIndexSet(bar.itemId);
-
-  if (completedDayIndexes.has(dayIndex)) {
-    completedDayIndexes.delete(dayIndex);
-  } else {
-    completedDayIndexes.add(dayIndex);
-  }
-
-  executionProgressCompletedDayIndexesByItemId.value = {
-    ...executionProgressCompletedDayIndexesByItemId.value,
-    [bar.itemId]: Array.from(completedDayIndexes).sort((first, second) => first - second),
-  };
-  hoveredExecutionProgress.value = {
-    itemId: bar.itemId,
-    dayIndex,
-  };
-}
-
-function getExecutionProgressPreviewDayIndex(bar: DesktopScheduleBarLayout) {
-  return hoveredExecutionProgress.value?.itemId === bar.itemId
-    ? hoveredExecutionProgress.value.dayIndex
-    : null;
+  return indexes;
 }
 
 function getExecutionProgressTone(bar: DesktopScheduleBarLayout): "green" | "yellow" | "red" {
-  const completedDayIndexes = getExecutionProgressCompletedDayIndexSet(bar.itemId);
+  const completedDayIndexes = getExecutionProgressCompletedDayIndexSet(bar);
   if (completedDayIndexes.size === 0) {
     return "green";
   }
@@ -1571,6 +1153,9 @@ function getExecutionProgressTone(bar: DesktopScheduleBarLayout): "green" | "yel
   if (span > plannedDayCount) {
     return "red";
   }
+  if (minDayIndex >= 3) {
+    return "red";
+  }
   if (minDayIndex > 0) {
     return "yellow";
   }
@@ -1578,8 +1163,7 @@ function getExecutionProgressTone(bar: DesktopScheduleBarLayout): "green" | "yel
 }
 
 function getExecutionProgressPlanSegments(bar: DesktopScheduleBarLayout) {
-  const completedDayIndexes = getExecutionProgressCompletedDayIndexSet(bar.itemId);
-  const previewDayIndex = getExecutionProgressPreviewDayIndex(bar);
+  const completedDayIndexes = getExecutionProgressCompletedDayIndexSet(bar);
 
   return props.timeline.days
     .map((day) => {
@@ -1598,7 +1182,7 @@ function getExecutionProgressPlanSegments(bar: DesktopScheduleBarLayout) {
         left: segmentOffsetLeft,
         width: segmentRight - segmentLeft,
         done: completedDayIndexes.has(dayIndex),
-        preview: previewDayIndex === dayIndex && !completedDayIndexes.has(dayIndex),
+        preview: false,
         touchesStart: segmentOffsetLeft <= 0.5,
         touchesEnd: segmentRight >= bar.left + bar.width - 0.5,
       };
@@ -1607,20 +1191,13 @@ function getExecutionProgressPlanSegments(bar: DesktopScheduleBarLayout) {
 }
 
 function getExecutionProgressUnderflowSegments(bar: DesktopScheduleBarLayout) {
-  const completedDayIndexes = getExecutionProgressCompletedDayIndexSet(bar.itemId);
-  const previewDayIndex = getExecutionProgressPreviewDayIndex(bar);
-  const underflowDayIndexes = new Set(
-    Array.from(completedDayIndexes).filter((dayIndex) => dayIndex < 0),
-  );
-
-  if (previewDayIndex !== null && previewDayIndex < 0) {
-    underflowDayIndexes.add(previewDayIndex);
-  }
-
-  const sortedDayIndexes = Array.from(underflowDayIndexes).sort((first, second) => first - second);
+  const completedDayIndexes = getExecutionProgressCompletedDayIndexSet(bar);
+  const underflowDayIndexes = Array.from(completedDayIndexes)
+    .filter((dayIndex) => dayIndex < 0)
+    .sort((first, second) => first - second);
   const segments: Array<{ start: number; end: number }> = [];
 
-  sortedDayIndexes.forEach((dayIndex) => {
+  underflowDayIndexes.forEach((dayIndex) => {
     const lastSegment = segments[segments.length - 1];
 
     if (lastSegment && dayIndex === lastSegment.end + 1) {
@@ -1635,11 +1212,7 @@ function getExecutionProgressUnderflowSegments(bar: DesktopScheduleBarLayout) {
     key: `${bar.itemId}:underflow:${segment.start}-${segment.end}`,
     left: segment.start * props.timeline.dayWidth,
     width: (segment.end - segment.start + 1) * props.timeline.dayWidth,
-    preview:
-      previewDayIndex !== null &&
-      previewDayIndex >= segment.start &&
-      previewDayIndex <= segment.end &&
-      !completedDayIndexes.has(previewDayIndex),
+    preview: false,
   }));
 }
 
@@ -1659,21 +1232,14 @@ function getExecutionProgressUnderflowOutline(bar: DesktopScheduleBarLayout) {
 }
 
 function getExecutionProgressOverflowSegments(bar: DesktopScheduleBarLayout) {
-  const completedDayIndexes = getExecutionProgressCompletedDayIndexSet(bar.itemId);
-  const previewDayIndex = getExecutionProgressPreviewDayIndex(bar);
+  const completedDayIndexes = getExecutionProgressCompletedDayIndexSet(bar);
   const plannedDayCount = Math.ceil(bar.width / props.timeline.dayWidth);
-  const overflowDayIndexes = new Set(
-    Array.from(completedDayIndexes).filter((dayIndex) => dayIndex >= plannedDayCount),
-  );
-
-  if (previewDayIndex !== null && previewDayIndex >= plannedDayCount) {
-    overflowDayIndexes.add(previewDayIndex);
-  }
-
-  const sortedDayIndexes = Array.from(overflowDayIndexes).sort((first, second) => first - second);
+  const overflowDayIndexes = Array.from(completedDayIndexes)
+    .filter((dayIndex) => dayIndex >= plannedDayCount)
+    .sort((first, second) => first - second);
   const segments: Array<{ start: number; end: number }> = [];
 
-  sortedDayIndexes.forEach((dayIndex) => {
+  overflowDayIndexes.forEach((dayIndex) => {
     const lastSegment = segments[segments.length - 1];
 
     if (lastSegment && dayIndex === lastSegment.end + 1) {
@@ -1688,11 +1254,7 @@ function getExecutionProgressOverflowSegments(bar: DesktopScheduleBarLayout) {
     key: `${bar.itemId}:overflow:${segment.start}-${segment.end}`,
     left: segment.start * props.timeline.dayWidth,
     width: (segment.end - segment.start + 1) * props.timeline.dayWidth,
-    preview:
-      previewDayIndex !== null &&
-      previewDayIndex >= segment.start &&
-      previewDayIndex <= segment.end &&
-      !completedDayIndexes.has(previewDayIndex),
+    preview: false,
   }));
 }
 
@@ -1709,38 +1271,6 @@ function getExecutionProgressOverflowOutline(bar: DesktopScheduleBarLayout) {
     left: bar.width,
     width: right - bar.width,
   };
-}
-
-function getExecutionProgressGapSegments(bar: DesktopScheduleBarLayout) {
-  const completedDayIndexes = Array.from(getExecutionProgressCompletedDayIndexSet(bar.itemId))
-    .sort((first, second) => first - second);
-
-  if (completedDayIndexes.length < 2) {
-    return [];
-  }
-
-  const segments: Array<{ key: string; left: number; width: number; markCount: number }> = [];
-
-  for (let index = 0; index < completedDayIndexes.length - 1; index += 1) {
-    const currentDayIndex = completedDayIndexes[index]!;
-    const nextDayIndex = completedDayIndexes[index + 1]!;
-
-    if (nextDayIndex <= currentDayIndex + 1) {
-      continue;
-    }
-
-    const startDayIndex = currentDayIndex + 1;
-    const gapDayCount = nextDayIndex - currentDayIndex - 1;
-
-    segments.push({
-      key: `${bar.itemId}:gap:${startDayIndex}-${nextDayIndex - 1}`,
-      left: startDayIndex * props.timeline.dayWidth,
-      width: gapDayCount * props.timeline.dayWidth,
-      markCount: gapDayCount,
-    });
-  }
-
-  return segments;
 }
 
 function handleBarPointerDownWithExecutionProgress(
@@ -1761,124 +1291,14 @@ function handleBarPointerDownWithExecutionProgress(
     return;
   }
 
-  if (isExecutionProgressItemBar(bar)) {
-    event.preventDefault();
-    event.stopPropagation();
-    commitExecutionProgressFromPointer(bar, event);
-    return;
-  }
-
   handleBarPointerDown(bar, event);
 }
 
 function handleBarPointerLeaveWithExecutionProgress(bar: DesktopScheduleBarLayout) {
   handleBarPointerLeave(bar);
-
-  if (hoveredExecutionProgress.value?.itemId === bar.itemId) {
-    hoveredExecutionProgress.value = null;
-  }
-}
-
-function normalizeExecutionProgressStorageValue(value: unknown) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return {};
-  }
-
-  return Object.entries(value).reduce<Record<string, number[]>>(
-    (progressByItemId, [itemId, dayIndexes]) => {
-      if (typeof dayIndexes === "number" && Number.isFinite(dayIndexes) && dayIndexes > 0) {
-        progressByItemId[itemId] = Array.from(
-          { length: Math.round(dayIndexes) },
-          (_, index) => index,
-        );
-        return progressByItemId;
-      }
-
-      if (!Array.isArray(dayIndexes)) {
-        return progressByItemId;
-      }
-
-      progressByItemId[itemId] = Array.from(
-        new Set(
-          dayIndexes
-            .filter((dayIndex): dayIndex is number =>
-              typeof dayIndex === "number" && Number.isFinite(dayIndex),
-            )
-            .map((dayIndex) => Math.round(dayIndex)),
-        ),
-      ).sort((first, second) => first - second);
-      return progressByItemId;
-    },
-    {},
-  );
-}
-
-function loadExecutionProgressFromStorage() {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  try {
-    const storedValue = window.localStorage.getItem(props.executionProgressStorageKey);
-    executionProgressCompletedDayIndexesByItemId.value = storedValue
-      ? normalizeExecutionProgressStorageValue(JSON.parse(storedValue))
-      : {};
-  } catch {
-    executionProgressCompletedDayIndexesByItemId.value = {};
-  }
-}
-
-function saveExecutionProgressToStorage(progressByItemId: Record<string, number[]>) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  try {
-    window.localStorage.setItem(
-      props.executionProgressStorageKey,
-      JSON.stringify(progressByItemId),
-    );
-  } catch {
-    // Ignore localStorage write failures; progress remains available in-memory.
-  }
 }
 
 watch(() => [props.scrollTop, props.scrollLeft] as const, syncContainerScrollFromProps);
-
-watch(
-  () => [props.executionCompareStorageKey, executionCompareTodayX.value, props.timeline.dayWidth] as const,
-  loadExecutionCompareOffsetsFromStorage,
-  { immediate: true },
-);
-
-watch(
-  executionCompareOffsets,
-  (offsetsByRowId) => {
-    saveExecutionCompareOffsetsToStorage(offsetsByRowId);
-  },
-  { deep: true },
-);
-
-watch(() => props.executionProgressStorageKey, loadExecutionProgressFromStorage, {
-  immediate: true,
-});
-
-watch(
-  executionProgressCompletedDayIndexesByItemId,
-  (progressByItemId) => {
-    saveExecutionProgressToStorage(progressByItemId);
-  },
-  { deep: true },
-);
-
-watch(
-  () => props.executionCompareVisible,
-  (isVisible) => {
-    if (!isVisible) {
-      executionCompareDragState.value = null;
-    }
-  },
-);
 
 watch(
   () => props.connectionCreationState,

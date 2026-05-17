@@ -66,7 +66,7 @@ function mapWorkToSourceTask(
     zoneIds: [],
     floorIds: [],
     componentTypeIds: [],
-    progress: work.progress ?? null,
+    actualDates: work.actualDates ? [...work.actualDates] : [],
   };
 }
 

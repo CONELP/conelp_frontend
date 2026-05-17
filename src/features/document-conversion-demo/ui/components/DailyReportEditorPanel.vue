@@ -6,9 +6,19 @@ import { actualWorkApi } from "@/features/document-conversion-demo/api/actual-wo
 import type { ActualWorkResponse } from "@/features/document-conversion-demo/api/actual-work-api.types";
 import { materialInspectionRequestApi } from "@/features/document-conversion-demo/api/material-inspection-request.api";
 import type { WorkTypeReferenceResponse } from "@/features/document-conversion-demo/api/material-inspection-request-api.types";
+import { useDesktopScheduleViewModel } from "@/features/desktop-schedule/state/useDesktopScheduleViewModel";
+
+const { patchLoadedWorkActualDates } = useDesktopScheduleViewModel();
+
+function applyActualWorkAffectedWorks(response: ActualWorkResponse) {
+  if (response.affectedWorks?.length) {
+    patchLoadedWorkActualDates(response.affectedWorks);
+  }
+}
 
 type DailyReportWorkSection = "today" | "tomorrow";
 type DailyReportEditorTabId =
+  | "summary"
   | "todayWork"
   | "tomorrowWork"
   | "labor"
@@ -30,11 +40,12 @@ type DailyReportResourceColumnConfig = {
 };
 
 const DAILY_REPORT_EDITOR_TABS: DailyReportEditorTab[] = [
-  { id: "todayWork", label: "오늘작업" },
-  { id: "tomorrowWork", label: "내일작업" },
-  { id: "labor", label: "인력투입" },
-  { id: "material", label: "자재투입" },
-  { id: "equipment", label: "장비투입" },
+  { id: "summary", label: "요약" },
+  { id: "todayWork", label: "오늘" },
+  { id: "tomorrowWork", label: "내일" },
+  { id: "labor", label: "인력" },
+  { id: "material", label: "자재" },
+  { id: "equipment", label: "장비" },
 ];
 
 const HOMEPAGE_IMPORT_MIN_DURATION_MS = 2500;
@@ -106,7 +117,6 @@ type DailyReportTaskDraft = {
   id: string;
   text: string;
   actualWorkId: number | null;
-  matchedWorkName: string | null;
   isSyncing: boolean;
   hasReceivedResponse: boolean;
 };
@@ -293,7 +303,6 @@ function createDailyReportTask(text = ""): DailyReportTaskDraft {
     id: createDailyReportId(),
     text,
     actualWorkId: null,
-    matchedWorkName: null,
     isSyncing: false,
     hasReceivedResponse: false,
   };
@@ -304,9 +313,8 @@ function createDailyReportTaskFromResponse(
 ): DailyReportTaskDraft {
   return {
     id: createDailyReportId(),
-    text: response.actualWorkName,
+    text: response.context,
     actualWorkId: response.id,
-    matchedWorkName: response.workName,
     isSyncing: false,
     hasReceivedResponse: true,
   };
@@ -990,7 +998,6 @@ function applyResponseToTask(
   response: ActualWorkResponse,
 ) {
   task.actualWorkId = response.id;
-  task.matchedWorkName = response.workName;
   task.hasReceivedResponse = true;
 }
 
@@ -1016,7 +1023,7 @@ async function syncTaskCreate(
     const response = await actualWorkApi.create({
       date: getSectionDate(section),
       workTypeId: workType.workTypeId,
-      workName: trimmedName,
+      context: trimmedName,
     });
 
     if (!isLatestSync(task.id, requestId)) {
@@ -1025,11 +1032,13 @@ async function syncTaskCreate(
 
     if (pendingTaskDeletes.has(task.id)) {
       pendingTaskDeletes.delete(task.id);
-      await actualWorkApi.delete(response.id);
+      const deleteResponse = await actualWorkApi.delete(response.id);
+      applyActualWorkAffectedWorks(deleteResponse);
       return;
     }
 
     applyResponseToTask(task, response);
+    applyActualWorkAffectedWorks(response);
   } catch (error) {
     console.error("createActualWork failed", error);
   } finally {
@@ -1041,7 +1050,7 @@ async function syncTaskCreate(
 
 async function syncTaskUpdate(
   task: DailyReportTaskDraft,
-  patch: { workTypeId?: number; workName?: string },
+  patch: { workTypeId?: number; context?: string },
 ) {
   if (task.actualWorkId === null) {
     return;
@@ -1049,7 +1058,7 @@ async function syncTaskUpdate(
 
   const body = {
     ...(typeof patch.workTypeId === "number" ? { workTypeId: patch.workTypeId } : {}),
-    ...(typeof patch.workName === "string" ? { workName: patch.workName } : {}),
+    ...(typeof patch.context === "string" ? { context: patch.context } : {}),
   };
 
   if (Object.keys(body).length === 0) {
@@ -1067,6 +1076,7 @@ async function syncTaskUpdate(
     }
 
     applyResponseToTask(task, response);
+    applyActualWorkAffectedWorks(response);
   } catch (error) {
     console.error("updateActualWork failed", error);
   } finally {
@@ -1083,7 +1093,8 @@ async function syncTaskDelete(task: DailyReportTaskDraft) {
   }
 
   try {
-    await actualWorkApi.delete(task.actualWorkId);
+    const response = await actualWorkApi.delete(task.actualWorkId);
+    applyActualWorkAffectedWorks(response);
   } catch (error) {
     console.error("deleteActualWork failed", error);
   }
@@ -1150,7 +1161,7 @@ async function handleTaskBlur(
     return;
   }
 
-  await syncTaskUpdate(task, { workName: trimmedName });
+  await syncTaskUpdate(task, { context: trimmedName });
 }
 
 function createSuggestionState(): DailyReportWorkTypeSuggestionState {
@@ -1875,6 +1886,14 @@ onUnmounted(() => {
     </nav>
 
     <div class="daily-report-write-panel__content">
+      <div
+        v-show="activeDailyReportTab === 'summary'"
+        id="daily-report-panel-summary"
+        class="daily-report-tab-panel"
+        role="tabpanel"
+        aria-labelledby="daily-report-tab-summary"
+      >
+      </div>
       <div
         v-show="activeDailyReportTab === 'todayWork'"
         id="daily-report-panel-todayWork"

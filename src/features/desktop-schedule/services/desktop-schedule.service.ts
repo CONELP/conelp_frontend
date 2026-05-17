@@ -89,6 +89,7 @@ interface RowBarDraft {
   endDate: string;
   durationDays: number;
   appearance: DesktopScheduleItem["appearance"];
+  actualDates: string[];
 }
 
 export const DESKTOP_SCHEDULE_TIMELINE_ZOOM_LEVELS = [
@@ -858,7 +859,7 @@ function buildItems(tasks: DesktopScheduleSourceTask[]): DesktopScheduleItem[] {
     zoneIds: task.zoneIds ? [...task.zoneIds] : [],
     floorIds: task.floorIds ? [...task.floorIds] : [],
     componentTypeIds: task.componentTypeIds ? [...task.componentTypeIds] : [],
-    progress: task.progress ?? null,
+    actualDates: task.actualDates ? [...task.actualDates] : [],
   }));
 }
 
@@ -1145,6 +1146,7 @@ function buildShellLayout(
         endDate: item.endDate,
         durationDays: item.durationDays,
         appearance: item.appearance,
+        actualDates: item.actualDates ? [...item.actualDates] : [],
       };
     }
 
@@ -1355,6 +1357,7 @@ function buildShellLayout(
       endDate: draft.endDate,
       durationDays: draft.durationDays,
       appearance: draft.appearance,
+      actualDates: draft.actualDates ? [...draft.actualDates] : [],
     }));
   });
 
@@ -1414,7 +1417,7 @@ function buildProgressLines(
 
     const rowItems = itemsByRow.get(row.id) ?? [];
     const eligible = rowItems.filter(
-      (item) => typeof item.progress === "number" && (item.progress ?? 0) > 0,
+      (item) => Array.isArray(item.actualDates) && item.actualDates.length > 0,
     );
 
     if (eligible.length === 0) {
@@ -1432,7 +1435,8 @@ function buildProgressLines(
       return candidate.workId > best.workId ? candidate : best;
     });
 
-    const progressDate = shiftDateString(latest.startDate, (latest.progress ?? 1) - 1);
+    const latestActualDates = latest.actualDates ?? [];
+    const progressDate = latestActualDates[latestActualDates.length - 1] ?? latest.startDate;
     const progressCell = dayByDate.get(progressDate);
 
     if (!progressCell) {

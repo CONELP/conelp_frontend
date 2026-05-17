@@ -68,7 +68,7 @@ export const actualWorkApi = {
   // DELETE /api/actualWork/deleteActualWork/{id}
   async delete(id: number) {
     await ensureSelectedProjectId();
-    return apiFetch<void>(`/actualWork/deleteActualWork/${id}`, {
+    return apiFetch<ActualWorkResponse>(`/actualWork/deleteActualWork/${id}`, {
       method: "DELETE",
     });
   },
