@@ -5,7 +5,6 @@
     <main class="ai-agent-list">
       <header class="ai-agent-list__hero">
         <div class="ai-agent-list__hero-text">
-          <p class="ai-agent-list__eyebrow">{{ copy.pageEyebrow }}</p>
           <h1 class="ai-agent-list__title">{{ copy.pageTitle }}</h1>
         </div>
 
