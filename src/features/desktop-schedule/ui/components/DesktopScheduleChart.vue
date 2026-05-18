@@ -107,7 +107,7 @@ defineProps<{
 }>();
 
 function getBarStyle(bar: DesktopScheduleBarLayout) {
-  const baseColor = bar.kind === "summary" ? "#111111" : bar.colorHex ?? "#1e1888";
+  const baseColor = bar.kind === "summary" ? "#111111" : bar.colorHex ?? "#9ca3af";
 
   return {
     left: `${bar.left}px`,

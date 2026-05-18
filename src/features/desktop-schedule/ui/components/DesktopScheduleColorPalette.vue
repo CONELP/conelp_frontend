@@ -8,6 +8,14 @@
     >
       <div class="schedule-color-palette__grid" aria-label="색상 팔레트">
         <button
+          type="button"
+          class="schedule-color-palette__swatch schedule-color-palette__swatch--clear"
+          :class="{ 'schedule-color-palette__swatch--selected': selectedColor === null }"
+          aria-label="색 지우기"
+          title="색 지우기"
+          @click="emit('select', null)"
+        />
+        <button
           v-for="color in paletteColors"
           :key="color.value"
           type="button"
@@ -35,7 +43,6 @@ const VIEWPORT_MARGIN = 12;
 
 const paletteColors = [
   { label: "Slate", value: "#64748b" },
-  { label: "Stone", value: "#78716c" },
   { label: "Red", value: "#ef4444" },
   { label: "Rose", value: "#f43f5e" },
   { label: "Pink", value: "#ec4899" },

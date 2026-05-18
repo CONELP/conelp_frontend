@@ -207,6 +207,7 @@ type ScheduleVersionReviewSummaryCache = {
 const DEFAULT_DIVISION_NAME = "분류 (건축공사)";
 const DEFAULT_WORK_TYPE_NAME = "공종명 (철콘공사)";
 const DEFAULT_SUB_WORK_TYPE_NAME = "세부공종명 (타설)";
+const DEFAULT_SUB_WORK_TYPE_COLOR_HEX = "#9ca3af";
 const DEFAULT_ROW_PANEL_WIDTH = 220;
 const DEFAULT_WORK_TYPE_COLUMN_WIDTH = 110;
 const DEFAULT_NEW_WORK_LEAD_TIME = 3;
@@ -5167,6 +5168,11 @@ function createDesktopScheduleViewModel() {
       return undefined;
     }
 
+    const directMatch = hierarchy.find((item) => item.subWorkTypeId === subWorkTypeId);
+    if (directMatch) {
+      return directMatch;
+    }
+
     if (subWorkTypeId < 0) {
       // service.buildRows 에서 workType-only placeholder 에 `-workTypeId` 음수 임시 id 를 부여한다.
       // hierarchy 에는 여전히 subWorkTypeId=0 으로 저장되어 있으므로 workTypeId 로 역추적한다.
@@ -5176,7 +5182,7 @@ function createDesktopScheduleViewModel() {
       );
     }
 
-    return hierarchy.find((item) => item.subWorkTypeId === subWorkTypeId);
+    return undefined;
   }
 
   function startSubWorkTypeRename(subWorkTypeId: number) {
@@ -5239,7 +5245,7 @@ function createDesktopScheduleViewModel() {
             scheduleVersionId: getRequiredScheduleVersionIdForReferenceMutation(),
             workTypeId: targetHierarchyItem.workTypeId,
             name: nextName,
-            color: targetHierarchyItem.subWorkTypeColor ?? null,
+            color: targetHierarchyItem.subWorkTypeColor ?? DEFAULT_SUB_WORK_TYPE_COLOR_HEX,
           });
           replaceReferenceSubWorkTypeId(payload.subWorkTypeId, subWorkType);
         },
@@ -5698,14 +5704,15 @@ function createDesktopScheduleViewModel() {
     if (target.kind === "row") {
       const targetRow = rowById.value.get(target.rowId);
       const subWorkTypeId = targetRow?.source.subWorkTypeId ?? null;
+      const effectiveColor = colorHex ?? DEFAULT_SUB_WORK_TYPE_COLOR_HEX;
 
       workingRows.value = desktopScheduleService.updateRowColor(
         workingRows.value,
         target.rowId,
-        colorHex,
+        effectiveColor,
       );
       if (typeof subWorkTypeId === "number" && subWorkTypeId > 0) {
-        syncLoadedSubWorkTypeColor(subWorkTypeId, colorHex);
+        syncLoadedSubWorkTypeColor(subWorkTypeId, effectiveColor);
       }
       selectionState.value = {
         ...createEmptyDesktopScheduleSelectionState(),
@@ -5718,7 +5725,7 @@ function createDesktopScheduleViewModel() {
             await desktopScheduleApi.updateSubWorkType({
             scheduleVersionId: getRequiredScheduleVersionIdForReferenceMutation(),
               id: subWorkTypeId,
-              color: colorHex,
+              color: effectiveColor,
             });
           },
           "세부공종 색상을 저장하지 못했습니다.",

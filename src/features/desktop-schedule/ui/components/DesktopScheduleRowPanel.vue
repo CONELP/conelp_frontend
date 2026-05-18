@@ -52,6 +52,11 @@ const DEFAULT_WORK_TYPE_NAME = "공종명 (철콘공사)";
 const DEFAULT_DIVISION_NAMES = new Set([DEFAULT_DIVISION_NAME, DEFAULT_DIVISION_NAME_NEXT]);
 const DEFAULT_WORK_TYPE_NAMES = new Set([DEFAULT_WORK_TYPE_NAME]);
 const DEFAULT_SUB_WORK_TYPE_NAMES = new Set(["세부공종명 (철근)", "세부공종명 (타설)"]);
+const DEFAULT_SUB_WORK_TYPE_COLOR_HEX = "#9ca3af";
+
+function isDefaultSubWorkTypeColor(colorHex: string | null | undefined) {
+  return typeof colorHex === "string" && colorHex.toLowerCase() === DEFAULT_SUB_WORK_TYPE_COLOR_HEX;
+}
 
 const DIVISION_HINT_TEXT = "건축공사";
 const WORK_TYPE_HINT_TEXT = "철콘공사";
@@ -334,7 +339,7 @@ function getRowInlineStyle(row: DesktopScheduleShellRow) {
   };
   const dragState = referenceDragState.value;
 
-  if (row.kind === "child-process" && row.colorHex) {
+  if (row.kind === "child-process" && row.colorHex && !isDefaultSubWorkTypeColor(row.colorHex)) {
     style["--schedule-row-color-soft"] = toAlphaColor(row.colorHex, 0.16);
   }
 
@@ -366,7 +371,7 @@ function getWorkTypeDragPreviewSubRowStyle(entry: RowPanelEntry, group: WorkType
     height: `${entry.row.height}px`,
   };
 
-  if (entry.row.colorHex) {
+  if (entry.row.colorHex && !isDefaultSubWorkTypeColor(entry.row.colorHex)) {
     style["--schedule-row-color-soft"] = toAlphaColor(entry.row.colorHex, 0.16);
   }
 
