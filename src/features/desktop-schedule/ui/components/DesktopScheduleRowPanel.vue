@@ -44,6 +44,13 @@ type ReferenceDragState =
       workTypeId: number;
       startClientY: number;
       currentClientY: number;
+    }
+  | {
+      kind: "sub-work-type";
+      workTypeId: number;
+      subWorkTypeId: number;
+      startClientY: number;
+      currentClientY: number;
     };
 
 const DEFAULT_DIVISION_NAME = "분류 (건축)";
@@ -95,6 +102,7 @@ const emit = defineEmits<{
   "cancel-sub-work-type-rename": [];
   "reorder-divisions": [payload: { divisionIds: number[] }];
   "reorder-work-types": [payload: { divisionId: number; workTypeIds: number[] }];
+  "reorder-sub-work-types": [payload: { workTypeId: number; subWorkTypeIds: number[] }];
   "work-type-column-width-change": [width: number];
   "header-context-menu": [
     payload: {
@@ -267,9 +275,21 @@ const referenceDropIndicatorStyle = computed(() => {
     };
   }
 
-  const groups = getDraggableWorkTypeGroups(dragState.divisionId);
-  const dropIndex = getWorkTypeDropIndex(groups, contentY);
-  const indicatorTop = getDropIndicatorTop(groups, dropIndex);
+  if (dragState.kind === "work-type") {
+    const groups = getDraggableWorkTypeGroups(dragState.divisionId);
+    const dropIndex = getWorkTypeDropIndex(groups, contentY);
+    const indicatorTop = getDropIndicatorTop(groups, dropIndex);
+
+    return {
+      top: `${indicatorTop}px`,
+      left: "0",
+      width: "100%",
+    };
+  }
+
+  const subEntries = getDraggableSubWorkTypeEntries(dragState.workTypeId);
+  const dropIndex = getSubWorkTypeDropIndex(subEntries, contentY);
+  const indicatorTop = getDropIndicatorTop(subEntries, dropIndex);
 
   return {
     top: `${indicatorTop}px`,
@@ -303,6 +323,33 @@ const activeWorkTypeDragPreview = computed(() => {
     style: {
       top: `${group.top}px`,
       height: `${group.height}px`,
+      transform: `translateY(${dragState.currentClientY - dragState.startClientY}px)`,
+    },
+  };
+});
+
+const activeSubWorkTypeDragPreview = computed(() => {
+  const dragState = referenceDragState.value;
+
+  if (dragState?.kind !== "sub-work-type") {
+    return null;
+  }
+
+  const entry = panelEntries.value.find(
+    (panelEntry) =>
+      panelEntry.row.kind === "child-process" &&
+      panelEntry.row.subWorkTypeId === dragState.subWorkTypeId,
+  );
+
+  if (!entry) {
+    return null;
+  }
+
+  return {
+    entry,
+    style: {
+      top: `${entry.row.top}px`,
+      height: `${entry.row.height}px`,
       transform: `translateY(${dragState.currentClientY - dragState.startClientY}px)`,
     },
   };
@@ -625,6 +672,42 @@ function getDraggableWorkTypeGroups(divisionId: number) {
   );
 }
 
+type DraggableSubWorkTypeEntry = {
+  subWorkTypeId: number;
+  top: number;
+  height: number;
+};
+
+function getDraggableSubWorkTypeEntries(workTypeId: number): DraggableSubWorkTypeEntry[] {
+  const result: DraggableSubWorkTypeEntry[] = [];
+  for (const entry of panelEntries.value) {
+    const row = entry.row;
+    if (row.kind !== "child-process" || isReviewDeletedRow(row)) {
+      continue;
+    }
+    if (row.workTypeId !== workTypeId) {
+      continue;
+    }
+    if (
+      row.subWorkTypeId === null ||
+      row.subWorkTypeId === undefined ||
+      row.subWorkTypeId <= 0
+    ) {
+      continue;
+    }
+    result.push({
+      subWorkTypeId: row.subWorkTypeId,
+      top: row.top,
+      height: row.height,
+    });
+  }
+  return result;
+}
+
+function getSubWorkTypeDropIndex(entries: DraggableSubWorkTypeEntry[], contentY: number) {
+  return getDropIndex(entries, contentY);
+}
+
 function getDivisionDropIndex(groups: Array<DivisionGroupEntry & { divisionId: number }>, contentY: number) {
   const nextIndex = groups.findIndex((group) => contentY < group.top + group.headerHeight / 2);
   if (nextIndex >= 0) {
@@ -803,18 +886,36 @@ function handleReferenceDragPointerUp(event: PointerEvent) {
     return;
   }
 
-  const groups = getDraggableWorkTypeGroups(dragState.divisionId);
-  const previousIds = groups.map((group) => group.workTypeId);
-  const nextIds = moveIdToDropIndex(
-    previousIds,
-    dragState.workTypeId,
-    getWorkTypeDropIndex(groups, contentY),
+  if (dragState.kind === "work-type") {
+    const groups = getDraggableWorkTypeGroups(dragState.divisionId);
+    const previousIds = groups.map((group) => group.workTypeId);
+    const nextIds = moveIdToDropIndex(
+      previousIds,
+      dragState.workTypeId,
+      getWorkTypeDropIndex(groups, contentY),
+    );
+
+    if (hasOrderChanged(previousIds, nextIds)) {
+      emit("reorder-work-types", {
+        divisionId: dragState.divisionId,
+        workTypeIds: nextIds,
+      });
+    }
+    return;
+  }
+
+  const subEntries = getDraggableSubWorkTypeEntries(dragState.workTypeId);
+  const previousSubIds = subEntries.map((entry) => entry.subWorkTypeId);
+  const nextSubIds = moveIdToDropIndex(
+    previousSubIds,
+    dragState.subWorkTypeId,
+    getSubWorkTypeDropIndex(subEntries, contentY),
   );
 
-  if (hasOrderChanged(previousIds, nextIds)) {
-    emit("reorder-work-types", {
-      divisionId: dragState.divisionId,
-      workTypeIds: nextIds,
+  if (hasOrderChanged(previousSubIds, nextSubIds)) {
+    emit("reorder-sub-work-types", {
+      workTypeId: dragState.workTypeId,
+      subWorkTypeIds: nextSubIds,
     });
   }
 }
@@ -833,6 +934,42 @@ function startDivisionDrag(row: DesktopScheduleShellRow, event: PointerEvent) {
   referenceDragState.value = {
     kind: "division",
     divisionId: row.divisionId,
+    startClientY: event.clientY,
+    currentClientY: event.clientY,
+  };
+  document.addEventListener(
+    "pointermove",
+    handleReferenceDragPointerMove,
+    REFERENCE_DRAG_LISTENER_OPTIONS,
+  );
+  document.addEventListener(
+    "pointerup",
+    handleReferenceDragPointerUp,
+    REFERENCE_DRAG_LISTENER_OPTIONS,
+  );
+}
+
+function startSubWorkTypeDrag(row: DesktopScheduleShellRow, event: PointerEvent) {
+  if (props.readOnly || isReviewDeletedRow(row)) {
+    return;
+  }
+
+  if (
+    event.button !== 0 ||
+    !row.workTypeId ||
+    row.workTypeId < 0 ||
+    !row.subWorkTypeId ||
+    row.subWorkTypeId < 0
+  ) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  referenceDragState.value = {
+    kind: "sub-work-type",
+    workTypeId: row.workTypeId,
+    subWorkTypeId: row.subWorkTypeId,
     startClientY: event.clientY,
     currentClientY: event.clientY,
   };
@@ -1130,6 +1267,10 @@ function handleSubWorkTypeRenameEscape() {
             entry.row.kind === 'child-process' &&
             referenceDragState?.kind === 'work-type' &&
             referenceDragState.workTypeId === entry.row.workTypeId,
+          'schedule-row-panel__row--sub-work-type-dragging':
+            entry.row.kind === 'child-process' &&
+            referenceDragState?.kind === 'sub-work-type' &&
+            referenceDragState.subWorkTypeId === entry.row.subWorkTypeId,
         }"
         :style="getRowInlineStyle(entry.row)"
         @pointerdown="handleRowPointerDown(entry.row, $event)"
@@ -1197,6 +1338,26 @@ function handleSubWorkTypeRenameEscape() {
             @click.stop="handleSubWorkTypeClick(entry)"
             @dblclick.stop="handleSubWorkTypeDoubleClick(entry)"
           >
+            <button
+              v-if="
+                !readOnly &&
+                entry.row.subWorkTypeId &&
+                entry.row.subWorkTypeId > 0 &&
+                entry.row.workTypeId &&
+                entry.row.workTypeId > 0 &&
+                !isReviewDeletedRow(entry.row)
+              "
+              type="button"
+              class="schedule-row-panel__drag-handle schedule-row-panel__drag-handle--sub-work-type"
+              :aria-label="`${entry.subWorkTypeLabel.text} 순서 변경`"
+              title="드래그해서 순서 변경"
+              @click.stop
+              @dblclick.stop
+              @pointerdown="startSubWorkTypeDrag(entry.row, $event)"
+            >
+              ☰
+            </button>
+
             <input
               v-if="entry.row.subWorkTypeId === editingSubWorkTypeId"
               :ref="setSubWorkTypeRenameInputRef"
@@ -1358,6 +1519,27 @@ function handleSubWorkTypeRenameEscape() {
             </span>
           </div>
         </div>
+      </div>
+
+      <div
+        v-if="activeSubWorkTypeDragPreview"
+        class="schedule-row-panel__sub-work-type-drag-preview"
+        :style="activeSubWorkTypeDragPreview.style"
+      >
+        <span class="schedule-row-panel__work-type-placeholder" />
+        <span
+          class="schedule-row-panel__sub-work-type schedule-row-panel__sub-work-type--drag-preview"
+        >
+          <span
+            class="schedule-row-panel__sub-work-type-label"
+            :class="{
+              'schedule-row-panel__sub-work-type-label--hint':
+                activeSubWorkTypeDragPreview.entry.subWorkTypeLabel.isHint,
+            }"
+          >
+            {{ activeSubWorkTypeDragPreview.entry.subWorkTypeLabel.text }}
+          </span>
+        </span>
       </div>
 
       <div

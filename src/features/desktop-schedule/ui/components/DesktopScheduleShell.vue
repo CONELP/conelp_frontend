@@ -125,6 +125,7 @@ const emit = defineEmits<{
   "cancel-sub-work-type-rename": [];
   "reorder-divisions": [payload: { divisionIds: number[] }];
   "reorder-work-types": [payload: { divisionId: number; workTypeIds: number[] }];
+  "reorder-sub-work-types": [payload: { workTypeId: number; subWorkTypeIds: number[] }];
   "delete-selection": [];
   "item-context-menu": [payload: { itemId: string; x: number; y: number }];
   "work-connection-context-menu": [payload: { workConnectionId: string; x: number; y: number }];
@@ -1614,6 +1615,7 @@ onUnmounted(() => {
           @cancel-sub-work-type-rename="emit('cancel-sub-work-type-rename')"
           @reorder-divisions="emit('reorder-divisions', $event)"
           @reorder-work-types="emit('reorder-work-types', $event)"
+          @reorder-sub-work-types="emit('reorder-sub-work-types', $event)"
           @work-type-column-width-change="emit('work-type-column-width-change', $event)"
           @header-context-menu="emit('header-context-menu', $event)"
           @row-context-menu="emit('row-context-menu', $event)"

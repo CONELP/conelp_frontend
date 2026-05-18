@@ -111,6 +111,7 @@ const {
   cancelSubWorkTypeRename,
   reorderReferenceDivisions,
   reorderReferenceWorkTypes,
+  reorderReferenceSubWorkTypes,
   openItemContextMenu,
   openWorkConnectionContextMenu,
   openMilestoneContextMenu,
@@ -603,6 +604,7 @@ watch(
               @cancel-sub-work-type-rename="cancelSubWorkTypeRename"
               @reorder-divisions="reorderReferenceDivisions"
               @reorder-work-types="reorderReferenceWorkTypes"
+              @reorder-sub-work-types="reorderReferenceSubWorkTypes"
               @delete-selection="deleteSelection"
               @item-context-menu="openItemContextMenu"
               @work-connection-context-menu="openWorkConnectionContextMenu"

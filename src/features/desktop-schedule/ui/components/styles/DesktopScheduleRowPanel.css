@@ -117,6 +117,12 @@
   transition: none;
 }
 
+.schedule-row-panel__row--sub-work-type-dragging {
+  opacity: 0;
+  pointer-events: none;
+  transition: none;
+}
+
 .schedule-row-panel__division-title {
   margin: 0;
   color: var(--ink);
@@ -248,11 +254,16 @@
 
 .schedule-row-panel__division-row:hover .schedule-row-panel__drag-handle,
 .schedule-row-panel__work-type-group:hover .schedule-row-panel__drag-handle,
+.schedule-row-panel__sub-work-type:hover .schedule-row-panel__drag-handle,
 .schedule-row-panel__drag-handle:focus-visible {
   opacity: 1;
 }
 
 .schedule-row-panel__drag-handle--work-type {
+  left: calc(0.2rem * var(--schedule-zoom-scale, 1));
+}
+
+.schedule-row-panel__drag-handle--sub-work-type {
   left: calc(0.2rem * var(--schedule-zoom-scale, 1));
 }
 
@@ -410,6 +421,27 @@
     inset 0 0 0 1px rgba(37, 99, 235, 0.16);
   pointer-events: none;
   will-change: transform;
+}
+
+.schedule-row-panel__sub-work-type-drag-preview {
+  position: absolute;
+  left: 0;
+  z-index: 9;
+  display: grid;
+  width: 100%;
+  grid-template-columns: var(--schedule-work-type-column-width, 110px) minmax(0, 1fr);
+  overflow: hidden;
+  border-radius: 0.45rem;
+  background: #fff;
+  box-shadow:
+    0 12px 28px rgba(15, 23, 42, 0.16),
+    inset 0 0 0 1px rgba(37, 99, 235, 0.16);
+  pointer-events: none;
+  will-change: transform;
+}
+
+.schedule-row-panel__sub-work-type--drag-preview {
+  background: #fff;
 }
 
 .schedule-row-panel__column-resize-handle {

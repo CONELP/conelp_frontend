@@ -3694,6 +3694,26 @@ function createDesktopScheduleViewModel() {
     });
   }
 
+  function sortHierarchyBySubWorkTypeIds(
+    items: DesktopScheduleReferenceHierarchyItem[],
+    workTypeId: number,
+    subWorkTypeIds: number[],
+  ) {
+    const subWorkTypeOrder = new Map(
+      subWorkTypeIds.map((subWorkTypeId, index) => [subWorkTypeId, index]),
+    );
+
+    return [...items].sort((a, b) => {
+      if (a.workTypeId !== workTypeId || b.workTypeId !== workTypeId) {
+        return 0;
+      }
+
+      const aOrder = subWorkTypeOrder.get(a.subWorkTypeId) ?? Number.MAX_SAFE_INTEGER;
+      const bOrder = subWorkTypeOrder.get(b.subWorkTypeId) ?? Number.MAX_SAFE_INTEGER;
+      return aOrder - bOrder;
+    });
+  }
+
   function addReferenceHierarchyItem(item: DesktopScheduleReferenceHierarchyItem) {
     updateLoadedScheduleData((currentData) => ({
       ...currentData,
@@ -5306,6 +5326,48 @@ function createDesktopScheduleViewModel() {
             scheduleVersionId: getRequiredScheduleVersionIdForReferenceMutation(), ids: payload.divisionIds });
       },
       "분류 순서를 변경하지 못했습니다.",
+      {
+        rollback: () => restoreWorkingSnapshot(snapshot),
+      },
+    );
+    if (didSave) {
+      pushLocalHistoryEntry(snapshot);
+    }
+  }
+
+  async function reorderReferenceSubWorkTypes(payload: {
+    workTypeId: number;
+    subWorkTypeIds: number[];
+  }) {
+    if (!ensureScheduleEditable()) {
+      return;
+    }
+
+    if (payload.subWorkTypeIds.length < 2) {
+      return;
+    }
+
+    const snapshot = captureWorkingSnapshot();
+    updateLoadedScheduleData((currentData) => ({
+      ...currentData,
+      workHierarchy: sortHierarchyBySubWorkTypeIds(
+        currentData.workHierarchy,
+        payload.workTypeId,
+        payload.subWorkTypeIds,
+      ),
+    }));
+    rebuildScheduleFromLoadedData();
+    closeContextMenu();
+
+    const didSave = await runScheduleMutation(
+      async () => {
+        await desktopScheduleApi.updateSubWorkType({
+          scheduleVersionId: getRequiredScheduleVersionIdForReferenceMutation(),
+          parentId: payload.workTypeId,
+          ids: payload.subWorkTypeIds,
+        });
+      },
+      "세부공종 순서를 변경하지 못했습니다.",
       {
         rollback: () => restoreWorkingSnapshot(snapshot),
       },
@@ -7722,6 +7784,7 @@ function createDesktopScheduleViewModel() {
     cancelSubWorkTypeRename,
     reorderReferenceDivisions,
     reorderReferenceWorkTypes,
+    reorderReferenceSubWorkTypes,
     selectBars,
     selectRows,
     deleteSelection,
