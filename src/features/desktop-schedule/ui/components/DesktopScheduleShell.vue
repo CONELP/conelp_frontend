@@ -229,6 +229,20 @@ const isExecutionProgressCompareEnabled = ref(false);
 const isExecutionProgressCompareLeaving = ref(false);
 let executionProgressCompareExitTimer: ReturnType<typeof setTimeout> | null = null;
 
+const chartBodyRef = ref<ComponentPublicInstance | null>(null);
+const chartHorizontalScrollbarHeight = ref(0);
+let chartBodyResizeObserver: ResizeObserver | null = null;
+
+function measureChartScrollbarHeight() {
+  const instance = chartBodyRef.value as ComponentPublicInstance | null;
+  const element = instance?.$el as HTMLElement | null;
+  if (!element) return;
+  const next = Math.max(0, element.offsetHeight - element.clientHeight);
+  if (next !== chartHorizontalScrollbarHeight.value) {
+    chartHorizontalScrollbarHeight.value = next;
+  }
+}
+
 const shellHeight = computed(() => Math.max(props.viewportHeight ?? 640, 320));
 const scaledShellHeaderHeight = computed(() =>
   Math.round(SHELL_HEADER_HEIGHT * Math.min(Math.max(props.zoomScale, 0.5), 1.46)),
@@ -260,6 +274,9 @@ const bodyViewportHeight = computed(() =>
       readonlyNoticeStackHeight.value,
     200,
   ),
+);
+const rowPanelViewportHeight = computed(() =>
+  Math.max(0, bodyViewportHeight.value - chartHorizontalScrollbarHeight.value),
 );
 const zoomSliderValue = computed(() => Math.min(Math.max(props.zoomIndex, 0), props.zoomMax));
 const zoomSliderProgress = computed(() =>
@@ -344,6 +361,7 @@ const shellStyle = computed(() => ({
   "--schedule-header-week-height": `${scaledHeaderWeekHeight.value}px`,
   "--schedule-header-day-height": `${scaledHeaderDayHeight.value}px`,
   "--schedule-row-panel-width": `${props.rowPanelWidth}px`,
+  "--schedule-chart-scrollbar-height": `${chartHorizontalScrollbarHeight.value}px`,
 }));
 
 function clampWidth(value: number, min: number, max: number) {
@@ -920,6 +938,16 @@ onMounted(() => {
   document.addEventListener("pointermove", handleDraftRailPointerMove, true);
   document.addEventListener("pointerup", endDraftRailPointerDrag, true);
   document.addEventListener("pointercancel", endDraftRailPointerDrag, true);
+
+  const instance = chartBodyRef.value as ComponentPublicInstance | null;
+  const element = instance?.$el as HTMLElement | null;
+  if (element && typeof ResizeObserver !== "undefined") {
+    chartBodyResizeObserver = new ResizeObserver(() => {
+      measureChartScrollbarHeight();
+    });
+    chartBodyResizeObserver.observe(element);
+  }
+  nextTick(measureChartScrollbarHeight);
 });
 
 onUnmounted(() => {
@@ -929,6 +957,11 @@ onUnmounted(() => {
   document.removeEventListener("pointerup", endDraftRailPointerDrag, true);
   document.removeEventListener("pointercancel", endDraftRailPointerDrag, true);
   removeRowPanelResizeListeners();
+
+  if (chartBodyResizeObserver) {
+    chartBodyResizeObserver.disconnect();
+    chartBodyResizeObserver = null;
+  }
 
   if (executionProgressCompareExitTimer) {
     clearTimeout(executionProgressCompareExitTimer);
@@ -1560,7 +1593,7 @@ onUnmounted(() => {
         <DesktopScheduleRowPanel
           :rows="shellLayout.rows"
           :read-only="readOnly"
-          :viewport-height="bodyViewportHeight"
+          :viewport-height="rowPanelViewportHeight"
           :scroll-top="scrollTop"
           :work-type-column-width="workTypeColumnWidth"
           :hovered-row-id="hoveredRowId"
@@ -1586,6 +1619,8 @@ onUnmounted(() => {
           @row-context-menu="emit('row-context-menu', $event)"
           @readonly-edit-attempt="emit('readonly-edit-attempt')"
         />
+
+        <div class="schedule-shell__left-bottom-spacer" aria-hidden="true" />
       </div>
 
       <button
@@ -1608,6 +1643,7 @@ onUnmounted(() => {
         <div class="schedule-shell__date-divider" aria-hidden="true" />
 
         <DesktopScheduleChartBody
+          ref="chartBodyRef"
           :timeline="timeline"
           :shell-layout="shellLayout"
           :read-only="readOnly"

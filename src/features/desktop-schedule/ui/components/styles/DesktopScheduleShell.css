@@ -843,9 +843,17 @@
 .schedule-shell__left-column {
   display: grid;
   min-height: 0;
-  grid-template-rows: var(--schedule-header-height, 116px) minmax(0, 1fr);
+  grid-template-rows:
+    var(--schedule-header-height, 116px)
+    minmax(0, 1fr)
+    var(--schedule-chart-scrollbar-height, 0px);
   overflow: hidden;
   border-right: 1px solid rgba(0, 0, 0, 0.16);
+}
+
+.schedule-shell__left-bottom-spacer {
+  height: 100%;
+  background: #fff;
 }
 
 .schedule-shell__left-header {
