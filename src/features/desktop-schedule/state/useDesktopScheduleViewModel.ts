@@ -1829,6 +1829,13 @@ function createDesktopScheduleViewModel() {
   let scheduleImportSelectedFile: File | null = null;
   const isAiVerificationModeActive = ref(false);
   const aiVerificationCommentByItemId = ref<Record<string, string>>({});
+  let aiVerificationColorStash:
+    | {
+        rowColorById: Map<string, string | null>;
+        subWorkTypeColorById: Map<number, string | null>;
+        itemColorById: Map<string, string | null>;
+      }
+    | null = null;
   const excludedScheduleVersionIds = ref<Set<DesktopScheduleVersionId>>(new Set());
   const scheduleVersionReviewBaselineCache = ref<ScheduleVersionReviewBaselineCache | null>(null);
   const scheduleVersionReviewSummaryCache = ref<ScheduleVersionReviewSummaryCache | null>(null);
@@ -7537,8 +7544,87 @@ function createDesktopScheduleViewModel() {
     if (isAiVerificationModeActive.value) {
       isAiVerificationModeActive.value = false;
       aiVerificationCommentByItemId.value = {};
+
+      if (aiVerificationColorStash) {
+        const stash = aiVerificationColorStash;
+        aiVerificationColorStash = null;
+
+        const snapshot = captureWorkingSnapshot();
+
+        const subWorkTypeIdsToRestore: Array<{ id: number; colorHex: string | null }> = [];
+        workingRows.value = workingRows.value.map((row) => {
+          if (!stash.rowColorById.has(row.id)) {
+            return row;
+          }
+          const restoredColor = stash.rowColorById.get(row.id) ?? null;
+          const subWorkTypeId = row.source.subWorkTypeId;
+          if (typeof subWorkTypeId === "number" && subWorkTypeId > 0) {
+            subWorkTypeIdsToRestore.push({ id: subWorkTypeId, colorHex: restoredColor });
+          }
+          return { ...row, colorHex: restoredColor };
+        });
+        subWorkTypeIdsToRestore.forEach(({ id, colorHex }) => {
+          syncLoadedSubWorkTypeColor(id, colorHex);
+        });
+
+        workingItems.value = workingItems.value.map((item) => {
+          if (!stash.itemColorById.has(item.id)) {
+            return item;
+          }
+          return { ...item, colorHex: stash.itemColorById.get(item.id) ?? null };
+        });
+
+        pushLocalHistoryEntry(snapshot);
+      }
       return;
     }
+
+    const coloredRows = workingRows.value.filter((row) => row.colorHex != null);
+    const coloredItems = workingItems.value.filter((item) => item.colorHex != null);
+
+    if (coloredRows.length > 0 || coloredItems.length > 0) {
+      const snapshot = captureWorkingSnapshot();
+
+      const rowColorById = new Map<string, string | null>();
+      const subWorkTypeColorById = new Map<number, string | null>();
+      const itemColorById = new Map<string, string | null>();
+
+      if (coloredRows.length > 0) {
+        const subWorkTypeIdsToClear: number[] = [];
+        coloredRows.forEach((row) => {
+          rowColorById.set(row.id, row.colorHex ?? null);
+          const subWorkTypeId = row.source.subWorkTypeId;
+          if (typeof subWorkTypeId === "number" && subWorkTypeId > 0) {
+            subWorkTypeColorById.set(subWorkTypeId, row.colorHex ?? null);
+            subWorkTypeIdsToClear.push(subWorkTypeId);
+          }
+        });
+        const clearedRowIds = new Set(rowColorById.keys());
+        workingRows.value = workingRows.value.map((row) =>
+          clearedRowIds.has(row.id) ? { ...row, colorHex: null } : row,
+        );
+        subWorkTypeIdsToClear.forEach((subWorkTypeId) => {
+          syncLoadedSubWorkTypeColor(subWorkTypeId, null);
+        });
+      }
+
+      if (coloredItems.length > 0) {
+        coloredItems.forEach((item) => {
+          itemColorById.set(item.id, item.colorHex ?? null);
+        });
+        const clearedItemIds = new Set(itemColorById.keys());
+        workingItems.value = workingItems.value.map((item) =>
+          clearedItemIds.has(item.id) ? { ...item, colorHex: null } : item,
+        );
+      }
+
+      aiVerificationColorStash = { rowColorById, subWorkTypeColorById, itemColorById };
+
+      pushLocalHistoryEntry(snapshot);
+    } else {
+      aiVerificationColorStash = null;
+    }
+
     isAiVerificationModeActive.value = true;
   }
 
@@ -7562,6 +7648,7 @@ function createDesktopScheduleViewModel() {
       if (Object.keys(aiVerificationCommentByItemId.value).length > 0) {
         aiVerificationCommentByItemId.value = {};
       }
+      aiVerificationColorStash = null;
     },
   );
 
