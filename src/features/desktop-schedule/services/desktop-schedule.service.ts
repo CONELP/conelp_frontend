@@ -1504,6 +1504,30 @@ function getInitialScrollLeftForYesterday(
   return clamp(yesterdayRight - viewportWidth * 0.66, 0, maxScrollLeft);
 }
 
+function getInitialScrollLeftForToday(
+  timeline: DesktopScheduleTimelineLayout,
+  viewportWidth: number,
+) {
+  if (viewportWidth <= 0) {
+    return 0;
+  }
+
+  const today = formatLocalDate(new Date());
+  const maxScrollLeft = Math.max(timeline.chartWidth - viewportWidth, 0);
+
+  if (today <= timeline.startDate) {
+    return 0;
+  }
+
+  if (today >= timeline.endDate) {
+    return maxScrollLeft;
+  }
+
+  const todayCenter = (diffDays(timeline.startDate, today) + 0.5) * timeline.dayWidth;
+
+  return clamp(todayCenter - viewportWidth / 2, 0, maxScrollLeft);
+}
+
 function createLocalRowId(prefix: "parent" | "child") {
   return `${prefix}:mock:${Date.now()}-${Math.floor(Math.random() * 1_000_000)
     .toString(36)}`;
@@ -2395,6 +2419,7 @@ export const desktopScheduleService = {
   getGapDaysBetweenItems,
   getScrollLeftForZoom,
   getInitialScrollLeftForYesterday,
+  getInitialScrollLeftForToday,
   getCriticalPathColor,
   createLocalPathId,
 };

@@ -173,6 +173,7 @@ const dailyReportPanelResizeState = ref<DailyReportPanelResizeState | null>(null
 const shouldApplyInitialTimelineScroll = ref(
   scheduleLoadStatus.value !== "success",
 );
+let lastInitialScrollViewportWidth = -1;
 let resizeObserver: ResizeObserver | null = null;
 
 const isScheduleRefreshing = computed(
@@ -226,10 +227,21 @@ function handleZoomChange(zoomIndex: number) {
   setZoomIndex(zoomIndex, chartViewportWidth.value);
 }
 
-function handleScheduleReload() {
+function requestInitialTimelineScroll() {
   shouldApplyInitialTimelineScroll.value = true;
+  lastInitialScrollViewportWidth = -1;
+}
+
+function handleScheduleReload() {
+  requestInitialTimelineScroll();
   void loadSchedule();
 }
+
+watch(selectedScheduleVersionId, (next, prev) => {
+  if (next !== prev) {
+    requestInitialTimelineScroll();
+  }
+});
 
 function handleToggleDailyReportPanel() {
   if (!isCurrentMainScheduleVersionSelected.value) {
@@ -395,6 +407,7 @@ watch(
       scheduleLoadStatus.value,
       timeline.value,
       chartViewportWidth.value,
+      showDailyReportEditor.value,
     ] as const,
   async ([nextScheduleLoadStatus, nextTimeline, nextChartViewportWidth]) => {
     if (
@@ -408,12 +421,18 @@ watch(
     await nextTick();
     syncChartScroll({
       top: 0,
-      left: desktopScheduleService.getInitialScrollLeftForYesterday(
+      left: desktopScheduleService.getInitialScrollLeftForToday(
         nextTimeline,
         nextChartViewportWidth,
       ),
     });
-    shouldApplyInitialTimelineScroll.value = false;
+
+    if (lastInitialScrollViewportWidth === nextChartViewportWidth) {
+      shouldApplyInitialTimelineScroll.value = false;
+      lastInitialScrollViewportWidth = -1;
+    } else {
+      lastInitialScrollViewportWidth = nextChartViewportWidth;
+    }
   },
   { immediate: true },
 );
