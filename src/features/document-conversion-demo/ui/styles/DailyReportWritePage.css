@@ -437,6 +437,87 @@
   min-height: 0;
 }
 
+.daily-report-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.48rem;
+  min-height: 0;
+  padding: 0.62rem 0.8rem 0.72rem;
+  border: 1px solid rgba(20, 24, 33, 0.08);
+  border-radius: 0.86rem;
+  background: #f8fafc;
+}
+
+.daily-report-summary-card__header {
+  display: flex;
+  min-height: 2.45rem;
+  min-width: 0;
+  align-items: center;
+  gap: 0.56rem;
+}
+
+.daily-report-summary-card__title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 0.98rem;
+  font-weight: 800;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.daily-report-summary-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.82rem;
+  line-height: 1.28;
+}
+
+.daily-report-summary__group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.daily-report-summary__group-title {
+  margin: 0;
+  padding: 0;
+  color: var(--ink);
+  font-size: 0.84rem;
+  font-weight: 800;
+  line-height: 1.22;
+  overflow-wrap: anywhere;
+}
+
+.daily-report-summary__task-list {
+  margin: 0;
+  padding: 0 0 0 1.15rem;
+  list-style: decimal;
+  color: rgba(20, 24, 33, 0.86);
+}
+
+.daily-report-summary__task {
+  margin: 0;
+  padding: 0;
+  line-height: 1.28;
+  overflow-wrap: anywhere;
+}
+
+.daily-report-summary__task::marker {
+  font-weight: 700;
+}
+
+.daily-report-summary__empty {
+  margin: 0;
+  color: rgba(20, 24, 33, 0.55);
+  font-size: 0.82rem;
+  line-height: 1.28;
+}
+
 .daily-report-write-editor {
   display: grid;
   min-height: 0;

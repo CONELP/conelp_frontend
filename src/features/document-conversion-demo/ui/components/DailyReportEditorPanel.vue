@@ -272,6 +272,33 @@ const dailyReportLaborSummaryItems = computed(() => {
       )}명${detailText}`;
     });
 });
+const dailyReportTodayWorkSummaryGroups = computed(() => {
+  const grouped: Array<{ workTypeName: string; lines: string[] }> = [];
+  const indexByName = new Map<string, number>();
+
+  todayWorkTypes.value.forEach((workType) => {
+    const name = workType.workTypeName.trim();
+    const lines = workType.tasks
+      .flatMap((task) => task.text.split(/\r?\n/))
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+    if (!name || lines.length === 0) {
+      return;
+    }
+
+    const existingIndex = indexByName.get(name);
+    if (existingIndex !== undefined) {
+      grouped[existingIndex]!.lines.push(...lines);
+      return;
+    }
+
+    indexByName.set(name, grouped.length);
+    grouped.push({ workTypeName: name, lines });
+  });
+
+  return grouped;
+});
 const resourceColumnWidths = ref<DailyReportResourceColumnWidthState>(
   readStoredDailyReportResourceColumnWidths(),
 );
@@ -2184,6 +2211,37 @@ onUnmounted(() => {
         role="tabpanel"
         aria-labelledby="daily-report-tab-summary"
       >
+        <section
+          class="daily-report-summary-card"
+          aria-label="오늘 작업 요약"
+          aria-live="polite"
+        >
+          <header class="daily-report-summary-card__header">
+            <span class="daily-report-summary-card__title">오늘작업</span>
+          </header>
+          <div class="daily-report-summary-card__body">
+            <div
+              v-for="group in dailyReportTodayWorkSummaryGroups"
+              :key="group.workTypeName"
+              class="daily-report-summary__group"
+            >
+              <h3 class="daily-report-summary__group-title">{{ group.workTypeName }}</h3>
+              <ol class="daily-report-summary__task-list">
+                <li
+                  v-for="(line, lineIndex) in group.lines"
+                  :key="lineIndex"
+                  class="daily-report-summary__task"
+                >{{ line }}</li>
+              </ol>
+            </div>
+            <p
+              v-if="dailyReportTodayWorkSummaryGroups.length === 0"
+              class="daily-report-summary__empty"
+            >
+              오늘작업 내용이 없습니다.
+            </p>
+          </div>
+        </section>
       </div>
       <div
         v-show="activeDailyReportTab === 'todayWork'"
