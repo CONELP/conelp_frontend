@@ -84,6 +84,8 @@ interface RowBarDraft {
   left: number;
   width: number;
   collisionWidth: number;
+  extentLeft: number;
+  extentRight: number;
   height: number;
   startDate: string;
   endDate: string;
@@ -1131,6 +1133,23 @@ function buildShellLayout(
         itemBarHorizontalPadding + estimateItemBarTextWidth(item.name) * layoutScale,
       );
 
+      let extentLeft = left;
+      let extentRight = left + collisionWidth;
+      const plannedDayCount = Math.max(Math.ceil(width / timeline.dayWidth), 1);
+
+      for (const actualDate of item.actualDates ?? []) {
+        const dayIndex = diffDays(item.startDate, actualDate);
+        const segmentLeft = left + dayIndex * timeline.dayWidth;
+        const segmentRight = segmentLeft + timeline.dayWidth;
+
+        if (dayIndex < 0 && segmentLeft < extentLeft) {
+          extentLeft = segmentLeft;
+        }
+        if (dayIndex >= plannedDayCount && segmentRight > extentRight) {
+          extentRight = segmentRight;
+        }
+      }
+
       return {
         id: `bar:${item.id}`,
         itemId: item.id,
@@ -1141,6 +1160,8 @@ function buildShellLayout(
         left,
         width,
         collisionWidth,
+        extentLeft,
+        extentRight,
         height: barHeight,
         startDate: item.startDate,
         endDate: item.endDate,
@@ -1152,15 +1173,14 @@ function buildShellLayout(
 
     function isLaneAvailable(laneIndex: number, draft: RowBarDraft) {
       const intervals = laneIntervals.get(laneIndex) ?? [];
-      const draftRight = draft.left + draft.collisionWidth;
       return intervals.every(
-        (interval) => draft.left > interval.right || draftRight < interval.left,
+        (interval) => draft.extentLeft > interval.right || draft.extentRight < interval.left,
       );
     }
 
     function reserveLane(laneIndex: number, draft: RowBarDraft) {
       const intervals = laneIntervals.get(laneIndex) ?? [];
-      intervals.push({ left: draft.left, right: draft.left + draft.collisionWidth });
+      intervals.push({ left: draft.extentLeft, right: draft.extentRight });
       laneIntervals.set(laneIndex, intervals);
       rowBarDrafts.push(draft);
     }
