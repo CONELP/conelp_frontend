@@ -115,14 +115,24 @@ export function useChatViewModel(threadIdRef: () => number) {
   async function ensureLoaded() {
     const id = threadIdRef();
     if (!id) return;
-    if (thread.value) return;
+
+    isLoadingOlder.value = false;
+    hasMoreOlder.value = true;
 
     isLoadingThread.value = true;
     try {
-      const fetched = await chatThreadApi.get(id);
-      store.upsertThread(fetched);
-      const recentList = await chatMessageApi.list(id, undefined, 50);
-      store.prependOlderMessages(id, recentList);
+      if (!thread.value) {
+        const fetched = await chatThreadApi.get(id);
+        store.upsertThread(fetched);
+      }
+      const existing = store.messagesOf(id);
+      if (existing.length < 50) {
+        const recentList = await chatMessageApi.list(id, undefined, 50);
+        store.prependOlderMessages(id, recentList);
+        if (recentList.length < 50) {
+          hasMoreOlder.value = false;
+        }
+      }
     } catch (error) {
       const message =
         error instanceof Error ? error.message : aiAgentCopy.errors.threadLoadFailed;
