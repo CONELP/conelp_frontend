@@ -299,7 +299,7 @@ const {
   scheduleVersionPromotionState,
   scheduleImportDialogState,
   isAiVerificationModeActive,
-  aiVerificationCommentByItemId,
+  aiVerificationFlaggedItemIds,
   selectionState,
   contextMenuState,
   contextMenuItems,
@@ -1503,7 +1503,7 @@ watch(
             :schedule-version-promotion="scheduleVersionPromotionState"
             :schedule-import-dialog="scheduleImportDialogState"
             :is-ai-verification-mode-active="isAiVerificationModeActive"
-            :ai-verification-comment-by-item-id="aiVerificationCommentByItemId"
+            :ai-verification-flagged-item-ids="aiVerificationFlaggedItemIds"
             :viewport-height="shellViewportHeight"
             :scroll-top="chartScrollTop"
             :scroll-left="chartScrollLeft"

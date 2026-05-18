@@ -77,7 +77,7 @@ const props = defineProps<{
   scheduleVersionPromotion: DesktopScheduleVersionPromotionState;
   scheduleImportDialog: DesktopScheduleImportDialogState;
   isAiVerificationModeActive: boolean;
-  aiVerificationCommentByItemId: Record<string, string>;
+  aiVerificationFlaggedItemIds: string[];
   viewportHeight?: number;
   scrollTop: number;
   scrollLeft: number;
@@ -183,7 +183,7 @@ const emit = defineEmits<{
   "import-dialog-end-date-change": [value: string];
   "import-dialog-submit": [];
   "toggle-ai-verification": [];
-  "set-ai-verification-comment": [payload: { itemId: string; comment: string }];
+  "toggle-ai-verification-flag": [itemId: string];
   "export-schedule-excel": [range: "3week" | "3month"];
   "rename-schedule-version": [payload: { scheduleVersionId: number; versionName: string }];
   "delete-schedule-version": [scheduleVersionId: number];
@@ -1662,8 +1662,8 @@ onUnmounted(() => {
           :execution-progress-compare-visible="isExecutionProgressCompareEnabled"
           :execution-progress-compare-leaving="isExecutionProgressCompareLeaving"
           :is-ai-verification-mode-active="isAiVerificationModeActive"
-          :ai-verification-comment-by-item-id="aiVerificationCommentByItemId"
-          @set-ai-verification-comment="emit('set-ai-verification-comment', $event)"
+          :ai-verification-flagged-item-ids="aiVerificationFlaggedItemIds"
+          @toggle-ai-verification-flag="emit('toggle-ai-verification-flag', $event)"
           :zoom-scale="zoomScale"
           @scroll-change="handleChartScroll"
           @clear-selection="emit('clear-selection')"

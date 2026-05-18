@@ -1828,7 +1828,7 @@ function createDesktopScheduleViewModel() {
   );
   let scheduleImportSelectedFile: File | null = null;
   const isAiVerificationModeActive = ref(false);
-  const aiVerificationCommentByItemId = ref<Record<string, string>>({});
+  const aiVerificationFlaggedItemIds = ref<string[]>([]);
   let aiVerificationColorStash:
     | {
         rowColorById: Map<string, string | null>;
@@ -7543,7 +7543,7 @@ function createDesktopScheduleViewModel() {
   function toggleAiVerificationMode() {
     if (isAiVerificationModeActive.value) {
       isAiVerificationModeActive.value = false;
-      aiVerificationCommentByItemId.value = {};
+      aiVerificationFlaggedItemIds.value = [];
 
       if (aiVerificationColorStash) {
         const stash = aiVerificationColorStash;
@@ -7628,15 +7628,13 @@ function createDesktopScheduleViewModel() {
     isAiVerificationModeActive.value = true;
   }
 
-  function setAiVerificationComment(payload: { itemId: string; comment: string }) {
-    const trimmed = payload.comment.trim();
-    const next = { ...aiVerificationCommentByItemId.value };
-    if (!trimmed) {
-      delete next[payload.itemId];
+  function toggleAiVerificationFlag(itemId: string) {
+    const current = aiVerificationFlaggedItemIds.value;
+    if (current.includes(itemId)) {
+      aiVerificationFlaggedItemIds.value = current.filter((id) => id !== itemId);
     } else {
-      next[payload.itemId] = trimmed;
+      aiVerificationFlaggedItemIds.value = [...current, itemId];
     }
-    aiVerificationCommentByItemId.value = next;
   }
 
   watch(
@@ -7645,8 +7643,8 @@ function createDesktopScheduleViewModel() {
       if (isAiVerificationModeActive.value) {
         isAiVerificationModeActive.value = false;
       }
-      if (Object.keys(aiVerificationCommentByItemId.value).length > 0) {
-        aiVerificationCommentByItemId.value = {};
+      if (aiVerificationFlaggedItemIds.value.length > 0) {
+        aiVerificationFlaggedItemIds.value = [];
       }
       aiVerificationColorStash = null;
     },
@@ -7768,9 +7766,9 @@ function createDesktopScheduleViewModel() {
     setScheduleImportEndDate,
     submitScheduleImport,
     isAiVerificationModeActive,
-    aiVerificationCommentByItemId,
+    aiVerificationFlaggedItemIds,
     toggleAiVerificationMode,
-    setAiVerificationComment,
+    toggleAiVerificationFlag,
     pastMainScheduleVersions,
     patchLoadedWorkActualDates,
   };
