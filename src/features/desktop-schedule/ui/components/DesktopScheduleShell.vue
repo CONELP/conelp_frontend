@@ -19,6 +19,21 @@ import type {
 import DesktopScheduleChartBody from "@/features/desktop-schedule/ui/components/DesktopScheduleChartBody.vue";
 import DesktopScheduleRowPanel from "@/features/desktop-schedule/ui/components/DesktopScheduleRowPanel.vue";
 import DesktopScheduleTimelineHeader from "@/features/desktop-schedule/ui/components/DesktopScheduleTimelineHeader.vue";
+import {
+  READONLY_NOTICE_HEIGHT,
+  ROW_PANEL_MAX_WIDTH,
+  ROW_PANEL_MIN_WIDTH,
+  SHELL_FRAME_BORDER_WIDTH,
+  SHELL_HEADER_HEIGHT,
+  SHELL_HEADER_MONTH_HEIGHT,
+  SHELL_HEADER_WEEK_HEIGHT,
+  SHELL_STACK_GAP,
+  SHELL_SURFACE_BORDER_WIDTH,
+  SHELL_SURFACE_GAP,
+  SHELL_SURFACE_PADDING_Y,
+  SHELL_TOOLBAR_HEIGHT,
+  WIDTH_RESIZE_LISTENER_OPTIONS,
+} from "@/features/desktop-schedule/ui/components/desktop-schedule-shell.constants";
 import panelRightContractIcon from "@fluentui/svg-icons/icons/panel_right_contract_20_regular.svg";
 import panelRightExpandIcon from "@fluentui/svg-icons/icons/panel_right_expand_20_regular.svg";
 import redoIcon from "@fluentui/svg-icons/icons/arrow_redo_20_regular.svg";
@@ -26,19 +41,6 @@ import undoIcon from "@fluentui/svg-icons/icons/arrow_undo_20_regular.svg";
 import "@/features/desktop-schedule/ui/components/styles/DesktopScheduleContextMenu.css";
 import "@/features/desktop-schedule/ui/components/styles/DesktopScheduleShell.css";
 
-const SHELL_HEADER_HEIGHT = 116;
-const SHELL_HEADER_MONTH_HEIGHT = 32;
-const SHELL_HEADER_WEEK_HEIGHT = 28;
-const SHELL_TOOLBAR_HEIGHT = 56;
-const SHELL_STACK_GAP = 8;
-const SHELL_SURFACE_PADDING_Y = 10;
-const SHELL_SURFACE_GAP = 8;
-const SHELL_SURFACE_BORDER_WIDTH = 1;
-const SHELL_FRAME_BORDER_WIDTH = 1;
-const READONLY_NOTICE_HEIGHT = 40;
-const ROW_PANEL_MIN_WIDTH = 180;
-const ROW_PANEL_MAX_WIDTH = 520;
-const WIDTH_RESIZE_LISTENER_OPTIONS = true;
 
 type ConnectionCreationState = {
   kind: "work-connection";
@@ -164,14 +166,14 @@ const emit = defineEmits<{
       | { kind: "summary"; rowId: string }
       | { kind: "milestone"; milestoneId: string },
   ];
-  "move-preview": [payload: { deltaDays: number; deltaLanes: number }];
+  "move-draft": [payload: { deltaDays: number; deltaLanes: number }];
   "move-end": [];
   "resize-start": [
     payload:
       | { kind: "item"; itemId: string; edge: "left" | "right" }
       | { kind: "summary"; rowId: string; edge: "left" | "right" },
   ];
-  "resize-preview": [payload: { deltaDays: number }];
+  "resize-draft": [payload: { deltaDays: number }];
   "resize-end": [];
   undo: [];
   redo: [];
@@ -1688,10 +1690,10 @@ onUnmounted(() => {
           @cancel-milestone-rename="emit('cancel-milestone-rename')"
           @milestone-activate="emit('milestone-activate', $event)"
           @move-start="emit('move-start', $event)"
-          @move-preview="emit('move-preview', $event)"
+          @move-draft="emit('move-draft', $event)"
           @move-end="emit('move-end')"
           @resize-start="emit('resize-start', $event)"
-          @resize-preview="emit('resize-preview', $event)"
+          @resize-draft="emit('resize-draft', $event)"
           @resize-end="emit('resize-end')"
           @hover-cell="handleHoverCell"
         />

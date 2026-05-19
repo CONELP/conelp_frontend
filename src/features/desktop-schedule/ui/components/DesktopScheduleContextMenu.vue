@@ -32,7 +32,7 @@ import type {
   DesktopScheduleContextMenuCommand,
   DesktopScheduleContextMenuIcon,
   DesktopScheduleContextMenuItem,
-} from "@/features/desktop-schedule/state/desktop-schedule-interaction-state";
+} from "@/features/desktop-schedule/state/types/desktop-schedule-interaction-state";
 import "@/features/desktop-schedule/ui/components/styles/DesktopScheduleContextMenu.css";
 
 const VIEWPORT_MARGIN = 12;

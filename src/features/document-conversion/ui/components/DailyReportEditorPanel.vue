@@ -12,7 +12,8 @@ import { materialInspectionRequestApi } from "@/features/document-conversion/api
 import type { WorkTypeReferenceResponse } from "@/features/document-conversion/api/material-inspection-request-api.types";
 import { useDesktopScheduleViewModel } from "@/features/desktop-schedule/state/useDesktopScheduleViewModel";
 
-const { patchLoadedWorkActualDates } = useDesktopScheduleViewModel();
+const scheduleVm = useDesktopScheduleViewModel();
+const { dailyReport } = scheduleVm;
 const emit = defineEmits<{
   "report-date-change": [
     payload: {
@@ -25,7 +26,7 @@ const emit = defineEmits<{
 
 function applyActualWorkAffectedWorks(response: ActualWorkResponse) {
   if (response.affectedWorks?.length) {
-    patchLoadedWorkActualDates(response.affectedWorks);
+    dailyReport.patchLoadedWorkActualDates(response.affectedWorks);
   }
 }
 

@@ -82,7 +82,7 @@ Route 정식화 mapping:
 - 결과 문서 화면의 `preview`는 사용자에게 문서를 보여 주는 실제 기능이므로 `result`, `viewer`, `documentViewer`로 바꾼다.
 - 이미지 첨부의 `preview`는 `thumbnail`, `objectUrl`, `attachmentUrl`로 바꾼다.
 - 메시지 본문 일부를 뜻하는 `previewMessageText`는 `getMessageSnippet`으로 바꾼다.
-- drag/resize 중 임시 위치 계산을 뜻하는 `previewMoveSession`, `previewResizeSession`은 `draftMoveSession`, `draftResizeSession`으로 바꾼다.
+- drag/resize 중 임시 위치 계산을 뜻하는 `draftMoveSession`, `draftResizeSession`은 `draftMoveSession`, `draftResizeSession`으로 바꾼다.
 - placeholder row나 synthetic row를 뜻하는 `mock`은 `placeholder` 또는 `synthetic`으로 바꾼다.
 
 제품 copy cleanup 대상:
@@ -140,7 +140,7 @@ Stage 2 결과:
 - dashboard quick link와 문서 flow 내부 route target을 정식 route로 변경했다.
 - backend API endpoint, request payload, response DTO, backend enum 값은 변경하지 않았다.
 
-## Stage 3. Feature 구조 계약 정리
+## Stage 3. Feature 구조 계약 정리 [completed]
 
 목표:
 각 feature가 같은 폴더 구조와 책임 분리를 따르도록, 리팩터링 중 반복해서 적용할 구조 계약을 고정한다.
@@ -153,19 +153,80 @@ Stage 2 결과:
 - 필요 시 `docs/guidelines/dev_structure.md` 업데이트
 
 체크포인트:
-- [ ] 모든 feature의 page entry를 `features/<feature>/ui/*Page.vue` 바로 아래로 맞춘다
-- [ ] page 내부 조건문과 데이터 조립 로직을 `state/use*ViewModel.ts` 또는 작은 state composable로 옮긴다
-- [ ] 순수 계산과 변환 로직을 `services/*.service.ts`로 옮긴다
-- [ ] API 호출 파일은 이미 존재하는 feature만 `api/`를 유지하고 없는 feature에는 불필요하게 만들지 않는다
-- [ ] feature 밖에 공개할 항목만 `index.ts`에서 export한다
-- [ ] `ui/` 하위에는 `components/`만 두는 기존 규칙을 유지한다
-- [ ] 단일 service가 1,000 lines를 넘는 feature는 하위 service 파일로 분리하는 예외 규칙을 문서화한다
-- [ ] seed/mock fixture는 제품 데이터와 섞이지 않도록 `data/`에 남기거나 테스트 fixture로 이동하는 기준을 정한다
+- [x] 모든 feature의 page entry를 `features/<feature>/ui/*Page.vue` 바로 아래로 맞춘다
+- [x] page 내부 조건문과 데이터 조립 로직을 `state/use*ViewModel.ts` 또는 작은 state composable로 옮긴다
+- [x] 순수 계산과 변환 로직을 `services/*.service.ts`로 옮긴다
+- [x] API 호출 파일은 feature 내부 `api/`에 둔다
+- [x] feature 밖에 공개할 항목만 `index.ts`에서 export한다
+- [x] `ui/` 하위에는 `components/`만 두는 기존 규칙을 유지한다
+- [x] 단일 service가 1,000 lines를 넘는 feature는 하위 service 파일로 분리하는 예외 규칙을 문서화한다
+- [x] seed/mock fixture는 제품 데이터와 섞이지 않도록 `data/`에 남기거나 테스트 fixture로 이동하는 기준을 정한다
 
 완료 기준:
 이후 stage 구현자가 feature별로 같은 기준의 파일 위치, 책임, export 범위를 적용할 수 있다.
 
-## Stage 4. Desktop Schedule 대형 view model 분해
+Stage 3 구조 계약:
+
+기본 feature 구조:
+```text
+features/<feature>/
+  api/
+    <feature>.api.ts
+    <feature>-api.types.ts
+  ui/
+    <FeaturePage>.vue
+    components/
+      <FeatureSection>.vue
+  state/
+    use<Feature>Store.ts
+    use<Feature>ViewModel.ts
+    use<Feature><Concern>.ts
+  model/
+    <feature>.types.ts
+  services/
+    <feature>.service.ts
+    <feature>-<concern>.service.ts
+  data/
+    <feature>-catalog.ts
+    <feature>-copy.ts
+    <feature>.fixtures.ts
+  index.ts
+```
+
+레이어 책임:
+- `api/`는 백엔드 통신, endpoint 호출, request/response DTO만 담당한다.
+- `api/`는 backend endpoint, payload, response DTO, enum 값을 rename하지 않는다.
+- `data/`는 프론트에 고정된 catalog, option, copy map, fixture만 담당한다.
+- `model/`은 feature domain type과 화면 출력 type을 담당한다.
+- `services/`는 순수 계산, API 응답 변환, validation, view data build를 담당한다.
+- `state/`는 Pinia store, view model, loading/error/success 상태, 사용자 action orchestration을 담당한다.
+- `ui/`는 layout 조립, component 배치, props/emit 연결만 담당한다.
+- `index.ts`는 feature 외부에서 실제로 필요한 공개 API만 re-export한다.
+
+분리 기준:
+- page가 600 lines를 넘으면 section component 분리를 다음 작업 후보로 등록한다.
+- page가 1,000 lines를 넘으면 해당 stage에서 section component 분리를 완료한다.
+- view model이 600 lines를 넘으면 concern별 composable 분리를 다음 작업 후보로 등록한다.
+- view model이 1,000 lines를 넘으면 data loading, selection, editing, drag session, version/history처럼 사용자 행동 축으로 분리한다.
+- service가 600 lines를 넘으면 순수 계산, mapper, validation, builder 중 어느 책임이 커졌는지 분류한다.
+- service가 1,000 lines를 넘으면 `<feature>-<concern>.service.ts` 파일로 분리한다.
+- component style이 600 lines를 넘으면 component별 style file 또는 BEM block 단위 분리를 검토한다.
+
+이름 규칙:
+- feature folder와 route namespace는 제품 domain을 기준으로 `kebab-case`를 사용한다.
+- Vue component는 `PascalCase`를 사용한다.
+- store와 composable 파일은 exported function 이름을 따른다.
+- API type은 backend 계약을 보존하기 위해 `Response`, `Request`, backend enum 이름을 무리하게 제품 copy로 바꾸지 않는다.
+- UI display type은 backend DTO와 분리하고 `ViewData`, `ViewModel`, `DisplayItem`처럼 화면 의미를 드러낸다.
+- fixture는 실제 제품 데이터처럼 보이지 않도록 파일명에 `.fixtures`를 사용한다.
+
+Stage 4 이후 적용 방식:
+- rename-only 변경과 behavior-change 변경은 같은 commit에 섞지 않는다.
+- 큰 파일 분리는 먼저 extract-only로 진행하고, 동작 변경은 다음 commit에서 한다.
+- shared로 올리는 것은 두 개 이상의 feature에서 실제 중복이 확인된 뒤에만 한다.
+- backend API 계약은 프론트 구조 정리 중에도 그대로 유지한다.
+
+## Stage 4. Desktop Schedule 대형 view model 분해 [completed]
 
 목표:
 `desktop-schedule`의 8,000줄대 view model과 2,000줄대 service/component를 기능 축별로 나눠 일정 관리 feature를 유지보수 가능한 크기로 만든다.
@@ -175,28 +236,62 @@ Stage 2 결과:
 
 결과물:
 - `src/features/desktop-schedule/state/useDesktopScheduleViewModel.ts`
+- `src/features/desktop-schedule/state/desktop-schedule-drag-session.types.ts`
+- `src/features/desktop-schedule/state/useDesktopScheduleDragSession.ts`
+- `src/features/desktop-schedule/state/desktop-schedule-history.types.ts`
+- `src/features/desktop-schedule/state/desktop-schedule-version-review.types.ts`
 - `src/features/desktop-schedule/state/useDesktopScheduleData.ts`
 - `src/features/desktop-schedule/state/useDesktopScheduleSelection.ts`
 - `src/features/desktop-schedule/state/useDesktopScheduleEditing.ts`
-- `src/features/desktop-schedule/state/useDesktopScheduleDragSession.ts`
 - `src/features/desktop-schedule/state/useDesktopScheduleVersionHistory.ts`
 - `src/features/desktop-schedule/services/*`
 - `src/features/desktop-schedule/ui/components/*`
 
 체크포인트:
-- [ ] data loading과 project/version 초기화 로직을 `useDesktopScheduleData.ts`로 옮긴다
-- [ ] 선택 상태와 focus 상태를 `useDesktopScheduleSelection.ts`로 옮긴다
-- [ ] row/bar 수정 액션을 `useDesktopScheduleEditing.ts`로 옮긴다
-- [ ] `previewMoveSession`과 `previewResizeSession` 계열을 `useDesktopScheduleDragSession.ts`로 옮기고 제품 용어로 rename한다
-- [ ] schedule version/history 계산을 `useDesktopScheduleVersionHistory.ts`로 옮긴다
-- [ ] `desktop-schedule.service.ts`의 row build, hierarchy, validation, mock id 생성 책임을 별도 service 파일로 나눈다
-- [ ] `DesktopScheduleChartBody.vue`를 grid, lane, bar, dependency, overlay component로 나눈다
-- [ ] `DesktopScheduleShell.vue`와 `DesktopScheduleRowPanel.vue`의 데이터 판단 로직을 view model로 밀어낸다
-- [ ] `mock` kind가 실제 placeholder domain이면 `placeholder` 또는 `synthetic`으로 rename한다
-- [ ] 분리 후 page와 shell은 조립 역할만 남긴다
+- [x] drag/resize session type을 `desktop-schedule-drag-session.types.ts`로 분리한다
+- [x] `draftMoveSession`과 `draftResizeSession` 용어를 사용해 preview 시연 뉘앙스를 제거한다
+- [x] `draftMoveSession`과 `draftResizeSession` 구현을 `useDesktopScheduleDragSession.ts`로 옮긴다
+- [x] local history type을 `desktop-schedule-history.types.ts`로 분리한다
+- [x] schedule version review cache type을 `desktop-schedule-version-review.types.ts`로 분리한다
+- [x] `desktop-schedule.service.ts`의 date helper를 `desktop-schedule-date.service.ts`로 분리한다
+- [x] `desktop-schedule.service.ts`의 row builder/hierarchy helper를 `desktop-schedule-row-builder.service.ts`로 분리한다
+- [x] `DesktopScheduleChartBody.vue`와 `DesktopScheduleRowPanel.vue`의 color helper를 `desktop-schedule-color.utils.ts`로 분리한다
+- [x] `DesktopScheduleShell.vue`의 shell chrome 상수를 `desktop-schedule-shell.constants.ts`로 분리한다
+- [x] `DesktopScheduleRowPanel.vue`의 header/drag/resize 상수를 `desktop-schedule-row-panel.constants.ts`로 분리한다
+- [x] 공정표 내부 draft event 이름에서 `preview` 표현을 제거한다
+- [x] data loading과 project/version 초기화 로직을 `useDesktopScheduleData.ts`로 옮긴다
+- [x] 선택 상태와 focus 상태를 `useDesktopScheduleSelection.ts`로 옮긴다
+- [x] row/bar 수정 액션을 `useDesktopScheduleEditing.ts`로 옮긴다
+- [x] schedule version/history 계산을 `useDesktopScheduleVersionHistory.ts`로 옮긴다
+- [x] `desktop-schedule.service.ts`의 validation, placeholder id 생성 책임을 별도 service 파일로 나눈다
+- [x] `DesktopScheduleChartBody.vue`를 grid, lane, bar, dependency, overlay component로 나눈다
+- [x] `DesktopScheduleShell.vue`와 `DesktopScheduleRowPanel.vue`의 데이터 판단 로직을 view model로 밀어낸다
+- [x] `mock` kind가 실제 placeholder domain이면 `placeholder` 또는 `synthetic`으로 rename한다
+- [x] 분리 후 page와 shell은 조립 역할만 남긴다
 
 완료 기준:
 `desktop-schedule`의 핵심 파일이 기능별로 열리고, view model은 orchestration entry 역할만 하며, 1,000 lines 이상 파일이 더 이상 feature 중심 로직을 독점하지 않는다.
+
+Stage 4 진행 기록:
+- `MoveSession`, `ResizeSession`, `SummaryResizeSession` 타입을 `desktop-schedule-drag-session.types.ts`로 분리했다.
+- `previewMoveSession`은 `draftMoveSession`으로 변경했다.
+- `previewResizeSession`은 `draftResizeSession`으로 변경했다.
+- `draftMoveSession`, `draftResizeSession` 구현을 `useDesktopScheduleDragSession.ts`로 분리했다.
+- local history와 schedule version review cache type을 view model 밖으로 분리했다.
+- `desktop-schedule.service.ts`에서 date helper와 row builder/hierarchy helper를 분리했다.
+- `desktop-schedule.service.ts`에서 local/placeholder id 생성 helper를 `desktop-schedule-local-id.service.ts`로 분리했다.
+- `desktop-schedule.service.ts`에서 work connection move/resize rule helper를 `desktop-schedule-work-rule.service.ts`로 분리했다.
+- `loadSchedule` orchestration을 `useDesktopScheduleData.ts`로 분리했다.
+- selection handler를 `useDesktopScheduleSelection.ts`로 분리했다.
+- row editing handler를 `useDesktopScheduleEditing.ts`로 분리했다.
+- local undo/redo handler를 `useDesktopScheduleVersionHistory.ts`로 분리했다.
+- UI component 공통 color helper와 Shell/RowPanel 상수를 분리했다.
+- ChartBody의 draft connection dependency overlay를 `DesktopScheduleDraftConnectionLayer.vue`로 분리했다.
+- 공정표 내부 `move-preview`, `resize-preview` event 이름은 `move-draft`, `resize-draft`로 변경했다.
+- 내부 row kind의 `mock` 표현은 `placeholder`로 변경했다.
+- backend API 계약과 저장 payload는 변경하지 않았다.
+- `npm run build`로 `vue-tsc --noEmit && vite build` 검증을 통과했다.
+- Stage 4 완료 후 QA에서는 공정표 조회, drag 이동, resize, row 추가/접기, undo/redo, version 전환을 우선 확인한다.
 
 ## Stage 5. Document Conversion 정식 feature 전환과 하위 flow 분리
 
@@ -298,7 +393,7 @@ AI agent의 preview 표현을 비정식 서비스 의미와 분리하고, messag
 - `src/features/ai-agent/state/useAiAgentStore.ts`
 
 체크포인트:
-- [ ] `previewMessageText`를 `summarizeMessageText` 또는 `getMessageExcerpt`로 rename한다
+- [ ] `previewMessageText`를 `getMessageSnippet`으로 rename한다
 - [ ] image/file preview URL은 `attachmentObjectUrl` 또는 `thumbnailUrl`로 rename한다
 - [ ] `MessageBubble.vue`에서 attachment 표시 영역을 별도 component로 분리한다
 - [ ] attachment object URL lifecycle을 composable로 분리한다
@@ -421,3 +516,40 @@ route와 feature 이름 변경 이후 API payload, analytics event, docs referen
 
 완료 기준:
 정식 서비스 표현, route, feature 구조, 주요 사용자 flow, analytics 참조가 서로 일관되고, dashboard, 공정표 불러오기, AI 검증은 코드 삭제 없이 문서화된 조건으로 임시 비활성화되어 있으며, 남은 대형 파일은 의도된 예외 또는 다음 작업으로 분명히 관리된다.
+
+### Stage 4 correction note - 2026-05-19
+
+- `useDesktopScheduleViewModel`의 역할을 facade/orchestration 중심으로 축소하기 위해 순수 도메인 로직과 독립 flow를 추가 분리했다.
+- 버전 비교/리뷰 계산 로직은 `desktop-schedule-version-review.service.ts`와 `useDesktopScheduleVersionReviewWorkflow.ts`로 이동했다.
+- local history snapshot, patch, undo/redo remap 계산은 `desktop-schedule-history.service.ts`로 이동했다.
+- 공정표 import/export flow는 `useDesktopScheduleImportExport.ts`로 이동했다.
+- AI 검증 mode 상태 전환, 색상 stash, 버전 변경 reset watch는 `useDesktopScheduleAiVerification.ts`로 이동했다.
+- `useDesktopScheduleViewModel.ts`는 7,867 lines에서 약 5,680 lines로 축소했다. 아직 최종 목표 크기는 아니므로 reference mutation, context menu command, drag/resize persistence를 다음 분리 후보로 유지한다.
+- Backend API endpoint, payload, response DTO는 변경하지 않았다.
+- `npm run build` 통과를 확인했다. Vite chunk size/dynamic import warning은 기존 경고로 남아 있다.
+
+### Stage 4 additional separation note - 2026-05-19
+
+- 분류/공종/세부공종 reference mutation flow를 `useDesktopScheduleReferenceMutations.ts`로 분리했다.
+- `useDesktopScheduleViewModel`은 reference 생성, 이름 변경, 순서 변경의 구체 구현 대신 composable에서 반환한 action을 public grouped API에 연결한다.
+- Context menu에서 호출하는 reference 생성 helper도 같은 composable에서 반환해 reference domain의 응집도를 높였다.
+- `npm run build` 통과를 확인했다. 기존 Vite chunk/dynamic import warning은 계속 남아 있다.
+
+### Stage 4 facade target completion note - 2026-05-19
+
+- `useDesktopScheduleViewModel.ts`를 1,000 lines 이하 facade 목표에 맞춰 928 lines로 축소했다.
+- `state/core`를 추가해 core state 생성, view-model helper, public API assembly를 분리했다.
+- `state/workflows`를 추가해 history, loaded data sync, version, reference, item/milestone, context menu, connection/milestone, import/export, AI verification, UI workflow, work persistence를 책임 단위로 분리했다.
+- `state/interactions`를 추가해 drag session, selection, project-bound calculation, move/resize session, zoom controls를 분리했다.
+- `state/types`를 추가해 drag/history/interaction/version-review type 파일을 모았다.
+- `services/domain`을 추가해 desktop schedule history, version review, row builder, work rule domain service를 이동했다.
+- 모든 분리 파일은 1,000 lines 이하로 유지했다.
+- `npm run build` 통과를 확인했다. 기존 Vite chunk/dynamic import warning은 계속 남아 있다.
+- 후속 cleanup으로 workflow dependency bag의 세부 타입 강화와 임시 `ts-nocheck` 제거를 진행한다.
+
+### Stage 4 follow-up completion - type cleanup
+
+- Removed the temporary TypeScript bypass comments from the desktop schedule refactor files.
+- Replaced the bypass with explicit workflow dependency typing for the split state/workflow modules.
+- Moved review-aware shell layout composition back to the view model layer so core state no longer depends on review workflow implementation details.
+- Verification: `npm run build` passed after the cleanup. The project currently has no dedicated `test` script in `package.json`.

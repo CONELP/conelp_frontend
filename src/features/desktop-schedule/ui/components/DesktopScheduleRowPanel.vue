@@ -3,6 +3,22 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import type { ComponentPublicInstance } from "vue";
 
 import type { DesktopScheduleShellRow } from "@/features/desktop-schedule/model/desktop-schedule.types";
+import { toAlphaColor } from "@/features/desktop-schedule/ui/components/desktop-schedule-color.utils";
+import {
+  COLUMN_RESIZE_LISTENER_OPTIONS,
+  DEFAULT_DIVISION_NAMES,
+  DEFAULT_SUB_WORK_TYPE_COLOR_HEX,
+  DEFAULT_SUB_WORK_TYPE_NAMES,
+  DEFAULT_WORK_TYPE_NAMES,
+  DIVISION_HINT_TEXT,
+  REFERENCE_DRAG_LISTENER_OPTIONS,
+  REVIEW_DELETED_ROW_ID_PREFIX,
+  SCROLL_SYNC_EPSILON,
+  SUB_WORK_TYPE_HINT_TEXT,
+  WORK_TYPE_COLUMN_MAX_WIDTH,
+  WORK_TYPE_COLUMN_MIN_WIDTH,
+  WORK_TYPE_HINT_TEXT,
+} from "@/features/desktop-schedule/ui/components/desktop-schedule-row-panel.constants";
 import "@/features/desktop-schedule/ui/components/styles/DesktopScheduleRowPanel.css";
 
 type RowPanelEntry = {
@@ -53,27 +69,11 @@ type ReferenceDragState =
       currentClientY: number;
     };
 
-const DEFAULT_DIVISION_NAME = "분류 (건축)";
-const DEFAULT_DIVISION_NAME_NEXT = "분류 (건축공사)";
-const DEFAULT_WORK_TYPE_NAME = "공종명 (철콘공사)";
-const DEFAULT_DIVISION_NAMES = new Set([DEFAULT_DIVISION_NAME, DEFAULT_DIVISION_NAME_NEXT]);
-const DEFAULT_WORK_TYPE_NAMES = new Set([DEFAULT_WORK_TYPE_NAME]);
-const DEFAULT_SUB_WORK_TYPE_NAMES = new Set(["세부공종명 (철근)", "세부공종명 (타설)"]);
-const DEFAULT_SUB_WORK_TYPE_COLOR_HEX = "#9ca3af";
 
 function isDefaultSubWorkTypeColor(colorHex: string | null | undefined) {
   return typeof colorHex === "string" && colorHex.toLowerCase() === DEFAULT_SUB_WORK_TYPE_COLOR_HEX;
 }
 
-const DIVISION_HINT_TEXT = "건축공사";
-const WORK_TYPE_HINT_TEXT = "철콘공사";
-const SUB_WORK_TYPE_HINT_TEXT = "타설";
-const REFERENCE_DRAG_LISTENER_OPTIONS = true;
-const WORK_TYPE_COLUMN_MIN_WIDTH = 72;
-const WORK_TYPE_COLUMN_MAX_WIDTH = 240;
-const COLUMN_RESIZE_LISTENER_OPTIONS = true;
-const SCROLL_SYNC_EPSILON = 0.01;
-const REVIEW_DELETED_ROW_ID_PREFIX = "review-deleted-row:";
 
 const props = defineProps<{
   rows: DesktopScheduleShellRow[];
@@ -355,29 +355,7 @@ const activeSubWorkTypeDragPreview = computed(() => {
   };
 });
 
-function normalizeHexColor(colorHex: string) {
-  const sanitized = colorHex.trim().replace("#", "");
-  if (/^[0-9a-fA-F]{3}$/.test(sanitized)) {
-    return sanitized
-      .split("")
-      .map((character) => `${character}${character}`)
-      .join("");
-  }
 
-  return /^[0-9a-fA-F]{6}$/.test(sanitized) ? sanitized : null;
-}
-
-function toAlphaColor(colorHex: string, alpha: number) {
-  const normalizedHex = normalizeHexColor(colorHex);
-  if (!normalizedHex) {
-    return colorHex;
-  }
-
-  const red = Number.parseInt(normalizedHex.slice(0, 2), 16);
-  const green = Number.parseInt(normalizedHex.slice(2, 4), 16);
-  const blue = Number.parseInt(normalizedHex.slice(4, 6), 16);
-  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
-}
 
 function getRowInlineStyle(row: DesktopScheduleShellRow) {
   const style: Record<string, string> = {

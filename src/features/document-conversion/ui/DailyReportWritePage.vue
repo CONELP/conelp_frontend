@@ -290,93 +290,31 @@ function readImageFileAsDataUrl(file: File) {
   });
 }
 
+const scheduleVm = useDesktopScheduleViewModel();
 const {
-  scheduleLoadStatus,
-  scheduleLoadErrorMessage,
-  scheduleToast,
-  scheduleVersions,
-  selectedScheduleVersionId,
-  scheduleVersionReviewState,
-  scheduleVersionPromotionState,
-  scheduleImportDialogState,
-  isAiVerificationModeActive,
-  aiVerificationFlaggedItemIds,
-  selectionState,
-  contextMenuState,
-  contextMenuItems,
-  colorPaletteState,
-  connectionCreationState,
-  renamingDivisionId,
-  renamingWorkTypeId,
-  renamingSubWorkTypeId,
-  renamingItemId,
-  renamingMilestoneId,
-  timeline,
-  shellLayout,
-  rowPanelWidth,
-  workTypeColumnWidth,
-  chartScrollTop,
-  chartScrollLeft,
-  interactionCancelVersion,
-  zoomScale,
-  currentZoomIndex,
-  maxZoomIndex,
-  canZoomIn,
-  canZoomOut,
-  loadSchedule,
-  clearSelection,
-  syncChartScroll,
-  setRowPanelWidth,
-  setWorkTypeColumnWidth,
-  selectBars,
-  selectRows,
-  deleteSelection,
-  startDivisionRename,
-  commitDivisionRename,
-  cancelDivisionRename,
-  startWorkTypeRename,
-  commitWorkTypeRename,
-  cancelWorkTypeRename,
-  startSubWorkTypeRename,
-  commitSubWorkTypeRename,
-  cancelSubWorkTypeRename,
-  reorderReferenceDivisions,
-  reorderReferenceWorkTypes,
-  openItemContextMenu,
-  openWorkConnectionContextMenu,
-  openMilestoneContextMenu,
-  openRowContextMenu,
-  openScheduleHeaderContextMenu,
-  openCanvasContextMenu,
-  executeContextMenuCommand,
-  closeContextMenu,
-  closeColorPalette,
-  applyColorSelection,
-  startItemRename,
-  commitItemRename,
-  cancelItemRename,
-  startMilestoneRename,
-  commitMilestoneRename,
-  cancelMilestoneRename,
-  cancelConnectionCreation,
-  completeConnectionCreation,
-  activateMilestone,
-  startMoveSession,
-  previewMoveSession,
-  endMoveSession,
-  startResizeSession,
-  previewResizeSession,
-  endResizeSession,
-  setZoomIndex,
-  zoomIn,
-  zoomOut,
-  notifyReadOnlyScheduleAction,
-  patchLoadedWorkActualDates,
-} = useDesktopScheduleViewModel();
+  load,
+  access,
+  version,
+  importFlow,
+  selection,
+  contextMenu,
+  colorPalette,
+  rename,
+  reference,
+  layout,
+  scroll,
+  history,
+  connection,
+  milestone,
+  interaction,
+  zoom,
+  aiVerification,
+  dailyReport,
+} = scheduleVm;
 
 function applyActualWorkAffectedWorks(response: ActualWorkResponse) {
   if (response.affectedWorks?.length) {
-    patchLoadedWorkActualDates(response.affectedWorks);
+    dailyReport.patchLoadedWorkActualDates(response.affectedWorks);
   }
 }
 
@@ -406,18 +344,18 @@ const tomorrowWorkTypes = ref<DailyReportWorkTypeDraft[]>(dailyReportDraft.tomor
 const todayImages = ref<DailyReportImageDraft[]>(dailyReportDraft.todayImages);
 const tomorrowImages = ref<DailyReportImageDraft[]>(dailyReportDraft.tomorrowImages);
 const shouldApplyInitialTimelineScroll = ref(
-  scheduleLoadStatus.value !== "success",
+  load.status !== "success",
 );
 const isBaselineScheduleLoadInFlight = ref(false);
 let resizeObserver: ResizeObserver | null = null;
 
 const isScheduleRefreshing = computed(
   () =>
-    scheduleLoadStatus.value === "loading" &&
-    selectedScheduleVersionId.value !== null,
+    load.status === "loading" &&
+    version.selectedId !== null,
 );
 const baselineScheduleVersionId = computed(
-  () => scheduleVersions.value.find((version) => version.isMain)?.id ?? null,
+  () => version.versions.find((version: any) => version.isMain)?.id ?? null,
 );
 const effectiveScheduleColumnRatio = computed(() =>
   clampScheduleRatio(scheduleColumnRatio.value, layoutContentWidth.value),
@@ -479,7 +417,7 @@ function syncShellViewport() {
 
   shellViewportHeight.value = Math.max(shellHostRef.value.clientHeight - verticalPadding, 320);
   chartViewportWidth.value = Math.max(
-    shellHostRef.value.clientWidth - horizontalPadding - rowPanelWidth.value,
+    shellHostRef.value.clientWidth - horizontalPadding - layout.rowPanelWidth,
     0,
   );
 }
@@ -551,24 +489,24 @@ function startLayoutResize(event: PointerEvent) {
 }
 
 function handleRowPanelWidthChange(width: number) {
-  setRowPanelWidth(width);
+  layout.setRowPanelWidth(width);
   syncShellViewport();
 }
 
 function handleWorkTypeColumnWidthChange(width: number) {
-  setWorkTypeColumnWidth(width);
+  layout.setWorkTypeColumnWidth(width);
 }
 
 function handleZoomIn() {
-  zoomIn(chartViewportWidth.value);
+  zoom.zoomIn(chartViewportWidth.value);
 }
 
 function handleZoomOut() {
-  zoomOut(chartViewportWidth.value);
+  zoom.zoomOut(chartViewportWidth.value);
 }
 
 function handleZoomChange(zoomIndex: number) {
-  setZoomIndex(zoomIndex, chartViewportWidth.value);
+  zoom.setIndex(zoomIndex, chartViewportWidth.value);
 }
 
 function handleScheduleReload() {
@@ -1345,7 +1283,7 @@ async function ensureBaselineScheduleSelected() {
 
   if (
     baselineId === null ||
-    selectedScheduleVersionId.value === baselineId ||
+    version.selectedId === baselineId ||
     isBaselineScheduleLoadInFlight.value
   ) {
     return;
@@ -1355,14 +1293,14 @@ async function ensureBaselineScheduleSelected() {
 
   try {
     shouldApplyInitialTimelineScroll.value = true;
-    await loadSchedule({ scheduleVersionId: baselineId });
+    await load.schedule({ scheduleVersionId: baselineId });
   } finally {
     isBaselineScheduleLoadInFlight.value = false;
   }
 }
 
 async function loadBaselineSchedule() {
-  await loadSchedule();
+  await load.schedule();
   await ensureBaselineScheduleSelected();
 }
 
@@ -1380,7 +1318,7 @@ onMounted(() => {
     syncDailyReportLayout();
   }
 
-  if (scheduleLoadStatus.value === "idle") {
+  if (load.status === "idle") {
     void loadBaselineSchedule();
   } else {
     void ensureBaselineScheduleSelected();
@@ -1401,17 +1339,17 @@ onUnmounted(() => {
     }
     state.requestId += 1;
   });
-  closeContextMenu();
-  closeColorPalette();
-  cancelConnectionCreation();
+  contextMenu.close();
+  colorPalette.close();
+  connection.cancelCreation();
 });
 
 watch(
   () =>
     [
-      scheduleLoadStatus.value,
+      load.status,
       baselineScheduleVersionId.value,
-      selectedScheduleVersionId.value,
+      version.selectedId,
     ] as const,
   ([nextScheduleLoadStatus]) => {
     if (nextScheduleLoadStatus !== "success") {
@@ -1425,8 +1363,8 @@ watch(
 watch(
   () =>
     [
-      scheduleLoadStatus.value,
-      timeline.value,
+      load.status,
+      layout.timeline,
       chartViewportWidth.value,
     ] as const,
   async ([nextScheduleLoadStatus, nextTimeline, nextChartViewportWidth]) => {
@@ -1439,7 +1377,7 @@ watch(
     }
 
     await nextTick();
-    syncChartScroll({
+    scroll.syncChart({
       top: 0,
       left: desktopScheduleService.getInitialScrollLeftForYesterday(
         nextTimeline,
@@ -1459,13 +1397,13 @@ watch(
 
     <Transition name="desktop-schedule-toast">
       <div
-        v-if="scheduleToast.visible"
+        v-if="load.toast.visible"
         class="desktop-schedule-page__toast"
-        :class="`desktop-schedule-page__toast--${scheduleToast.tone}`"
+        :class="`desktop-schedule-page__toast--${load.toast.tone}`"
         role="status"
         aria-live="polite"
       >
-        {{ scheduleToast.message }}
+        {{ load.toast.message }}
       </div>
     </Transition>
 
@@ -1482,8 +1420,8 @@ watch(
       >
         <div
           v-if="
-            scheduleLoadStatus === 'idle' ||
-            (scheduleLoadStatus === 'loading' && !isScheduleRefreshing)
+            load.status === 'idle' ||
+            (load.status === 'loading' && !isScheduleRefreshing)
           "
           class="desktop-schedule-page__state"
         >
@@ -1493,14 +1431,14 @@ watch(
         </div>
 
         <div
-          v-else-if="scheduleLoadStatus === 'error'"
+          v-else-if="load.status === 'error'"
           class="desktop-schedule-page__state"
         >
           <p class="desktop-schedule-page__state-title">
             공정표 데이터를 불러오지 못했어요.
           </p>
           <p class="desktop-schedule-page__state-description">
-            {{ scheduleLoadErrorMessage }}
+            {{ load.errorMessage }}
           </p>
           <button
             type="button"
@@ -1513,12 +1451,12 @@ watch(
 
         <template v-else>
           <DesktopScheduleShell
-            :timeline="timeline"
-            :shell-layout="shellLayout"
+            :timeline="layout.timeline"
+            :shell-layout="layout.shell"
             :read-only="true"
             reference-only
-            :schedule-versions="scheduleVersions"
-            :selected-schedule-version-id="selectedScheduleVersionId"
+            :schedule-versions="version.versions"
+            :selected-schedule-version-id="version.selectedId"
             version-name="기준 공정표"
             version-mode-label="기준 공정표"
             version-access-label="읽기 전용"
@@ -1526,95 +1464,95 @@ watch(
             :can-create-draft-version="false"
             :can-compare-schedule-version="false"
             :can-promote-schedule-version="false"
-            :schedule-version-review="scheduleVersionReviewState"
-            :schedule-version-promotion="scheduleVersionPromotionState"
-            :schedule-import-dialog="scheduleImportDialogState"
-            :is-ai-verification-mode-active="isAiVerificationModeActive"
-            :ai-verification-flagged-item-ids="aiVerificationFlaggedItemIds"
+            :schedule-version-review="version.reviewState"
+            :schedule-version-promotion="version.promotionState"
+            :schedule-import-dialog="importFlow.state"
+            :is-ai-verification-mode-active="aiVerification.isActive"
+            :ai-verification-flagged-item-ids="aiVerification.flaggedItemIds"
             :viewport-height="shellViewportHeight"
-            :scroll-top="chartScrollTop"
-            :scroll-left="chartScrollLeft"
-            :interaction-cancel-version="interactionCancelVersion"
-            :selected-row-ids="selectionState.rowIds"
-            :selected-item-ids="selectionState.itemIds"
-            :selected-work-connection-ids="selectionState.workConnectionIds"
-            :selected-milestone-ids="selectionState.milestoneIds"
-            :connection-creation-state="connectionCreationState"
-            :row-panel-width="rowPanelWidth"
-            :work-type-column-width="workTypeColumnWidth"
-            :editing-division-id="renamingDivisionId"
-            :editing-work-type-id="renamingWorkTypeId"
-            :editing-sub-work-type-id="renamingSubWorkTypeId"
-            :editing-item-id="renamingItemId"
-            :editing-milestone-id="renamingMilestoneId"
-            :zoom-index="currentZoomIndex"
-            :zoom-max="maxZoomIndex"
-            :zoom-scale="zoomScale"
-            :can-zoom-in="canZoomIn"
-            :can-zoom-out="canZoomOut"
+            :scroll-top="scroll.top"
+            :scroll-left="scroll.left"
+            :interaction-cancel-version="interaction.cancelVersion"
+            :selected-row-ids="selection.state.rowIds"
+            :selected-item-ids="selection.state.itemIds"
+            :selected-work-connection-ids="selection.state.workConnectionIds"
+            :selected-milestone-ids="selection.state.milestoneIds"
+            :connection-creation-state="connection.creationState"
+            :row-panel-width="layout.rowPanelWidth"
+            :work-type-column-width="layout.workTypeColumnWidth"
+            :editing-division-id="rename.divisionId"
+            :editing-work-type-id="rename.workTypeId"
+            :editing-sub-work-type-id="rename.subWorkTypeId"
+            :editing-item-id="rename.itemId"
+            :editing-milestone-id="rename.milestoneId"
+            :zoom-index="zoom.currentIndex"
+            :zoom-max="zoom.maxIndex"
+            :zoom-scale="zoom.scale"
+            :can-zoom-in="zoom.canZoomIn"
+            :can-zoom-out="zoom.canZoomOut"
             :can-undo="false"
             :can-redo="false"
-            @scroll-sync="syncChartScroll"
+            @scroll-sync="scroll.syncChart"
             @row-panel-width-change="handleRowPanelWidthChange"
             @work-type-column-width-change="handleWorkTypeColumnWidthChange"
-            @readonly-edit-attempt="notifyReadOnlyScheduleAction"
-            @clear-selection="clearSelection"
-            @select-bars="selectBars"
-            @select-row="(rowId: string) => selectRows({ rowIds: [rowId] })"
-            @start-division-rename="startDivisionRename"
-            @commit-division-rename="commitDivisionRename"
-            @cancel-division-rename="cancelDivisionRename"
-            @start-work-type-rename="startWorkTypeRename"
-            @commit-work-type-rename="commitWorkTypeRename"
-            @cancel-work-type-rename="cancelWorkTypeRename"
-            @start-sub-work-type-rename="startSubWorkTypeRename"
-            @commit-sub-work-type-rename="commitSubWorkTypeRename"
-            @cancel-sub-work-type-rename="cancelSubWorkTypeRename"
-            @reorder-divisions="reorderReferenceDivisions"
-            @reorder-work-types="reorderReferenceWorkTypes"
-            @delete-selection="deleteSelection"
-            @item-context-menu="openItemContextMenu"
-            @work-connection-context-menu="openWorkConnectionContextMenu"
-            @milestone-context-menu="openMilestoneContextMenu"
-            @row-context-menu="openRowContextMenu"
-            @header-context-menu="openScheduleHeaderContextMenu"
-            @canvas-context-menu="openCanvasContextMenu"
-            @cancel-connection-create="cancelConnectionCreation"
-            @complete-connection-create="completeConnectionCreation"
-            @start-item-rename="startItemRename"
-            @commit-item-rename="commitItemRename"
-            @cancel-item-rename="cancelItemRename"
-            @start-milestone-rename="startMilestoneRename"
-            @commit-milestone-rename="commitMilestoneRename"
-            @cancel-milestone-rename="cancelMilestoneRename"
-            @milestone-activate="activateMilestone"
-            @move-start="startMoveSession"
-            @move-preview="previewMoveSession"
-            @move-end="endMoveSession"
-            @resize-start="startResizeSession"
-            @resize-preview="previewResizeSession"
-            @resize-end="endResizeSession"
+            @readonly-edit-attempt="access.notifyReadOnlyAction"
+            @clear-selection="selection.clear"
+            @select-bars="selection.selectBars"
+            @select-row="(rowId: string) => selection.selectRows({ rowIds: [rowId] })"
+            @start-division-rename="reference.startDivisionRename"
+            @commit-division-rename="reference.commitDivisionRename"
+            @cancel-division-rename="reference.cancelDivisionRename"
+            @start-work-type-rename="reference.startWorkTypeRename"
+            @commit-work-type-rename="reference.commitWorkTypeRename"
+            @cancel-work-type-rename="reference.cancelWorkTypeRename"
+            @start-sub-work-type-rename="reference.startSubWorkTypeRename"
+            @commit-sub-work-type-rename="reference.commitSubWorkTypeRename"
+            @cancel-sub-work-type-rename="reference.cancelSubWorkTypeRename"
+            @reorder-divisions="reference.reorderDivisions"
+            @reorder-work-types="reference.reorderWorkTypes"
+            @delete-selection="selection.deleteSelection"
+            @item-context-menu="contextMenu.openItem"
+            @work-connection-context-menu="contextMenu.openWorkConnection"
+            @milestone-context-menu="contextMenu.openMilestone"
+            @row-context-menu="contextMenu.openRow"
+            @header-context-menu="contextMenu.openHeader"
+            @canvas-context-menu="contextMenu.openCanvas"
+            @cancel-connection-create="connection.cancelCreation"
+            @complete-connection-create="connection.completeCreation"
+            @start-item-rename="rename.startItem"
+            @commit-item-rename="rename.commitItem"
+            @cancel-item-rename="rename.cancelItem"
+            @start-milestone-rename="rename.startMilestone"
+            @commit-milestone-rename="rename.commitMilestone"
+            @cancel-milestone-rename="rename.cancelMilestone"
+            @milestone-activate="milestone.activate"
+            @move-start="interaction.startMove"
+            @move-draft="interaction.draftMove"
+            @move-end="interaction.endMove"
+            @resize-start="interaction.startResize"
+            @resize-draft="interaction.draftResize"
+            @resize-end="interaction.endResize"
             @zoom-in="handleZoomIn"
             @zoom-out="handleZoomOut"
             @zoom-change="handleZoomChange"
           />
 
           <DesktopScheduleContextMenu
-            :open="contextMenuState.open"
-            :x="contextMenuState.x"
-            :y="contextMenuState.y"
-            :items="contextMenuItems"
-            @close="closeContextMenu"
-            @select="executeContextMenuCommand"
+            :open="contextMenu.state.open"
+            :x="contextMenu.state.x"
+            :y="contextMenu.state.y"
+            :items="contextMenu.items"
+            @close="contextMenu.close"
+            @select="contextMenu.execute"
           />
 
           <DesktopScheduleColorPalette
-            :open="colorPaletteState.open"
-            :x="colorPaletteState.x"
-            :y="colorPaletteState.y"
-            :selected-color="colorPaletteState.selectedColor"
-            @close="closeColorPalette"
-            @select="applyColorSelection"
+            :open="colorPalette.state.open"
+            :x="colorPalette.state.x"
+            :y="colorPalette.state.y"
+            :selected-color="colorPalette.state.selectedColor"
+            @close="colorPalette.close"
+            @select="colorPalette.apply"
           />
 
           <Transition name="desktop-schedule-refresh">

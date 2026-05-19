@@ -1,0 +1,13 @@
+export const SHELL_HEADER_HEIGHT = 116;
+export const SHELL_HEADER_MONTH_HEIGHT = 32;
+export const SHELL_HEADER_WEEK_HEIGHT = 28;
+export const SHELL_TOOLBAR_HEIGHT = 56;
+export const SHELL_STACK_GAP = 8;
+export const SHELL_SURFACE_PADDING_Y = 10;
+export const SHELL_SURFACE_GAP = 8;
+export const SHELL_SURFACE_BORDER_WIDTH = 1;
+export const SHELL_FRAME_BORDER_WIDTH = 1;
+export const READONLY_NOTICE_HEIGHT = 40;
+export const ROW_PANEL_MIN_WIDTH = 180;
+export const ROW_PANEL_MAX_WIDTH = 520;
+export const WIDTH_RESIZE_LISTENER_OPTIONS = true;

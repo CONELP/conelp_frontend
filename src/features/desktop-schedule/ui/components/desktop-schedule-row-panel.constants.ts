@@ -1,0 +1,16 @@
+export const DEFAULT_DIVISION_NAME = "분류 (건축)";
+export const DEFAULT_DIVISION_NAME_NEXT = "분류 (건축공사)";
+export const DEFAULT_WORK_TYPE_NAME = "공종명 (철콘공사)";
+export const DEFAULT_DIVISION_NAMES = new Set([DEFAULT_DIVISION_NAME, DEFAULT_DIVISION_NAME_NEXT]);
+export const DEFAULT_WORK_TYPE_NAMES = new Set([DEFAULT_WORK_TYPE_NAME]);
+export const DEFAULT_SUB_WORK_TYPE_NAMES = new Set(["세부공종명 (철근)", "세부공종명 (타설)"]);
+export const DEFAULT_SUB_WORK_TYPE_COLOR_HEX = "#9ca3af";
+export const DIVISION_HINT_TEXT = "건축공사";
+export const WORK_TYPE_HINT_TEXT = "철콘공사";
+export const SUB_WORK_TYPE_HINT_TEXT = "타설";
+export const REFERENCE_DRAG_LISTENER_OPTIONS = true;
+export const WORK_TYPE_COLUMN_MIN_WIDTH = 72;
+export const WORK_TYPE_COLUMN_MAX_WIDTH = 240;
+export const COLUMN_RESIZE_LISTENER_OPTIONS = true;
+export const SCROLL_SYNC_EPSILON = 0.01;
+export const REVIEW_DELETED_ROW_ID_PREFIX = "review-deleted-row:";

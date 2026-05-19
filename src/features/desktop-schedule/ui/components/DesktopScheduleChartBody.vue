@@ -279,20 +279,9 @@
           </text>
         </g>
 
-        <path
-          v-if="previewConnectionPath"
-          :d="previewConnectionPath"
-          fill="none"
-          pointer-events="none"
-          :stroke="connectionCreationState?.kind === 'critical-path'
-            ? connectionCreationState.colorHex ?? '#dc2626'
-            : '#64748b'"
-          :stroke-width="connectionCreationState?.kind === 'critical-path'
-            ? 2.25
-            : 2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          opacity="0.9"
+        <DesktopScheduleDraftConnectionLayer
+          :path="draftConnectionPath"
+          :connection-creation-state="connectionCreationState"
         />
 
         <g v-for="connection in shellLayout.connections" :key="connection.id">
@@ -625,6 +614,8 @@ import {
   type ComponentPublicInstance,
 } from "vue";
 
+import { mixHexWithWhite, toAlphaColor } from "@/features/desktop-schedule/ui/components/desktop-schedule-color.utils";
+import DesktopScheduleDraftConnectionLayer from "@/features/desktop-schedule/ui/components/DesktopScheduleDraftConnectionLayer.vue";
 import type {
   DesktopScheduleBarLayout,
   DesktopScheduleConnectionLayout,
@@ -661,7 +652,7 @@ type ResizeState = {
   edge: "left" | "right";
 };
 
-type PreviewConnectionPoint = {
+type DraftConnectionPoint = {
   x: number;
   y: number;
 };
@@ -737,10 +728,10 @@ const emit = defineEmits<{
       | { kind: "summary"; rowId: string }
       | { kind: "milestone"; milestoneId: string },
   ];
-  "move-preview": [payload: { deltaDays: number; deltaLanes: number }];
+  "move-draft": [payload: { deltaDays: number; deltaLanes: number }];
   "move-end": [];
   "resize-start": [payload: { kind: "item"; itemId: string; edge: "left" | "right" } | { kind: "summary"; rowId: string; edge: "left" | "right" }];
-  "resize-preview": [payload: { deltaDays: number }];
+  "resize-draft": [payload: { deltaDays: number }];
   "resize-end": [];
   "hover-cell": [payload: HoveredCellState];
 }>();
@@ -755,7 +746,7 @@ const hoveredWorkConnectionId = ref<string | null>(null);
 const hoveredCriticalPathPathId = ref<number | null>(null);
 const hoveredMilestoneId = ref<string | null>(null);
 const hoveredConnectionTargetItemId = ref<string | null>(null);
-const previewConnectionPoint = ref<PreviewConnectionPoint | null>(null);
+const draftConnectionPoint = ref<DraftConnectionPoint | null>(null);
 const hoveredCell = ref<HoveredCellState>({ rowId: null, date: null });
 const cellSelectionAnchor = ref<GridCellSelectionPoint | null>(null);
 const cellSelectionFocus = ref<GridCellSelectionPoint | null>(null);
@@ -945,7 +936,7 @@ const normalizedZoomScale = computed(() => Math.min(Math.max(props.zoomScale, 0.
 const connectionLabelFontSize = computed(() => Math.round(14 * normalizedZoomScale.value));
 const connectionLabelStrokeWidth = computed(() => Math.max(2.25, 3.5 * normalizedZoomScale.value));
 
-function buildRoundedOrthogonalPreviewPath(
+function buildRoundedOrthogonalDraftPath(
   points: Array<{ x: number; y: number }>,
   cornerRadius = 10,
 ) {
@@ -993,15 +984,15 @@ function buildRoundedOrthogonalPreviewPath(
   return segments.join(" ");
 }
 
-const previewConnectionPath = computed(() => {
-  if (!connectionSourceBar.value || !previewConnectionPoint.value) {
+const draftConnectionPath = computed(() => {
+  if (!connectionSourceBar.value || !draftConnectionPoint.value) {
     return null;
   }
 
   const sourceX = connectionSourceBar.value.left + connectionSourceBar.value.width;
   const sourceY = connectionSourceBar.value.top + connectionSourceBar.value.height / 2;
-  const targetX = previewConnectionPoint.value.x;
-  const targetY = previewConnectionPoint.value.y;
+  const targetX = draftConnectionPoint.value.x;
+  const targetY = draftConnectionPoint.value.y;
 
   if (sourceY === targetY) {
     return `M ${sourceX} ${sourceY} L ${targetX} ${targetY}`;
@@ -1009,7 +1000,7 @@ const previewConnectionPath = computed(() => {
 
   if (targetX >= sourceX + 24) {
     const bendX = sourceX + Math.max((targetX - sourceX) / 2, 28);
-    return buildRoundedOrthogonalPreviewPath([
+    return buildRoundedOrthogonalDraftPath([
       { x: sourceX, y: sourceY },
       { x: bendX, y: sourceY },
       { x: bendX, y: targetY },
@@ -1018,7 +1009,7 @@ const previewConnectionPath = computed(() => {
   }
 
   const bendX = Math.max(sourceX, targetX) + 36;
-  return buildRoundedOrthogonalPreviewPath([
+  return buildRoundedOrthogonalDraftPath([
     { x: sourceX, y: sourceY },
     { x: bendX, y: sourceY },
     { x: bendX, y: targetY },
@@ -1290,12 +1281,12 @@ watch(
   () => props.connectionCreationState,
   (nextConnectionCreationState) => {
     if (!nextConnectionCreationState || !connectionSourceBar.value) {
-      previewConnectionPoint.value = null;
+      draftConnectionPoint.value = null;
       hoveredConnectionTargetItemId.value = null;
       return;
     }
 
-    previewConnectionPoint.value = {
+    draftConnectionPoint.value = {
       x: connectionSourceBar.value.left + connectionSourceBar.value.width,
       y: connectionSourceBar.value.top + connectionSourceBar.value.height / 2,
     };
@@ -2142,46 +2133,8 @@ function handleMilestoneRenameEditableEscape() {
   milestoneRenameEditorRef.value?.blur();
 }
 
-function normalizeHexColor(colorHex: string) {
-  const sanitized = colorHex.trim().replace("#", "");
-  if (/^[0-9a-fA-F]{3}$/.test(sanitized)) {
-    return sanitized
-      .split("")
-      .map((character) => `${character}${character}`)
-      .join("");
-  }
 
-  return /^[0-9a-fA-F]{6}$/.test(sanitized) ? sanitized : null;
-}
 
-function toAlphaColor(colorHex: string, alpha: number) {
-  const normalizedHex = normalizeHexColor(colorHex);
-  if (!normalizedHex) {
-    return colorHex;
-  }
-
-  const red = Number.parseInt(normalizedHex.slice(0, 2), 16);
-  const green = Number.parseInt(normalizedHex.slice(2, 4), 16);
-  const blue = Number.parseInt(normalizedHex.slice(4, 6), 16);
-  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
-}
-
-function mixHexWithWhite(colorHex: string, colorWeight: number) {
-  const normalizedHex = normalizeHexColor(colorHex);
-  if (!normalizedHex) {
-    return colorHex;
-  }
-
-  const clampedWeight = Math.min(Math.max(colorWeight, 0), 1);
-  const red = Number.parseInt(normalizedHex.slice(0, 2), 16);
-  const green = Number.parseInt(normalizedHex.slice(2, 4), 16);
-  const blue = Number.parseInt(normalizedHex.slice(4, 6), 16);
-  const mixedRed = Math.round(255 - (255 - red) * clampedWeight);
-  const mixedGreen = Math.round(255 - (255 - green) * clampedWeight);
-  const mixedBlue = Math.round(255 - (255 - blue) * clampedWeight);
-
-  return `rgb(${mixedRed}, ${mixedGreen}, ${mixedBlue})`;
-}
 
 function getBarInlineStyle(bar: DesktopScheduleBarLayout) {
   const hasFocusedBorder =
@@ -2448,7 +2401,7 @@ function handlePointerMove(event: PointerEvent) {
   if (props.connectionCreationState) {
     const point = getContentPoint(event);
     if (point) {
-      previewConnectionPoint.value = point;
+      draftConnectionPoint.value = point;
     }
   }
 
@@ -2483,7 +2436,7 @@ function handlePointerMove(event: PointerEvent) {
       };
     }
 
-    emit("move-preview", {
+    emit("move-draft", {
       deltaDays: Math.round(deltaX / props.timeline.dayWidth),
       deltaLanes: Math.round(deltaY / moveState.value.laneStep),
     });
@@ -2491,7 +2444,7 @@ function handlePointerMove(event: PointerEvent) {
   }
 
   if (resizeState.value) {
-    emit("resize-preview", {
+    emit("resize-draft", {
       deltaDays: Math.round((event.clientX - resizeState.value.startClientX) / props.timeline.dayWidth),
     });
     return;
