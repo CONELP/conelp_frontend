@@ -7,7 +7,7 @@
         <div class="generated-shell generated-header__inner">
           <RouterLink
             class="generated-back"
-            to="/preview/documents"
+            to="/documents"
             aria-label="문서 선택으로 돌아가기"
           >
             <img class="generated-back__icon" :src="backIcon" alt="" aria-hidden="true" />
@@ -111,9 +111,9 @@ import chevronRightIcon from "@fluentui/svg-icons/icons/chevron_right_20_regular
 import documentIcon from "@fluentui/svg-icons/icons/document_20_regular.svg";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
-import { materialInspectionRequestApi } from "@/features/document-conversion-demo/api/material-inspection-request.api";
-import { useGeneratedDocumentsDemoViewModel } from "@/features/document-conversion-demo/state/useGeneratedDocumentsDemoViewModel";
-import type { GeneratedDocumentListItem } from "@/features/document-conversion-demo/state/useGeneratedDocumentsDemoViewModel";
+import { materialInspectionRequestApi } from "@/features/document-conversion/api/material-inspection-request.api";
+import { useGeneratedDocumentsDemoViewModel } from "@/features/document-conversion/state/useGeneratedDocumentsDemoViewModel";
+import type { GeneratedDocumentListItem } from "@/features/document-conversion/state/useGeneratedDocumentsDemoViewModel";
 import { analyticsClient } from "@/shared/analytics/analytics-stub";
 
 const {
@@ -219,7 +219,7 @@ function handleOpenGeneratedDocument(document: GeneratedDocumentListItem) {
     document_type: document.documentType ?? "unknown",
   });
   void router.push({
-    path: "/preview/result",
+    path: "/documents/result",
     query,
   });
 }

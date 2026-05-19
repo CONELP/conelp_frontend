@@ -6,14 +6,14 @@ import AiAgentThreadListPage from "@/features/ai-agent/ui/AiAgentThreadListPage.
 import DesktopDashboardPage from "@/features/desktop-dashboard/ui/DesktopDashboardPage.vue";
 import DesktopSchedulePage from "@/features/desktop-schedule/ui/DesktopSchedulePage.vue";
 import LoginPage from "@/features/auth/ui/LoginPage.vue";
-import ConversionLoadingPage from "@/features/document-conversion-demo/ui/ConversionLoadingPage.vue";
-import DailyReportWritePage from "@/features/document-conversion-demo/ui/DailyReportWritePage.vue";
-import DocumentSelectionPage from "@/features/document-conversion-demo/ui/DocumentSelectionPage.vue";
-import DocumentUploadPage from "@/features/document-conversion-demo/ui/DocumentUploadPage.vue";
-import GeneratedDocumentsPage from "@/features/document-conversion-demo/ui/GeneratedDocumentsPage.vue";
-import MaterialRegistrationResultPage from "@/features/document-conversion-demo/ui/MaterialRegistrationResultPage.vue";
-import ResultPreviewPage from "@/features/document-conversion-demo/ui/ResultPreviewPage.vue";
-import UploadFeedbackPage from "@/features/document-conversion-demo/ui/UploadFeedbackPage.vue";
+import ConversionLoadingPage from "@/features/document-conversion/ui/ConversionLoadingPage.vue";
+import DailyReportWritePage from "@/features/document-conversion/ui/DailyReportWritePage.vue";
+import DocumentSelectionPage from "@/features/document-conversion/ui/DocumentSelectionPage.vue";
+import DocumentUploadPage from "@/features/document-conversion/ui/DocumentUploadPage.vue";
+import GeneratedDocumentsPage from "@/features/document-conversion/ui/GeneratedDocumentsPage.vue";
+import MaterialRegistrationResultPage from "@/features/document-conversion/ui/MaterialRegistrationResultPage.vue";
+import ResultPreviewPage from "@/features/document-conversion/ui/ResultPreviewPage.vue";
+import UploadFeedbackPage from "@/features/document-conversion/ui/UploadFeedbackPage.vue";
 
 const SystemAdminLayout = () => import("@/features/system-admin/ui/SystemAdminLayout.vue");
 const AdminPlaceholderPage = () =>
@@ -64,43 +64,74 @@ export const router = createRouter({
     },
     {
       path: "/preview/documents",
-      alias: ["/documents"],
+      redirect: "/documents",
+    },
+    {
+      path: "/preview/upload",
+      redirect: "/documents/upload",
+    },
+    {
+      path: "/preview/daily-report-write",
+      redirect: "/documents/daily-report/write",
+    },
+    {
+      path: "/preview/upload-feedback",
+      redirect: "/documents/upload/review",
+    },
+    {
+      path: "/preview/loading",
+      redirect: "/documents/generation",
+    },
+    {
+      path: "/preview/result",
+      redirect: "/documents/result",
+    },
+    {
+      path: "/preview/material-registration-result",
+      redirect: "/documents/material-registration/result",
+    },
+    {
+      path: "/preview/generated-documents",
+      redirect: "/documents/generated",
+    },
+    {
+      path: "/documents",
       name: "document-selection",
       component: DocumentSelectionPage,
     },
     {
-      path: "/preview/upload",
-      name: "upload-preview",
+      path: "/documents/upload",
+      name: "document-upload",
       component: DocumentUploadPage,
     },
     {
-      path: "/preview/daily-report-write",
-      name: "daily-report-write-preview",
+      path: "/documents/daily-report/write",
+      name: "daily-report-write",
       component: DailyReportWritePage,
     },
     {
-      path: "/preview/upload-feedback",
-      name: "upload-feedback-preview",
+      path: "/documents/upload/review",
+      name: "document-upload-review",
       component: UploadFeedbackPage,
     },
     {
-      path: "/preview/loading",
-      name: "loading-preview",
+      path: "/documents/generation",
+      name: "document-generation",
       component: ConversionLoadingPage,
     },
     {
-      path: "/preview/result",
-      name: "result-preview",
+      path: "/documents/result",
+      name: "document-result",
       component: ResultPreviewPage,
     },
     {
-      path: "/preview/material-registration-result",
-      name: "material-registration-result-preview",
+      path: "/documents/material-registration/result",
+      name: "material-registration-result",
       component: MaterialRegistrationResultPage,
     },
     {
-      path: "/preview/generated-documents",
-      name: "generated-documents-preview",
+      path: "/documents/generated",
+      name: "generated-documents",
       component: GeneratedDocumentsPage,
     },
     {

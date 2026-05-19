@@ -3,7 +3,7 @@ import type {
   ActualWorkCreateRequest,
   ActualWorkResponse,
   ActualWorkUpdateRequest,
-} from "@/features/document-conversion-demo/api/actual-work-api.types";
+} from "@/features/document-conversion/api/actual-work-api.types";
 
 const SELECTED_PROJECT_ID_STORAGE_KEY = "selectedProjectId";
 

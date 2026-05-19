@@ -5,18 +5,18 @@ import {
   uploadDocumentPresets,
   uploadFeedbackPageCopy,
   uploadPageCopy,
-} from "@/features/document-conversion-demo/data/document-conversion-demo.seed";
-import { materialInspectionRequestApi } from "@/features/document-conversion-demo/api/material-inspection-request.api";
-import type { WorkTypeReferenceResponse } from "@/features/document-conversion-demo/api/material-inspection-request-api.types";
+} from "@/features/document-conversion/data/document-conversion-demo.seed";
+import { materialInspectionRequestApi } from "@/features/document-conversion/api/material-inspection-request.api";
+import type { WorkTypeReferenceResponse } from "@/features/document-conversion/api/material-inspection-request-api.types";
 import type {
   UploadDocumentPreset,
   UploadFeedbackItem,
   UploadSampleFile,
-} from "@/features/document-conversion-demo/model/document-conversion-demo.types";
-import { resolveDocumentWorkContextHint } from "@/features/document-conversion-demo/services/document-work-context-hints";
-import { useDocumentConversionDemoStore } from "@/features/document-conversion-demo/state/useDocumentConversionDemoStore";
-import type { GeneratedDocumentListItem } from "@/features/document-conversion-demo/state/useGeneratedDocumentsDemoViewModel";
-import { useGeneratedDocumentsDemoViewModel } from "@/features/document-conversion-demo/state/useGeneratedDocumentsDemoViewModel";
+} from "@/features/document-conversion/model/document-conversion-demo.types";
+import { resolveDocumentWorkContextHint } from "@/features/document-conversion/services/document-work-context-hints";
+import { useDocumentConversionDemoStore } from "@/features/document-conversion/state/useDocumentConversionDemoStore";
+import type { GeneratedDocumentListItem } from "@/features/document-conversion/state/useGeneratedDocumentsDemoViewModel";
+import { useGeneratedDocumentsDemoViewModel } from "@/features/document-conversion/state/useGeneratedDocumentsDemoViewModel";
 
 const CAT_MIN_IMAGE_UPLOAD_COUNT = 2;
 
@@ -366,7 +366,7 @@ export function useDocumentUploadDemoViewModel() {
   );
 
   const primaryFeedbackRoute = computed(() => ({
-    path: canProceed.value ? "/preview/loading" : "/preview/upload",
+    path: canProceed.value ? "/documents/generation" : "/documents/upload",
     query: { documentType: selectedDocument.value.type },
   }));
 
@@ -730,8 +730,8 @@ export function useDocumentUploadDemoViewModel() {
     uploadErrorMessage: computed(() => store.mirAnalysisErrorMessage),
     primaryFeedbackActionLabel,
     primaryFeedbackRoute,
-    backToSelectionRoute: "/preview/documents",
-    uploadFeedbackRoute: "/preview/upload-feedback",
+    backToSelectionRoute: "/documents",
+    uploadFeedbackRoute: "/documents/upload/review",
     addUploadedImageFiles,
     removeUploadedImageFile: store.removeUploadedImageFile,
     reorderUploadedImageFiles: store.reorderUploadedImageFiles,

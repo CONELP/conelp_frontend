@@ -1,8 +1,8 @@
 import { computed, onMounted, ref } from "vue";
 
-import { materialInspectionRequestApi } from "@/features/document-conversion-demo/api/material-inspection-request.api";
-import type { DocumentJobResponse } from "@/features/document-conversion-demo/api/material-inspection-request-api.types";
-import type { DocumentCatalogType } from "@/features/document-conversion-demo/model/document-conversion-demo.types";
+import { materialInspectionRequestApi } from "@/features/document-conversion/api/material-inspection-request.api";
+import type { DocumentJobResponse } from "@/features/document-conversion/api/material-inspection-request-api.types";
+import type { DocumentCatalogType } from "@/features/document-conversion/model/document-conversion-demo.types";
 
 export interface GeneratedDocumentListItem {
   id: string;

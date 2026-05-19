@@ -37,7 +37,7 @@
           <footer class="selection-shell selection-footer">
             <RouterLink
               class="selection-footer__link"
-              to="/preview/generated-documents"
+              to="/documents/generated"
             >
               생성된 문서 보기
               <img
@@ -96,7 +96,7 @@
 
             <RouterLink
               class="selection-panel__cta"
-              to="/preview/generated-documents"
+              to="/documents/generated"
             >
               전체 보기
               <img
@@ -120,9 +120,9 @@ import documentIcon from "@fluentui/svg-icons/icons/document_20_regular.svg";
 import menuIcon from "@fluentui/svg-icons/icons/text_align_justify_24_regular.svg";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
-import { useGeneratedDocumentsDemoViewModel } from "@/features/document-conversion-demo/state/useGeneratedDocumentsDemoViewModel";
-import DocumentTypeCard from "@/features/document-conversion-demo/ui/components/DocumentTypeCard.vue";
-import { useDocumentConversionDemoViewModel } from "@/features/document-conversion-demo/state/useDocumentConversionDemoViewModel";
+import { useGeneratedDocumentsDemoViewModel } from "@/features/document-conversion/state/useGeneratedDocumentsDemoViewModel";
+import DocumentTypeCard from "@/features/document-conversion/ui/components/DocumentTypeCard.vue";
+import { useDocumentConversionDemoViewModel } from "@/features/document-conversion/state/useDocumentConversionDemoViewModel";
 import { analyticsClient } from "@/shared/analytics/analytics-stub";
 
 const {
@@ -150,7 +150,7 @@ function handleSelectDocument(type: string) {
   selectDocument(type);
   const nextRoute = resolveNextRoute(type);
 
-  if (nextRoute === "/preview/documents") {
+  if (nextRoute === "/documents") {
     analyticsClient.trackAction("document", "select_type", "fail", {
       document_type: type,
       error_kind: "unavailable",

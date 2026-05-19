@@ -2,16 +2,16 @@ import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import type { RouteLocationRaw } from "vue-router";
 
-import { materialInspectionRequestApi } from "@/features/document-conversion-demo/api/material-inspection-request.api";
+import { materialInspectionRequestApi } from "@/features/document-conversion/api/material-inspection-request.api";
 import type {
   CatAnalysisResponse,
   CreateCatDocumentRequest,
   CreateMirDocumentRequest,
   MirAnalysisResponse,
-} from "@/features/document-conversion-demo/api/material-inspection-request-api.types";
-import { documentCatalog } from "@/features/document-conversion-demo/data/document-conversion-demo.seed";
-import type { DocumentCatalogType } from "@/features/document-conversion-demo/model/document-conversion-demo.types";
-import { useDocumentConversionDemoStore } from "@/features/document-conversion-demo/state/useDocumentConversionDemoStore";
+} from "@/features/document-conversion/api/material-inspection-request-api.types";
+import { documentCatalog } from "@/features/document-conversion/data/document-conversion-demo.seed";
+import type { DocumentCatalogType } from "@/features/document-conversion/model/document-conversion-demo.types";
+import { useDocumentConversionDemoStore } from "@/features/document-conversion/state/useDocumentConversionDemoStore";
 import { analyticsClient } from "@/shared/analytics/analytics-stub";
 
 const LOADING_TEXT_TOTAL_DURATION_MS = 5000;
@@ -66,10 +66,10 @@ const CONCRETE_STRENGTH_LOADING_STEPS = [
 
 const CONCRETE_STRENGTH_STEP_TRANSITIONS = EVEN_LOADING_STEP_TRANSITIONS;
 
-const RESULT_ROUTE = "/preview/result";
-const OCR_VALIDATION_ROUTE = "/preview/upload-feedback";
-const DIRECT_DOCUMENT_BACK_ROUTE = "/preview/documents";
-const UPLOAD_DOCUMENT_ROUTE = "/preview/upload";
+const RESULT_ROUTE = "/documents/result";
+const OCR_VALIDATION_ROUTE = "/documents/upload/review";
+const DIRECT_DOCUMENT_BACK_ROUTE = "/documents";
+const UPLOAD_DOCUMENT_ROUTE = "/documents/upload";
 const CAT_MIN_IMAGE_UPLOAD_COUNT = 2;
 
 function isDocumentCatalogType(value: string): value is DocumentCatalogType {

@@ -24,6 +24,9 @@ src/
     main.ts
   features/
     execution-home/
+      api/
+        execution-home.api.ts
+        execution-home-api.types.ts
       ui/
         ExecutionHomePage.vue
         components/
@@ -54,7 +57,8 @@ src/
 - `ui/`의 하위 디렉토리는 `components/`만 둔다.
 - `src/pages` 같은 상위 공용 page 폴더는 두지 않는다.
 - 앱 라우터는 feature 내부 `ui/*Page.vue`를 직접 import해서 연결한다.
-- 복잡도가 커질 때만 `api`, `repository`, `adapters`를 추가한다.
+- 백엔드와 통신하는 코드는 feature 내부 `api/`에 둔다.
+- 복잡도가 커질 때만 `repository`, `adapters`를 추가한다.
 
 ## 폴더별 책임
 
@@ -72,6 +76,17 @@ src/
 - page 안에는 복잡한 판단 로직을 두지 않는다.
 - 작은 UI 조각은 `ui/components/`로 분리한다.
 - 기본적으로 Vue SFC를 사용하고 `script setup` 구문을 따른다.
+
+### `features/<feature>/api/`
+
+- feature 전용 백엔드 통신 코드를 둔다.
+- HTTP method, endpoint path, query parameter, request/response DTO를 아는 레이어다.
+- 공통 fetch/axios client, base URL, auth header, 공통 error normalize는 `shared/network/`를 사용한다.
+- API 파일은 화면 상태나 Vue component를 import하지 않는다.
+- API response type은 `*-api.types.ts`에 두고, 화면 출력 type과 섞지 않는다.
+- API 응답을 화면/domain 모델로 바꾸는 판단은 `services/` 또는 `state/`에서 처리한다.
+- 여러 feature가 같은 endpoint를 쓰더라도 처음에는 각 feature의 사용자 흐름 기준으로 API 파일을 둔다.
+- 중복이 명확해질 때만 `shared/network/` 또는 별도 adapter로 올린다.
 
 ### `features/<feature>/state/`
 
@@ -92,13 +107,17 @@ src/
 - feature의 핵심 판단 로직을 둔다.
 - 초기에는 feature당 service 파일 하나만 둔다.
 - service는 가능한 한 순수 함수 중심으로 유지한다.
-- 외부 API 호출, 시드 데이터 변환, page 데이터 생성도 초기에는 한 파일 안에 둘 수 있다.
+- API 응답 변환, 시드 데이터 변환, page 데이터 생성도 초기에는 한 파일 안에 둘 수 있다.
+- 백엔드 API 직접 호출은 `api/`에 두고, service는 HTTP endpoint 세부사항을 모르게 유지한다.
 
 ### `features/<feature>/data/`
 
 - 시드 데이터
 - mock 데이터
 - 정적 JSON/TS 객체
+- 프론트에서 고정으로 관리하는 catalog, option, copy map
+- 이 프로젝트의 `data/`는 Clean Architecture 일반론의 data layer가 아니라 feature-local static data 폴더를 의미한다.
+- 백엔드 API, DB, 외부 저장소 통신은 `data/`가 아니라 `api/`, `repository`, `adapters`에 둔다.
 
 ### `features/<feature>/index.ts`
 
@@ -134,6 +153,9 @@ Pinia Store -> useViewModel -> Page -> Components
 
 ```text
 feature-name/
+  api/
+    feature-name.api.ts
+    feature-name-api.types.ts
   ui/
     FeaturePage.vue
     components/

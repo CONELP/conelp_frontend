@@ -1,4 +1,4 @@
-import type { DocumentCatalogType } from "@/features/document-conversion-demo/model/document-conversion-demo.types";
+import type { DocumentCatalogType } from "@/features/document-conversion/model/document-conversion-demo.types";
 
 export interface DocumentWorkContextHint {
   workTypeName: string;

@@ -13,7 +13,7 @@
         </p>
       </div>
 
-      <RouterLink class="placeholder-link" to="/preview/documents">
+      <RouterLink class="placeholder-link" to="/documents">
         문서 선택 화면으로 돌아가기
       </RouterLink>
     </section>

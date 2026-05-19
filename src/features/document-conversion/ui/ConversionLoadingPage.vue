@@ -74,7 +74,7 @@ import { RouterLink } from "vue-router";
 import backIcon from "@fluentui/svg-icons/icons/chevron_left_24_regular.svg";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
-import { useConversionLoadingDemoViewModel } from "@/features/document-conversion-demo/state/useConversionLoadingDemoViewModel";
+import { useConversionLoadingDemoViewModel } from "@/features/document-conversion/state/useConversionLoadingDemoViewModel";
 
 const { selectedDocument, loadingBackRoute, loadingDescription, isDocumentCreateLoading } =
   useConversionLoadingDemoViewModel();

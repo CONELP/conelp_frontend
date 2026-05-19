@@ -3,11 +3,11 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 
 import imageIcon from "@fluentui/svg-icons/icons/image_20_regular.svg";
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
-import { actualWorkApi } from "@/features/document-conversion-demo/api/actual-work.api";
-import type { ActualWorkResponse } from "@/features/document-conversion-demo/api/actual-work-api.types";
-import { materialInspectionRequestApi } from "@/features/document-conversion-demo/api/material-inspection-request.api";
-import type { WorkTypeReferenceResponse } from "@/features/document-conversion-demo/api/material-inspection-request-api.types";
-import DailyReportEditorPanel from "@/features/document-conversion-demo/ui/components/DailyReportEditorPanel.vue";
+import { actualWorkApi } from "@/features/document-conversion/api/actual-work.api";
+import type { ActualWorkResponse } from "@/features/document-conversion/api/actual-work-api.types";
+import { materialInspectionRequestApi } from "@/features/document-conversion/api/material-inspection-request.api";
+import type { WorkTypeReferenceResponse } from "@/features/document-conversion/api/material-inspection-request-api.types";
+import DailyReportEditorPanel from "@/features/document-conversion/ui/components/DailyReportEditorPanel.vue";
 import { desktopScheduleService } from "@/features/desktop-schedule/services/desktop-schedule.service";
 import { useDesktopScheduleViewModel } from "@/features/desktop-schedule/state/useDesktopScheduleViewModel";
 import DesktopScheduleColorPalette from "@/features/desktop-schedule/ui/components/DesktopScheduleColorPalette.vue";

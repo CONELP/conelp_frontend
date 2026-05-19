@@ -2,7 +2,7 @@ import type {
   DocumentDemoCard,
   FlowStageSummary,
   SelectionPageCopy,
-} from "@/features/document-conversion-demo/model/document-conversion-demo.types";
+} from "@/features/document-conversion/model/document-conversion-demo.types";
 
 export interface SelectionCardViewData extends DocumentDemoCard {
   isSelected: boolean;

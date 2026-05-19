@@ -23,7 +23,7 @@
 </template>
 
 <script setup lang="ts">
-import type { SelectionCardViewData } from "@/features/document-conversion-demo/services/document-conversion-demo.service";
+import type { SelectionCardViewData } from "@/features/document-conversion/services/document-conversion-demo.service";
 
 defineProps<{
   document: SelectionCardViewData;

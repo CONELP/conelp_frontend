@@ -3,7 +3,7 @@ import type {
   ActPhotoCreateRequest,
   ActPhotoResponse,
   ActPhotoUpdateRequest,
-} from "@/features/document-conversion-demo/api/act-photo-api.types";
+} from "@/features/document-conversion/api/act-photo-api.types";
 
 const SELECTED_PROJECT_ID_STORAGE_KEY = "selectedProjectId";
 

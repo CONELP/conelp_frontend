@@ -6,10 +6,10 @@ import chevronRightIcon from "@fluentui/svg-icons/icons/chevron_right_20_regular
 import chevronDoubleLeftIcon from "@fluentui/svg-icons/icons/chevron_double_left_20_regular.svg";
 import chevronDoubleRightIcon from "@fluentui/svg-icons/icons/chevron_double_right_20_regular.svg";
 
-import { actualWorkApi } from "@/features/document-conversion-demo/api/actual-work.api";
-import type { ActualWorkResponse } from "@/features/document-conversion-demo/api/actual-work-api.types";
-import { materialInspectionRequestApi } from "@/features/document-conversion-demo/api/material-inspection-request.api";
-import type { WorkTypeReferenceResponse } from "@/features/document-conversion-demo/api/material-inspection-request-api.types";
+import { actualWorkApi } from "@/features/document-conversion/api/actual-work.api";
+import type { ActualWorkResponse } from "@/features/document-conversion/api/actual-work-api.types";
+import { materialInspectionRequestApi } from "@/features/document-conversion/api/material-inspection-request.api";
+import type { WorkTypeReferenceResponse } from "@/features/document-conversion/api/material-inspection-request-api.types";
 import { useDesktopScheduleViewModel } from "@/features/desktop-schedule/state/useDesktopScheduleViewModel";
 
 const { patchLoadedWorkActualDates } = useDesktopScheduleViewModel();

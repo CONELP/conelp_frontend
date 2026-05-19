@@ -86,7 +86,7 @@
         <footer class="result-footer">
           <RouterLink
             class="result-footer__primary"
-            to="/preview/documents"
+            to="/documents"
           >
             다른 문서 생성하기
           </RouterLink>
@@ -103,8 +103,8 @@ import downloadIcon from "@fluentui/svg-icons/icons/arrow_download_20_regular.sv
 import documentIcon from "@fluentui/svg-icons/icons/document_20_regular.svg";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
-import { materialInspectionRequestApi } from "@/features/document-conversion-demo/api/material-inspection-request.api";
-import { useResultPreviewDemoViewModel } from "@/features/document-conversion-demo/state/useResultPreviewDemoViewModel";
+import { materialInspectionRequestApi } from "@/features/document-conversion/api/material-inspection-request.api";
+import { useResultPreviewDemoViewModel } from "@/features/document-conversion/state/useResultPreviewDemoViewModel";
 import { analyticsClient } from "@/shared/analytics/analytics-stub";
 
 const {

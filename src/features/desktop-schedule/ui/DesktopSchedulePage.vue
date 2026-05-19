@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
-import DailyReportEditorPanel from "@/features/document-conversion-demo/ui/components/DailyReportEditorPanel.vue";
+import DailyReportEditorPanel from "@/features/document-conversion/ui/components/DailyReportEditorPanel.vue";
 import { desktopScheduleService } from "@/features/desktop-schedule/services/desktop-schedule.service";
 import { useDesktopScheduleViewModel } from "@/features/desktop-schedule/state/useDesktopScheduleViewModel";
 import DesktopScheduleColorPalette from "@/features/desktop-schedule/ui/components/DesktopScheduleColorPalette.vue";

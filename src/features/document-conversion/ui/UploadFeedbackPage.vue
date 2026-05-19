@@ -9,7 +9,7 @@
       <section class="feedback-shell feedback-topbar">
         <RouterLink
           class="feedback-back"
-          to="/preview/upload"
+          to="/documents/upload"
           aria-label="업로드 화면으로 돌아가기"
         >
           <img
@@ -494,9 +494,9 @@ import type {
   UpdateCatDataRequest,
   UpdateMirDataRequest,
   UpdateMirLineRequest,
-} from "@/features/document-conversion-demo/api/material-inspection-request-api.types";
-import { useDocumentConversionDemoStore } from "@/features/document-conversion-demo/state/useDocumentConversionDemoStore";
-import { useDocumentUploadDemoViewModel } from "@/features/document-conversion-demo/state/useDocumentUploadDemoViewModel";
+} from "@/features/document-conversion/api/material-inspection-request-api.types";
+import { useDocumentConversionDemoStore } from "@/features/document-conversion/state/useDocumentConversionDemoStore";
+import { useDocumentUploadDemoViewModel } from "@/features/document-conversion/state/useDocumentUploadDemoViewModel";
 import { analyticsClient } from "@/shared/analytics/analytics-stub";
 
 const {
@@ -1011,7 +1011,7 @@ watchEffect(() => {
   }
 
   if (ocrValidationItems.value.length === 0) {
-    void router.replace("/preview/upload");
+    void router.replace("/documents/upload");
     return;
   }
 
@@ -1110,7 +1110,7 @@ function handleCreateMirDocumentDraft(active: boolean) {
     active,
   });
   void router.push({
-    path: "/preview/loading",
+    path: "/documents/generation",
     query: {
       documentType: selectedDocument.value.type,
       phase: "mir-create",
@@ -1177,7 +1177,7 @@ function handleCreateCatDocumentDraft(active: boolean) {
     active,
   });
   void router.push({
-    path: "/preview/loading",
+    path: "/documents/generation",
     query: {
       documentType: selectedDocument.value.type,
       phase: "cat-create",

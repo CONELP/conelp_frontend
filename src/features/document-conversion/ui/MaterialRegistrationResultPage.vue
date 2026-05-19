@@ -61,7 +61,7 @@
         <footer class="material-result-actions">
           <RouterLink
             class="material-result-action material-result-action--secondary"
-            to="/preview/documents"
+            to="/documents"
           >
             다른 문서 생성하기
           </RouterLink>
@@ -85,7 +85,7 @@ import { RouterLink, useRouter } from "vue-router";
 import materialIcon from "@fluentui/svg-icons/icons/box_20_regular.svg";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
-import { useDocumentConversionDemoStore } from "@/features/document-conversion-demo/state/useDocumentConversionDemoStore";
+import { useDocumentConversionDemoStore } from "@/features/document-conversion/state/useDocumentConversionDemoStore";
 
 const documentStore = useDocumentConversionDemoStore();
 const router = useRouter();
@@ -117,7 +117,7 @@ const materialSummaryMeta = computed(() => {
 
 function handleCreateInspectionRequest() {
   void router.push({
-    path: "/preview/result",
+    path: "/documents/result",
     query: {
       documentType: "material_registration",
     },

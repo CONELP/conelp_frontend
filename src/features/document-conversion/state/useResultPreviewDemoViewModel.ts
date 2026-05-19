@@ -1,9 +1,9 @@
 import { computed, watch } from "vue";
 import { useRoute } from "vue-router";
 
-import { documentCatalog } from "@/features/document-conversion-demo/data/document-conversion-demo.seed";
-import type { DocumentCatalogType } from "@/features/document-conversion-demo/model/document-conversion-demo.types";
-import { useDocumentConversionDemoStore } from "@/features/document-conversion-demo/state/useDocumentConversionDemoStore";
+import { documentCatalog } from "@/features/document-conversion/data/document-conversion-demo.seed";
+import type { DocumentCatalogType } from "@/features/document-conversion/model/document-conversion-demo.types";
+import { useDocumentConversionDemoStore } from "@/features/document-conversion/state/useDocumentConversionDemoStore";
 
 const DEFAULT_REVIEW_ITEMS = [
   "내일 작업 내용이 없어요.",

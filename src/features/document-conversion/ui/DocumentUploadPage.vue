@@ -743,8 +743,8 @@ import dismissIcon from "@fluentui/svg-icons/icons/dismiss_16_regular.svg";
 import uploadIcon from "@fluentui/svg-icons/icons/add_24_regular.svg";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
-import type { UploadSampleFile } from "@/features/document-conversion-demo/model/document-conversion-demo.types";
-import { useDocumentUploadDemoViewModel } from "@/features/document-conversion-demo/state/useDocumentUploadDemoViewModel";
+import type { UploadSampleFile } from "@/features/document-conversion/model/document-conversion-demo.types";
+import { useDocumentUploadDemoViewModel } from "@/features/document-conversion/state/useDocumentUploadDemoViewModel";
 import { analyticsClient } from "@/shared/analytics/analytics-stub";
 
 type UploadFileDropPlacement = "before" | "after";
@@ -900,7 +900,7 @@ watchEffect(() => {
 
   if (!requiresUpload.value) {
     void router.replace({
-      path: "/preview/loading",
+      path: "/documents/generation",
       query: { documentType: selectedDocument.value.type },
     });
   }
@@ -1721,7 +1721,7 @@ function handleGenerate() {
   });
 
   void router.push({
-    path: "/preview/loading",
+    path: "/documents/generation",
     query: { documentType: selectedDocument.value.type },
   });
 }

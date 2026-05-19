@@ -13,7 +13,7 @@ import type {
   UpdateCatDataRequest,
   UpdateMirDataRequest,
   WorkTypeReferenceResponse,
-} from "@/features/document-conversion-demo/api/material-inspection-request-api.types";
+} from "@/features/document-conversion/api/material-inspection-request-api.types";
 
 const SELECTED_PROJECT_ID_STORAGE_KEY = "selectedProjectId";
 

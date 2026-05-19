@@ -22,12 +22,12 @@ export const desktopDashboardSeed: DesktopDashboardSeed = {
   quickLinks: [
     {
       label: "문서 생성",
-      to: "/preview/documents",
+      to: "/documents",
       variant: "primary",
     },
     {
       label: "생성 문서",
-      to: "/preview/generated-documents",
+      to: "/documents/generated",
       variant: "secondary",
     },
   ],

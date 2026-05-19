@@ -10,9 +10,9 @@ import type {
   MirAnalysisResponse,
   UpdateCatDataRequest,
   UpdateMirDataRequest,
-} from "@/features/document-conversion-demo/api/material-inspection-request-api.types";
-import { documentCatalog } from "@/features/document-conversion-demo/data/document-conversion-demo.seed";
-import type { DocumentCatalogType } from "@/features/document-conversion-demo/model/document-conversion-demo.types";
+} from "@/features/document-conversion/api/material-inspection-request-api.types";
+import { documentCatalog } from "@/features/document-conversion/data/document-conversion-demo.seed";
+import type { DocumentCatalogType } from "@/features/document-conversion/model/document-conversion-demo.types";
 
 function createUploadFileKey(file: File) {
   return `${file.name}:${file.size}:${file.lastModified}`;

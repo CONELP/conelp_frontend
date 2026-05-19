@@ -7,7 +7,7 @@ import type {
   UploadDocumentPreset,
   UploadFeedbackPageCopy,
   UploadPageCopy,
-} from "@/features/document-conversion-demo/model/document-conversion-demo.types";
+} from "@/features/document-conversion/model/document-conversion-demo.types";
 import clipboardTaskIcon from "@fluentui/svg-icons/icons/clipboard_task_24_regular.svg";
 import beakerIcon from "@fluentui/svg-icons/icons/beaker_24_regular.svg";
 import cylinderIcon from "@fluentui/svg-icons/icons/database_24_regular.svg";

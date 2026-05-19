@@ -73,7 +73,7 @@ import buildingIcon from "@fluentui/svg-icons/icons/building_20_regular.svg";
 import chevronDownIcon from "@fluentui/svg-icons/icons/chevron_down_20_regular.svg";
 import { computed, onMounted, onUnmounted, ref } from "vue";
 
-import { useDocumentConversionDemoStore } from "@/features/document-conversion-demo/state/useDocumentConversionDemoStore";
+import { useDocumentConversionDemoStore } from "@/features/document-conversion/state/useDocumentConversionDemoStore";
 import {
   clearSelectedDesktopScheduleVersionId,
   desktopScheduleApi,

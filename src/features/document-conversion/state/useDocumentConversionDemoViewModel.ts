@@ -4,15 +4,15 @@ import {
   demoFlowStages,
   documentCatalog,
   selectionPageCopy,
-} from "@/features/document-conversion-demo/data/document-conversion-demo.seed";
+} from "@/features/document-conversion/data/document-conversion-demo.seed";
 import {
   createFlowStageLabels,
   createSelectionCards,
   createSelectionPageContent,
   createSelectionSummary,
-} from "@/features/document-conversion-demo/services/document-conversion-demo.service";
-import { useDocumentConversionDemoStore } from "@/features/document-conversion-demo/state/useDocumentConversionDemoStore";
-import type { DocumentCatalogType } from "@/features/document-conversion-demo/model/document-conversion-demo.types";
+} from "@/features/document-conversion/services/document-conversion-demo.service";
+import { useDocumentConversionDemoStore } from "@/features/document-conversion/state/useDocumentConversionDemoStore";
+import type { DocumentCatalogType } from "@/features/document-conversion/model/document-conversion-demo.types";
 
 function isDocumentCatalogType(value: string): value is DocumentCatalogType {
   return documentCatalog.some((document) => document.type === value);
@@ -36,16 +36,16 @@ export function useDocumentConversionDemoViewModel() {
     const selectedType = documentCatalog.find((document) => document.type === type);
 
     if (!selectedType || selectedType.status !== "available") {
-      return "/preview/documents";
+      return "/documents";
     }
 
     if (selectedType?.type === "daily_report_write") {
-      return "/preview/daily-report-write";
+      return "/documents/daily-report/write";
     }
 
     return selectedType?.generationMode === "direct"
-      ? "/preview/loading"
-      : "/preview/upload";
+      ? "/documents/generation"
+      : "/documents/upload";
   }
 
   return {
