@@ -114,6 +114,7 @@ import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
 import { materialInspectionRequestApi } from "@/features/document-conversion-demo/api/material-inspection-request.api";
 import { useGeneratedDocumentsDemoViewModel } from "@/features/document-conversion-demo/state/useGeneratedDocumentsDemoViewModel";
 import type { GeneratedDocumentListItem } from "@/features/document-conversion-demo/state/useGeneratedDocumentsDemoViewModel";
+import { analyticsClient } from "@/shared/analytics/analytics-stub";
 
 const {
   generatedDocumentGroups,
@@ -190,8 +191,16 @@ async function handleDownloadGeneratedDocument(document: GeneratedDocumentListIt
       attachment.blob,
       attachment.filename,
     );
+    analyticsClient.trackAction("document", "download_generated", "success", {
+      document_type: document.documentType ?? "unknown",
+      has_result_url: Boolean(document.resultUrl ?? document.pdfUrl),
+    });
   } catch {
     window.alert("문서 다운로드에 실패했습니다.");
+    analyticsClient.trackAction("document", "download_generated", "fail", {
+      document_type: document.documentType ?? "unknown",
+      has_result_url: Boolean(document.resultUrl ?? document.pdfUrl),
+    });
   } finally {
     downloadingDocumentId.value = null;
   }
@@ -206,6 +215,9 @@ function handleOpenGeneratedDocument(document: GeneratedDocumentListItem) {
     query.documentType = document.documentType;
   }
 
+  analyticsClient.trackAction("document", "open_generated", "success", {
+    document_type: document.documentType ?? "unknown",
+  });
   void router.push({
     path: "/preview/result",
     query,

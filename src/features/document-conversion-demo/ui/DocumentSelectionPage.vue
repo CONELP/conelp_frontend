@@ -123,6 +123,7 @@ import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
 import { useGeneratedDocumentsDemoViewModel } from "@/features/document-conversion-demo/state/useGeneratedDocumentsDemoViewModel";
 import DocumentTypeCard from "@/features/document-conversion-demo/ui/components/DocumentTypeCard.vue";
 import { useDocumentConversionDemoViewModel } from "@/features/document-conversion-demo/state/useDocumentConversionDemoViewModel";
+import { analyticsClient } from "@/shared/analytics/analytics-stub";
 
 const {
   pageCopy,
@@ -150,8 +151,16 @@ function handleSelectDocument(type: string) {
   const nextRoute = resolveNextRoute(type);
 
   if (nextRoute === "/preview/documents") {
+    analyticsClient.trackAction("document", "select_type", "fail", {
+      document_type: type,
+      error_kind: "unavailable",
+    });
     return;
   }
+
+  analyticsClient.trackAction("document", "select_type", "success", {
+    document_type: type,
+  });
 
   if (nextRoute.startsWith("/preview/")) {
     void router.push({

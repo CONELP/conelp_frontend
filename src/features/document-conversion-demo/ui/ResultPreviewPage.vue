@@ -105,6 +105,7 @@ import documentIcon from "@fluentui/svg-icons/icons/document_20_regular.svg";
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
 import { materialInspectionRequestApi } from "@/features/document-conversion-demo/api/material-inspection-request.api";
 import { useResultPreviewDemoViewModel } from "@/features/document-conversion-demo/state/useResultPreviewDemoViewModel";
+import { analyticsClient } from "@/shared/analytics/analytics-stub";
 
 const {
   resultDownloadUrl,
@@ -179,8 +180,16 @@ async function handleDownloadResult() {
   try {
     const attachment = await downloadResultAttachment();
     saveBlob(attachment.blob, attachment.filename);
+    analyticsClient.trackAction("document", "download_result", "success", {
+      has_job_id: resultDownloadJobId.value !== null,
+      has_result_url: Boolean(resultDownloadUrl.value),
+    });
   } catch {
     window.alert("문서 다운로드에 실패했습니다.");
+    analyticsClient.trackAction("document", "download_result", "fail", {
+      has_job_id: resultDownloadJobId.value !== null,
+      has_result_url: Boolean(resultDownloadUrl.value),
+    });
   } finally {
     isDownloadingResult.value = false;
   }

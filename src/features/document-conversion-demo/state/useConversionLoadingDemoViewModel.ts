@@ -12,6 +12,7 @@ import type {
 import { documentCatalog } from "@/features/document-conversion-demo/data/document-conversion-demo.seed";
 import type { DocumentCatalogType } from "@/features/document-conversion-demo/model/document-conversion-demo.types";
 import { useDocumentConversionDemoStore } from "@/features/document-conversion-demo/state/useDocumentConversionDemoStore";
+import { analyticsClient } from "@/shared/analytics/analytics-stub";
 
 const LOADING_TEXT_TOTAL_DURATION_MS = 5000;
 const LOADING_TEXT_FIRST_TRANSITION_MS = Math.round(
@@ -107,6 +108,17 @@ export function useConversionLoadingDemoViewModel() {
         ...query,
       },
     };
+  }
+
+  function trackDocumentAction(
+    action: string,
+    result: "success" | "fail" | "attempt",
+    meta: Record<string, unknown> = {},
+  ) {
+    analyticsClient.trackAction("document", action, result, {
+      document_type: selectedDocument.value.type,
+      ...meta,
+    });
   }
 
   const loadingBackRoute = computed<RouteLocationRaw>(() => {
@@ -300,6 +312,10 @@ export function useConversionLoadingDemoViewModel() {
     if (validationMessage) {
       store.setMirAnalysisErrorMessage(validationMessage);
       loadingErrorMessage.value = "입력값을 확인하고 업로드 화면으로 돌아갑니다.";
+      trackDocumentAction("analyze", "fail", {
+        error_kind: "validation",
+        file_count: store.uploadedImageFiles.length,
+      });
       scheduleRouteNavigation(toDocumentRoute(UPLOAD_DOCUMENT_ROUTE), 1400);
       return;
     }
@@ -324,6 +340,9 @@ export function useConversionLoadingDemoViewModel() {
       }
 
       store.saveMirAnalysisResult(result);
+      trackDocumentAction("analyze", "success", {
+        file_count: store.uploadedImageFiles.length,
+      });
       void router.replace(toDocumentRoute(OCR_VALIDATION_ROUTE));
     } catch (error) {
       if (currentRunId !== loadingRunId) {
@@ -338,6 +357,10 @@ export function useConversionLoadingDemoViewModel() {
       store.setMirAnalysisErrorMessage(errorMessage);
       loadingErrorMessage.value = "분석에 실패했어요. 업로드 화면으로 돌아갑니다.";
       clearLoadingStepTimers();
+      trackDocumentAction("analyze", "fail", {
+        error_kind: "api",
+        file_count: store.uploadedImageFiles.length,
+      });
       scheduleRouteNavigation(toDocumentRoute(UPLOAD_DOCUMENT_ROUTE), 1800);
     }
   }
@@ -354,6 +377,10 @@ export function useConversionLoadingDemoViewModel() {
     if (validationMessage) {
       store.setMirAnalysisErrorMessage(validationMessage);
       loadingErrorMessage.value = "입력값을 확인하고 업로드 화면으로 돌아갑니다.";
+      trackDocumentAction("analyze", "fail", {
+        error_kind: "validation",
+        file_count: store.uploadedImageFiles.length,
+      });
       scheduleRouteNavigation(toDocumentRoute(UPLOAD_DOCUMENT_ROUTE), 1400);
       return;
     }
@@ -382,6 +409,9 @@ export function useConversionLoadingDemoViewModel() {
       }
 
       store.saveCatAnalysisResult(result);
+      trackDocumentAction("analyze", "success", {
+        file_count: store.uploadedImageFiles.length,
+      });
       void router.replace(toDocumentRoute(OCR_VALIDATION_ROUTE));
     } catch (error) {
       if (currentRunId !== loadingRunId) {
@@ -396,6 +426,10 @@ export function useConversionLoadingDemoViewModel() {
       store.setMirAnalysisErrorMessage(errorMessage);
       loadingErrorMessage.value = "분석에 실패했어요. 업로드 화면으로 돌아갑니다.";
       clearLoadingStepTimers();
+      trackDocumentAction("analyze", "fail", {
+        error_kind: "api",
+        file_count: store.uploadedImageFiles.length,
+      });
       scheduleRouteNavigation(toDocumentRoute(UPLOAD_DOCUMENT_ROUTE), 1800);
     }
   }
@@ -413,6 +447,10 @@ export function useConversionLoadingDemoViewModel() {
       );
     });
 
+    trackDocumentAction("create_document", "success", {
+      file_count: store.uploadedImageFiles.length,
+      simulated: true,
+    });
     scheduleRouteNavigation(
       toDocumentRoute(loadingDestinationPath.value),
       LOADING_TEXT_TOTAL_DURATION_MS,
@@ -429,6 +467,9 @@ export function useConversionLoadingDemoViewModel() {
 
     if (!draft) {
       loadingErrorMessage.value = "생성할 문서 데이터가 없어 검토 화면으로 돌아갑니다.";
+      trackDocumentAction("create_document", "fail", {
+        error_kind: "missing_draft",
+      });
       scheduleRouteNavigation(toDocumentRoute(OCR_VALIDATION_ROUTE), 1400);
       return;
     }
@@ -469,6 +510,9 @@ export function useConversionLoadingDemoViewModel() {
       }
 
       store.saveMirCreateResult(createResult);
+      trackDocumentAction("create_document", "success", {
+        updated_before_create: Boolean(draft.updateRequest),
+      });
       void router.replace(
         toDocumentRoute(RESULT_ROUTE, { jobId: String(createResult.jobId) }),
       );
@@ -483,6 +527,10 @@ export function useConversionLoadingDemoViewModel() {
           : "자재 반입 검수요청서 생성에 실패했습니다.";
       store.clearMirDocumentSubmissionDraft();
       clearLoadingStepTimers();
+      trackDocumentAction("create_document", "fail", {
+        error_kind: "api",
+        updated_before_create: Boolean(draft.updateRequest),
+      });
       scheduleRouteNavigation(toDocumentRoute(OCR_VALIDATION_ROUTE), 2200);
     }
   }
@@ -497,6 +545,9 @@ export function useConversionLoadingDemoViewModel() {
 
     if (!draft) {
       loadingErrorMessage.value = "생성할 문서 데이터가 없어 검토 화면으로 돌아갑니다.";
+      trackDocumentAction("create_document", "fail", {
+        error_kind: "missing_draft",
+      });
       scheduleRouteNavigation(toDocumentRoute(OCR_VALIDATION_ROUTE), 1400);
       return;
     }
@@ -537,6 +588,9 @@ export function useConversionLoadingDemoViewModel() {
       }
 
       store.saveCatCreateResult(createResult);
+      trackDocumentAction("create_document", "success", {
+        updated_before_create: Boolean(draft.updateRequest),
+      });
       void router.replace(
         toDocumentRoute(RESULT_ROUTE, { jobId: String(createResult.jobId) }),
       );
@@ -551,6 +605,10 @@ export function useConversionLoadingDemoViewModel() {
           : "콘크리트 반입시험 문서 생성에 실패했습니다.";
       store.clearCatDocumentSubmissionDraft();
       clearLoadingStepTimers();
+      trackDocumentAction("create_document", "fail", {
+        error_kind: "api",
+        updated_before_create: Boolean(draft.updateRequest),
+      });
       scheduleRouteNavigation(toDocumentRoute(OCR_VALIDATION_ROUTE), 2200);
     }
   }

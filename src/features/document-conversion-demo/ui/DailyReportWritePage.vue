@@ -13,6 +13,7 @@ import { useDesktopScheduleViewModel } from "@/features/desktop-schedule/state/u
 import DesktopScheduleColorPalette from "@/features/desktop-schedule/ui/components/DesktopScheduleColorPalette.vue";
 import DesktopScheduleContextMenu from "@/features/desktop-schedule/ui/components/DesktopScheduleContextMenu.vue";
 import DesktopScheduleShell from "@/features/desktop-schedule/ui/components/DesktopScheduleShell.vue";
+import { analyticsClient } from "@/shared/analytics/analytics-stub";
 import "@/features/desktop-schedule/ui/styles/DesktopSchedulePage.css";
 
 const DAILY_REPORT_LAYOUT_STORAGE_KEY = "conelp.dailyReportWrite.layoutRatio.v1";
@@ -795,8 +796,14 @@ async function syncTaskCreate(
 
     applyResponseToTask(task, response);
     applyActualWorkAffectedWorks(response);
+    analyticsClient.trackAction("daily_report", "create_task", "success", {
+      section,
+    });
   } catch (error) {
     console.error("createActualWork failed", error);
+    analyticsClient.trackAction("daily_report", "create_task", "fail", {
+      section,
+    });
   } finally {
     if (isLatestSync(task.id, requestId)) {
       task.isSyncing = false;
@@ -823,8 +830,16 @@ async function syncTaskUpdate(
     if (!isLatestSync(task.id, requestId)) return;
     applyResponseToTask(task, response);
     applyActualWorkAffectedWorks(response);
+    analyticsClient.trackAction("daily_report", "update_task", "success", {
+      update_work_type: typeof patch.workTypeId === "number",
+      update_context: typeof patch.context === "string",
+    });
   } catch (error) {
     console.error("updateActualWork failed", error);
+    analyticsClient.trackAction("daily_report", "update_task", "fail", {
+      update_work_type: typeof patch.workTypeId === "number",
+      update_context: typeof patch.context === "string",
+    });
   } finally {
     if (isLatestSync(task.id, requestId)) {
       task.isSyncing = false;
@@ -840,8 +855,10 @@ async function syncTaskDelete(task: DailyReportTaskDraft) {
   try {
     const response = await actualWorkApi.delete(task.actualWorkId);
     applyActualWorkAffectedWorks(response);
+    analyticsClient.trackAction("daily_report", "delete_task", "success");
   } catch (error) {
     console.error("deleteActualWork failed", error);
+    analyticsClient.trackAction("daily_report", "delete_task", "fail");
   }
 }
 
@@ -1131,6 +1148,10 @@ async function handleDailyReportImageChange(section: DailyReportWorkSection, eve
   );
 
   setImageDrafts(section, [...getImageDrafts(section), ...nextImages]);
+  analyticsClient.trackAction("daily_report", "add_image", "success", {
+    section,
+    file_count: nextImages.length,
+  });
 }
 
 function removeDailyReportImage(section: DailyReportWorkSection, imageId: string) {
@@ -1274,6 +1295,12 @@ function getImageCardDragClass(section: DailyReportWorkSection, imageId: string)
 
 function handleDailyReportSave() {
   // 작업 항목들은 입력 시점에 자동 저장되므로 별도 처리 불필요.
+  analyticsClient.trackAction("daily_report", "save_click", "success", {
+    today_work_type_count: todayWorkTypes.value.length,
+    tomorrow_work_type_count: tomorrowWorkTypes.value.length,
+    today_image_count: todayImages.value.length,
+    tomorrow_image_count: tomorrowImages.value.length,
+  });
 }
 
 function buildWorkTypeDraftsFromResponses(

@@ -497,6 +497,7 @@ import type {
 } from "@/features/document-conversion-demo/api/material-inspection-request-api.types";
 import { useDocumentConversionDemoStore } from "@/features/document-conversion-demo/state/useDocumentConversionDemoStore";
 import { useDocumentUploadDemoViewModel } from "@/features/document-conversion-demo/state/useDocumentUploadDemoViewModel";
+import { analyticsClient } from "@/shared/analytics/analytics-stub";
 
 const {
   uploadFeedbackPageCopy,
@@ -1070,6 +1071,10 @@ function handleCreateMirDocumentDraft(active: boolean) {
   const analysisResult = documentStore.mirAnalysisResult;
 
   if (!analysisResult || isSubmittingDocument.value) {
+    analyticsClient.trackAction("document", "submit_review", "fail", {
+      document_type: selectedDocument.value.type,
+      error_kind: "missing_analysis",
+    });
     return;
   }
 
@@ -1078,6 +1083,10 @@ function handleCreateMirDocumentDraft(active: boolean) {
 
   if (rowValidationMessage) {
     submitErrorMessage.value = rowValidationMessage;
+    analyticsClient.trackAction("document", "submit_review", "fail", {
+      document_type: selectedDocument.value.type,
+      error_kind: "validation",
+    });
     return;
   }
 
@@ -1095,6 +1104,11 @@ function handleCreateMirDocumentDraft(active: boolean) {
           active,
         },
   );
+  analyticsClient.trackAction("document", "submit_review", "success", {
+    document_type: selectedDocument.value.type,
+    row_count: finalRows.length,
+    active,
+  });
   void router.push({
     path: "/preview/loading",
     query: {
@@ -1108,6 +1122,10 @@ function handleCreateCatDocumentDraft(active: boolean) {
   const analysisResult = documentStore.catAnalysisResult;
 
   if (!analysisResult || isSubmittingDocument.value) {
+    analyticsClient.trackAction("document", "submit_review", "fail", {
+      document_type: selectedDocument.value.type,
+      error_kind: "missing_analysis",
+    });
     return;
   }
 
@@ -1116,6 +1134,10 @@ function handleCreateCatDocumentDraft(active: boolean) {
 
   if (rowValidationMessage) {
     submitErrorMessage.value = rowValidationMessage;
+    analyticsClient.trackAction("document", "submit_review", "fail", {
+      document_type: selectedDocument.value.type,
+      error_kind: "validation",
+    });
     return;
   }
 
@@ -1123,6 +1145,10 @@ function handleCreateCatDocumentDraft(active: boolean) {
 
   if (batchValidationMessage) {
     submitErrorMessage.value = batchValidationMessage;
+    analyticsClient.trackAction("document", "submit_review", "fail", {
+      document_type: selectedDocument.value.type,
+      error_kind: "validation",
+    });
     return;
   }
 
@@ -1144,6 +1170,12 @@ function handleCreateCatDocumentDraft(active: boolean) {
           active,
         },
   );
+  analyticsClient.trackAction("document", "submit_review", "success", {
+    document_type: selectedDocument.value.type,
+    row_count: finalRows.length,
+    batch_count: catBatchRows.value.length,
+    active,
+  });
   void router.push({
     path: "/preview/loading",
     query: {
@@ -1162,6 +1194,10 @@ function handleCreateDocument() {
   const rowValidationMessage = validateMirReviewRows(finalRows);
   if (rowValidationMessage) {
     submitErrorMessage.value = rowValidationMessage;
+    analyticsClient.trackAction("document", "submit_review", "fail", {
+      document_type: selectedDocument.value.type,
+      error_kind: "validation",
+    });
     return;
   }
 
@@ -1169,6 +1205,10 @@ function handleCreateDocument() {
     const batchValidationMessage = validateCatBatchRows(catBatchRows.value);
     if (batchValidationMessage) {
       submitErrorMessage.value = batchValidationMessage;
+      analyticsClient.trackAction("document", "submit_review", "fail", {
+        document_type: selectedDocument.value.type,
+        error_kind: "validation",
+      });
       return;
     }
   }

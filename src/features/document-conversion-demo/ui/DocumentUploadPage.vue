@@ -745,6 +745,7 @@ import uploadIcon from "@fluentui/svg-icons/icons/add_24_regular.svg";
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
 import type { UploadSampleFile } from "@/features/document-conversion-demo/model/document-conversion-demo.types";
 import { useDocumentUploadDemoViewModel } from "@/features/document-conversion-demo/state/useDocumentUploadDemoViewModel";
+import { analyticsClient } from "@/shared/analytics/analytics-stub";
 
 type UploadFileDropPlacement = "before" | "after";
 type StrengthUploadSectionId = "sevenDay" | "twentyEightDay";
@@ -947,7 +948,8 @@ function handleFileSelection(event: Event) {
       addFilesToConcreteBatch(batchId, files);
     }
   } else if (files.length > 0) {
-    addUploadedImageFiles(files);
+    const addedFileIds = addUploadedImageFiles(files);
+    trackUploadedFiles(addedFileIds.length, "picker");
   }
 
   activeConcreteBatchId.value = null;
@@ -1007,8 +1009,21 @@ function handleDropzoneDrop(event: DragEvent) {
   const files = toDraggedImageFiles(event.dataTransfer);
 
   if (files.length > 0) {
-    addUploadedImageFiles(files);
+    const addedFileIds = addUploadedImageFiles(files);
+    trackUploadedFiles(addedFileIds.length, "dropzone");
   }
+}
+
+function trackUploadedFiles(fileCount: number, source: string) {
+  if (fileCount <= 0) {
+    return;
+  }
+
+  analyticsClient.trackAction("document", "add_upload_files", "success", {
+    document_type: selectedDocument.value.type,
+    file_count: fileCount,
+    source,
+  });
 }
 
 function addFilesToConcreteBatch(batchId: string, files: File[]) {
@@ -1017,6 +1032,8 @@ function addFilesToConcreteBatch(batchId: string, files: File[]) {
   if (addedFileIds.length === 0) {
     return;
   }
+
+  trackUploadedFiles(addedFileIds.length, "grouped_batch");
 
   concreteBatchFileIds.value = {
     ...concreteBatchFileIds.value,
@@ -1037,6 +1054,8 @@ function addFilesToStrengthSection(
   if (addedFileIds.length === 0) {
     return;
   }
+
+  trackUploadedFiles(addedFileIds.length, "strength_section");
 
   const currentBatchFileIds =
     strengthBatchFileIds.value[batchId] ?? createStrengthBatchFileSlots();
@@ -1649,6 +1668,9 @@ function handleRemoveUploadedFile(fileId: string) {
       unmarkUploadedFileRemoving(fileId);
     }, 180),
   );
+  analyticsClient.trackAction("document", "remove_upload_file", "success", {
+    document_type: selectedDocument.value.type,
+  });
 }
 
 function handleOpenImagePreview(file: UploadSampleFile) {
@@ -1661,6 +1683,11 @@ function handleCloseImagePreview() {
 
 function handleGenerate() {
   if (!canReview.value) {
+    analyticsClient.trackAction("document", "request_generation", "fail", {
+      document_type: selectedDocument.value.type,
+      file_count: uploadedFiles.value.length,
+      error_kind: "invalid_inputs",
+    });
     return;
   }
 
@@ -1687,6 +1714,11 @@ function handleGenerate() {
       }),
     );
   }
+
+  analyticsClient.trackAction("document", "request_generation", "success", {
+    document_type: selectedDocument.value.type,
+    file_count: uploadedFiles.value.length,
+  });
 
   void router.push({
     path: "/preview/loading",

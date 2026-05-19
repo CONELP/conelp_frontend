@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { chatThreadApi } from "@/features/ai-agent/api/chat-thread.api";
 import { aiAgentCopy } from "@/features/ai-agent/data/ai-agent.copy";
 import { useAiAgentStore } from "@/features/ai-agent/state/useAiAgentStore";
+import { analyticsClient } from "@/shared/analytics/analytics-stub";
 
 export function useThreadListViewModel() {
   const store = useAiAgentStore();
@@ -31,11 +32,13 @@ export function useThreadListViewModel() {
     try {
       const thread = await chatThreadApi.create(trimmed);
       store.upsertThread(thread);
+      analyticsClient.trackAction("ai_agent", "create_thread", "success");
       return thread;
     } catch (error) {
       const message =
         error instanceof Error ? error.message : aiAgentCopy.errors.createThreadFailed;
       store.pushError(message);
+      analyticsClient.trackAction("ai_agent", "create_thread", "fail");
       return null;
     }
   }
@@ -44,10 +47,12 @@ export function useThreadListViewModel() {
     try {
       await chatThreadApi.remove(threadId);
       store.removeThread(threadId);
+      analyticsClient.trackAction("ai_agent", "delete_thread", "success");
     } catch (error) {
       const message =
         error instanceof Error ? error.message : aiAgentCopy.errors.deleteThreadFailed;
       store.pushError(message);
+      analyticsClient.trackAction("ai_agent", "delete_thread", "fail");
     }
   }
 

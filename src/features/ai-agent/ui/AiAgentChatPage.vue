@@ -64,6 +64,7 @@ import ChatComposer from "@/features/ai-agent/ui/components/ChatComposer.vue";
 import ChatThreadHeader from "@/features/ai-agent/ui/components/ChatThreadHeader.vue";
 import InviteParticipantDialog from "@/features/ai-agent/ui/components/InviteParticipantDialog.vue";
 import MessageList from "@/features/ai-agent/ui/components/MessageList.vue";
+import { analyticsClient } from "@/shared/analytics/analytics-stub";
 
 const props = defineProps<{
   threadId: number;
@@ -147,6 +148,9 @@ async function handleDelete() {
 }
 
 function handleReconnect() {
+  analyticsClient.trackAction("ai_agent", "manual_reconnect", "attempt", {
+    surface: "chat",
+  });
   aiAgentWsClient.manualReconnect();
 }
 

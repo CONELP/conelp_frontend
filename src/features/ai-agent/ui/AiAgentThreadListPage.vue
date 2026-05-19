@@ -75,6 +75,7 @@ import ConnectionBadge from "@/features/ai-agent/ui/components/ConnectionBadge.v
 import NewThreadCard from "@/features/ai-agent/ui/components/NewThreadCard.vue";
 import NewThreadDialog from "@/features/ai-agent/ui/components/NewThreadDialog.vue";
 import ThreadCard from "@/features/ai-agent/ui/components/ThreadCard.vue";
+import { analyticsClient } from "@/shared/analytics/analytics-stub";
 
 const copy = aiAgentCopy;
 const router = useRouter();
@@ -127,6 +128,9 @@ async function handleDelete(threadId: number) {
 }
 
 function handleManualReconnect() {
+  analyticsClient.trackAction("ai_agent", "manual_reconnect", "attempt", {
+    surface: "thread_list",
+  });
   aiAgentWsClient.manualReconnect();
 }
 </script>

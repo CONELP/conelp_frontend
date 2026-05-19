@@ -12,6 +12,7 @@ import type {
   TypingEntry,
 } from "@/features/ai-agent/model/ai-agent.types";
 import { useAuthStore } from "@/features/auth/state/useAuthStore";
+import { analyticsClient } from "@/shared/analytics/analytics-stub";
 
 export interface MentionCandidate {
   participantType: "USER" | "BOT";
@@ -207,11 +208,22 @@ export function useChatViewModel(threadIdRef: () => number) {
         safetyPromise,
       ]);
 
+      analyticsClient.trackAction("ai_agent", "send_message", "success", {
+        has_text: trimmed.length > 0,
+        file_count: files.length,
+        mention_count: mentions.length,
+        echo_arrived: echoArrived,
+      });
       return true;
     } catch (error) {
       const message =
         error instanceof Error ? error.message : aiAgentCopy.errors.sendFailed;
       store.pushError(message);
+      analyticsClient.trackAction("ai_agent", "send_message", "fail", {
+        has_text: trimmed.length > 0,
+        file_count: files.length,
+        mention_count: mentions.length,
+      });
       return false;
     } finally {
       if (timer !== null) {
@@ -278,10 +290,12 @@ export function useChatViewModel(threadIdRef: () => number) {
     try {
       const updated = await chatThreadApi.updateTitle(id, trimmed);
       store.upsertThread(updated);
+      analyticsClient.trackAction("ai_agent", "rename_thread", "success");
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "제목 변경에 실패했어요.";
       store.pushError(message);
+      analyticsClient.trackAction("ai_agent", "rename_thread", "fail");
     }
   }
 
@@ -309,11 +323,13 @@ export function useChatViewModel(threadIdRef: () => number) {
     try {
       const updated = await chatThreadApi.addParticipant(id, "USER", userId);
       store.upsertThread(updated);
+      analyticsClient.trackAction("ai_agent", "invite_user", "success");
       return true;
     } catch (error) {
       const message =
         error instanceof Error ? error.message : aiAgentCopy.errors.inviteFailed;
       store.pushError(message);
+      analyticsClient.trackAction("ai_agent", "invite_user", "fail");
       return false;
     }
   }
@@ -324,11 +340,13 @@ export function useChatViewModel(threadIdRef: () => number) {
     try {
       await chatThreadApi.remove(id);
       store.removeThread(id);
+      analyticsClient.trackAction("ai_agent", "delete_thread", "success");
       return true;
     } catch (error) {
       const message =
         error instanceof Error ? error.message : aiAgentCopy.errors.deleteThreadFailed;
       store.pushError(message);
+      analyticsClient.trackAction("ai_agent", "delete_thread", "fail");
       return false;
     }
   }
