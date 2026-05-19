@@ -56,6 +56,10 @@ function getIconGlyph(icon: DesktopScheduleContextMenuIcon) {
   switch (icon) {
     case "plus":
       return "+";
+    case "copy":
+      return "⧉";
+    case "paste":
+      return "⌄";
     case "trash":
       return "−";
     case "palette":

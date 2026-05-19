@@ -1009,6 +1009,45 @@
   font-weight: 700;
 }
 
+.schedule-shell__history-sync {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.42rem;
+  min-height: 2.22rem;
+  padding: 0 0.72rem;
+  border: 1px solid rgba(37, 99, 235, 0.16);
+  border-radius: 0.5rem;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.schedule-shell__history-sync::before {
+  width: 0.46rem;
+  height: 0.46rem;
+  border-radius: 999px;
+  background: currentColor;
+  content: "";
+  animation: schedule-history-sync-pulse 920ms ease-in-out infinite;
+}
+
+@keyframes schedule-history-sync-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.82);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 .schedule-shell__action-icon {
   width: 1.12rem;
   height: 1.12rem;

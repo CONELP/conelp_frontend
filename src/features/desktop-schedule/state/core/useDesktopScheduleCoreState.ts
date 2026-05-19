@@ -109,6 +109,8 @@ export function useDesktopScheduleCoreState(storedUiPreferences: DesktopSchedule
   const scheduleVersionReviewSummaryCache = ref<ScheduleVersionReviewSummaryCache | null>(null);
   const pendingWorkCreationByItemId = new Map<string, Promise<number>>();
   const resolvedWorkIdByPendingItemId = new Map<string, number>();
+  const pendingMilestoneCreationByMilestoneId = new Map<string, Promise<number>>();
+  const resolvedMilestoneApiIdByPendingMilestoneId = new Map<string, number>();
   const scheduleToastTimer = ref<number | null>(null);
   let scheduleVersionPromotionRequestId = 0;
   
@@ -170,7 +172,7 @@ export function useDesktopScheduleCoreState(storedUiPreferences: DesktopSchedule
         ...item,
         workId: createdWork.workId,
         name:
-          item.name === optimisticItem.name
+          item.name === optimisticItem.name && optimisticItem.name.trim()
             ? createdWork.workName || item.name
             : item.name,
         startDate: didEditDateRange ? item.startDate : createdWork.startDate,
@@ -320,10 +322,10 @@ export function useDesktopScheduleCoreState(storedUiPreferences: DesktopSchedule
     () => scheduleLoadState.value.error?.message ?? "공정표 데이터를 불러오지 못했습니다.",
   );
   const canUndoLocalHistory = computed(
-    () => !isLocalHistorySyncInFlight.value && localHistoryUndoStack.value.length > 0,
+    () => localHistoryUndoStack.value.length > 0,
   );
   const canRedoLocalHistory = computed(
-    () => !isLocalHistorySyncInFlight.value && localHistoryRedoStack.value.length > 0,
+    () => localHistoryRedoStack.value.length > 0,
   );
   
   
@@ -375,6 +377,8 @@ export function useDesktopScheduleCoreState(storedUiPreferences: DesktopSchedule
     scheduleVersionReviewSummaryCache,
     pendingWorkCreationByItemId,
     resolvedWorkIdByPendingItemId,
+    pendingMilestoneCreationByMilestoneId,
+    resolvedMilestoneApiIdByPendingMilestoneId,
     scheduleToastTimer,
     getProjectScheduleDateRange,
     getPersistedWorkIdForItem,

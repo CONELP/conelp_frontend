@@ -25,6 +25,11 @@ type DailyReportPanelResizeState = {
   startWidth: number;
 };
 
+type ScheduleGridCell = {
+  rowId: string;
+  date: string;
+};
+
 function clampNumber(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
@@ -69,19 +74,20 @@ const {
   zoom,
   aiVerification,
   dailyReport,
+  clipboard,
 } = scheduleVm;
 
 const shellLayoutRef = ref<HTMLElement | null>(null);
 const shellHostRef = ref<HTMLElement | null>(null);
 const shellViewportHeight = ref(640);
 const chartViewportWidth = ref(0);
+const selectedScheduleCell = ref<ScheduleGridCell | null>(null);
 const isDailyReportPanelOpen = ref(true);
 const dailyReportPanelWidth = ref(readStoredDailyReportPanelWidth());
 const dailyReportPanelResizeState = ref<DailyReportPanelResizeState | null>(null);
 const shouldApplyInitialTimelineScroll = ref(
   load.status !== "success",
 );
-let lastInitialScrollViewportWidth = -1;
 let resizeObserver: ResizeObserver | null = null;
 
 const isScheduleRefreshing = computed(
@@ -135,9 +141,12 @@ function handleZoomChange(zoomIndex: number) {
   zoom.setIndex(zoomIndex, chartViewportWidth.value);
 }
 
+function handleScheduleCellSelectionChange(cell: ScheduleGridCell | null) {
+  selectedScheduleCell.value = cell;
+}
+
 function requestInitialTimelineScroll() {
   shouldApplyInitialTimelineScroll.value = true;
-  lastInitialScrollViewportWidth = -1;
 }
 
 function handleScheduleReload() {
@@ -270,7 +279,7 @@ function isEditableKeyboardTarget(target: EventTarget | null) {
   );
 }
 
-function handleHistoryShortcut(event: KeyboardEvent) {
+function handleScheduleShortcut(event: KeyboardEvent) {
   if (
     isEditableKeyboardTarget(event.target) ||
     (!event.metaKey && !event.ctrlKey)
@@ -279,10 +288,32 @@ function handleHistoryShortcut(event: KeyboardEvent) {
   }
 
   const key = event.key.toLowerCase();
+  const isCopy = key === "c" && !event.shiftKey && !event.altKey;
+  const isPaste = key === "v" && !event.shiftKey && !event.altKey;
   const isUndo = key === "z" && !event.shiftKey;
   const isRedo = (key === "z" && event.shiftKey) || key === "y";
 
-  if (!isUndo && !isRedo) {
+  if (!isCopy && !isPaste && !isUndo && !isRedo) {
+    return;
+  }
+
+  if (isCopy) {
+    if (selection.state.itemIds.length === 0) {
+      return;
+    }
+
+    event.preventDefault();
+    clipboard.copyItems();
+    return;
+  }
+
+  if (isPaste) {
+    if (!selectedScheduleCell.value) {
+      return;
+    }
+
+    event.preventDefault();
+    void clipboard.pasteItemsToCell(selectedScheduleCell.value);
     return;
   }
 
@@ -297,7 +328,7 @@ function handleHistoryShortcut(event: KeyboardEvent) {
 }
 
 onMounted(() => {
-  window.addEventListener("keydown", handleHistoryShortcut);
+  window.addEventListener("keydown", handleScheduleShortcut);
 
   if (shellHostRef.value) {
     resizeObserver = new ResizeObserver(() => {
@@ -313,7 +344,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  window.removeEventListener("keydown", handleHistoryShortcut);
+  window.removeEventListener("keydown", handleScheduleShortcut);
   window.removeEventListener("pointermove", handleDailyReportPanelResizeMove, true);
   window.removeEventListener("pointerup", endDailyReportPanelResize, true);
   window.removeEventListener("pointercancel", endDailyReportPanelResize, true);
@@ -328,11 +359,10 @@ watch(
   () =>
     [
       load.status,
-      layout.timeline,
       chartViewportWidth.value,
       showDailyReportEditor.value,
     ] as const,
-  async ([nextScheduleLoadStatus, nextTimeline, nextChartViewportWidth]) => {
+  async ([nextScheduleLoadStatus, nextChartViewportWidth]) => {
     if (
       nextScheduleLoadStatus !== "success" ||
       !shouldApplyInitialTimelineScroll.value ||
@@ -342,20 +372,22 @@ watch(
     }
 
     await nextTick();
+    if (
+      load.status !== "success" ||
+      !shouldApplyInitialTimelineScroll.value ||
+      chartViewportWidth.value <= 0
+    ) {
+      return;
+    }
+
     scroll.syncChart({
       top: 0,
       left: desktopScheduleService.getInitialScrollLeftForToday(
-        nextTimeline,
-        nextChartViewportWidth,
+        layout.timeline,
+        chartViewportWidth.value,
       ),
     });
-
-    if (lastInitialScrollViewportWidth === nextChartViewportWidth) {
-      shouldApplyInitialTimelineScroll.value = false;
-      lastInitialScrollViewportWidth = -1;
-    } else {
-      lastInitialScrollViewportWidth = nextChartViewportWidth;
-    }
+    shouldApplyInitialTimelineScroll.value = false;
   },
   { immediate: true },
 );
@@ -477,6 +509,7 @@ watch(
               :can-zoom-out="zoom.canZoomOut"
               :can-undo="history.canUndo"
               :can-redo="history.canRedo"
+              :history-syncing="history.isSyncing"
               :panel-open="showDailyReportEditor"
               :show-panel-toggle="access.isCurrentMainScheduleVersionSelected"
               panel-toggle-open-label="패널 숨기기"
@@ -498,6 +531,7 @@ watch(
               @toggle-ai-verification-flag="aiVerification.toggleFlag"
               @export-schedule-excel="version.exportAsExcel"
               @select-schedule-version="version.select"
+              @cell-selection-change="handleScheduleCellSelectionChange"
               @rename-schedule-version="version.renameDraft"
               @delete-schedule-version="version.deleteDraft"
               @open-schedule-version-review="version.openReview"
@@ -524,6 +558,7 @@ watch(
               @start-sub-work-type-rename="reference.startSubWorkTypeRename"
               @commit-sub-work-type-rename="reference.commitSubWorkTypeRename"
               @cancel-sub-work-type-rename="reference.cancelSubWorkTypeRename"
+              @create-division-reference="reference.createDivision"
               @reorder-divisions="reference.reorderDivisions"
               @reorder-work-types="reference.reorderWorkTypes"
               @reorder-sub-work-types="reference.reorderSubWorkTypes"

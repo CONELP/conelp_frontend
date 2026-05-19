@@ -29,7 +29,7 @@
       }"
       :style="{
         width: `${timeline.chartWidth}px`,
-        height: `${shellLayout.chartHeight}px`,
+        height: `${chartSurfaceHeight}px`,
       }"
     >
       <div
@@ -37,7 +37,7 @@
         :key="`day-column-${day.key}`"
         class="schedule-chart-body__day-column"
         :class="getDayColumnClass(day)"
-        :style="{ left: `${day.left}px`, width: `${day.width}px`, height: `${shellLayout.chartHeight}px` }"
+        :style="{ left: `${day.left}px`, width: `${day.width}px`, height: `${chartSurfaceHeight}px` }"
       />
 
       <div
@@ -61,6 +61,7 @@
         :width="timeline.chartWidth"
         :height="shellLayout.chartHeight"
         :viewBox="`0 0 ${timeline.chartWidth} ${shellLayout.chartHeight}`"
+        :style="{ height: `${shellLayout.chartHeight}px` }"
         preserveAspectRatio="none"
         aria-hidden="true"
       >
@@ -103,8 +104,8 @@
       <svg
         class="schedule-chart-body__division-holiday-grid"
         :width="timeline.chartWidth"
-        :height="shellLayout.chartHeight"
-        :viewBox="`0 0 ${timeline.chartWidth} ${shellLayout.chartHeight}`"
+        :height="chartSurfaceHeight"
+        :viewBox="`0 0 ${timeline.chartWidth} ${chartSurfaceHeight}`"
         preserveAspectRatio="none"
         aria-hidden="true"
       >
@@ -130,8 +131,8 @@
       <svg
         class="schedule-chart-body__row-grid"
         :width="timeline.chartWidth"
-        :height="shellLayout.chartHeight"
-        :viewBox="`0 0 ${timeline.chartWidth} ${shellLayout.chartHeight}`"
+        :height="chartSurfaceHeight"
+        :viewBox="`0 0 ${timeline.chartWidth} ${chartSurfaceHeight}`"
         preserveAspectRatio="none"
         aria-hidden="true"
       >
@@ -139,6 +140,15 @@
           v-for="row in shellLayout.rows"
           :key="`body-row-end-${row.id}`"
           class="schedule-chart-body__row-grid-line"
+          x1="0"
+          :y1="row.top + row.height"
+          :x2="timeline.chartWidth"
+          :y2="row.top + row.height"
+        />
+        <line
+          v-for="row in workTypeDividerRows"
+          :key="`body-work-type-end-${row.id}`"
+          class="schedule-chart-body__row-grid-line schedule-chart-body__row-grid-line--strong"
           x1="0"
           :y1="row.top + row.height"
           :x2="timeline.chartWidth"
@@ -153,7 +163,33 @@
           :x2="timeline.chartWidth"
           :y2="row.top"
         />
+        <line
+          v-if="bottomSpacerHeight > 0"
+          class="schedule-chart-body__row-grid-line schedule-chart-body__row-grid-line--strong"
+          x1="0"
+          :y1="shellLayout.chartHeight"
+          :x2="timeline.chartWidth"
+          :y2="shellLayout.chartHeight"
+        />
       </svg>
+
+      <div
+        v-if="bottomSpacerStyle"
+        class="schedule-chart-body__bottom-spacer"
+        :style="bottomSpacerStyle"
+      />
+
+      <div
+        v-for="day in bottomSpacerHolidayDays"
+        :key="`bottom-spacer-holiday-${day.key}`"
+        class="schedule-chart-body__bottom-spacer-holiday"
+        :style="{
+          left: `${day.left}px`,
+          top: `${shellLayout.chartHeight}px`,
+          width: `${day.width}px`,
+          height: `${bottomSpacerHeight}px`,
+        }"
+      />
 
       <div
         v-for="day in holidayLabelDays"
@@ -162,7 +198,7 @@
         :style="{
           left: `${day.left}px`,
           width: `${day.width}px`,
-          height: `${shellLayout.chartHeight}px`,
+          height: `${chartSurfaceHeight}px`,
         }"
       >
         <span class="schedule-chart-body__day-column-holiday-label">
@@ -176,7 +212,7 @@
         :style="{
           left: `${todayTimelineDay.left}px`,
           width: `${todayTimelineDay.width}px`,
-          height: `${shellLayout.chartHeight}px`,
+          height: `${chartSurfaceHeight}px`,
         }"
       />
 
@@ -184,8 +220,8 @@
         v-if="todayTimelineDay"
         class="schedule-chart-body__today-column-grid"
         :width="timeline.chartWidth"
-        :height="shellLayout.chartHeight"
-        :viewBox="`0 0 ${timeline.chartWidth} ${shellLayout.chartHeight}`"
+        :height="chartSurfaceHeight"
+        :viewBox="`0 0 ${timeline.chartWidth} ${chartSurfaceHeight}`"
         preserveAspectRatio="none"
         aria-hidden="true"
       >
@@ -193,13 +229,13 @@
           :x1="todayTimelineDay.left"
           y1="0"
           :x2="todayTimelineDay.left"
-          :y2="shellLayout.chartHeight"
+          :y2="chartSurfaceHeight"
         />
         <line
           :x1="todayTimelineDay.left + todayTimelineDay.width"
           y1="0"
           :x2="todayTimelineDay.left + todayTimelineDay.width"
-          :y2="shellLayout.chartHeight"
+          :y2="chartSurfaceHeight"
         />
       </svg>
 
@@ -246,8 +282,8 @@
       <svg
         class="schedule-chart-body__connections"
         :width="timeline.chartWidth"
-        :height="shellLayout.chartHeight"
-        :viewBox="`0 0 ${timeline.chartWidth} ${shellLayout.chartHeight}`"
+        :height="chartSurfaceHeight"
+        :viewBox="`0 0 ${timeline.chartWidth} ${chartSurfaceHeight}`"
       >
         <g
           v-for="connection in scheduleVersionReviewVisual?.baselineConnectionOverlays ?? []"
@@ -361,12 +397,12 @@
           :class="{
             'schedule-chart-body__milestone-deadline--hovered': hoveredMilestoneId === milestone.id,
           }"
-          :aria-label="`마일스톤: ${milestone.label}`"
+          :aria-label="`마일스톤: ${getMilestoneTitleText(milestone)}`"
           :data-milestone-id="milestone.id"
-          :title="milestone.label"
+          :title="getMilestoneTitleText(milestone)"
           role="button"
           tabindex="0"
-          :style="{ left: `${milestone.left}px`, top: '0px', width: `${milestone.width}px`, height: `${shellLayout.chartHeight}px` }"
+          :style="{ left: `${milestone.left}px`, top: '0px', width: `${milestone.width}px`, height: `${chartSurfaceHeight}px` }"
           @pointerdown.stop
           @pointerenter="handleMilestonePointerEnter(milestone.id)"
           @pointerleave="handleMilestonePointerLeave(milestone.id, $event)"
@@ -381,9 +417,9 @@
             'schedule-chart-body__milestone-cell--hovered': hoveredMilestoneId === milestone.id,
             'schedule-chart-body__milestone-cell--selected': selectedMilestoneIdSet.has(milestone.id),
           }"
-          :aria-label="`마일스톤: ${milestone.label}`"
+          :aria-label="`마일스톤: ${getMilestoneTitleText(milestone)}`"
           :data-milestone-id="milestone.id"
-          :title="milestone.label"
+          :title="getMilestoneTitleText(milestone)"
           role="button"
           tabindex="0"
           :style="{ left: `${milestone.left}px`, top: `${milestone.top}px`, width: `${milestone.width}px`, height: `${milestone.height}px` }"
@@ -398,13 +434,15 @@
             :ref="setMilestoneRenameEditorRef"
             class="schedule-chart-body__milestone-deadline-label schedule-chart-body__milestone-deadline-label--editing"
             contenteditable="true"
+            :data-placeholder="DESKTOP_SCHEDULE_MILESTONE_LABEL_HINT_TEXT"
             spellcheck="false"
             @pointerdown.stop
             @click.stop
             @dblclick.stop
             @input="handleMilestoneRenameEditableInput"
             @blur="handleMilestoneRenameEditableBlur(milestone.id)"
-            @keydown.enter.prevent="handleMilestoneRenameEditableEnter"
+            @keydown="handleRenameEditableKeyDown"
+            @keydown.enter="handleMilestoneRenameEditableEnter"
             @keydown.escape.prevent="handleMilestoneRenameEditableEscape"
             @pointerenter="handleMilestonePointerEnter(milestone.id)"
             @pointerleave="handleMilestonePointerLeave(milestone.id, $event)"
@@ -414,12 +452,15 @@
           <span
             v-else
             class="schedule-chart-body__milestone-deadline-label"
+            :class="{
+              'schedule-chart-body__milestone-deadline-label--hint': isMilestoneLabelHint(milestone),
+            }"
             @pointerdown.stop="handleMilestonePointerDown(milestone, $event)"
             @pointerenter="handleMilestonePointerEnter(milestone.id)"
             @pointerleave="handleMilestonePointerLeave(milestone.id, $event)"
             @contextmenu.prevent.stop="handleMilestoneContextMenu(milestone.id, $event)"
           >
-            {{ milestone.label }}
+            {{ getMilestoneTitleText(milestone) }}
           </span>
         </div>
       </template>
@@ -432,7 +473,7 @@
           left: `${milestone.left}px`,
           top: '0px',
           width: `${milestone.width}px`,
-          height: `${shellLayout.chartHeight}px`,
+          height: `${chartSurfaceHeight}px`,
         }"
         :title="milestone.label"
       >
@@ -482,18 +523,26 @@
           :ref="setRenameEditorRef"
           class="schedule-chart-body__item-title schedule-chart-body__item-title--editing"
           contenteditable="true"
+          :data-placeholder="getItemNameHintText(bar)"
           spellcheck="false"
           @pointerdown.stop
           @click.stop
           @dblclick.stop
           @input="handleRenameEditableInput"
           @blur="handleRenameEditableBlur(bar.itemId)"
-          @keydown.enter.prevent="handleRenameEditableEnter"
+          @keydown="handleRenameEditableKeyDown"
+          @keydown.enter="handleRenameEditableEnter"
           @keydown.escape.prevent="handleRenameEditableEscape"
         />
 
-        <span v-else class="schedule-chart-body__item-title">
-          {{ bar.name }}
+        <span
+          v-else
+          class="schedule-chart-body__item-title"
+          :class="{
+            'schedule-chart-body__item-title--hint': isItemNameHint(bar),
+          }"
+        >
+          {{ getItemTitleText(bar) }}
         </span>
 
         <div
@@ -623,6 +672,7 @@ import type {
   DesktopScheduleTimelineLayout,
   DesktopScheduleVersionReviewState,
 } from "@/features/desktop-schedule/model/desktop-schedule.types";
+import { DESKTOP_SCHEDULE_MILESTONE_LABEL_HINT_TEXT } from "@/features/desktop-schedule/services/desktop-schedule.service";
 
 type MarqueeState = {
   startX: number;
@@ -632,6 +682,7 @@ type MarqueeState = {
 };
 
 type PanState = {
+  axis: "both" | "horizontal";
   startClientX: number;
   startClientY: number;
   startScrollLeft: number;
@@ -695,6 +746,7 @@ const props = defineProps<{
   executionProgressCompareLeaving: boolean;
   isAiVerificationModeActive: boolean;
   aiVerificationFlaggedItemIds: string[];
+  bottomSpacerHeight: number;
   zoomScale: number;
 }>();
 
@@ -734,6 +786,7 @@ const emit = defineEmits<{
   "resize-draft": [payload: { deltaDays: number }];
   "resize-end": [];
   "hover-cell": [payload: HoveredCellState];
+  "cell-selection-change": [payload: GridCellSelectionPoint | null];
 }>();
 
 const containerRef = ref<HTMLElement | null>(null);
@@ -772,6 +825,7 @@ let syncingFromProp = false;
 const LANE_GAP = 6;
 const DRAG_ACTIVATION_THRESHOLD = 4;
 const ITEM_RENAME_DOUBLE_CLICK_WINDOW_MS = 320;
+const ITEM_NAME_HINT_FALLBACK_TEXT = "작업명";
 const SCROLL_SYNC_EPSILON = 0.01;
 const REVIEW_DELETED_ROW_ID_PREFIX = "review-deleted-row:";
 
@@ -783,6 +837,22 @@ const selectedCriticalPathIdSet = computed(() => new Set(props.selectedCriticalP
 const aiVerificationFlaggedItemIdSet = computed(
   () => new Set(props.aiVerificationFlaggedItemIds),
 );
+const chartSurfaceHeight = computed(() =>
+  props.shellLayout.chartHeight + Math.max(0, props.bottomSpacerHeight),
+);
+const bottomSpacerStyle = computed(() => {
+  const height = Math.max(0, props.bottomSpacerHeight);
+
+  if (height <= 0) {
+    return null;
+  }
+
+  return {
+    top: `${props.shellLayout.chartHeight}px`,
+    width: `${props.timeline.chartWidth}px`,
+    height: `${height}px`,
+  };
+});
 const scheduleVersionReviewVisual = computed(() =>
   props.scheduleVersionReview.open && props.scheduleVersionReview.status === "success"
     ? props.scheduleVersionReview.summary?.visual ?? null
@@ -796,15 +866,18 @@ function isReviewDeletedRow(row: DesktopScheduleShellLayout["rows"][number]) {
 const timelineDayByDate = computed(
   () => new Map(props.timeline.days.map((day) => [day.date, day] as const)),
 );
+const holidayTimelineDays = computed(() => props.timeline.days.filter((day) => day.isHoliday));
 const holidayLabelDays = computed(() =>
-  props.timeline.days.filter((day) => day.isHoliday && day.holidayName),
+  holidayTimelineDays.value.filter((day) => day.holidayName),
+);
+const bottomSpacerHolidayDays = computed(() =>
+  props.bottomSpacerHeight > 0 ? holidayTimelineDays.value : [],
 );
 const divisionHolidayCells = computed(() => {
-  const holidayDays = props.timeline.days.filter((day) => day.isHoliday);
   const divisionRows = props.shellLayout.rows.filter((row) => row.kind === "division");
 
   return divisionRows.flatMap((row) =>
-    holidayDays.map((day) => ({
+    holidayTimelineDays.value.map((day) => ({
       key: `${row.id}:${day.key}`,
       left: day.left,
       top: row.top,
@@ -813,6 +886,28 @@ const divisionHolidayCells = computed(() => {
     })),
   );
 });
+const workTypeDividerRows = computed(() =>
+  props.shellLayout.rows.filter((row, index, rows) => {
+    if (row.kind !== "child-process") {
+      return false;
+    }
+
+    const nextRow = rows[index + 1];
+
+    if (!nextRow || nextRow.kind !== "child-process") {
+      return false;
+    }
+
+    const isSameDivision =
+      (row.divisionId ?? null) === (nextRow.divisionId ?? null) &&
+      (row.division ?? "") === (nextRow.division ?? "");
+    const isSameWorkType =
+      (row.workTypeId ?? null) === (nextRow.workTypeId ?? null) &&
+      (row.workType ?? "") === (nextRow.workType ?? "");
+
+    return isSameDivision && !isSameWorkType;
+  }),
+);
 const shellRowById = computed(
   () => new Map(props.shellLayout.rows.map((row) => [row.id, row] as const)),
 );
@@ -1472,6 +1567,7 @@ function selectBarsInCellRange(focusCell: GridCellSelectionPoint) {
 
   cellSelectionAnchor.value = anchorCell;
   cellSelectionFocus.value = focusCell;
+  emit("cell-selection-change", focusCell);
 
   if (!rangeBounds) {
     emit("select-bars", {
@@ -1507,6 +1603,7 @@ function selectBarsInCellRange(focusCell: GridCellSelectionPoint) {
 function selectSingleCell(cell: GridCellSelectionPoint) {
   cellSelectionAnchor.value = cell;
   cellSelectionFocus.value = cell;
+  emit("cell-selection-change", cell);
   emit("select-bars", {
     itemIds: [],
     rowIds: [],
@@ -1516,6 +1613,7 @@ function selectSingleCell(cell: GridCellSelectionPoint) {
 function clearCellSelection() {
   cellSelectionAnchor.value = null;
   cellSelectionFocus.value = null;
+  emit("cell-selection-change", null);
 }
 
 function selectCellAtContentPoint(point: { x: number; y: number }) {
@@ -1614,7 +1712,7 @@ function handlePanePointerMove(event: PointerEvent) {
   });
 }
 
-function startPanSession(event: PointerEvent) {
+function startPanSession(event: PointerEvent, axis: PanState["axis"] = "both") {
   const element = containerRef.value;
   if (!element) {
     return;
@@ -1623,6 +1721,7 @@ function startPanSession(event: PointerEvent) {
   event.preventDefault();
   event.stopPropagation();
   panState.value = {
+    axis,
     startClientX: event.clientX,
     startClientY: event.clientY,
     startScrollLeft: element.scrollLeft,
@@ -1632,7 +1731,7 @@ function startPanSession(event: PointerEvent) {
 
 function handlePanePointerDownCapture(event: PointerEvent) {
   if (event.button === 1) {
-    startPanSession(event);
+    startPanSession(event, "horizontal");
   }
 }
 
@@ -1789,11 +1888,19 @@ function handleBarPointerDown(bar: DesktopScheduleBarLayout, event: PointerEvent
   if (targetCell) {
     cellSelectionAnchor.value = targetCell;
     cellSelectionFocus.value = targetCell;
+    emit("cell-selection-change", targetCell);
   } else {
     clearCellSelection();
   }
 
   if (bar.kind === "item") {
+    if (isItemNameHint(bar)) {
+      event.preventDefault();
+      lastItemPointerDown = null;
+      emit("start-item-rename", bar.itemId);
+      return;
+    }
+
     const now = Date.now();
     const isSameBarDoublePress =
       lastItemPointerDown?.itemId === bar.itemId &&
@@ -1835,6 +1942,29 @@ function handleBarPointerDown(bar: DesktopScheduleBarLayout, event: PointerEvent
     laneStep: bar.height + LANE_GAP,
     didDrag: false,
   };
+}
+
+function isItemNameHint(bar: DesktopScheduleBarLayout) {
+  return bar.kind === "item" && bar.name.trim().length === 0;
+}
+
+function getItemTitleText(bar: DesktopScheduleBarLayout) {
+  return isItemNameHint(bar) ? getItemNameHintText(bar) : bar.name;
+}
+
+function getItemNameHintText(bar: DesktopScheduleBarLayout) {
+  const row = shellRowById.value.get(bar.rowId);
+  return row?.subWorkType?.trim() || row?.name.trim() || ITEM_NAME_HINT_FALLBACK_TEXT;
+}
+
+function isMilestoneLabelHint(milestone: DesktopScheduleShellLayout["milestones"][number]) {
+  return milestone.label.trim().length === 0;
+}
+
+function getMilestoneTitleText(milestone: DesktopScheduleShellLayout["milestones"][number]) {
+  return isMilestoneLabelHint(milestone)
+    ? DESKTOP_SCHEDULE_MILESTONE_LABEL_HINT_TEXT
+    : milestone.label;
 }
 
 function handleBarPointerEnter(bar: DesktopScheduleBarLayout) {
@@ -1900,6 +2030,13 @@ function handlePaneContextMenu(event: MouseEvent) {
   }
 
   const point = getContentPoint(event);
+  const targetCell = point ? getSelectableCellAtContentPoint(point) : null;
+  if (targetCell) {
+    selectSingleCell(targetCell);
+  } else {
+    clearCellSelection();
+  }
+
   emit("canvas-context-menu", {
     x: event.clientX,
     y: event.clientY,
@@ -1924,6 +2061,12 @@ function handleRowContextMenu(row: DesktopScheduleShellLayout["rows"][number], e
 
   if (row.kind === "milestone" || row.kind === "child-process") {
     const point = getContentPoint(event);
+    const targetCell = point ? getSelectableCellAtContentPoint(point) : null;
+    if (targetCell) {
+      selectSingleCell(targetCell);
+    } else {
+      clearCellSelection();
+    }
     emit("canvas-context-menu", {
       x: event.clientX,
       y: event.clientY,
@@ -1972,6 +2115,13 @@ function handleMilestonePointerDown(
 
   if (props.connectionCreationState) {
     emit("cancel-connection-create");
+    return;
+  }
+
+  if (!props.readOnly && isMilestoneLabelHint(milestone)) {
+    event.preventDefault();
+    lastMilestonePointerDown = null;
+    emit("start-milestone-rename", milestone.id);
     return;
   }
 
@@ -2070,6 +2220,16 @@ function handleBarContextMenu(bar: DesktopScheduleBarLayout, event: MouseEvent) 
     return;
   }
 
+  const point = getContentPoint(event);
+  const targetCell = point ? getSelectableCellAtContentPoint(point) : null;
+  if (targetCell) {
+    cellSelectionAnchor.value = targetCell;
+    cellSelectionFocus.value = targetCell;
+    emit("cell-selection-change", targetCell);
+  } else {
+    clearCellSelection();
+  }
+
   emit("item-context-menu", {
     itemId: bar.itemId,
     x: event.clientX,
@@ -2095,7 +2255,16 @@ function handleRenameEditableBlur(itemId: string) {
   shouldCommitRenameOnBlur.value = true;
 }
 
-function handleRenameEditableEnter() {
+function isComposingKeyboardEvent(event: KeyboardEvent) {
+  return event.isComposing || event.keyCode === 229;
+}
+
+function handleRenameEditableEnter(event: KeyboardEvent) {
+  if (isComposingKeyboardEvent(event)) {
+    return;
+  }
+
+  event.preventDefault();
   shouldCommitRenameOnBlur.value = true;
   renameEditorRef.value?.blur();
 }
@@ -2103,6 +2272,35 @@ function handleRenameEditableEnter() {
 function handleRenameEditableEscape() {
   shouldCommitRenameOnBlur.value = false;
   renameEditorRef.value?.blur();
+}
+
+function selectEditableContents(editor: HTMLElement) {
+  const selection = window.getSelection();
+
+  if (!selection) {
+    return;
+  }
+
+  const range = document.createRange();
+  range.selectNodeContents(editor);
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+function handleRenameEditableKeyDown(event: KeyboardEvent) {
+  if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "a") {
+    return;
+  }
+
+  const editor = event.currentTarget;
+
+  if (!(editor instanceof HTMLElement)) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  selectEditableContents(editor);
 }
 
 function handleMilestoneRenameEditableInput(event: Event) {
@@ -2123,7 +2321,12 @@ function handleMilestoneRenameEditableBlur(milestoneId: string) {
   shouldCommitMilestoneRenameOnBlur.value = true;
 }
 
-function handleMilestoneRenameEditableEnter() {
+function handleMilestoneRenameEditableEnter(event: KeyboardEvent) {
+  if (isComposingKeyboardEvent(event)) {
+    return;
+  }
+
+  event.preventDefault();
   shouldCommitMilestoneRenameOnBlur.value = true;
   milestoneRenameEditorRef.value?.blur();
 }
@@ -2413,8 +2616,10 @@ function handlePointerMove(event: PointerEvent) {
 
     element.scrollLeft =
       panState.value.startScrollLeft - (event.clientX - panState.value.startClientX);
-    element.scrollTop =
-      panState.value.startScrollTop - (event.clientY - panState.value.startClientY);
+    if (panState.value.axis === "both") {
+      element.scrollTop =
+        panState.value.startScrollTop - (event.clientY - panState.value.startClientY);
+    }
     emit("scroll-change", {
       top: element.scrollTop,
       left: element.scrollLeft,

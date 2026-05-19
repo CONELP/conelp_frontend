@@ -48,6 +48,7 @@
 .schedule-chart-body__division-grid-mask,
 .schedule-chart-body__division-holiday-cell,
 .schedule-chart-body__division-holiday-grid,
+.schedule-chart-body__bottom-spacer-holiday,
 .schedule-chart-body__holiday-label-layer,
 .schedule-chart-body__hover-day,
 .schedule-chart-body__hover-row,
@@ -55,6 +56,7 @@
 .schedule-chart-body__cell-selection,
 .schedule-chart-body__today-column-overlay,
 .schedule-chart-body__today-column-grid,
+.schedule-chart-body__bottom-spacer,
 .schedule-chart-body__bar,
 .schedule-chart-body__review-bar-overlay,
 .schedule-chart-body__review-milestone,
@@ -147,6 +149,19 @@
 .schedule-chart-body__row-grid-line--strong {
   stroke: rgba(0, 0, 0, 0.16);
   stroke-width: 2;
+}
+
+.schedule-chart-body__bottom-spacer {
+  left: 0;
+  z-index: 2;
+  background: #fff;
+  pointer-events: none;
+}
+
+.schedule-chart-body__bottom-spacer-holiday {
+  z-index: 2;
+  background: rgba(244, 63, 94, 0.05);
+  pointer-events: none;
 }
 
 .schedule-chart-body__row {
@@ -456,9 +471,9 @@
   height: 100%;
   padding: calc(0.24rem * var(--schedule-zoom-scale, 1))
     calc(0.58rem * var(--schedule-zoom-scale, 1));
-  border: 1px solid rgba(217, 119, 6, 0.28);
+  border: 1px solid rgba(180, 83, 9, 0.82);
   border-radius: calc(0.22rem * var(--schedule-zoom-scale, 1));
-  background: rgba(255, 255, 255, 0.96);
+  background: #ffffff;
   color: #92400e;
   font-size: clamp(0.58rem, calc(1.18rem * var(--schedule-zoom-scale, 1)), 1.52rem);
   font-weight: 400;
@@ -471,10 +486,21 @@
 
 .schedule-chart-body__milestone-cell--hovered .schedule-chart-body__milestone-deadline-label,
 .schedule-chart-body__milestone-cell--selected .schedule-chart-body__milestone-deadline-label {
-  border-color: rgba(180, 83, 9, 0.54);
+  border-color: #92400e;
   background: #fffbeb;
   color: #78350f;
-  box-shadow: 0 0 0 1px rgba(217, 119, 6, 0.12), 0 8px 14px rgba(146, 64, 14, 0.08);
+  box-shadow: 0 0 0 1px rgba(146, 64, 14, 0.18), 0 8px 14px rgba(146, 64, 14, 0.08);
+}
+
+.schedule-chart-body__milestone-deadline-label--hint {
+  color: #94a3b8;
+  font-style: italic;
+  opacity: 1;
+}
+
+.schedule-chart-body__milestone-cell--hovered .schedule-chart-body__milestone-deadline-label--hint,
+.schedule-chart-body__milestone-cell--selected .schedule-chart-body__milestone-deadline-label--hint {
+  color: #94a3b8;
 }
 
 .schedule-chart-body__milestone-deadline-label--editing {
@@ -484,6 +510,14 @@
   outline: none;
   user-select: text;
   caret-color: currentColor;
+}
+
+.schedule-chart-body__milestone-deadline-label--editing:empty::before {
+  content: attr(data-placeholder);
+  color: #94a3b8;
+  font-style: italic;
+  opacity: 1;
+  pointer-events: none;
 }
 
 .schedule-chart-body__bar {
@@ -977,6 +1011,12 @@
   text-shadow: none;
 }
 
+.schedule-chart-body__item-title--hint {
+  color: #94a3b8;
+  font-style: italic;
+  text-shadow: none;
+}
+
 .schedule-chart-body__item-title--editing {
   pointer-events: auto;
   cursor: text;
@@ -984,6 +1024,13 @@
   user-select: text;
   caret-color: currentColor;
   min-width: 1ch;
+}
+
+.schedule-chart-body__item-title--editing:empty::before {
+  color: #94a3b8;
+  content: attr(data-placeholder);
+  font-style: italic;
+  pointer-events: none;
 }
 
 .schedule-chart-body__summary-mismatch,

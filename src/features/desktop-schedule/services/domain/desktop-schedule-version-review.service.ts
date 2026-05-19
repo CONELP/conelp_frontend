@@ -18,6 +18,7 @@ import type {
 import type {
     createEmptyDesktopScheduleSelectionState,
 } from "@/features/desktop-schedule/state/types/desktop-schedule-interaction-state";
+import { normalizeMilestoneLabelFromApi } from "@/features/desktop-schedule/services/domain/desktop-schedule-milestone-label.service";
 
 const SCHEDULE_VERSION_REVIEW_CATEGORY_LABELS: Record<
   DesktopScheduleVersionReviewCategory,
@@ -119,7 +120,7 @@ export function createMilestoneModelFromApi(
     id: `milestone:${milestone.id}`,
     apiId: milestone.id,
     date: milestone.date,
-    label: milestone.name,
+    label: normalizeMilestoneLabelFromApi(milestone.name),
     rowId: null,
   };
 }

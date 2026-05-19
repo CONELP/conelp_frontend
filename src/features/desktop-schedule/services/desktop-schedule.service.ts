@@ -109,6 +109,7 @@ export const DESKTOP_SCHEDULE_SHELL_DEFAULTS = {
   barHeight: 34,
 } as const;
 export const DESKTOP_SCHEDULE_MILESTONE_ROW_ID = "row:milestones";
+export const DESKTOP_SCHEDULE_MILESTONE_LABEL_HINT_TEXT = "마일스톤";
 const WORK_CONNECTION_COLOR = "#64748b";
 
 const CRITICAL_PATH_COLORS = [
@@ -439,7 +440,9 @@ function buildMilestoneLayouts(
   const milestoneLayouts = sortedMilestones.map((milestone) => {
     const markerCenter = getDateEndBoundaryLeft(timeline, milestone.date);
     const markerLeft = markerCenter - MILESTONE_MARKER_SIZE / 2;
-    const labelWidth = estimateMilestoneLabelWidth(milestone.label, timeline.dayWidth) * labelScale;
+    const displayLabel =
+      milestone.label.trim() || DESKTOP_SCHEDULE_MILESTONE_LABEL_HINT_TEXT;
+    const labelWidth = estimateMilestoneLabelWidth(displayLabel, timeline.dayWidth) * labelScale;
     const labelLeft = markerCenter - labelWidth;
     const labelRight = markerCenter;
     const availableLaneIndex = laneRightEdges.findIndex(
@@ -767,9 +770,11 @@ function buildShellLayout(
     function buildBarDraft(item: DesktopScheduleItem, laneIndex: number): RowBarDraft {
       const left = diffDays(timeline.startDate, item.startDate) * timeline.dayWidth;
       const width = Math.max(item.durationDays * timeline.dayWidth, timeline.dayWidth);
+      const displayNameForWidth =
+        item.name.trim() || item.subWorkType.trim() || row.name.trim() || "작업명";
       const collisionWidth = Math.max(
         width,
-        itemBarHorizontalPadding + estimateItemBarTextWidth(item.name) * layoutScale,
+        itemBarHorizontalPadding + estimateItemBarTextWidth(displayNameForWidth) * layoutScale,
       );
 
       let extentLeft = left;
@@ -1492,10 +1497,6 @@ function createMilestone(
 ) {
   const nextLabel = payload.label.trim();
 
-  if (!nextLabel) {
-    return milestones;
-  }
-
   return [
     ...milestones,
     {
@@ -1525,10 +1526,6 @@ function updateMilestoneLabel(
   label: string,
 ) {
   const trimmedLabel = label.trim();
-
-  if (!trimmedLabel) {
-    return milestones;
-  }
 
   return milestones.map((milestone) =>
     milestone.id === milestoneId ? { ...milestone, label: trimmedLabel } : milestone,
@@ -1584,12 +1581,13 @@ function createItem(
     payload.subWorkType?.trim() ||
     payload.workType?.trim() ||
     `새 작업 ${nextItemIndex}`;
+  const hasExplicitName = payload.name !== undefined;
   const durationDays = Math.max(payload.durationDays ?? 3, 1);
   const nextItem: DesktopScheduleItem = {
     id: createLocalItemId(),
     workId: Date.now(),
     rowId: payload.rowId,
-    name: payload.name?.trim() || fallbackName,
+    name: hasExplicitName ? (payload.name ?? "").trim() : fallbackName,
     colorHex: null,
     startDate: payload.startDate,
     endDate: shiftDateString(payload.startDate, durationDays - 1),

@@ -69,7 +69,7 @@ export function makeChildRowId(
   subWorkTypeId: number,
   subWorkType: string,
 ) {
-  const subPart = subWorkTypeId > 0 ? String(subWorkTypeId) : toStableIdPart(subWorkType);
+  const subPart = subWorkTypeId !== 0 ? String(subWorkTypeId) : toStableIdPart(subWorkType);
 
   return `child:${toStableIdPart(division)}:${toStableIdPart(workType)}:${subPart}`;
 }

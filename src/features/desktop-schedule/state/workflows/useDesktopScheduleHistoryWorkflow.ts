@@ -122,6 +122,17 @@ type DesktopScheduleHistoryWorkflowDeps = {
   ignoreMissingHistoryDelete: (mutation: () => Promise<unknown>, missingEntityPattern: RegExp) => Promise<void>;
 };
 
+type PendingLocalHistorySyncJob = {
+  direction: DesktopScheduleHistoryDirection;
+  entry: DesktopScheduleLocalHistoryEntry;
+  action: "undo_history" | "redo_history";
+  analyticsMeta: Record<string, unknown>;
+  sourceData: DesktopScheduleBootstrapData | null;
+  previousSnapshot: DesktopScheduleLocalSnapshot;
+  previousUndoStack: DesktopScheduleLocalHistoryEntry[];
+  previousRedoStack: DesktopScheduleLocalHistoryEntry[];
+};
+
 export function useDesktopScheduleHistoryWorkflow(deps: DesktopScheduleHistoryWorkflowDeps) {
   const {
     LOCAL_HISTORY_MAX_ENTRIES,
@@ -151,6 +162,8 @@ export function useDesktopScheduleHistoryWorkflow(deps: DesktopScheduleHistoryWo
     trackScheduleAction,
     ignoreMissingHistoryDelete,
   } = deps;
+  let localHistorySyncQueue: PendingLocalHistorySyncJob[] = [];
+  let isProcessingLocalHistorySyncQueue = false;
 
   function captureWorkingSnapshot(): DesktopScheduleLocalSnapshot {
     return {
@@ -256,6 +269,77 @@ export function useDesktopScheduleHistoryWorkflow(deps: DesktopScheduleHistoryWo
     localHistoryRedoStack.value = localHistoryRedoStack.value.map((entry) =>
       remapLocalHistoryEntry(entry, idMap),
     );
+  }
+
+  function remapLoadedScheduleDataForHistorySync(
+    data: DesktopScheduleBootstrapData,
+    idMap: DesktopScheduleHistoryIdMap,
+  ): DesktopScheduleBootstrapData {
+    return {
+      ...data,
+      workHierarchy: data.workHierarchy.map((item) =>
+        remapHistoryWorkHierarchyItem(item, idMap),
+      ),
+      works: data.works.map((work) => remapHistoryWorkResponse(work, idMap)),
+      workDeps: data.workDeps.map((workDep) => remapHistoryWorkDepResponse(workDep, idMap)),
+      milestones: (data.milestones ?? []).map((milestone) =>
+        remapHistoryMilestoneResponse(milestone, idMap),
+      ),
+    };
+  }
+
+  function remapLocalSnapshotForHistorySync(
+    snapshot: DesktopScheduleLocalSnapshot,
+    idMap: DesktopScheduleHistoryIdMap,
+  ): DesktopScheduleLocalSnapshot {
+    return {
+      rows: snapshot.rows.map((row) => remapHistoryRow(row, idMap)),
+      items: snapshot.items.map((item) => remapHistoryItem(item, idMap)),
+      workConnections: snapshot.workConnections.map((workConnection) =>
+        remapHistoryWorkConnection(workConnection, idMap),
+      ),
+      milestones: snapshot.milestones.map((milestone) =>
+        remapHistoryMilestone(milestone, idMap),
+      ),
+      loadedData: snapshot.loadedData
+        ? remapLoadedScheduleDataForHistorySync(snapshot.loadedData, idMap)
+        : null,
+      selection: createEmptyDesktopScheduleSelectionState(),
+    };
+  }
+
+  function remapQueuedLocalHistorySyncJobs(idMap: DesktopScheduleHistoryIdMap) {
+    if (!hasHistoryIdMapChanges(idMap)) {
+      return;
+    }
+
+    localHistorySyncQueue = localHistorySyncQueue.map((job) => ({
+      ...job,
+      entry: remapLocalHistoryEntry(job.entry, idMap),
+      sourceData: job.sourceData
+        ? remapLoadedScheduleDataForHistorySync(job.sourceData, idMap)
+        : null,
+      previousSnapshot: remapLocalSnapshotForHistorySync(job.previousSnapshot, idMap),
+      previousUndoStack: job.previousUndoStack.map((entry) =>
+        remapLocalHistoryEntry(entry, idMap),
+      ),
+      previousRedoStack: job.previousRedoStack.map((entry) =>
+        remapLocalHistoryEntry(entry, idMap),
+      ),
+    }));
+  }
+
+  function createHistoryIdMapFromSyncResult(
+    result: DesktopScheduleHistorySyncResult,
+  ): DesktopScheduleHistoryIdMap {
+    return {
+      divisionIds: result.divisionIdMap ?? new Map<number, number>(),
+      workTypeIds: result.workTypeIdMap ?? new Map<number, number>(),
+      subWorkTypeIds: result.subWorkTypeIdMap ?? new Map<number, number>(),
+      workIds: result.workIdMap ?? new Map<number, number>(),
+      workDepIds: result.workDepIdMap ?? new Map<number, number>(),
+      milestoneIds: result.milestoneIdMap ?? new Map<number, number>(),
+    };
   }
   
   function remapCurrentSelectionState(idMap: DesktopScheduleHistoryIdMap) {
@@ -1092,39 +1176,65 @@ export function useDesktopScheduleHistoryWorkflow(deps: DesktopScheduleHistoryWo
     }
   
     applyLocalHistoryEntry(entry, direction);
-    isLocalHistorySyncInFlight.value = true;
-  
+
+    localHistorySyncQueue.push({
+      direction,
+      entry,
+      action,
+      analyticsMeta,
+      sourceData: previousSnapshot.loadedData,
+      previousSnapshot,
+      previousUndoStack,
+      previousRedoStack,
+    });
+    void processLocalHistorySyncQueue();
+  }
+
+  async function processLocalHistorySyncQueue() {
+    if (isProcessingLocalHistorySyncQueue) {
+      return;
+    }
+
+    isProcessingLocalHistorySyncQueue = true;
+    isLocalHistorySyncInFlight.value = localHistorySyncQueue.length > 0;
+
     try {
-      const result = await persistLocalHistoryEntryToServer(
-        entry,
-        direction,
-        previousSnapshot.loadedData,
-      );
-      const idMap = {
-        divisionIds: result.divisionIdMap ?? new Map<number, number>(),
-        workTypeIds: result.workTypeIdMap ?? new Map<number, number>(),
-        subWorkTypeIds: result.subWorkTypeIdMap ?? new Map<number, number>(),
-        workIds: result.workIdMap ?? new Map<number, number>(),
-        workDepIds: result.workDepIdMap ?? new Map<number, number>(),
-        milestoneIds: result.milestoneIdMap ?? new Map<number, number>(),
-      };
-  
-      remapCurrentScheduleState(idMap);
-      remapLocalHistoryStacks(idMap);
-      trackScheduleAction(action, "success", analyticsMeta);
-    } catch (error) {
-      restoreWorkingSnapshot(previousSnapshot);
-      localHistoryUndoStack.value = previousUndoStack;
-      localHistoryRedoStack.value = previousRedoStack;
-      trackScheduleAction(action, "fail", analyticsMeta);
-      handleMutationError(
-        error,
-        direction === "undo"
-          ? "되돌리기를 서버에 저장하지 못했습니다."
-          : "다시 실행을 서버에 저장하지 못했습니다.",
-      );
+      while (localHistorySyncQueue.length > 0) {
+        const job = localHistorySyncQueue[0]!;
+
+        try {
+          const result = await persistLocalHistoryEntryToServer(
+            job.entry,
+            job.direction,
+            job.sourceData,
+          );
+          const idMap = createHistoryIdMapFromSyncResult(result);
+
+          localHistorySyncQueue.shift();
+          remapCurrentScheduleState(idMap);
+          remapLocalHistoryStacks(idMap);
+          remapQueuedLocalHistorySyncJobs(idMap);
+          trackScheduleAction(job.action, "success", job.analyticsMeta);
+        } catch (error) {
+          restoreWorkingSnapshot(job.previousSnapshot);
+          localHistoryUndoStack.value = job.previousUndoStack;
+          localHistoryRedoStack.value = job.previousRedoStack;
+          localHistorySyncQueue = [];
+          trackScheduleAction(job.action, "fail", job.analyticsMeta);
+          handleMutationError(
+            error,
+            job.direction === "undo"
+              ? "되돌리기를 서버에 저장하지 못했습니다."
+              : "다시 실행을 서버에 저장하지 못했습니다.",
+          );
+          break;
+        }
+
+        isLocalHistorySyncInFlight.value = localHistorySyncQueue.length > 0;
+      }
     } finally {
-      isLocalHistorySyncInFlight.value = false;
+      isProcessingLocalHistorySyncQueue = false;
+      isLocalHistorySyncInFlight.value = localHistorySyncQueue.length > 0;
     }
   }
   

@@ -8,6 +8,7 @@ export const SHELL_SURFACE_GAP = 8;
 export const SHELL_SURFACE_BORDER_WIDTH = 1;
 export const SHELL_FRAME_BORDER_WIDTH = 1;
 export const READONLY_NOTICE_HEIGHT = 40;
+export const CREATE_DIVISION_FOOTER_HEIGHT = 44;
 export const ROW_PANEL_MIN_WIDTH = 180;
 export const ROW_PANEL_MAX_WIDTH = 520;
 export const WIDTH_RESIZE_LISTENER_OPTIONS = true;

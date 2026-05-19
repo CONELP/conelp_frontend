@@ -12,12 +12,13 @@ export function createDesktopSchedulePublicApi(deps: Record<string, any>) {
     openScheduleHeaderContextMenu, openCanvasContextMenu, executeContextMenuCommand, closeContextMenu, colorPaletteState, closeColorPalette, applyColorSelection,
     renamingDivisionId, renamingWorkTypeId, renamingSubWorkTypeId, renamingItemId, renamingMilestoneId, startItemRename, commitItemRename, cancelItemRename,
     startMilestoneRename, commitMilestoneRename, cancelMilestoneRename, startDivisionRename, commitDivisionRename, cancelDivisionRename, startWorkTypeRename,
-    commitWorkTypeRename, cancelWorkTypeRename, startSubWorkTypeRename, commitSubWorkTypeRename, cancelSubWorkTypeRename, reorderReferenceDivisions,
+    commitWorkTypeRename, cancelWorkTypeRename, startSubWorkTypeRename, commitSubWorkTypeRename, cancelSubWorkTypeRename, createReferenceDivisionSet, reorderReferenceDivisions,
     reorderReferenceWorkTypes, reorderReferenceSubWorkTypes, timeline, shellLayout, rowPanelWidth, workTypeColumnWidth, setRowPanelWidth, setWorkTypeColumnWidth,
-    chartScrollTop, chartScrollLeft, syncChartScroll, canUndoLocalHistory, canRedoLocalHistory, undoLocalHistory, redoLocalHistory, connectionCreationState,
+    chartScrollTop, chartScrollLeft, syncChartScroll, canUndoLocalHistory, canRedoLocalHistory, isLocalHistorySyncInFlight, undoLocalHistory, redoLocalHistory, connectionCreationState,
     cancelConnectionCreation, completeConnectionCreation, activateMilestone, interactionCancelVersion, startMoveSession, draftMoveSession, endMoveSession, startResizeSession,
     draftResizeSession, endResizeSession, zoomScale, currentZoomIndex, maxZoomIndex, canZoomIn, canZoomOut, setZoomIndex, zoomIn, zoomOut,
     isAiVerificationModeActive, aiVerificationFlaggedItemIds, toggleAiVerificationMode, toggleAiVerificationFlag, patchLoadedWorkActualDates,
+    copySelectedItems, pasteCopiedItemsToCanvasTarget,
   } = deps;
 
   const load = reactive({
@@ -75,6 +76,11 @@ export function createDesktopSchedulePublicApi(deps: Record<string, any>) {
     selectRows,
     deleteSelection,
   });
+
+  const clipboard = reactive({
+    copyItems: copySelectedItems,
+    pasteItemsToCell: pasteCopiedItemsToCanvasTarget,
+  });
   
   const contextMenu = reactive({
     state: contextMenuState,
@@ -110,6 +116,7 @@ export function createDesktopSchedulePublicApi(deps: Record<string, any>) {
   });
   
   const reference = reactive({
+    createDivision: createReferenceDivisionSet,
     startDivisionRename,
     commitDivisionRename,
     cancelDivisionRename,
@@ -142,6 +149,7 @@ export function createDesktopSchedulePublicApi(deps: Record<string, any>) {
   const history = reactive({
     canUndo: canUndoLocalHistory,
     canRedo: canRedoLocalHistory,
+    isSyncing: isLocalHistorySyncInFlight,
     undo: undoLocalHistory,
     redo: redoLocalHistory,
   });
@@ -194,6 +202,7 @@ export function createDesktopSchedulePublicApi(deps: Record<string, any>) {
     version,
     importFlow,
     selection,
+    clipboard,
     contextMenu,
     colorPalette,
     rename,

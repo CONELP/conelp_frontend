@@ -21,6 +21,8 @@ export type DesktopScheduleContextMenuTarget =
   | { kind: "canvas"; rowId: string | null; date: string | null };
 
 export type DesktopScheduleContextMenuCommand =
+  | "copy-items"
+  | "paste-items"
   | "create-milestone"
   | "create-item"
   | "create-division-reference"
@@ -40,6 +42,8 @@ export type DesktopScheduleContextMenuCommand =
 
 export type DesktopScheduleContextMenuIcon =
   | "plus"
+  | "copy"
+  | "paste"
   | "trash"
   | "connection"
   | "disconnect"

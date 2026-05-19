@@ -62,9 +62,12 @@ export const useAuthStore = defineStore("auth", () => {
     isLoading.value = true;
     error.value = null;
     fieldErrors.value = {};
+    analyticsClient.setUserId(null);
 
     try {
-      user.value = await authApi.login(email, password);
+      const loggedInUser = await authApi.login(email, password);
+      user.value = loggedInUser;
+      analyticsClient.setUserId(loggedInUser.id);
       analyticsClient.trackAction("auth", "login", "success");
     } catch (requestError) {
       setRequestError(requestError, "로그인에 실패했습니다.");
@@ -92,14 +95,15 @@ export const useAuthStore = defineStore("auth", () => {
       didRemoteLogoutFail = true;
       clearAccessToken();
     } finally {
-      user.value = null;
-      localStorage.removeItem("selectedProjectId");
-      isLoading.value = false;
       analyticsClient.trackAction(
         "auth",
         "logout",
         didRemoteLogoutFail ? "fail" : "success",
       );
+      analyticsClient.setUserId(null);
+      user.value = null;
+      localStorage.removeItem("selectedProjectId");
+      isLoading.value = false;
     }
   }
 
@@ -110,10 +114,13 @@ export const useAuthStore = defineStore("auth", () => {
 
     try {
       await authApi.refresh();
-      user.value = await authApi.me();
+      const currentUser = await authApi.me();
+      user.value = currentUser;
+      analyticsClient.setUserId(currentUser.id);
     } catch {
       clearAccessToken();
       user.value = null;
+      analyticsClient.setUserId(null);
     } finally {
       isLoading.value = false;
       isInitialized.value = true;

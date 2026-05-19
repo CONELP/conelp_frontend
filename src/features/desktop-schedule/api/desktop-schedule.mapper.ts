@@ -12,6 +12,7 @@ import type {
   DesktopScheduleSourceTask,
   DesktopScheduleWorkConnection,
 } from "@/features/desktop-schedule/model/desktop-schedule.types";
+import { normalizeMilestoneLabelFromApi } from "@/features/desktop-schedule/services/domain/desktop-schedule-milestone-label.service";
 import { desktopScheduleService } from "@/features/desktop-schedule/services/desktop-schedule.service";
 
 const WORK_CONNECTION_COLOR = "#64748b";
@@ -50,7 +51,7 @@ function mapWorkToSourceTask(
 
   return {
     workId: work.workId,
-    name: work.workName || subWorkType,
+    name: typeof work.workName === "string" ? work.workName : "",
     startDate: work.startDate,
     endDate: work.completionDate,
     durationDays: getDurationDays(work),
@@ -97,7 +98,7 @@ function mapMilestoneToModel(milestone: DesktopScheduleMilestoneResponse): Deskt
     id: `milestone:${milestone.id}`,
     apiId: milestone.id,
     date: milestone.date,
-    label: milestone.name,
+    label: normalizeMilestoneLabelFromApi(milestone.name),
     rowId: null,
   };
 }

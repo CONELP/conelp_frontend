@@ -9,6 +9,7 @@ import type {
     DesktopScheduleMilestone,
     DesktopScheduleWorkConnection
 } from "@/features/desktop-schedule/model/desktop-schedule.types";
+import { createEmptyMilestoneSyncName } from "@/features/desktop-schedule/services/domain/desktop-schedule-milestone-label.service";
 import { desktopScheduleService } from "@/features/desktop-schedule/services/desktop-schedule.service";
 import type { ConnectionCreationState } from "@/features/desktop-schedule/state/core/desktop-schedule-view-model-core";
 import type {
@@ -19,6 +20,11 @@ import { createEmptyDesktopScheduleSelectionState } from "@/features/desktop-sch
 
 type AnyFunction = (...args: any[]) => any;
 
+function getMilestoneCreateSyncName(milestone: DesktopScheduleMilestone) {
+  const label = milestone.label.trim();
+  return label || createEmptyMilestoneSyncName(milestone.id);
+}
+
 type DesktopScheduleConnectionMilestoneWorkflowDeps = Record<string, any> & {
   connectionCreationState: Ref<ConnectionCreationState | null>;
   workingItems: Ref<DesktopScheduleItem[]>;
@@ -28,7 +34,10 @@ type DesktopScheduleConnectionMilestoneWorkflowDeps = Record<string, any> & {
   getSelectedScheduleVersionId: () => DesktopScheduleVersionId | null;
   waitForPendingItemCreations: (itemIds: string[]) => Promise<void>;
   getPersistedWorkIdForItem: (item: DesktopScheduleItem) => number;
-  createUniqueReferenceName: (baseName: string, existingNames: string[]) => string;
+  renamingItemId: Ref<string | null>;
+  renamingMilestoneId: Ref<string | null>;
+  pendingMilestoneCreationByMilestoneId: Map<string, Promise<number>>;
+  resolvedMilestoneApiIdByPendingMilestoneId: Map<string, number>;
   isSameConnectionItemPair: (workConnection: DesktopScheduleWorkConnection, sourceItemId: string, targetItemId: string) => boolean;
   shouldSwapConnectionDirection: (sourceItem: DesktopScheduleItem, targetItem: DesktopScheduleItem) => boolean;
   captureWorkingSnapshot: AnyFunction;
@@ -47,7 +56,8 @@ export function useDesktopScheduleConnectionMilestoneWorkflow(deps: DesktopSched
     closeContextMenu,
     waitForPendingItemCreations,
     getPersistedWorkIdForItem,
-    createUniqueReferenceName,
+    renamingItemId,
+    renamingMilestoneId,
     workingItems,
     workingWorkConnections,
     workingMilestones,
@@ -61,6 +71,8 @@ export function useDesktopScheduleConnectionMilestoneWorkflow(deps: DesktopSched
     applyServerMutationPatch,
     upsertLoadedMilestone,
     replaceWorkingMilestoneWithApiMilestone,
+    pendingMilestoneCreationByMilestoneId,
+    resolvedMilestoneApiIdByPendingMilestoneId,
     isSameConnectionItemPair,
     shouldSwapConnectionDirection,
   } = deps;
@@ -207,13 +219,9 @@ export function useDesktopScheduleConnectionMilestoneWorkflow(deps: DesktopSched
     }
   
     const previousMilestoneIds = new Set(workingMilestones.value.map((milestone) => milestone.id));
-    const defaultMilestoneLabel = createUniqueReferenceName(
-      "마일스톤",
-      workingMilestones.value.map((milestone) => milestone.label),
-    );
     workingMilestones.value = desktopScheduleService.createMilestone(workingMilestones.value, {
       date: payload.date,
-      label: defaultMilestoneLabel,
+      label: "",
       rowId: null,
     });
     const createdMilestone = workingMilestones.value.find(
@@ -223,6 +231,10 @@ export function useDesktopScheduleConnectionMilestoneWorkflow(deps: DesktopSched
       ...createEmptyDesktopScheduleSelectionState(),
       milestoneIds: createdMilestone ? [createdMilestone.id] : [],
     };
+    if (createdMilestone) {
+      renamingItemId.value = null;
+      renamingMilestoneId.value = createdMilestone.id;
+    }
   
     if (!createdMilestone) {
       closeContextMenu();
@@ -231,18 +243,34 @@ export function useDesktopScheduleConnectionMilestoneWorkflow(deps: DesktopSched
   
     const didSave = await runScheduleMutation(
       async () => {
-        const apiMilestone = await desktopScheduleApi.createMilestone({
+        const creationPromise = desktopScheduleApi.createMilestone({
           scheduleVersionId: getRequiredScheduleVersionIdForReferenceMutation(),
           date: createdMilestone.date,
-          name: createdMilestone.label,
+          name: getMilestoneCreateSyncName(createdMilestone),
+        }).then((apiMilestone) => {
+          resolvedMilestoneApiIdByPendingMilestoneId.set(createdMilestone.id, apiMilestone.id);
+          replaceWorkingMilestoneWithApiMilestone(createdMilestone.id, apiMilestone, {
+            preserveLocalLabel: true,
+          });
+          return apiMilestone.id;
         });
-        replaceWorkingMilestoneWithApiMilestone(createdMilestone.id, apiMilestone);
+
+        pendingMilestoneCreationByMilestoneId.set(createdMilestone.id, creationPromise);
+
+        try {
+          await creationPromise;
+        } finally {
+          pendingMilestoneCreationByMilestoneId.delete(createdMilestone.id);
+        }
       },
       "마일스톤을 생성하지 못했습니다.",
       {
         rollback: () => restoreWorkingSnapshot(snapshot),
       },
     );
+    if (!didSave && renamingMilestoneId.value === createdMilestone.id) {
+      renamingMilestoneId.value = null;
+    }
     if (didSave) {
       pushLocalHistoryEntry(snapshot);
     }

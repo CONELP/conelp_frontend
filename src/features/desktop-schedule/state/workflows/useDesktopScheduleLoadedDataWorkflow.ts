@@ -310,8 +310,20 @@ export function useDesktopScheduleLoadedDataWorkflow(deps: DesktopScheduleLoaded
   function replaceWorkingMilestoneWithApiMilestone(
     localMilestoneId: string,
     apiMilestone: DesktopScheduleMilestoneResponse,
+    options: { preserveLocalLabel?: boolean } = {},
   ) {
-    const milestone = createMilestoneModelFromApi(apiMilestone);
+    const localMilestone = workingMilestones.value.find(
+      (currentMilestone) => currentMilestone.id === localMilestoneId,
+    );
+    const milestone =
+      options.preserveLocalLabel && localMilestone
+        ? {
+            ...localMilestone,
+            apiId: apiMilestone.id,
+            date: apiMilestone.date,
+            rowId: null,
+          }
+        : createMilestoneModelFromApi(apiMilestone);
     workingMilestones.value = workingMilestones.value.map((currentMilestone) =>
       currentMilestone.id === localMilestoneId ? milestone : currentMilestone,
     );
@@ -324,7 +336,10 @@ export function useDesktopScheduleLoadedDataWorkflow(deps: DesktopScheduleLoaded
     if (renamingMilestoneId.value === localMilestoneId) {
       renamingMilestoneId.value = milestone.id;
     }
-    upsertLoadedMilestone(apiMilestone);
+    upsertLoadedMilestone({
+      ...apiMilestone,
+      name: milestone.label,
+    });
   }
   
   function rebuildScheduleFromLoadedData() {

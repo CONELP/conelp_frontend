@@ -47,11 +47,13 @@ type DesktopScheduleContextMenuCommandsDeps = Record<string, any> & {
   getHierarchyForWorkType: (workTypeId: number) => DesktopScheduleReferenceHierarchyItem[];
   getScopedItemIds: (targetItemId: string) => string[];
   getWorkConnectionById: (workConnectionId: string) => DesktopScheduleWorkConnection | null;
-  removeLoadedWorksAndWorkDeps: (workIds: number[], workDepIds?: number[]) => void;
   removeLoadedWorkDeps: (workDepIds: number[]) => void;
   removeLoadedMilestones: (milestoneApiIds: number[]) => void;
   canCreateItemOnCanvasTarget: (target: Extract<DesktopScheduleContextMenuTarget, { kind: "canvas" }>) => boolean;
   canCreateMilestoneOnCanvasTarget: (target: Extract<DesktopScheduleContextMenuTarget, { kind: "canvas" }>) => boolean;
+  copySelectedItems: (targetItemId?: string) => void;
+  pasteCopiedItemsToCanvasTarget: (target: { rowId: string | null; date: string | null }) => Promise<void>;
+  canPasteCopiedItemsToCanvasTarget: (target: { rowId: string | null; date: string | null }) => boolean;
   openColorPalette: (target: Extract<DesktopScheduleContextMenuTarget, { kind: "row" | "item" }>, selectedColor: string | null | undefined) => void;
   promptForName: (label: string, currentName: string) => string | null;
   captureWorkingSnapshot: AnyFunction;
@@ -82,7 +84,6 @@ export function useDesktopScheduleContextMenuCommands(deps: DesktopScheduleConte
     promptForName,
     workingRows,
     getScopedItemIds,
-    removeLoadedWorksAndWorkDeps,
     removeLoadedWorkDeps,
     removeLoadedMilestones,
     renamingItemId,
@@ -100,6 +101,9 @@ export function useDesktopScheduleContextMenuCommands(deps: DesktopScheduleConte
     closeColorPalette,
     canCreateItemOnCanvasTarget,
     canCreateMilestoneOnCanvasTarget,
+    copySelectedItems,
+    pasteCopiedItemsToCanvasTarget,
+    canPasteCopiedItemsToCanvasTarget,
     openColorPalette,
     createReferenceDivisionSet,
     createReferenceWorkTypeSet,
@@ -117,11 +121,11 @@ export function useDesktopScheduleContextMenuCommands(deps: DesktopScheduleConte
     if (!contextMenuState.value.open || !target) {
       return [];
     }
-  
+
     if (isScheduleReadOnly.value) {
       return [];
     }
-  
+
     if (
       target.kind === "reference-header" ||
       target.kind === "division-header" ||
@@ -151,7 +155,7 @@ export function useDesktopScheduleContextMenuCommands(deps: DesktopScheduleConte
                 icon: "plus" as const,
               }
               : null;
-  
+
       const colorItem =
         target.kind === "sub-work-type-header"
           ? [
@@ -189,6 +193,12 @@ export function useDesktopScheduleContextMenuCommands(deps: DesktopScheduleConte
   
     if (target.kind === "item") {
       return [
+        {
+          id: "copy-items",
+          label: "복사",
+          command: "copy-items",
+          icon: "copy",
+        },
         {
           id: "toggle-work-connection",
           label: "작업 연결 생성",
@@ -271,6 +281,14 @@ export function useDesktopScheduleContextMenuCommands(deps: DesktopScheduleConte
     }
   
     if (target.kind === "canvas") {
+      const pasteItem = {
+        id: "paste-items",
+        label: "붙여넣기",
+        command: "paste-items" as const,
+        icon: "paste" as const,
+        disabled: !canPasteCopiedItemsToCanvasTarget(target),
+      };
+
       if (canCreateMilestoneOnCanvasTarget(target)) {
         return [
           {
@@ -279,6 +297,7 @@ export function useDesktopScheduleContextMenuCommands(deps: DesktopScheduleConte
             command: "create-milestone",
             icon: "plus",
           },
+          pasteItem,
         ];
       }
   
@@ -290,6 +309,7 @@ export function useDesktopScheduleContextMenuCommands(deps: DesktopScheduleConte
           icon: "plus",
           disabled: !canCreateItemOnCanvasTarget(target),
         },
+        pasteItem,
       ];
     }
   
@@ -306,7 +326,7 @@ export function useDesktopScheduleContextMenuCommands(deps: DesktopScheduleConte
     if (!target) {
       return;
     }
-  
+
     if (
       target.kind === "reference-header" ||
       target.kind === "division-header" ||
@@ -470,7 +490,15 @@ export function useDesktopScheduleContextMenuCommands(deps: DesktopScheduleConte
         return;
       }
     }
-  
+
+    if (
+      command === "paste-items" &&
+      target.kind === "canvas"
+    ) {
+      await pasteCopiedItemsToCanvasTarget(target);
+      return;
+    }
+
     if (
       command === "create-milestone" &&
       target.kind === "canvas" &&
@@ -526,6 +554,11 @@ export function useDesktopScheduleContextMenuCommands(deps: DesktopScheduleConte
   
     if (target.kind === "item") {
       const scopedItemIds = getScopedItemIds(target.itemId);
+
+      if (command === "copy-items") {
+        copySelectedItems(target.itemId);
+        return;
+      }
   
       if (command === "toggle-work-connection") {
         connectionCreationState.value = {
@@ -541,38 +574,11 @@ export function useDesktopScheduleContextMenuCommands(deps: DesktopScheduleConte
       }
   
       if (command === "delete-item") {
-        const snapshot = captureWorkingSnapshot();
-        const workIdsToDelete = workingItems.value
-          .filter((item) => scopedItemIds.includes(item.id))
-          .map((item) => item.workId);
-        workingItems.value = desktopScheduleService.deleteItems(workingItems.value, scopedItemIds);
-        workingWorkConnections.value = desktopScheduleService.removeWorkConnectionsForItems(
-          workingWorkConnections.value,
-          scopedItemIds,
-        );
-        if (renamingItemId.value && scopedItemIds.includes(renamingItemId.value)) {
-          renamingItemId.value = null;
-        }
-        selectionState.value = createEmptyDesktopScheduleSelectionState();
-        removeLoadedWorksAndWorkDeps(workIdsToDelete);
-        closeContextMenu();
-        const didSave = await runScheduleMutation(
-          async () => {
-            await Promise.all(
-              workIdsToDelete.map((workId) => desktopScheduleApi.deleteWork(workId)),
-            );
-          },
-          "작업을 삭제하지 못했습니다.",
-          {
-            rollback: () => restoreWorkingSnapshot(snapshot),
-          },
-        );
-        if (didSave) {
-          pushLocalHistoryEntry(snapshot);
-        }
-        trackScheduleMutationResult("delete_selection", didSave, {
-          work_count: workIdsToDelete.length,
-        });
+        selectionState.value = {
+          ...createEmptyDesktopScheduleSelectionState(),
+          itemIds: scopedItemIds,
+        };
+        await deleteSelection();
         return;
       }
   

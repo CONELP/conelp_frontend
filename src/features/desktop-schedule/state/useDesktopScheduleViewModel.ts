@@ -102,6 +102,8 @@ function createDesktopScheduleViewModel() {
     scheduleVersionReviewSummaryCache,
     pendingWorkCreationByItemId,
     resolvedWorkIdByPendingItemId,
+    pendingMilestoneCreationByMilestoneId,
+    resolvedMilestoneApiIdByPendingMilestoneId,
     scheduleToastTimer,
     getProjectScheduleDateRange,
     getPersistedWorkIdForItem,
@@ -597,6 +599,8 @@ function createDesktopScheduleViewModel() {
     mergeCreatedWorkIntoPendingItem,
     pendingWorkCreationByItemId,
     resolvedWorkIdByPendingItemId,
+    pendingMilestoneCreationByMilestoneId,
+    resolvedMilestoneApiIdByPendingMilestoneId,
   });
   const {
     getScopedItemIds,
@@ -610,6 +614,9 @@ function createDesktopScheduleViewModel() {
     openScheduleHeaderContextMenu,
     openCanvasContextMenu,
     openColorPalette,
+    copySelectedItems,
+    canPasteCopiedItemsToCanvasTarget,
+    pasteCopiedItemsToCanvasTarget,
     applyColorSelection,
     createItemOnCanvasTarget,
     startItemRename,
@@ -627,8 +634,9 @@ function createDesktopScheduleViewModel() {
     closeContextMenu,
     waitForPendingItemCreations,
     getPersistedWorkIdForItem,
-    createUniqueReferenceName,
     connectionCreationState,
+    renamingItemId,
+    renamingMilestoneId,
     workingItems,
     workingWorkConnections,
     workingMilestones,
@@ -644,6 +652,8 @@ function createDesktopScheduleViewModel() {
     syncLoadedDataFromWorkingItemsAndConnections,
     upsertLoadedMilestone,
     replaceWorkingMilestoneWithApiMilestone,
+    pendingMilestoneCreationByMilestoneId,
+    resolvedMilestoneApiIdByPendingMilestoneId,
     isSameConnectionItemPair,
     shouldSwapConnectionDirection,
   });
@@ -667,7 +677,6 @@ function createDesktopScheduleViewModel() {
     promptForName,
     workingRows,
     getScopedItemIds,
-    removeLoadedWorksAndWorkDeps,
     removeLoadedWorkDeps,
     removeLoadedMilestones,
     renamingItemId,
@@ -689,6 +698,9 @@ function createDesktopScheduleViewModel() {
     notifyReadOnlyScheduleAction,
     canCreateItemOnCanvasTarget,
     canCreateMilestoneOnCanvasTarget,
+    copySelectedItems,
+    canPasteCopiedItemsToCanvasTarget,
+    pasteCopiedItemsToCanvasTarget,
     openColorPalette,
     createReferenceDivisionSet,
     createReferenceWorkTypeSet,
@@ -705,6 +717,7 @@ function createDesktopScheduleViewModel() {
   const { startMoveSession, endMoveSession, startResizeSession, endResizeSession } =
     useDesktopScheduleInteractionSessions({
     ensureScheduleEditable,
+    closeContextMenu,
     selectionState,
       isScheduleReadOnly,
       interactionSession,
@@ -784,7 +797,6 @@ function createDesktopScheduleViewModel() {
     localHistoryUndoStack,
     localHistoryRedoStack,
     interactionSession,
-    isLocalHistorySyncInFlight,
     moveLocalHistoryStackAndPersist,
   });
 
@@ -798,12 +810,12 @@ function createDesktopScheduleViewModel() {
     openCanvasContextMenu, executeContextMenuCommand, closeContextMenu, colorPaletteState, closeColorPalette, applyColorSelection, renamingDivisionId, renamingWorkTypeId,
     renamingSubWorkTypeId, renamingItemId, renamingMilestoneId, startItemRename, commitItemRename, cancelItemRename, startMilestoneRename, commitMilestoneRename,
     cancelMilestoneRename, startDivisionRename, commitDivisionRename, cancelDivisionRename, startWorkTypeRename, commitWorkTypeRename, cancelWorkTypeRename, startSubWorkTypeRename,
-    commitSubWorkTypeRename, cancelSubWorkTypeRename, reorderReferenceDivisions, reorderReferenceWorkTypes, reorderReferenceSubWorkTypes, timeline, shellLayout, rowPanelWidth,
+    commitSubWorkTypeRename, cancelSubWorkTypeRename, createReferenceDivisionSet, reorderReferenceDivisions, reorderReferenceWorkTypes, reorderReferenceSubWorkTypes, timeline, shellLayout, rowPanelWidth,
     workTypeColumnWidth, setRowPanelWidth, setWorkTypeColumnWidth, chartScrollTop, chartScrollLeft, syncChartScroll, canUndoLocalHistory, canRedoLocalHistory,
-    undoLocalHistory, redoLocalHistory, connectionCreationState, cancelConnectionCreation, completeConnectionCreation, activateMilestone, interactionCancelVersion, startMoveSession,
+    isLocalHistorySyncInFlight, undoLocalHistory, redoLocalHistory, connectionCreationState, cancelConnectionCreation, completeConnectionCreation, activateMilestone, interactionCancelVersion, startMoveSession,
     draftMoveSession, endMoveSession, startResizeSession, draftResizeSession, endResizeSession, zoomScale, currentZoomIndex, maxZoomIndex,
     canZoomIn, canZoomOut, setZoomIndex, zoomIn, zoomOut, isAiVerificationModeActive, aiVerificationFlaggedItemIds, toggleAiVerificationMode,
-    toggleAiVerificationFlag, patchLoadedWorkActualDates,
+    toggleAiVerificationFlag, patchLoadedWorkActualDates, copySelectedItems, pasteCopiedItemsToCanvasTarget,
   });
 }
 

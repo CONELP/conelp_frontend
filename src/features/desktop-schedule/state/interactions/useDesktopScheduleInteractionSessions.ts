@@ -36,6 +36,8 @@ type DesktopScheduleInteractionSessionsDeps = Record<string, any> & {
   workingMilestones: Ref<DesktopScheduleMilestone[]>;
   shellLayout: ComputedRef<DesktopScheduleShellLayout>;
   lanePreferenceByItemId: Ref<Record<string, number>>;
+  ensureScheduleEditable: () => boolean;
+  closeContextMenu: () => void;
   clearSelection: AnyFunction;
   selectBars: AnyFunction;
   captureWorkingSnapshot: AnyFunction;

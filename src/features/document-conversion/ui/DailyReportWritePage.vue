@@ -1492,6 +1492,7 @@ watch(
             :can-zoom-out="zoom.canZoomOut"
             :can-undo="false"
             :can-redo="false"
+            :history-syncing="false"
             @scroll-sync="scroll.syncChart"
             @row-panel-width-change="handleRowPanelWidthChange"
             @work-type-column-width-change="handleWorkTypeColumnWidthChange"

@@ -20,6 +20,7 @@ import DesktopScheduleChartBody from "@/features/desktop-schedule/ui/components/
 import DesktopScheduleRowPanel from "@/features/desktop-schedule/ui/components/DesktopScheduleRowPanel.vue";
 import DesktopScheduleTimelineHeader from "@/features/desktop-schedule/ui/components/DesktopScheduleTimelineHeader.vue";
 import {
+  CREATE_DIVISION_FOOTER_HEIGHT,
   READONLY_NOTICE_HEIGHT,
   ROW_PANEL_MAX_WIDTH,
   ROW_PANEL_MIN_WIDTH,
@@ -58,6 +59,11 @@ type PastMainScheduleVersionOption = {
   id: number;
   versionName: string;
   setMainAt?: string | null;
+};
+
+type ScheduleGridCell = {
+  rowId: string;
+  date: string;
 };
 
 const props = defineProps<{
@@ -103,6 +109,7 @@ const props = defineProps<{
   canZoomOut: boolean;
   canUndo: boolean;
   canRedo: boolean;
+  historySyncing: boolean;
   panelOpen?: boolean;
   showPanelToggle?: boolean;
   panelToggleOpenLabel?: string;
@@ -125,6 +132,7 @@ const emit = defineEmits<{
   "start-sub-work-type-rename": [subWorkTypeId: number];
   "commit-sub-work-type-rename": [payload: { subWorkTypeId: number; name: string }];
   "cancel-sub-work-type-rename": [];
+  "create-division-reference": [];
   "reorder-divisions": [payload: { divisionIds: number[] }];
   "reorder-work-types": [payload: { divisionId: number; workTypeIds: number[] }];
   "reorder-sub-work-types": [payload: { workTypeId: number; subWorkTypeIds: number[] }];
@@ -175,6 +183,7 @@ const emit = defineEmits<{
   ];
   "resize-draft": [payload: { deltaDays: number }];
   "resize-end": [];
+  "cell-selection-change": [payload: ScheduleGridCell | null];
   undo: [];
   redo: [];
   "select-schedule-version": [scheduleVersionId: number];
@@ -298,6 +307,9 @@ const mainScheduleVersion = computed<ScheduleVersionOption | null>(() => {
   });
 });
 const showWorkflowControls = computed(() => !props.referenceOnly);
+const createDivisionFooterHeight = computed(() =>
+  !props.readOnly && showWorkflowControls.value ? CREATE_DIVISION_FOOTER_HEIGHT : 0,
+);
 const draftScheduleVersions = computed(() =>
   props.scheduleVersions.filter((version) => !version.isMain),
 );
@@ -1328,6 +1340,15 @@ onUnmounted(() => {
         </button>
       </div>
 
+      <span
+        v-if="showWorkflowControls && historySyncing"
+        class="schedule-shell__history-sync"
+        role="status"
+        aria-live="polite"
+      >
+        동기화 중
+      </span>
+
       <div class="schedule-shell__actions schedule-shell__actions--zoom" aria-label="공정표 확대 축소">
         <button
           type="button"
@@ -1604,6 +1625,8 @@ onUnmounted(() => {
           :editing-division-id="editingDivisionId"
           :editing-work-type-id="editingWorkTypeId"
           :editing-sub-work-type-id="editingSubWorkTypeId"
+          :create-division-footer-height="createDivisionFooterHeight"
+          :show-create-division-button="createDivisionFooterHeight > 0"
           @scroll-top-change="handleRowPanelScroll"
           @select-row="emit('select-row', $event)"
           @start-division-rename="emit('start-division-rename', $event)"
@@ -1615,6 +1638,7 @@ onUnmounted(() => {
           @start-sub-work-type-rename="emit('start-sub-work-type-rename', $event)"
           @commit-sub-work-type-rename="emit('commit-sub-work-type-rename', $event)"
           @cancel-sub-work-type-rename="emit('cancel-sub-work-type-rename')"
+          @create-division-reference="emit('create-division-reference')"
           @reorder-divisions="emit('reorder-divisions', $event)"
           @reorder-work-types="emit('reorder-work-types', $event)"
           @reorder-sub-work-types="emit('reorder-sub-work-types', $event)"
@@ -1667,6 +1691,7 @@ onUnmounted(() => {
           :execution-progress-compare-leaving="isExecutionProgressCompareLeaving"
           :is-ai-verification-mode-active="isAiVerificationModeActive"
           :ai-verification-flagged-item-ids="aiVerificationFlaggedItemIds"
+          :bottom-spacer-height="createDivisionFooterHeight"
           @toggle-ai-verification-flag="emit('toggle-ai-verification-flag', $event)"
           :zoom-scale="zoomScale"
           @scroll-change="handleChartScroll"
@@ -1696,6 +1721,7 @@ onUnmounted(() => {
           @resize-draft="emit('resize-draft', $event)"
           @resize-end="emit('resize-end')"
           @hover-cell="handleHoverCell"
+          @cell-selection-change="emit('cell-selection-change', $event)"
         />
 
       </div>

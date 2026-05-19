@@ -86,6 +86,8 @@ const props = defineProps<{
   editingDivisionId?: number | null;
   editingWorkTypeId?: number | null;
   editingSubWorkTypeId?: number | null;
+  createDivisionFooterHeight: number;
+  showCreateDivisionButton: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -100,6 +102,7 @@ const emit = defineEmits<{
   "start-sub-work-type-rename": [subWorkTypeId: number];
   "commit-sub-work-type-rename": [payload: { subWorkTypeId: number; name: string }];
   "cancel-sub-work-type-rename": [];
+  "create-division-reference": [];
   "reorder-divisions": [payload: { divisionIds: number[] }];
   "reorder-work-types": [payload: { divisionId: number; workTypeIds: number[] }];
   "reorder-sub-work-types": [payload: { workTypeId: number; subWorkTypeIds: number[] }];
@@ -181,6 +184,26 @@ function createHeaderLabel(
   };
 }
 
+function isComposingKeyboardEvent(event: KeyboardEvent) {
+  return event.isComposing || event.keyCode === 229;
+}
+
+function handleRenameInputKeyDown(event: KeyboardEvent) {
+  if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "a") {
+    return;
+  }
+
+  const input = event.currentTarget;
+
+  if (!(input instanceof HTMLInputElement)) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  input.select();
+}
+
 function getDivisionLabel(row: DesktopScheduleShellRow) {
   return createHeaderLabel(row.name, {
     defaultNames: DEFAULT_DIVISION_NAMES,
@@ -231,7 +254,7 @@ const divisionGroups = computed<DivisionGroupEntry[]>(() => {
 
   return divisionRows.map((row, index) => {
     const nextDivisionRow = divisionRows[index + 1];
-    const bottom = nextDivisionRow?.top ?? contentHeight.value;
+    const bottom = nextDivisionRow?.top ?? rowsContentHeight.value;
 
     return {
       key: row.id,
@@ -243,10 +266,20 @@ const divisionGroups = computed<DivisionGroupEntry[]>(() => {
   });
 });
 
-const contentHeight = computed(() => {
+const rowsContentHeight = computed(() => {
   const lastRow = props.rows[props.rows.length - 1];
   return lastRow ? lastRow.top + lastRow.height : 0;
 });
+const createDivisionFooterHeight = computed(() =>
+  Math.max(0, props.createDivisionFooterHeight),
+);
+const contentHeight = computed(() =>
+  rowsContentHeight.value + createDivisionFooterHeight.value,
+);
+const createDivisionFooterStyle = computed(() => ({
+  top: `${rowsContentHeight.value}px`,
+  height: `${createDivisionFooterHeight.value}px`,
+}));
 const rowGridWidth = computed(() =>
   Math.max(panelContentWidth.value, props.workTypeColumnWidth + 1),
 );
@@ -370,7 +403,8 @@ function getRowInlineStyle(row: DesktopScheduleShellRow) {
 
   if (
     row.kind === "division" &&
-    row.divisionId &&
+    row.divisionId !== null &&
+    row.divisionId !== undefined &&
     dragState?.kind === "division" &&
     dragState.divisionId === row.divisionId
   ) {
@@ -637,7 +671,7 @@ function getDropIndex(groups: { top: number; height: number }[], contentY: numbe
 function getDraggableDivisionGroups() {
   return divisionGroups.value.filter(
     (group): group is DivisionGroupEntry & { divisionId: number } =>
-      group.divisionId !== null && group.divisionId > 0,
+      group.divisionId !== null,
   );
 }
 
@@ -903,7 +937,7 @@ function startDivisionDrag(row: DesktopScheduleShellRow, event: PointerEvent) {
     return;
   }
 
-  if (event.button !== 0 || !row.divisionId || row.divisionId < 0) {
+  if (event.button !== 0 || row.divisionId === null || row.divisionId === undefined) {
     return;
   }
 
@@ -1060,7 +1094,12 @@ function handleDivisionRenameBlur(row: DesktopScheduleShellRow) {
   shouldCommitDivisionRenameOnBlur.value = true;
 }
 
-function handleDivisionRenameEnter() {
+function handleDivisionRenameEnter(event: KeyboardEvent) {
+  if (isComposingKeyboardEvent(event)) {
+    return;
+  }
+
+  event.preventDefault();
   shouldCommitDivisionRenameOnBlur.value = true;
   divisionRenameInputRef.value?.blur();
 }
@@ -1131,7 +1170,12 @@ function handleWorkTypeRenameBlur(group: WorkTypeGroupEntry) {
   shouldCommitWorkTypeRenameOnBlur.value = true;
 }
 
-function handleWorkTypeRenameEnter() {
+function handleWorkTypeRenameEnter(event: KeyboardEvent) {
+  if (isComposingKeyboardEvent(event)) {
+    return;
+  }
+
+  event.preventDefault();
   shouldCommitWorkTypeRenameOnBlur.value = true;
   workTypeRenameInputRef.value?.blur();
 }
@@ -1202,7 +1246,12 @@ function handleSubWorkTypeRenameBlur(row: DesktopScheduleShellRow) {
   shouldCommitSubWorkTypeRenameOnBlur.value = true;
 }
 
-function handleSubWorkTypeRenameEnter() {
+function handleSubWorkTypeRenameEnter(event: KeyboardEvent) {
+  if (isComposingKeyboardEvent(event)) {
+    return;
+  }
+
+  event.preventDefault();
   shouldCommitSubWorkTypeRenameOnBlur.value = true;
   subWorkTypeRenameInputRef.value?.blur();
 }
@@ -1210,6 +1259,15 @@ function handleSubWorkTypeRenameEnter() {
 function handleSubWorkTypeRenameEscape() {
   shouldCommitSubWorkTypeRenameOnBlur.value = false;
   subWorkTypeRenameInputRef.value?.blur();
+}
+
+function handleCreateDivisionClick() {
+  if (props.readOnly) {
+    emit("readonly-edit-attempt");
+    return;
+  }
+
+  emit("create-division-reference");
 }
 </script>
 
@@ -1272,7 +1330,11 @@ function handleSubWorkTypeRenameEscape() {
           @dblclick.stop="handleDivisionDoubleClick(entry.row)"
         >
           <button
-            v-if="!readOnly && entry.row.divisionId && entry.row.divisionId > 0"
+            v-if="
+              !readOnly &&
+              entry.row.divisionId !== null &&
+              entry.row.divisionId !== undefined
+            "
             type="button"
             class="schedule-row-panel__drag-handle schedule-row-panel__drag-handle--division"
             :aria-label="`${entry.row.name} 순서 변경`"
@@ -1294,7 +1356,8 @@ function handleSubWorkTypeRenameEscape() {
             @click.stop
             @dblclick.stop
             @blur="handleDivisionRenameBlur(entry.row)"
-            @keydown.enter.prevent="handleDivisionRenameEnter"
+            @keydown="handleRenameInputKeyDown"
+            @keydown.enter="handleDivisionRenameEnter"
             @keydown.escape.prevent="handleDivisionRenameEscape"
           />
           <p
@@ -1346,7 +1409,8 @@ function handleSubWorkTypeRenameEscape() {
               @click.stop
               @dblclick.stop
               @blur="handleSubWorkTypeRenameBlur(entry.row)"
-              @keydown.enter.prevent="handleSubWorkTypeRenameEnter"
+              @keydown="handleRenameInputKeyDown"
+              @keydown.enter="handleSubWorkTypeRenameEnter"
               @keydown.escape.prevent="handleSubWorkTypeRenameEscape"
             />
             <span
@@ -1360,6 +1424,22 @@ function handleSubWorkTypeRenameEscape() {
             </span>
           </span>
         </div>
+      </div>
+
+      <div
+        v-if="showCreateDivisionButton && createDivisionFooterHeight > 0"
+        class="schedule-row-panel__add-division-slot"
+        :style="createDivisionFooterStyle"
+        @pointerdown.stop
+        @contextmenu.stop.prevent
+      >
+        <button
+          type="button"
+          class="schedule-row-panel__add-division"
+          @click.stop="handleCreateDivisionClick"
+        >
+          + 분류 추가
+        </button>
       </div>
 
       <div class="schedule-row-panel__work-type-groups">
@@ -1403,7 +1483,8 @@ function handleSubWorkTypeRenameEscape() {
             @click.stop
             @dblclick.stop
             @blur="handleWorkTypeRenameBlur(group)"
-            @keydown.enter.prevent="handleWorkTypeRenameEnter"
+            @keydown="handleRenameInputKeyDown"
+            @keydown.enter="handleWorkTypeRenameEnter"
             @keydown.escape.prevent="handleWorkTypeRenameEscape"
           />
           <span v-else>
@@ -1441,10 +1522,10 @@ function handleSubWorkTypeRenameEscape() {
         <line
           v-for="group in workTypeGroups"
           :key="`row-panel-work-type-end-${group.key}`"
-          class="schedule-row-panel__row-grid-line"
+          class="schedule-row-panel__row-grid-line schedule-row-panel__row-grid-line--strong"
           x1="0"
           :y1="group.top + group.height"
-          :x2="workTypeColumnWidth"
+          :x2="rowGridWidth"
           :y2="group.top + group.height"
         />
         <line
@@ -1455,6 +1536,14 @@ function handleSubWorkTypeRenameEscape() {
           :y1="entry.row.top"
           :x2="rowGridWidth"
           :y2="entry.row.top"
+        />
+        <line
+          v-if="createDivisionFooterHeight > 0"
+          class="schedule-row-panel__row-grid-line schedule-row-panel__row-grid-line--strong"
+          x1="0"
+          :y1="rowsContentHeight"
+          :x2="rowGridWidth"
+          :y2="rowsContentHeight"
         />
         <rect
           class="schedule-row-panel__row-grid-bottom-divider"

@@ -561,15 +561,18 @@
   right: 0;
   left: 0;
   z-index: 3;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-top: 1px solid rgba(0, 0, 0, 0.12);
+  background: #fff;
   pointer-events: none;
 }
 
 .schedule-row-panel__add-division {
   gap: 0.4rem;
-  min-height: clamp(1.7rem, calc(2rem * var(--schedule-zoom-scale, 1)), 2.45rem);
+  min-height: clamp(1.65rem, calc(1.95rem * var(--schedule-zoom-scale, 1)), 2.35rem);
   padding: 0 calc(0.68rem * var(--schedule-zoom-scale, 1));
   border-radius: 0.42rem;
   color: var(--ink-muted);

@@ -513,17 +513,28 @@ export function useDesktopScheduleReferenceMutations({
     }
   
     const snapshot = captureWorkingSnapshot();
+    const persistedDivisionIds = payload.divisionIds.filter((divisionId) => divisionId > 0);
     updateLoadedScheduleData((currentData) => ({
       ...currentData,
       workHierarchy: sortHierarchyByDivisionIds(currentData.workHierarchy, payload.divisionIds),
     }));
     rebuildScheduleFromLoadedData();
     closeContextMenu();
+
+    if (persistedDivisionIds.length < 2) {
+      pushLocalHistoryEntry(snapshot);
+      trackScheduleAction("reorder_reference", "success", {
+        reference_kind: "division",
+        item_count: payload.divisionIds.length,
+        local_only: true,
+      });
+      return;
+    }
   
     const didSave = await runScheduleMutation(
       async () => {
         await desktopScheduleApi.updateDivision({
-            scheduleVersionId: getRequiredScheduleVersionIdForReferenceMutation(), ids: payload.divisionIds });
+            scheduleVersionId: getRequiredScheduleVersionIdForReferenceMutation(), ids: persistedDivisionIds });
       },
       "분류 순서를 변경하지 못했습니다.",
       {

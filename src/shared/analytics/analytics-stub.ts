@@ -8,6 +8,7 @@ type AnalyticsPayload = Record<string, unknown>;
 type AnalyticsResult = "success" | "fail" | "attempt";
 type GtagArguments =
   | ["js", Date]
+  | ["set", Record<string, unknown>]
   | ["config", string, Record<string, unknown>?]
   | ["event", string, Record<string, AnalyticsValue>?];
 
@@ -23,6 +24,7 @@ const ANALYTICS_DEBUG_STORAGE_KEY = "conelp.analytics.debug";
 const MAX_STRING_PARAM_LENGTH = 120;
 
 let isGtagInitialized = false;
+let currentUserId: string | null = null;
 
 function isBrowserEnvironment() {
   return typeof window !== "undefined" && typeof document !== "undefined";
@@ -72,6 +74,10 @@ function normalizePayload(payload: AnalyticsPayload = {}) {
     }
   });
 
+  if (currentUserId) {
+    normalized.user_id = currentUserId;
+  }
+
   if (shouldDebugAnalytics()) {
     normalized.debug_mode = true;
   }
@@ -95,6 +101,7 @@ function ensureGtag() {
   window.gtag("js", new Date());
   window.gtag("config", GA_MEASUREMENT_ID, {
     send_page_view: false,
+    ...(currentUserId ? { user_id: currentUserId } : {}),
     ...(shouldDebugAnalytics() ? { debug_mode: true } : {}),
   });
 
@@ -109,6 +116,22 @@ function ensureGtag() {
   )}`;
   script.dataset.conelpGa = GA_MEASUREMENT_ID;
   document.head.appendChild(script);
+}
+
+function syncUserIdToGtag() {
+  if (!GA_MEASUREMENT_ID || !isBrowserEnvironment()) {
+    return;
+  }
+
+  ensureGtag();
+  window.gtag?.("set", {
+    user_id: currentUserId,
+  });
+  window.gtag?.("config", GA_MEASUREMENT_ID, {
+    send_page_view: false,
+    user_id: currentUserId,
+    ...(shouldDebugAnalytics() ? { debug_mode: true } : {}),
+  });
 }
 
 function mirrorEvent(eventName: string, payload: Record<string, AnalyticsValue>) {
@@ -152,6 +175,15 @@ function resolvePageLocation(routePath?: string) {
 }
 
 export const analyticsClient = {
+  setUserId(userId: string | number | null | undefined) {
+    const nextUserId =
+      typeof userId === "string" || typeof userId === "number"
+        ? toAnalyticsValue(String(userId)) ?? null
+        : null;
+
+    currentUserId = typeof nextUserId === "string" ? nextUserId : null;
+    syncUserIdToGtag();
+  },
   trackRouteView(payload: RouteViewPayload) {
     const routeName = normalizeRouteName(payload.routeName);
 

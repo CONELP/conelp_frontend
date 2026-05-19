@@ -14,7 +14,6 @@ type DesktopScheduleVersionHistoryDependencies = {
   localHistoryUndoStack: Ref<DesktopScheduleLocalHistoryEntry[]>;
   localHistoryRedoStack: Ref<DesktopScheduleLocalHistoryEntry[]>;
   interactionSession: Ref<MoveSession | ResizeSession | SummaryResizeSession | unknown | null>;
-  isLocalHistorySyncInFlight: Ref<boolean>;
   moveLocalHistoryStackAndPersist: (
     direction: DesktopScheduleHistoryDirection,
     entry: DesktopScheduleLocalHistoryEntry,
@@ -26,13 +25,12 @@ export function useDesktopScheduleVersionHistory({
   localHistoryUndoStack,
   localHistoryRedoStack,
   interactionSession,
-  isLocalHistorySyncInFlight,
   moveLocalHistoryStackAndPersist,
 }: DesktopScheduleVersionHistoryDependencies) {
   async function undoLocalHistory() {
     const entry = localHistoryUndoStack.value[localHistoryUndoStack.value.length - 1];
 
-    if (!entry || interactionSession.value || isLocalHistorySyncInFlight.value) {
+    if (!entry || interactionSession.value) {
       return;
     }
 
@@ -42,7 +40,7 @@ export function useDesktopScheduleVersionHistory({
   async function redoLocalHistory() {
     const entry = localHistoryRedoStack.value[localHistoryRedoStack.value.length - 1];
 
-    if (!entry || interactionSession.value || isLocalHistorySyncInFlight.value) {
+    if (!entry || interactionSession.value) {
       return;
     }
 
