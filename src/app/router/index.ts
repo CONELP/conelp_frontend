@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
 
+import { analyticsClient } from "@/shared/analytics/analytics-stub";
 import AiAgentChatPage from "@/features/ai-agent/ui/AiAgentChatPage.vue";
 import AiAgentThreadListPage from "@/features/ai-agent/ui/AiAgentThreadListPage.vue";
 import DesktopDashboardPage from "@/features/desktop-dashboard/ui/DesktopDashboardPage.vue";
@@ -216,4 +217,11 @@ router.beforeEach(async (to) => {
   }
 
   return true;
+});
+
+router.afterEach((to) => {
+  analyticsClient.trackRouteView({
+    routeName: to.name,
+    routePath: to.path,
+  });
 });

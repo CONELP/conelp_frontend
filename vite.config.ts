@@ -13,12 +13,12 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: "https://dev.conelp.kr",
+        target: "https://api.conelp.kr",
         changeOrigin: true,
         secure: true,
       },
       "/ws": {
-        target: "wss://dev.conelp.kr",
+        target: "wss://api.conelp.kr",
         ws: true,
         changeOrigin: true,
         secure: true,

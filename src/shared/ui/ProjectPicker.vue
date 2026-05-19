@@ -81,6 +81,7 @@ import {
   setSelectedDesktopScheduleProjectId,
 } from "@/features/desktop-schedule/api/desktop-schedule.api";
 import type { DesktopScheduleProjectResponse } from "@/features/desktop-schedule/api/desktop-schedule-api.types";
+import { analyticsClient } from "@/shared/analytics/analytics-stub";
 
 const documentConversionStore = useDocumentConversionDemoStore();
 
@@ -140,6 +141,9 @@ function selectProject(projectId: string) {
   isMenuOpen.value = false;
   if (projectId === currentProjectId.value) return;
 
+  analyticsClient.trackAction("project", "select_project", "success", {
+    has_previous_project: Boolean(currentProjectId.value),
+  });
   setSelectedDesktopScheduleProjectId(projectId);
   clearSelectedDesktopScheduleVersionId();
   documentConversionStore.clearSelectedDocument();

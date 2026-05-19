@@ -252,6 +252,7 @@ import type {
   DashboardComparisonPoint,
 } from "@/features/desktop-dashboard/model/desktop-dashboard.types";
 import { useDesktopDashboardViewModel } from "@/features/desktop-dashboard/state/useDesktopDashboardViewModel";
+import { analyticsClient } from "@/shared/analytics/analytics-stub";
 
 const ProgressComparisonChart = defineAsyncComponent(
   () => import("@/features/desktop-dashboard/ui/components/ProgressComparisonChart.vue"),
@@ -283,14 +284,18 @@ const activeComparisonChart = computed(() =>
 
 function toggleTodo(title: string) {
   const nextTitles = new Set(completedTodoTitles.value);
+  const willComplete = !nextTitles.has(title);
 
-  if (nextTitles.has(title)) {
+  if (!willComplete) {
     nextTitles.delete(title);
   } else {
     nextTitles.add(title);
   }
 
   completedTodoTitles.value = nextTitles;
+  analyticsClient.trackAction("dashboard", "toggle_todo", "success", {
+    completed: willComplete,
+  });
 }
 
 function isTodoCompleted(title: string) {
@@ -298,7 +303,14 @@ function isTodoCompleted(title: string) {
 }
 
 function selectProgressChart(chartId: "overall" | "current") {
+  if (activeProgressChartId.value === chartId) {
+    return;
+  }
+
   activeProgressChartId.value = chartId;
+  analyticsClient.trackAction("dashboard", "select_progress_chart", "success", {
+    chart_id: chartId,
+  });
 }
 
 function getWorkforceDeltaLabel(note: string) {

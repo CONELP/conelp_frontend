@@ -3,6 +3,7 @@ import { defineStore } from "pinia";
 
 import { authApi, RateLimitError, ValidationError } from "@/features/auth/services/auth-api";
 import type { FieldErrors, User } from "@/features/auth/model/auth.types";
+import { analyticsClient } from "@/shared/analytics/analytics-stub";
 import { clearAccessToken } from "@/shared/network/access-token";
 
 export const useAuthStore = defineStore("auth", () => {
@@ -64,8 +65,17 @@ export const useAuthStore = defineStore("auth", () => {
 
     try {
       user.value = await authApi.login(email, password);
+      analyticsClient.trackAction("auth", "login", "success");
     } catch (requestError) {
       setRequestError(requestError, "로그인에 실패했습니다.");
+      analyticsClient.trackAction("auth", "login", "fail", {
+        error_kind:
+          requestError instanceof RateLimitError
+            ? "rate_limit"
+            : requestError instanceof ValidationError
+              ? "validation"
+              : "unknown",
+      });
       throw requestError;
     } finally {
       isLoading.value = false;
@@ -74,15 +84,22 @@ export const useAuthStore = defineStore("auth", () => {
 
   async function logout() {
     isLoading.value = true;
+    let didRemoteLogoutFail = false;
 
     try {
       await authApi.logout();
     } catch {
+      didRemoteLogoutFail = true;
       clearAccessToken();
     } finally {
       user.value = null;
       localStorage.removeItem("selectedProjectId");
       isLoading.value = false;
+      analyticsClient.trackAction(
+        "auth",
+        "logout",
+        didRemoteLogoutFail ? "fail" : "success",
+      );
     }
   }
 

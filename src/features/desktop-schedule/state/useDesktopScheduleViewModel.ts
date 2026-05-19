@@ -50,6 +50,7 @@ import {
   type DesktopScheduleContextMenuItem,
   type DesktopScheduleContextMenuTarget,
 } from "@/features/desktop-schedule/state/desktop-schedule-interaction-state";
+import { analyticsClient } from "@/shared/analytics/analytics-stub";
 
 type ItemMoveSession = {
   type: "move";
@@ -2067,6 +2068,28 @@ function createDesktopScheduleViewModel() {
     () => !isLocalHistorySyncInFlight.value && localHistoryRedoStack.value.length > 0,
   );
 
+  function trackScheduleAction(
+    action: string,
+    result: "success" | "fail" | "attempt",
+    meta: Record<string, unknown> = {},
+  ) {
+    const version = selectedScheduleVersion.value;
+
+    analyticsClient.trackAction("schedule", action, result, {
+      version_mode: version ? (version.isMain ? "main" : "draft") : "none",
+      read_only: isScheduleReadOnly.value,
+      ...meta,
+    });
+  }
+
+  function trackScheduleMutationResult(
+    action: string,
+    didSave: boolean,
+    meta: Record<string, unknown> = {},
+  ) {
+    trackScheduleAction(action, didSave ? "success" : "fail", meta);
+  }
+
   function closeContextMenu() {
     contextMenuState.value = createClosedDesktopScheduleContextMenuState();
   }
@@ -4057,7 +4080,19 @@ function createDesktopScheduleViewModel() {
       return;
     }
 
-    await loadSchedule({ scheduleVersionId });
+    const targetVersion = scheduleVersions.value.find((version) => version.id === scheduleVersionId);
+
+    try {
+      await loadSchedule({ scheduleVersionId });
+      trackScheduleAction("select_version", "success", {
+        target_version_mode: targetVersion ? (targetVersion.isMain ? "main" : "draft") : "unknown",
+      });
+    } catch (error) {
+      trackScheduleAction("select_version", "fail", {
+        target_version_mode: targetVersion ? (targetVersion.isMain ? "main" : "draft") : "unknown",
+      });
+      throw error;
+    }
   }
 
   async function createDraftVersionFromCurrent(versionName: string) {
@@ -4086,8 +4121,10 @@ function createDesktopScheduleViewModel() {
       );
       await loadSchedule({ scheduleVersionId: createdVersion.id });
       showScheduleToast("복제본을 만들었어요.");
+      trackScheduleAction("create_draft_version", "success");
     } catch (error) {
       handleMutationError(error, "복제본을 만들지 못했습니다.");
+      trackScheduleAction("create_draft_version", "fail");
     }
   }
 
@@ -4133,9 +4170,11 @@ function createDesktopScheduleViewModel() {
         versionName: updatedVersion.versionName || trimmedVersionName,
       });
       showScheduleToast("복제본 이름을 변경했어요.");
+      trackScheduleAction("rename_version", "success");
     } catch (error) {
       replaceScheduleVersionInLoadedData(previousVersion);
       handleMutationError(error, "복제본 이름을 변경하지 못했습니다.");
+      trackScheduleAction("rename_version", "fail");
     }
   }
 
@@ -4178,8 +4217,10 @@ function createDesktopScheduleViewModel() {
       }
 
       showScheduleToast("복제본을 삭제했어요.");
+      trackScheduleAction("delete_version", "success");
     } catch (error) {
       handleMutationError(error, "복제본을 삭제하지 못했습니다.");
+      trackScheduleAction("delete_version", "fail");
     }
   }
 
@@ -4537,6 +4578,9 @@ function createDesktopScheduleViewModel() {
         summary,
         errorMessage: null,
       };
+      trackScheduleAction("open_version_review", "success", {
+        change_count: summary.totalCount,
+      });
     } catch (error) {
       const normalizedError = normalizeError(error);
       showScheduleToast("기준 공정표를 불러오지 못했어요.");
@@ -4546,6 +4590,7 @@ function createDesktopScheduleViewModel() {
         summary: null,
         errorMessage: normalizedError.message,
       };
+      trackScheduleAction("open_version_review", "fail");
     }
   }
 
@@ -4613,6 +4658,9 @@ function createDesktopScheduleViewModel() {
         summary,
         errorMessage: null,
       };
+      trackScheduleAction("request_version_promotion", "success", {
+        change_count: summary.totalCount,
+      });
     } catch (error) {
       if (requestId !== scheduleVersionPromotionRequestId) {
         return;
@@ -4628,6 +4676,7 @@ function createDesktopScheduleViewModel() {
         errorMessage: normalizedError.message,
       };
       showScheduleToast("반영 전 변경사항을 불러오지 못했어요.");
+      trackScheduleAction("request_version_promotion", "fail");
     }
   }
 
@@ -4660,6 +4709,9 @@ function createDesktopScheduleViewModel() {
 
       scheduleVersionPromotionState.value = createClosedScheduleVersionPromotionState();
       showScheduleToast("기준 공정표로 반영했어요.");
+      trackScheduleAction("promote_version", "success", {
+        change_count: promotionState.summary?.totalCount ?? 0,
+      });
     } catch (error) {
       if (requestId !== scheduleVersionPromotionRequestId) return;
 
@@ -4670,6 +4722,7 @@ function createDesktopScheduleViewModel() {
         errorMessage: normalizedError.message,
       };
       showScheduleToast(normalizedError.message || "기준 공정표로 반영하지 못했어요.");
+      trackScheduleAction("promote_version", "fail");
     }
   }
 
@@ -5007,6 +5060,9 @@ function createDesktopScheduleViewModel() {
       if (didSave) {
         pushLocalHistoryEntry(snapshot);
       }
+      trackScheduleMutationResult("rename_division", didSave, {
+        created_reference: true,
+      });
       return;
     }
 
@@ -5023,6 +5079,7 @@ function createDesktopScheduleViewModel() {
     if (didSave) {
       pushLocalHistoryEntry(snapshot);
     }
+    trackScheduleMutationResult("rename_division", didSave);
   }
 
   function cancelDivisionRename() {
@@ -5155,6 +5212,9 @@ function createDesktopScheduleViewModel() {
       if (didSave) {
         pushLocalHistoryEntry(snapshot);
       }
+      trackScheduleMutationResult("rename_work_type", didSave, {
+        created_reference: true,
+      });
       return;
     }
 
@@ -5174,6 +5234,7 @@ function createDesktopScheduleViewModel() {
     if (didSave) {
       pushLocalHistoryEntry(snapshot);
     }
+    trackScheduleMutationResult("rename_work_type", didSave);
   }
 
   function cancelWorkTypeRename() {
@@ -5277,6 +5338,9 @@ function createDesktopScheduleViewModel() {
       if (didSave) {
         pushLocalHistoryEntry(snapshot);
       }
+      trackScheduleMutationResult("rename_sub_work_type", didSave, {
+        created_reference: true,
+      });
       return;
     }
 
@@ -5296,6 +5360,7 @@ function createDesktopScheduleViewModel() {
     if (didSave) {
       pushLocalHistoryEntry(snapshot);
     }
+    trackScheduleMutationResult("rename_sub_work_type", didSave);
   }
 
   function cancelSubWorkTypeRename() {
@@ -5333,6 +5398,10 @@ function createDesktopScheduleViewModel() {
     if (didSave) {
       pushLocalHistoryEntry(snapshot);
     }
+    trackScheduleMutationResult("reorder_reference", didSave, {
+      reference_kind: "division",
+      item_count: payload.divisionIds.length,
+    });
   }
 
   async function reorderReferenceSubWorkTypes(payload: {
@@ -5375,6 +5444,10 @@ function createDesktopScheduleViewModel() {
     if (didSave) {
       pushLocalHistoryEntry(snapshot);
     }
+    trackScheduleMutationResult("reorder_reference", didSave, {
+      reference_kind: "sub_work_type",
+      item_count: payload.subWorkTypeIds.length,
+    });
   }
 
   async function reorderReferenceWorkTypes(payload: { divisionId: number; workTypeIds: number[] }) {
@@ -5414,6 +5487,10 @@ function createDesktopScheduleViewModel() {
     if (didSave) {
       pushLocalHistoryEntry(snapshot);
     }
+    trackScheduleMutationResult("reorder_reference", didSave, {
+      reference_kind: "work_type",
+      item_count: payload.workTypeIds.length,
+    });
   }
 
   function selectBars(payload: { itemIds: string[]; rowIds: string[]; milestoneIds?: string[] }) {
@@ -5522,6 +5599,11 @@ function createDesktopScheduleViewModel() {
       if (didSave) {
         pushLocalHistoryEntry(snapshot);
       }
+      trackScheduleMutationResult("delete_selection", didSave, {
+        work_count: workIdsToDelete.length,
+        connection_count: workDepIdsToDelete.length,
+        milestone_count: milestoneApiIdsToDelete.length,
+      });
       return;
     }
 
@@ -5587,10 +5669,22 @@ function createDesktopScheduleViewModel() {
       if (didSave) {
         pushLocalHistoryEntry(snapshot);
       }
+      trackScheduleMutationResult("delete_selection", didSave, {
+        work_count: 0,
+        connection_count: 0,
+        milestone_count: milestoneApiIdsToDelete.length,
+      });
       return;
     }
 
     pushLocalHistoryEntry(snapshot);
+    trackScheduleAction("delete_selection", "success", {
+      local_only: true,
+      row_count: selectedRowIds.length,
+      item_count: itemIdsToDelete.length,
+      connection_count: workDepIdsToDelete.length,
+      milestone_count: milestoneIdsToDelete.length,
+    });
   }
 
   function canCreateItemOnCanvasTarget(
@@ -5798,10 +5892,17 @@ function createDesktopScheduleViewModel() {
         if (didSave) {
           pushLocalHistoryEntry(snapshot);
         }
+        trackScheduleMutationResult("change_color", didSave, {
+          target_kind: "row",
+        });
         return;
       }
 
       pushLocalHistoryEntry(snapshot);
+      trackScheduleAction("change_color", "success", {
+        target_kind: "row",
+        local_only: true,
+      });
       return;
     }
 
@@ -5817,6 +5918,11 @@ function createDesktopScheduleViewModel() {
     };
     pushLocalHistoryEntry(snapshot);
     closeColorPalette();
+    trackScheduleAction("change_color", "success", {
+      target_kind: "item",
+      item_count: scopedItemIds.length,
+      local_only: true,
+    });
   }
 
   async function createItemOnCanvasTarget(payload: { rowId: string; startDate: string }) {
@@ -5905,6 +6011,7 @@ function createDesktopScheduleViewModel() {
     if (didSave) {
       pushLocalHistoryEntry(snapshot);
     }
+    trackScheduleMutationResult("create_item", didSave);
   }
 
   function startItemRename(itemId: string) {
@@ -5985,6 +6092,7 @@ function createDesktopScheduleViewModel() {
       syncLoadedWorkName(getPersistedWorkIdForItem(targetItem), nextName);
       pushLocalHistoryEntry(snapshot);
     }
+    trackScheduleMutationResult("rename_item", didSave);
   }
 
   function cancelItemRename() {
@@ -6051,6 +6159,9 @@ function createDesktopScheduleViewModel() {
     const apiId = getMilestoneApiId(targetMilestone);
     if (apiId === null) {
       pushLocalHistoryEntry(snapshot);
+      trackScheduleAction("rename_milestone", "success", {
+        local_only: true,
+      });
       return;
     }
 
@@ -6071,6 +6182,7 @@ function createDesktopScheduleViewModel() {
     if (didSave) {
       pushLocalHistoryEntry(snapshot);
     }
+    trackScheduleMutationResult("rename_milestone", didSave);
   }
 
   function cancelMilestoneRename() {
@@ -6575,6 +6687,9 @@ function createDesktopScheduleViewModel() {
         if (didSave) {
           pushLocalHistoryEntry(snapshot);
         }
+        trackScheduleMutationResult("delete_selection", didSave, {
+          reference_kind: target.kind.replace("-header", ""),
+        });
         return;
       }
     }
@@ -6678,6 +6793,9 @@ function createDesktopScheduleViewModel() {
         if (didSave) {
           pushLocalHistoryEntry(snapshot);
         }
+        trackScheduleMutationResult("delete_selection", didSave, {
+          work_count: workIdsToDelete.length,
+        });
         return;
       }
 
@@ -6720,6 +6838,7 @@ function createDesktopScheduleViewModel() {
       if (didSave) {
         pushLocalHistoryEntry(snapshot);
       }
+      trackScheduleMutationResult("remove_connection", didSave);
       return;
     }
 
@@ -6741,6 +6860,9 @@ function createDesktopScheduleViewModel() {
       closeContextMenu();
       if (milestoneApiId === null) {
         pushLocalHistoryEntry(snapshot);
+        trackScheduleAction("remove_milestone", "success", {
+          local_only: true,
+        });
         return;
       }
 
@@ -6759,6 +6881,7 @@ function createDesktopScheduleViewModel() {
       if (didSave) {
         pushLocalHistoryEntry(snapshot);
       }
+      trackScheduleMutationResult("remove_milestone", didSave);
       return;
     }
 
@@ -6874,6 +6997,9 @@ function createDesktopScheduleViewModel() {
       if (didSave) {
         pushLocalHistoryEntry(snapshot);
       }
+      trackScheduleMutationResult("create_connection", didSave, {
+        replaced_connection_count: overridingWorkDepIds.length,
+      });
       return;
     }
 
@@ -6947,6 +7073,7 @@ function createDesktopScheduleViewModel() {
     if (didSave) {
       pushLocalHistoryEntry(snapshot);
     }
+    trackScheduleMutationResult("create_milestone", didSave);
   }
 
   function startMoveSession(
@@ -7179,6 +7306,10 @@ function createDesktopScheduleViewModel() {
       if (didSave) {
         pushLocalHistoryEntry(snapshot);
       }
+      trackScheduleMutationResult("move_item", didSave, {
+        target_kind: "milestone",
+        item_count: movedMilestones.length,
+      });
       return;
     }
 
@@ -7255,6 +7386,10 @@ function createDesktopScheduleViewModel() {
       );
       pushLocalHistoryEntry(snapshot);
     }
+    trackScheduleMutationResult("move_item", didSave, {
+      target_kind: "item",
+      item_count: session.itemIds.length,
+    });
   }
 
   function startResizeSession(
@@ -7394,6 +7529,7 @@ function createDesktopScheduleViewModel() {
       );
       pushLocalHistoryEntry(snapshot);
     }
+    trackScheduleMutationResult("resize_item", didSave);
   }
 
   function setDayWidth(nextDayWidth: number, viewportWidth: number) {
@@ -7466,10 +7602,16 @@ function createDesktopScheduleViewModel() {
             });
       const fallbackName = range === "3week" ? "3주공정표.xlsx" : "3개월공정표.xlsx";
       triggerBlobDownload(blob, filename || fallbackName);
+      trackScheduleAction("export_excel", "success", {
+        schedule_range: range,
+      });
     } catch (error) {
       showScheduleToast(
         error instanceof Error ? error.message : "엑셀을 생성하지 못했어요.",
       );
+      trackScheduleAction("export_excel", "fail", {
+        schedule_range: range,
+      });
     }
   }
 
@@ -7597,6 +7739,11 @@ function createDesktopScheduleViewModel() {
       showScheduleToast(
         `공정표를 불러왔어요. 작업 ${result.createdWorks}건, 의존성 ${result.createdDependencies}건 추가됨.`,
       );
+      trackScheduleAction("import_excel", "success", {
+        has_date_range: Boolean(startDate && endDate),
+        created_work_count: result.createdWorks,
+        created_dependency_count: result.createdDependencies,
+      });
     } catch (error) {
       scheduleImportDialogState.value = {
         ...scheduleImportDialogState.value,
@@ -7606,6 +7753,9 @@ function createDesktopScheduleViewModel() {
             ? error.message
             : "공정표를 불러오지 못했어요.",
       };
+      trackScheduleAction("import_excel", "fail", {
+        has_date_range: Boolean(startDate && endDate),
+      });
     }
   }
 
@@ -7645,6 +7795,9 @@ function createDesktopScheduleViewModel() {
 
         pushLocalHistoryEntry(snapshot);
       }
+      trackScheduleAction("toggle_ai_verification", "success", {
+        active: false,
+      });
       return;
     }
 
@@ -7695,15 +7848,23 @@ function createDesktopScheduleViewModel() {
     }
 
     isAiVerificationModeActive.value = true;
+    trackScheduleAction("toggle_ai_verification", "success", {
+      active: true,
+    });
   }
 
   function toggleAiVerificationFlag(itemId: string) {
     const current = aiVerificationFlaggedItemIds.value;
+    const willFlag = !current.includes(itemId);
     if (current.includes(itemId)) {
       aiVerificationFlaggedItemIds.value = current.filter((id) => id !== itemId);
     } else {
       aiVerificationFlaggedItemIds.value = [...current, itemId];
     }
+    trackScheduleAction("toggle_ai_flag", "success", {
+      flagged: willFlag,
+      flagged_count: aiVerificationFlaggedItemIds.value.length,
+    });
   }
 
   watch(

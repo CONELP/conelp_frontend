@@ -8,6 +8,7 @@ import { useDesktopScheduleViewModel } from "@/features/desktop-schedule/state/u
 import DesktopScheduleColorPalette from "@/features/desktop-schedule/ui/components/DesktopScheduleColorPalette.vue";
 import DesktopScheduleContextMenu from "@/features/desktop-schedule/ui/components/DesktopScheduleContextMenu.vue";
 import DesktopScheduleShell from "@/features/desktop-schedule/ui/components/DesktopScheduleShell.vue";
+import { analyticsClient } from "@/shared/analytics/analytics-stub";
 import "@/features/desktop-schedule/ui/styles/DesktopSchedulePage.css";
 
 const DAILY_REPORT_PANEL_WIDTH_STORAGE_KEY = "conelp.schedule.dailyReportPanelWidth.v1";
@@ -250,6 +251,9 @@ function handleToggleDailyReportPanel() {
   }
 
   isDailyReportPanelOpen.value = !isDailyReportPanelOpen.value;
+  analyticsClient.trackAction("schedule", "toggle_daily_report_panel", "success", {
+    active: isDailyReportPanelOpen.value,
+  });
 }
 
 function getDailyReportPanelMaxWidth() {
