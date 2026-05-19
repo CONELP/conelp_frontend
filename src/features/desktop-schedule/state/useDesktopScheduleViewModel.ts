@@ -2090,6 +2090,12 @@ function createDesktopScheduleViewModel() {
     trackScheduleAction(action, didSave ? "success" : "fail", meta);
   }
 
+  function trackCreateReferenceDraft(referenceKind: "division" | "work_type" | "sub_work_type") {
+    trackScheduleAction("create_reference_draft", "success", {
+      reference_kind: referenceKind,
+    });
+  }
+
   function closeContextMenu() {
     contextMenuState.value = createClosedDesktopScheduleContextMenuState();
   }
@@ -2321,6 +2327,34 @@ function createDesktopScheduleViewModel() {
       patch.changes.length > 0 ||
       JSON.stringify(patch.beforeOrder) !== JSON.stringify(patch.afterOrder)
     );
+  }
+
+  function countHistoryCollectionPatchChangeUnits<TEntity, TKey extends string | number>(
+    patch: DesktopScheduleHistoryCollectionPatch<TEntity, TKey>,
+  ) {
+    const orderChangeCount =
+      JSON.stringify(patch.beforeOrder) !== JSON.stringify(patch.afterOrder) ? 1 : 0;
+
+    return patch.changes.length + orderChangeCount;
+  }
+
+  function createLocalHistoryAnalyticsMeta(entry: DesktopScheduleLocalHistoryEntry) {
+    const loadedChangeCount = entry.loadedData
+      ? countHistoryCollectionPatchChangeUnits(entry.loadedData.workHierarchy) +
+        countHistoryCollectionPatchChangeUnits(entry.loadedData.works) +
+        countHistoryCollectionPatchChangeUnits(entry.loadedData.workDeps) +
+        countHistoryCollectionPatchChangeUnits(entry.loadedData.milestones)
+      : 0;
+
+    return {
+      local_change_count:
+        countHistoryCollectionPatchChangeUnits(entry.rows) +
+        countHistoryCollectionPatchChangeUnits(entry.items) +
+        countHistoryCollectionPatchChangeUnits(entry.workConnections) +
+        countHistoryCollectionPatchChangeUnits(entry.milestones),
+      loaded_change_count: loadedChangeCount,
+      has_loaded_data_change: entry.loadedData !== null,
+    };
   }
 
   function createLoadedDataHistoryPatch(
@@ -3296,6 +3330,8 @@ function createDesktopScheduleViewModel() {
     entry: DesktopScheduleLocalHistoryEntry,
     sourceStack: "undo" | "redo",
   ) {
+    const action = direction === "undo" ? "undo_history" : "redo_history";
+    const analyticsMeta = createLocalHistoryAnalyticsMeta(entry);
     const previousSnapshot = captureWorkingSnapshot();
     const previousUndoStack = [...localHistoryUndoStack.value];
     const previousRedoStack = [...localHistoryRedoStack.value];
@@ -3327,10 +3363,12 @@ function createDesktopScheduleViewModel() {
 
       remapCurrentScheduleState(idMap);
       remapLocalHistoryStacks(idMap);
+      trackScheduleAction(action, "success", analyticsMeta);
     } catch (error) {
       restoreWorkingSnapshot(previousSnapshot);
       localHistoryUndoStack.value = previousUndoStack;
       localHistoryRedoStack.value = previousRedoStack;
+      trackScheduleAction(action, "fail", analyticsMeta);
       handleMutationError(
         error,
         direction === "undo"
@@ -4658,9 +4696,6 @@ function createDesktopScheduleViewModel() {
         summary,
         errorMessage: null,
       };
-      trackScheduleAction("request_version_promotion", "success", {
-        change_count: summary.totalCount,
-      });
     } catch (error) {
       if (requestId !== scheduleVersionPromotionRequestId) {
         return;
@@ -4676,7 +4711,6 @@ function createDesktopScheduleViewModel() {
         errorMessage: normalizedError.message,
       };
       showScheduleToast("반영 전 변경사항을 불러오지 못했어요.");
-      trackScheduleAction("request_version_promotion", "fail");
     }
   }
 
@@ -4691,6 +4725,10 @@ function createDesktopScheduleViewModel() {
     }
 
     const requestId = (scheduleVersionPromotionRequestId += 1);
+    trackScheduleAction("request_version_promotion", "attempt", {
+      change_count: promotionState.summary?.totalCount ?? 0,
+      has_change_summary: Boolean(promotionState.summary),
+    });
 
     scheduleVersionPromotionState.value = {
       ...promotionState,
@@ -4993,6 +5031,7 @@ function createDesktopScheduleViewModel() {
 
     addReferenceHierarchyItem(tempReferenceItem);
     pushLocalHistoryEntry(snapshot);
+    trackCreateReferenceDraft("division");
     closeContextMenu();
   }
 
@@ -5060,8 +5099,8 @@ function createDesktopScheduleViewModel() {
       if (didSave) {
         pushLocalHistoryEntry(snapshot);
       }
-      trackScheduleMutationResult("rename_division", didSave, {
-        created_reference: true,
+      trackScheduleMutationResult("create_division", didSave, {
+        reference_kind: "division",
       });
       return;
     }
@@ -5105,6 +5144,7 @@ function createDesktopScheduleViewModel() {
 
     addReferenceHierarchyItem(tempReferenceItem);
     pushLocalHistoryEntry(snapshot);
+    trackCreateReferenceDraft("work_type");
     closeContextMenu();
   }
 
@@ -5135,6 +5175,7 @@ function createDesktopScheduleViewModel() {
 
     addReferenceSubWorkTypeItem(tempReferenceItem);
     pushLocalHistoryEntry(snapshot);
+    trackCreateReferenceDraft("sub_work_type");
     closeContextMenu();
   }
 
@@ -5212,8 +5253,8 @@ function createDesktopScheduleViewModel() {
       if (didSave) {
         pushLocalHistoryEntry(snapshot);
       }
-      trackScheduleMutationResult("rename_work_type", didSave, {
-        created_reference: true,
+      trackScheduleMutationResult("create_work_type", didSave, {
+        reference_kind: "work_type",
       });
       return;
     }
@@ -5338,8 +5379,8 @@ function createDesktopScheduleViewModel() {
       if (didSave) {
         pushLocalHistoryEntry(snapshot);
       }
-      trackScheduleMutationResult("rename_sub_work_type", didSave, {
-        created_reference: true,
+      trackScheduleMutationResult("create_sub_work_type", didSave, {
+        reference_kind: "sub_work_type",
       });
       return;
     }

@@ -13,6 +13,15 @@ import type { WorkTypeReferenceResponse } from "@/features/document-conversion-d
 import { useDesktopScheduleViewModel } from "@/features/desktop-schedule/state/useDesktopScheduleViewModel";
 
 const { patchLoadedWorkActualDates } = useDesktopScheduleViewModel();
+const emit = defineEmits<{
+  "report-date-change": [
+    payload: {
+      source: "calendar" | "nav" | "today";
+      unit: "date" | "day" | "month";
+      direction: "current" | "next" | "previous";
+    },
+  ];
+}>();
 
 function applyActualWorkAffectedWorks(response: ActualWorkResponse) {
   if (response.affectedWorks?.length) {
@@ -1041,10 +1050,20 @@ const selectedReportDateLabel = computed(() => {
 });
 
 function shiftReportDate(delta: number, unit: "day" | "month") {
-  selectedReportDate.value =
-    unit === "day"
-      ? addDays(selectedReportDate.value, delta)
-      : addMonths(selectedReportDate.value, delta);
+  const previousDate = selectedReportDate.value;
+  const nextDate =
+    unit === "day" ? addDays(previousDate, delta) : addMonths(previousDate, delta);
+
+  if (nextDate === previousDate) {
+    return;
+  }
+
+  selectedReportDate.value = nextDate;
+  emit("report-date-change", {
+    source: "nav",
+    unit,
+    direction: delta > 0 ? "next" : "previous",
+  });
 }
 
 function toggleReportDateCalendar() {
@@ -1066,12 +1085,33 @@ function pickCalendarDate(date: string | null) {
   if (!date) {
     return;
   }
+  const previousDate = selectedReportDate.value;
   selectedReportDate.value = date;
   isCalendarOpen.value = false;
+
+  if (date !== previousDate) {
+    emit("report-date-change", {
+      source: "calendar",
+      unit: "date",
+      direction: date > previousDate ? "next" : "previous",
+    });
+  }
 }
 
 function jumpToToday() {
-  pickCalendarDate(formatLocalDate(new Date()));
+  const today = formatLocalDate(new Date());
+  const previousDate = selectedReportDate.value;
+
+  selectedReportDate.value = today;
+  isCalendarOpen.value = false;
+
+  if (today !== previousDate) {
+    emit("report-date-change", {
+      source: "today",
+      unit: "date",
+      direction: "current",
+    });
+  }
 }
 
 function handleReportDateOutsideClick(event: MouseEvent) {

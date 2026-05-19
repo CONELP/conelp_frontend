@@ -256,6 +256,18 @@ function handleToggleDailyReportPanel() {
   });
 }
 
+function handleDailyReportDateChange(payload: {
+  source: "calendar" | "nav" | "today";
+  unit: "date" | "day" | "month";
+  direction: "current" | "next" | "previous";
+}) {
+  analyticsClient.trackAction("schedule", "change_daily_report_date", "success", {
+    source: payload.source,
+    change_unit: payload.unit,
+    change_direction: payload.direction,
+  });
+}
+
 function getDailyReportPanelMaxWidth() {
   const shellWidth = shellLayoutRef.value?.clientWidth ?? 0;
 
@@ -694,6 +706,7 @@ watch(
         <DailyReportEditorPanel
           v-show="showDailyReportEditor"
           class="desktop-schedule-page__daily-report-panel"
+          @report-date-change="handleDailyReportDateChange"
         />
       </Transition>
     </div>
