@@ -1,4 +1,4 @@
-import { computed, watch } from "vue";
+import { computed } from "vue";
 
 import { chatThreadApi } from "@/features/ai-agent/api/chat-thread.api";
 import { aiAgentCopy } from "@/features/ai-agent/data/ai-agent.copy";
@@ -72,15 +72,6 @@ export function useThreadListViewModel() {
       // best-effort hydration; WS snapshot is source of truth
     }
   }
-
-  watch(
-    () => store.connectionStatus,
-    (status, prev) => {
-      if (status === "open" && prev !== "open") {
-        void refreshThreads();
-      }
-    },
-  );
 
   return {
     threads,
