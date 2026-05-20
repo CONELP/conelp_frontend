@@ -7,7 +7,6 @@ import AdminButton from "@/shared/ui/admin/Button.vue";
 import AdminInput from "@/shared/ui/admin/Input.vue";
 import AdminLabel from "@/shared/ui/admin/Label.vue";
 import AdminSelect from "@/shared/ui/admin/Select.vue";
-import AdminCheckbox from "@/shared/ui/admin/Checkbox.vue";
 import AdminDialog from "@/shared/ui/admin/Dialog.vue";
 import ConfirmDialog from "@/shared/ui/admin/ConfirmDialog.vue";
 import { useCompanyManagement } from "@/features/system-admin/state/useCompanyManagement";
@@ -75,14 +74,14 @@ const uniqueProjects = computed(() => {
 const isCreateOpen = ref(false);
 const form = ref<{
   name: string;
-  projectIds: string[];
+  projectId: string;
   scope: ApiKeyScope;
   expiresAt: string;
   allowedIps: string;
   rateLimit: string;
 }>({
   name: "",
-  projectIds: [],
+  projectId: "",
   scope: "READ_ONLY",
   expiresAt: "",
   allowedIps: "",
@@ -92,7 +91,7 @@ const form = ref<{
 function resetForm() {
   form.value = {
     name: "",
-    projectIds: [],
+    projectId: "",
     scope: "READ_ONLY",
     expiresAt: "",
     allowedIps: "",
@@ -109,11 +108,9 @@ function openCreate() {
   isCreateOpen.value = true;
 }
 
-function toggleProjectId(id: string) {
-  form.value.projectIds = form.value.projectIds.includes(id)
-    ? form.value.projectIds.filter((v) => v !== id)
-    : [...form.value.projectIds, id];
-}
+const projectOptions = computed(() =>
+  uniqueProjects.value.map((p) => ({ value: p.projectId, label: p.projectName })),
+);
 
 const scopeOptions: { value: ApiKeyScope; label: string }[] = [
   { value: "READ_ONLY", label: "READ_ONLY (조회만)" },
@@ -129,8 +126,8 @@ async function handleCreate() {
     alert("키 이름은 100자 이하여야 합니다.");
     return;
   }
-  if (form.value.projectIds.length === 0) {
-    alert("프로젝트를 1개 이상 선택해주세요.");
+  if (!form.value.projectId) {
+    alert("프로젝트를 선택해주세요.");
     return;
   }
   let expiresAt: string | null = null;
@@ -161,7 +158,7 @@ async function handleCreate() {
   const payload: CreateApiKeyPayload = {
     name: form.value.name.trim(),
     comId: selectedCompanyId.value,
-    projectIds: form.value.projectIds,
+    projectId: form.value.projectId,
     scope: form.value.scope,
     expiresAt,
     allowedIps,
@@ -199,13 +196,10 @@ async function confirmRevoke() {
   revokeTarget.value = null;
 }
 
-function projectNamesOf(key: ApiKeyMasked): string {
-  if (key.projectIds.length === 0) return "-";
-  const names = key.projectIds.map((pid) => {
-    const match = companyProjects.value.find((cp) => cp.projectId === pid);
-    return match?.projectName ?? pid.slice(0, 8);
-  });
-  return names.join(", ");
+function projectNameOf(key: ApiKeyMasked): string {
+  if (!key.projectId) return "-";
+  const match = companyProjects.value.find((cp) => cp.projectId === key.projectId);
+  return match?.projectName ?? key.projectId.slice(0, 8);
 }
 
 function formatDateTime(iso: string | null): string {
@@ -279,7 +273,7 @@ onMounted(() => {
                 {{ key.scope }}
               </span>
             </td>
-            <td class="apikey-area__td apikey-area__td--projects">{{ projectNamesOf(key) }}</td>
+            <td class="apikey-area__td apikey-area__td--projects">{{ projectNameOf(key) }}</td>
             <td class="apikey-area__td apikey-area__td--small">
               {{ key.expiresAt ? formatDateTime(key.expiresAt) : "영구" }}
             </td>
@@ -326,25 +320,19 @@ onMounted(() => {
         </div>
 
         <div class="apikey-area__field">
-          <AdminLabel>프로젝트 *</AdminLabel>
-          <p class="apikey-area__field-hint">이 회사가 매핑된 프로젝트만 노출됩니다.</p>
-          <div class="apikey-area__check-list">
-            <p v-if="isLoadingProjects" class="apikey-area__hint">로딩 중...</p>
-            <p v-else-if="uniqueProjects.length === 0" class="apikey-area__hint">
-              매핑된 프로젝트가 없습니다.
-            </p>
-            <label
-              v-for="proj in uniqueProjects"
-              :key="proj.projectId"
-              class="apikey-area__check"
-            >
-              <AdminCheckbox
-                :model-value="form.projectIds.includes(proj.projectId)"
-                @update:model-value="toggleProjectId(proj.projectId)"
-              />
-              <span>{{ proj.projectName }}</span>
-            </label>
-          </div>
+          <AdminLabel for="apikey-project">프로젝트 *</AdminLabel>
+          <p class="apikey-area__field-hint">이 회사가 매핑된 프로젝트 중 하나를 선택하세요.</p>
+          <p v-if="isLoadingProjects" class="apikey-area__hint">로딩 중...</p>
+          <p v-else-if="uniqueProjects.length === 0" class="apikey-area__hint">
+            매핑된 프로젝트가 없습니다.
+          </p>
+          <AdminSelect
+            v-else
+            id="apikey-project"
+            v-model="form.projectId"
+            :options="projectOptions"
+            placeholder="프로젝트 선택"
+          />
         </div>
 
         <div class="apikey-area__field">
