@@ -7,7 +7,7 @@
   padding: 1.4rem 1.2rem;
   overflow-y: auto;
   scroll-behavior: smooth;
-  background: var(--canvas);
+  background: #f8fafc;
 }
 
 .message-list__sentinel {
@@ -30,13 +30,14 @@
   margin: 0.5rem 0;
   color: var(--ink-faint);
   font-size: 0.75rem;
-  font-weight: 500;
+  font-weight: 700;
 }
 
 .message-list__divider span {
   padding: 0.2rem 0.7rem;
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: var(--radius-pill);
-  background: var(--surface-3);
+  background: #fff;
 }
 
 .message-list__scroll-bottom {
@@ -49,13 +50,13 @@
   width: 2.4rem;
   height: 2.4rem;
   margin-top: 0.5rem;
-  border: 1px solid var(--outline-soft);
+  border: 1px solid rgba(15, 23, 42, 0.12);
   border-radius: var(--radius-pill);
-  background: var(--surface-1);
+  background: #fff;
   color: var(--ink);
   font-size: 1.1rem;
   cursor: pointer;
-  box-shadow: var(--shadow-soft);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
 }
 
 .message-list__scroll-bottom:hover {

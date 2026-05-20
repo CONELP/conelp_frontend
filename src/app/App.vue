@@ -16,9 +16,7 @@ const aiAgentStore = useAiAgentStore();
 watch(
   () => authStore.isAuthenticated,
   (isAuth, wasAuth) => {
-    if (isAuth && !wasAuth) {
-      aiAgentWsClient.connect(aiAgentStore);
-    } else if (!isAuth && wasAuth) {
+    if (!isAuth && wasAuth) {
       aiAgentWsClient.disconnect();
       aiAgentStore.reset();
     }
@@ -26,10 +24,6 @@ watch(
 );
 
 onMounted(() => {
-  void authStore.initialize().then(() => {
-    if (authStore.isAuthenticated) {
-      aiAgentWsClient.connect(aiAgentStore);
-    }
-  });
+  void authStore.initialize();
 });
 </script>

@@ -125,8 +125,7 @@
 
 .generated-row__file-icon-frame,
 .generated-row__file-icon,
-.generated-row__download-icon,
-.generated-row__open-icon {
+.generated-row__download-icon {
   display: block;
   flex: 0 0 auto;
   object-fit: contain;
@@ -176,8 +175,7 @@
   line-height: 1.45;
 }
 
-.generated-row__download,
-.generated-row__open {
+.generated-row__download {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -190,14 +188,12 @@
   box-shadow: none;
 }
 
-.generated-row__download:disabled,
-.generated-row__open:disabled {
+.generated-row__download:disabled {
   opacity: 0.45;
   cursor: default;
 }
 
-.generated-row__download-icon,
-.generated-row__open-icon {
+.generated-row__download-icon {
   width: 1.16rem;
   height: 1.16rem;
   opacity: 0.92;

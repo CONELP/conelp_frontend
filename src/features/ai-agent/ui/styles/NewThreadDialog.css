@@ -12,17 +12,17 @@
 .new-thread-dialog {
   width: min(28rem, 100%);
   padding: 1.6rem;
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: var(--radius-panel);
-  background: var(--surface-1);
-  box-shadow: var(--shadow-soft);
-  font-family: var(--font-body);
+  background: #fff;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.14);
 }
 
 .new-thread-dialog__title {
   margin: 0;
   color: var(--ink);
   font-size: 1.15rem;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .new-thread-dialog__description {
@@ -41,9 +41,9 @@
 .new-thread-dialog__input {
   width: 100%;
   padding: 0.7rem 0.9rem;
-  border: 1px solid var(--outline-soft);
-  border-radius: var(--radius-control);
-  background: var(--surface-2);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 0.75rem;
+  background: #fff;
   color: var(--ink);
   font: inherit;
   font-size: 0.92rem;
@@ -67,21 +67,21 @@
 .new-thread-dialog__submit {
   height: 2.4rem;
   padding: 0 1rem;
-  border-radius: var(--radius-control);
+  border-radius: 0.5rem;
   font: inherit;
-  font-weight: 500;
+  font-weight: 800;
   cursor: pointer;
   transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
 }
 
 .new-thread-dialog__cancel {
-  border: 1px solid var(--outline-soft);
-  background: var(--surface-1);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #fff;
   color: var(--ink);
 }
 
 .new-thread-dialog__cancel:hover:not(:disabled) {
-  background: var(--surface-3);
+  background: #f8fafc;
 }
 
 .new-thread-dialog__submit {

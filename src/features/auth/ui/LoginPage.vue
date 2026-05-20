@@ -1,7 +1,7 @@
 <template>
   <main class="login-page">
     <section class="login-page__panel" aria-labelledby="login-title">
-      <RouterLink class="login-page__brand" to="/dashboard" aria-label="CONELP">
+      <RouterLink class="login-page__brand" to="/schedule" aria-label="CONELP">
         <img class="login-page__logo" :src="logoSrc" alt="CONELP" />
       </RouterLink>
 
@@ -81,7 +81,7 @@ onMounted(() => {
 async function handleLogin() {
   try {
     await authStore.login(email.value, password.value);
-    await router.push(typeof route.query.redirect === "string" ? route.query.redirect : "/dashboard");
+    await router.push(typeof route.query.redirect === "string" ? route.query.redirect : "/schedule");
   } catch {
     // The store owns the visible error state.
   }

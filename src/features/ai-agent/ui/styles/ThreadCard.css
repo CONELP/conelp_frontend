@@ -4,23 +4,21 @@
   flex-direction: column;
   gap: 0.7rem;
   min-height: 9.5rem;
-  padding: 1.4rem;
-  border: 1px solid var(--outline-soft);
-  border-radius: var(--radius-card);
-  background: var(--surface-1);
-  font-family: var(--font-body);
+  padding: 1rem;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 0.95rem;
+  background: #fff;
   text-align: left;
   cursor: pointer;
   transition:
-    transform 200ms var(--motion-page-ease),
-    border-color 200ms var(--motion-page-ease),
-    box-shadow 200ms var(--motion-page-ease);
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
 }
 
 .thread-card:hover {
-  transform: translateY(-2px);
   border-color: var(--primary-outline);
-  box-shadow: var(--shadow-soft);
+  box-shadow: 0 0 0 3px rgba(30, 24, 136, 0.08);
 }
 
 .thread-card__head {
@@ -33,9 +31,10 @@
   flex: 1;
   margin: 0;
   color: var(--ink);
-  font-size: 1rem;
-  font-weight: 600;
-  line-height: 1.35;
+  font-size: 1.01rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: 0;
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 1;
@@ -46,21 +45,22 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.8rem;
-  height: 1.8rem;
-  margin: -0.3rem -0.3rem 0 0;
+  width: 2rem;
+  height: 2rem;
+  margin: -0.35rem -0.35rem 0 0;
   padding: 0;
-  border: none;
-  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
   background: transparent;
   color: var(--ink-faint);
   font-size: 1.1rem;
   cursor: pointer;
-  transition: background 160ms ease, color 160ms ease;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
 }
 
 .thread-card__menu:hover {
-  background: var(--surface-3);
+  border-color: rgba(15, 23, 42, 0.12);
+  background: #f8fafc;
   color: var(--ink);
 }
 
@@ -71,10 +71,10 @@
   z-index: 5;
   min-width: 9rem;
   padding: 0.35rem;
-  border: 1px solid var(--outline-soft);
-  border-radius: var(--radius-control);
-  background: var(--surface-1);
-  box-shadow: var(--shadow-soft);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 0.75rem;
+  background: #fff;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.14);
 }
 
 .thread-card__menu-item {
@@ -82,17 +82,18 @@
   width: 100%;
   padding: 0.5rem 0.7rem;
   border: none;
-  border-radius: calc(var(--radius-control) - 4px);
+  border-radius: 0.5rem;
   background: transparent;
   color: var(--ink);
   font-family: inherit;
   font-size: 0.85rem;
+  font-weight: 700;
   text-align: left;
   cursor: pointer;
 }
 
 .thread-card__menu-item:hover {
-  background: var(--surface-3);
+  background: #f8fafc;
 }
 
 .thread-card__menu-item--danger {
@@ -107,7 +108,7 @@
   flex: 1;
   margin: 0;
   color: var(--ink-muted);
-  font-size: 0.86rem;
+  font-size: 0.84rem;
   line-height: 1.5;
   overflow: hidden;
   display: -webkit-box;
@@ -127,6 +128,7 @@
   gap: 0.5rem;
   color: var(--ink-faint);
   font-size: 0.78rem;
+  font-weight: 650;
 }
 
 .thread-card__chip {
@@ -136,10 +138,10 @@
   padding: 0.25rem 0.55rem;
   border: 1px solid var(--primary-outline);
   border-radius: var(--radius-pill);
-  background: var(--primary-soft);
+  background: rgba(30, 24, 136, 0.04);
   color: var(--primary);
   font-size: 0.72rem;
-  font-weight: 600;
+  font-weight: 800;
 }
 
 .thread-card__chip-dot {

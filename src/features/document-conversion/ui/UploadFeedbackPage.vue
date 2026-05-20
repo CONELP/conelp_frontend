@@ -431,46 +431,6 @@
         </footer>
       </template>
     </main>
-
-    <Teleport to="body">
-      <div
-        v-if="isMaterialActiveConfirmOpen"
-        class="material-active-confirm__backdrop"
-        role="presentation"
-        @click.self="handleCancelMaterialActive"
-      >
-        <section
-          class="material-active-confirm"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="material-active-confirm-title"
-        >
-          <header class="material-active-confirm__header">
-            <h2 id="material-active-confirm-title">반입자재도 함께 만들까요?</h2>
-            <p>
-              "예" 를 선택하면 이번 입고 데이터가 전체 반입자재에 산입됩니다.<br />
-              "아니오" 를 선택하면 산입에서 제외됩니다.
-            </p>
-          </header>
-          <footer class="material-active-confirm__footer">
-            <button
-              type="button"
-              class="material-active-confirm__button material-active-confirm__button--secondary"
-              @click="handleMaterialActiveChoice(false)"
-            >
-              아니오
-            </button>
-            <button
-              type="button"
-              class="material-active-confirm__button material-active-confirm__button--primary"
-              @click="handleMaterialActiveChoice(true)"
-            >
-              예
-            </button>
-          </footer>
-        </section>
-      </div>
-    </Teleport>
   </div>
 </template>
 
@@ -812,10 +772,7 @@ function hasCatReviewChanges(
   );
 }
 
-function toCreateMirDocumentRequest(
-  result: MirAnalysisResponse,
-  active: boolean,
-): CreateMirDocumentRequest {
+function toCreateMirDocumentRequest(result: MirAnalysisResponse): CreateMirDocumentRequest {
   return {
     application: result.application,
     supplier: result.supplier,
@@ -831,16 +788,12 @@ function toCreateMirDocumentRequest(
       type: photo.type,
       description: photo.description,
     })),
-    active,
   };
 }
 
-function toCreateCatDocumentRequest(
-  result: CatAnalysisResponse,
-  active: boolean,
-): CreateCatDocumentRequest {
+function toCreateCatDocumentRequest(result: CatAnalysisResponse): CreateCatDocumentRequest {
   return {
-    ...toCreateMirDocumentRequest(result, active),
+    ...toCreateMirDocumentRequest(result),
     batches: result.batches.map((batch) => ({
       batch: String(batch.batch),
       lineData: {
@@ -1067,7 +1020,7 @@ function handleNextValidationImage() {
     (currentValidationIndex.value + 1) % ocrValidationItems.value.length;
 }
 
-function handleCreateMirDocumentDraft(active: boolean) {
+function handleCreateMirDocumentDraft() {
   const analysisResult = documentStore.mirAnalysisResult;
 
   if (!analysisResult || isSubmittingDocument.value) {
@@ -1096,18 +1049,15 @@ function handleCreateMirDocumentDraft(active: boolean) {
       ? {
           updateRequest: toUpdateMirDataRequest(analysisResult, finalRows),
           createRequest: null,
-          active,
         }
       : {
           updateRequest: null,
-          createRequest: toCreateMirDocumentRequest(analysisResult, active),
-          active,
+          createRequest: toCreateMirDocumentRequest(analysisResult),
         },
   );
   analyticsClient.trackAction("document", "submit_review", "success", {
     document_type: selectedDocument.value.type,
     row_count: finalRows.length,
-    active,
   });
   void router.push({
     path: "/documents/generation",
@@ -1118,7 +1068,7 @@ function handleCreateMirDocumentDraft(active: boolean) {
   });
 }
 
-function handleCreateCatDocumentDraft(active: boolean) {
+function handleCreateCatDocumentDraft() {
   const analysisResult = documentStore.catAnalysisResult;
 
   if (!analysisResult || isSubmittingDocument.value) {
@@ -1162,19 +1112,16 @@ function handleCreateCatDocumentDraft(active: boolean) {
             catBatchRows.value,
           ),
           createRequest: null,
-          active,
         }
       : {
           updateRequest: null,
-          createRequest: toCreateCatDocumentRequest(analysisResult, active),
-          active,
+          createRequest: toCreateCatDocumentRequest(analysisResult),
         },
   );
   analyticsClient.trackAction("document", "submit_review", "success", {
     document_type: selectedDocument.value.type,
     row_count: finalRows.length,
     batch_count: catBatchRows.value.length,
-    active,
   });
   void router.push({
     path: "/documents/generation",
@@ -1184,8 +1131,6 @@ function handleCreateCatDocumentDraft(active: boolean) {
     },
   });
 }
-
-const isMaterialActiveConfirmOpen = ref(false);
 
 function handleCreateDocument() {
   if (isSubmittingDocument.value) return;
@@ -1214,20 +1159,11 @@ function handleCreateDocument() {
   }
 
   submitErrorMessage.value = "";
-  isMaterialActiveConfirmOpen.value = true;
-}
-
-function handleMaterialActiveChoice(active: boolean) {
-  isMaterialActiveConfirmOpen.value = false;
   if (isConcreteDeliveryReview.value) {
-    handleCreateCatDocumentDraft(active);
+    handleCreateCatDocumentDraft();
   } else {
-    handleCreateMirDocumentDraft(active);
+    handleCreateMirDocumentDraft();
   }
-}
-
-function handleCancelMaterialActive() {
-  isMaterialActiveConfirmOpen.value = false;
 }
 
 function handleAddMaterialRow() {

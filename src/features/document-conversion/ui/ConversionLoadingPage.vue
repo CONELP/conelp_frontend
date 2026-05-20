@@ -7,7 +7,7 @@
         <RouterLink
           class="loading-back"
           :to="loadingBackRoute"
-          aria-label="업로드 피드백으로 돌아가기"
+          aria-label="업로드 화면으로 돌아가기"
         >
           <img
             class="loading-back__icon"

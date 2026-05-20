@@ -146,7 +146,7 @@ export const materialInspectionRequestApi = {
   async createCatDocument(request: CreateCatDocumentRequest) {
     await ensureSelectedProjectId();
 
-    return apiFetch<CreateCatDocumentResponse>("/cat/createCatDocument", {
+    return apiFetch<CreateCatDocumentResponse>("/document/createCatDocument", {
       method: "POST",
       body: toApiBody(request),
     });
@@ -167,7 +167,7 @@ export const materialInspectionRequestApi = {
     await ensureSelectedProjectId();
 
     return apiFetch<CreateMirDocumentResponse>(
-      "/materialInspectionRequest/createMirDocument",
+      "/document/createMirDocument",
       {
         method: "POST",
         body: toApiBody(request),

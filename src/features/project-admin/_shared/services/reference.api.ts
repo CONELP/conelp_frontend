@@ -351,7 +351,7 @@ export const referenceApi = {
 
   async createLaborType(params: { name: string; workTypeId: number }): Promise<LaborTypeResponse> {
     const { data } = await axiosClient.post<LaborTypeResponse>(
-      "/super/reference/createLaborType",
+      "/reference/createLaborType",
       params,
     );
     return data;
@@ -376,7 +376,7 @@ export const referenceApi = {
   },
 
   async updateLaborType(params: UpdateReferenceRequest): Promise<void> {
-    await axiosClient.post("/super/reference/updateLaborType", params);
+    await axiosClient.post("/reference/updateLaborType", params);
   },
 
   async updateZone(params: UpdateReferenceRequest): Promise<void> {
@@ -450,7 +450,7 @@ export const referenceApi = {
   },
 
   async deleteLaborType(id: number): Promise<void> {
-    await axiosClient.delete(`/super/reference/deleteLaborType/${id}`);
+    await axiosClient.delete(`/reference/deleteLaborType/${id}`);
   },
 
   async deleteCcodeDetail(id: number): Promise<void> {

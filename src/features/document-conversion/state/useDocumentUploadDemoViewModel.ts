@@ -486,7 +486,9 @@ export function useDocumentUploadDemoViewModel() {
     }, 120);
   }
 
-  function selectWorkTypeSuggestion(suggestion: WorkTypeReferenceResponse) {
+  function selectWorkTypeSuggestion(
+    suggestion: Pick<WorkTypeReferenceResponse, "id" | "name">,
+  ) {
     clearWorkTypeSuggestionCloseTimer();
     workTypeSuggestionRequestId += 1;
     store.selectMirUploadWorkType({
@@ -501,22 +503,6 @@ export function useDocumentUploadDemoViewModel() {
 
   function updateMirUploadWorkTypeName(value: string) {
     store.setMirUploadWorkTypeName(value);
-    highlightedWorkTypeSuggestionIndex.value = -1;
-
-    const query = value.trim();
-
-    if (
-      query &&
-      query === workTypeSuggestionQuery.value &&
-      (isWorkTypeSuggestionsLoading.value || workTypeSuggestions.value.length > 0)
-    ) {
-      isWorkTypeSuggestionListOpen.value = true;
-      highlightedWorkTypeSuggestionIndex.value =
-        workTypeSuggestions.value.length > 0 ? 0 : -1;
-      return;
-    }
-
-    void loadWorkTypeSuggestions(value);
   }
 
   function setHighlightedWorkTypeSuggestionIndex(index: number) {

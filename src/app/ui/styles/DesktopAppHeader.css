@@ -42,6 +42,39 @@
   gap: 0.58rem;
 }
 
+.desktop-app-header__project-picker {
+  max-width: 13rem;
+  margin-left: auto;
+}
+
+.desktop-app-header__project-picker :deep(.project-picker__button) {
+  max-width: 100%;
+  min-height: 2.05rem;
+  padding: 0.42rem 0.66rem;
+  font-size: 0.82rem;
+}
+
+.desktop-app-header__project-picker :deep(.project-picker__button > span) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-app-header__project-picker :deep(.project-picker__icon) {
+  width: 0.92rem;
+  height: 0.92rem;
+}
+
+.desktop-app-header__project-picker :deep(.project-picker__caret) {
+  width: 0.86rem;
+  height: 0.86rem;
+}
+
+.desktop-app-header__mobile-toggle {
+  display: none;
+}
+
 .desktop-app-header__settings-wrap {
   position: relative;
 }
@@ -184,4 +217,189 @@
 
 .desktop-app-header__nav-link--active::after {
   background: var(--ink);
+}
+
+@media (max-width: 1023px) {
+  .desktop-app-header {
+    position: relative;
+    z-index: 100;
+  }
+
+  .desktop-app-header__shell {
+    width: 100%;
+    padding-inline: 0.75rem;
+  }
+
+  .desktop-app-header__top {
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    padding: 0.72rem 0;
+  }
+
+  .desktop-app-header__brand {
+    flex: 0 0 auto;
+    min-width: 0;
+  }
+
+  .desktop-app-header__logo {
+    width: 5.4rem;
+  }
+
+  .desktop-app-header__mobile-toggle {
+    display: inline-flex;
+    width: 2.25rem;
+    height: 2.25rem;
+    flex: 0 0 2.25rem;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    cursor: pointer;
+    transition: opacity 120ms ease;
+  }
+
+  .desktop-app-header__mobile-toggle:hover,
+  .desktop-app-header__mobile-toggle:focus-visible,
+  .desktop-app-header__mobile-toggle[aria-expanded="true"] {
+    opacity: 0.72;
+  }
+
+  .desktop-app-header__mobile-toggle:focus-visible {
+    outline: 2px solid rgba(107, 114, 128, 0.34);
+    outline-offset: 2px;
+  }
+
+  .desktop-app-header__mobile-toggle-icon {
+    width: 1.18rem;
+    height: 1.18rem;
+    opacity: 0.76;
+  }
+
+  .desktop-app-header__project-picker {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
+    margin-left: 0;
+  }
+
+  .desktop-app-header__project-picker :deep(.project-picker__button) {
+    width: 100%;
+    min-width: 0;
+    justify-content: flex-start;
+    min-height: 2rem;
+    padding: 0.38rem 0.52rem;
+    font-size: 0.78rem;
+  }
+
+  .desktop-app-header__controls {
+    order: 4;
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    max-height: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.55rem;
+    overflow: hidden;
+    padding: 0;
+    border-top: 0 solid transparent;
+    border-bottom: 0 solid transparent;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-0.24rem);
+    visibility: hidden;
+    transition: max-height 220ms ease, padding 220ms ease, border-width 220ms ease,
+      border-color 220ms ease, opacity 180ms ease, transform 220ms ease,
+      visibility 0s linear 220ms;
+  }
+
+  .desktop-app-header--mobile-menu-open .desktop-app-header__controls {
+    max-height: 4.25rem;
+    overflow: visible;
+    padding: 0.68rem 0;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-top-color: rgba(0, 0, 0, 0.08);
+    border-bottom-color: rgba(0, 0, 0, 0.08);
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+    visibility: visible;
+    transition-delay: 0s;
+  }
+
+  .desktop-app-header__settings-wrap {
+    flex: 0 0 auto;
+  }
+
+  .desktop-app-header__menu {
+    right: 0;
+    max-width: calc(100vw - 1.5rem);
+  }
+
+  .desktop-app-header__nav {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.18rem;
+    max-height: 0;
+    overflow: hidden;
+    padding: 0;
+    border-top: 0;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-0.2rem);
+    visibility: hidden;
+    transition: max-height 240ms ease, padding 220ms ease, opacity 180ms ease,
+      transform 220ms ease, visibility 0s linear 240ms;
+  }
+
+  .desktop-app-header--mobile-menu-open .desktop-app-header__nav {
+    max-height: 14rem;
+    padding: 0.58rem 0 0.72rem;
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+    visibility: visible;
+    transition-delay: 0s;
+  }
+
+  .desktop-app-header__nav-link {
+    min-height: 2.45rem;
+    align-items: center;
+    padding: 0 0.72rem;
+    border-radius: 0.56rem;
+    font-size: 0.9rem;
+  }
+
+  .desktop-app-header__nav-link::after {
+    display: none;
+  }
+
+  .desktop-app-header__nav-link:hover,
+  .desktop-app-header__nav-link--active {
+    background: #f3f4f6;
+  }
+
+  .desktop-app-header__nav-link--active {
+    color: var(--primary);
+    font-weight: 750;
+  }
+
+  .desktop-app-header__nav {
+    order: 5;
+    width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .desktop-app-header__logo {
+    width: 4.9rem;
+  }
+
+  .desktop-app-header__project-picker {
+    max-width: none;
+  }
 }

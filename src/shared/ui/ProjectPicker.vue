@@ -71,29 +71,23 @@
 <script setup lang="ts">
 import buildingIcon from "@fluentui/svg-icons/icons/building_20_regular.svg";
 import chevronDownIcon from "@fluentui/svg-icons/icons/chevron_down_20_regular.svg";
+import { storeToRefs } from "pinia";
 import { computed, onMounted, onUnmounted, ref } from "vue";
 
 import { useDocumentConversionDemoStore } from "@/features/document-conversion/state/useDocumentConversionDemoStore";
-import {
-  clearSelectedDesktopScheduleVersionId,
-  desktopScheduleApi,
-  getSelectedDesktopScheduleProjectId,
-  setSelectedDesktopScheduleProjectId,
-} from "@/features/desktop-schedule/api/desktop-schedule.api";
-import type { DesktopScheduleProjectResponse } from "@/features/desktop-schedule/api/desktop-schedule-api.types";
+import { clearSelectedDesktopScheduleVersionId } from "@/features/desktop-schedule/api/desktop-schedule.api";
 import { analyticsClient } from "@/shared/analytics/analytics-stub";
+import { useProjectPickerStore } from "@/shared/state/useProjectPickerStore";
 
 const documentConversionStore = useDocumentConversionDemoStore();
+const projectPickerStore = useProjectPickerStore();
+const { projects, currentProjectId, isLoading, hasOptions } = storeToRefs(projectPickerStore);
 
-const projects = ref<DesktopScheduleProjectResponse[]>([]);
-const currentProjectId = ref<string | null>(getSelectedDesktopScheduleProjectId());
 const isMenuOpen = ref(false);
-const isLoading = ref(false);
 const isSwitching = ref(false);
 const containerRef = ref<HTMLElement | null>(null);
 let switchReloadTimer: ReturnType<typeof setTimeout> | null = null;
 
-const hasOptions = computed(() => projects.value.length > 0);
 const isButtonDisabled = computed(
   () => isSwitching.value || (isLoading.value && !hasOptions.value),
 );
@@ -108,25 +102,6 @@ const currentLabel = computed(() => {
   const match = projects.value.find((project) => project.id === currentProjectId.value);
   return match?.projectName ?? "프로젝트 선택";
 });
-
-async function loadProjects() {
-  isLoading.value = true;
-  try {
-    const fetched = await desktopScheduleApi.getProjectList();
-    projects.value = fetched;
-    const stored = getSelectedDesktopScheduleProjectId();
-    if (stored && fetched.some((project) => project.id === stored)) {
-      currentProjectId.value = stored;
-    } else if (fetched[0]) {
-      currentProjectId.value = fetched[0].id;
-      setSelectedDesktopScheduleProjectId(fetched[0].id);
-    }
-  } catch (error) {
-    console.error("getProjectList failed", error);
-  } finally {
-    isLoading.value = false;
-  }
-}
 
 function toggleMenu() {
   if (isButtonDisabled.value || !hasOptions.value) return;
@@ -144,10 +119,9 @@ function selectProject(projectId: string) {
   analyticsClient.trackAction("project", "select_project", "success", {
     has_previous_project: Boolean(currentProjectId.value),
   });
-  setSelectedDesktopScheduleProjectId(projectId);
+  projectPickerStore.setCurrentProjectId(projectId);
   clearSelectedDesktopScheduleVersionId();
   documentConversionStore.clearSelectedDocument();
-  currentProjectId.value = projectId;
 
   if (typeof window !== "undefined") {
     isSwitching.value = true;
@@ -172,7 +146,7 @@ function handleDocumentKeydown(event: KeyboardEvent) {
 }
 
 onMounted(() => {
-  void loadProjects();
+  void projectPickerStore.loadProjects();
   if (typeof window !== "undefined") {
     document.addEventListener("pointerdown", handleDocumentPointerDown);
     document.addEventListener("keydown", handleDocumentKeydown);

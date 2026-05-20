@@ -8,11 +8,6 @@
           <h1 class="ai-agent-list__title">{{ copy.pageTitle }}</h1>
         </div>
 
-        <ConnectionBadge
-          :status="connectionStatus"
-          :attempts="reconnectAttempts"
-          @reconnect="handleManualReconnect"
-        />
       </header>
 
       <section class="ai-agent-list__grid" aria-label="대화 목록">
@@ -63,27 +58,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
 import { aiAgentCopy } from "@/features/ai-agent/data/ai-agent.copy";
-import { aiAgentWsClient } from "@/features/ai-agent/services/ai-agent-ws-client";
-import { useAiAgentStore } from "@/features/ai-agent/state/useAiAgentStore";
 import { useThreadListViewModel } from "@/features/ai-agent/state/useThreadListViewModel";
-import ConnectionBadge from "@/features/ai-agent/ui/components/ConnectionBadge.vue";
 import NewThreadCard from "@/features/ai-agent/ui/components/NewThreadCard.vue";
 import NewThreadDialog from "@/features/ai-agent/ui/components/NewThreadDialog.vue";
 import ThreadCard from "@/features/ai-agent/ui/components/ThreadCard.vue";
-import { analyticsClient } from "@/shared/analytics/analytics-stub";
 
 const copy = aiAgentCopy;
 const router = useRouter();
-const store = useAiAgentStore();
 
 const {
   threads,
-  connectionStatus,
   errors,
   lastMessageOf,
   botNameOf,
@@ -92,8 +81,6 @@ const {
   refreshThreads,
   dismissError,
 } = useThreadListViewModel();
-
-const reconnectAttempts = computed(() => store.reconnectAttempts);
 
 const dialogOpen = ref(false);
 const creating = ref(false);
@@ -127,12 +114,6 @@ async function handleDelete(threadId: number) {
   await deleteThread(threadId);
 }
 
-function handleManualReconnect() {
-  analyticsClient.trackAction("ai_agent", "manual_reconnect", "attempt", {
-    surface: "thread_list",
-  });
-  aiAgentWsClient.manualReconnect();
-}
 </script>
 
 <style scoped src="./styles/AiAgentThreadListPage.css"></style>

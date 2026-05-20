@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import dismissIcon from "@fluentui/svg-icons/icons/dismiss_20_regular.svg";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
 import DailyReportEditorPanel from "@/features/document-conversion/ui/components/DailyReportEditorPanel.vue";
@@ -18,6 +19,9 @@ const DAILY_REPORT_PANEL_MAX_WIDTH = 640;
 const DAILY_REPORT_PANEL_SPLITTER_WIDTH = 10;
 const DAILY_REPORT_MIN_WORKSPACE_WIDTH = 640;
 const DAILY_REPORT_PANEL_TOP_OFFSET = 48;
+const COMPACT_SCHEDULE_VIEW_MEDIA_QUERY = "(max-width: 1023px)";
+const COMPACT_SCHEDULE_ROW_PANEL_WIDTH = 144;
+const COMPACT_SCHEDULE_WORK_TYPE_COLUMN_WIDTH = 58;
 
 type DailyReportPanelResizeState = {
   pointerId: number;
@@ -28,6 +32,12 @@ type DailyReportPanelResizeState = {
 type ScheduleGridCell = {
   rowId: string;
   date: string;
+};
+
+type ScheduleVersionSummary = {
+  id: number;
+  isMain: boolean;
+  setMainAt?: string | null;
 };
 
 function clampNumber(value: number, min: number, max: number) {
@@ -52,6 +62,14 @@ function readStoredDailyReportPanelWidth() {
         DAILY_REPORT_PANEL_MAX_WIDTH,
       )
     : DAILY_REPORT_PANEL_DEFAULT_WIDTH;
+}
+
+function getInitialCompactScheduleView() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return window.matchMedia(COMPACT_SCHEDULE_VIEW_MEDIA_QUERY).matches;
 }
 
 const scheduleVm = useDesktopScheduleViewModel();
@@ -82,22 +100,73 @@ const shellHostRef = ref<HTMLElement | null>(null);
 const shellViewportHeight = ref(640);
 const chartViewportWidth = ref(0);
 const selectedScheduleCell = ref<ScheduleGridCell | null>(null);
-const isDailyReportPanelOpen = ref(true);
+const initialCompactScheduleView = getInitialCompactScheduleView();
+const isDailyReportPanelOpen = ref(!initialCompactScheduleView);
 const dailyReportPanelWidth = ref(readStoredDailyReportPanelWidth());
 const dailyReportPanelResizeState = ref<DailyReportPanelResizeState | null>(null);
+const isCompactScheduleView = ref(initialCompactScheduleView);
+const isCompactScheduleLeftPanelOpen = ref(true);
 const shouldApplyInitialTimelineScroll = ref(
   load.status !== "success",
 );
 let resizeObserver: ResizeObserver | null = null;
+let compactScheduleViewMediaQuery: MediaQueryList | null = null;
 
 const isScheduleRefreshing = computed(
   () =>
     load.status === "loading" &&
     version.selectedId !== null,
 );
+const currentMainScheduleVersionId = computed(() => {
+  const mainVersions = (version.versions as ScheduleVersionSummary[]).filter(
+    (scheduleVersion) => scheduleVersion.isMain,
+  );
+
+  if (mainVersions.length === 0) {
+    return null;
+  }
+
+  return mainVersions.reduce((latest, candidate) => {
+    const latestSetMainAt = latest.setMainAt ?? "";
+    const candidateSetMainAt = candidate.setMainAt ?? "";
+
+    return candidateSetMainAt > latestSetMainAt ? candidate : latest;
+  }).id;
+});
 const showDailyReportEditor = computed(
-  () => access.isCurrentMainScheduleVersionSelected && isDailyReportPanelOpen.value,
+  () =>
+    access.isCurrentMainScheduleVersionSelected &&
+    isDailyReportPanelOpen.value,
 );
+const showCompactDailyReportEditor = computed(
+  () => isCompactScheduleView.value && showDailyReportEditor.value,
+);
+const effectiveScheduleReadOnly = computed(
+  () => access.isReadOnly || isCompactScheduleView.value,
+);
+const effectiveReferenceOnly = computed(() => isCompactScheduleView.value);
+const isScheduleLeftPanelOpen = computed(
+  () => !isCompactScheduleView.value || isCompactScheduleLeftPanelOpen.value,
+);
+const effectiveRowPanelWidth = computed(() =>
+  isCompactScheduleView.value
+    ? isCompactScheduleLeftPanelOpen.value
+      ? COMPACT_SCHEDULE_ROW_PANEL_WIDTH
+      : 0
+    : layout.rowPanelWidth,
+);
+const effectiveWorkTypeColumnWidth = computed(() =>
+  isCompactScheduleView.value
+    ? COMPACT_SCHEDULE_WORK_TYPE_COLUMN_WIDTH
+    : layout.workTypeColumnWidth,
+);
+const showDailyReportPanelToggle = computed(
+  () => access.isCurrentMainScheduleVersionSelected,
+);
+const showDailyReportPanelSplitter = computed(
+  () => !isCompactScheduleView.value && showDailyReportEditor.value,
+);
+const showCompactLeftPanelToggle = computed(() => isCompactScheduleView.value);
 const scheduleShellStyle = computed(() => ({
   "--desktop-schedule-daily-report-panel-width": showDailyReportEditor.value
     ? `${dailyReportPanelWidth.value}px`
@@ -115,17 +184,25 @@ function syncShellViewport() {
 
   shellViewportHeight.value = Math.max(shellHostRef.value.clientHeight, 320);
   chartViewportWidth.value = Math.max(
-    shellHostRef.value.clientWidth - layout.rowPanelWidth,
+    shellHostRef.value.clientWidth - effectiveRowPanelWidth.value,
     0,
   );
 }
 
 function handleRowPanelWidthChange(width: number) {
+  if (isCompactScheduleView.value) {
+    return;
+  }
+
   layout.setRowPanelWidth(width);
   syncShellViewport();
 }
 
 function handleWorkTypeColumnWidthChange(width: number) {
+  if (isCompactScheduleView.value) {
+    return;
+  }
+
   layout.setWorkTypeColumnWidth(width);
 }
 
@@ -168,6 +245,29 @@ function handleToggleDailyReportPanel() {
   isDailyReportPanelOpen.value = !isDailyReportPanelOpen.value;
   analyticsClient.trackAction("schedule", "toggle_daily_report_panel", "success", {
     active: isDailyReportPanelOpen.value,
+  });
+}
+
+function closeDailyReportPanel() {
+  if (!isDailyReportPanelOpen.value) {
+    return;
+  }
+
+  isDailyReportPanelOpen.value = false;
+  analyticsClient.trackAction("schedule", "close_daily_report_panel", "success", {
+    source: isCompactScheduleView.value ? "mobile" : "desktop",
+  });
+}
+
+function handleToggleCompactScheduleLeftPanel() {
+  if (!isCompactScheduleView.value) {
+    return;
+  }
+
+  isCompactScheduleLeftPanelOpen.value = !isCompactScheduleLeftPanelOpen.value;
+  requestAnimationFrame(syncShellViewport);
+  analyticsClient.trackAction("schedule", "toggle_mobile_left_panel", "success", {
+    active: isCompactScheduleLeftPanelOpen.value,
   });
 }
 
@@ -250,7 +350,7 @@ function endDailyReportPanelResize(event: PointerEvent) {
 }
 
 function startDailyReportPanelResize(event: PointerEvent) {
-  if (!showDailyReportEditor.value) {
+  if (isCompactScheduleView.value || !showDailyReportEditor.value) {
     return;
   }
 
@@ -264,6 +364,38 @@ function startDailyReportPanelResize(event: PointerEvent) {
   window.addEventListener("pointermove", handleDailyReportPanelResizeMove, true);
   window.addEventListener("pointerup", endDailyReportPanelResize, true);
   window.addEventListener("pointercancel", endDailyReportPanelResize, true);
+}
+
+function setCompactScheduleViewState(nextIsCompactScheduleView: boolean) {
+  const wasCompactScheduleView = isCompactScheduleView.value;
+
+  isCompactScheduleView.value = nextIsCompactScheduleView;
+
+  if (nextIsCompactScheduleView && !wasCompactScheduleView) {
+    isDailyReportPanelOpen.value = false;
+  }
+}
+
+function syncCompactScheduleViewState(mediaQuery: MediaQueryList | null) {
+  setCompactScheduleViewState(mediaQuery?.matches ?? false);
+}
+
+function handleCompactScheduleViewMediaChange(event: MediaQueryListEvent) {
+  setCompactScheduleViewState(event.matches);
+  requestAnimationFrame(syncShellViewport);
+}
+
+function ensureCompactScheduleUsesCurrentMainVersion() {
+  if (
+    !isCompactScheduleView.value ||
+    load.status !== "success" ||
+    currentMainScheduleVersionId.value === null ||
+    version.selectedId === currentMainScheduleVersionId.value
+  ) {
+    return;
+  }
+
+  void version.select(currentMainScheduleVersionId.value);
 }
 
 function isEditableKeyboardTarget(target: EventTarget | null) {
@@ -303,6 +435,15 @@ function claimScheduleShortcut(event: KeyboardEvent) {
 }
 
 function handleScheduleShortcut(event: KeyboardEvent) {
+  if (
+    event.key === "Escape" &&
+    showCompactDailyReportEditor.value &&
+    !isEditableKeyboardTarget(event.target)
+  ) {
+    closeDailyReportPanel();
+    return;
+  }
+
   if (
     isEditableKeyboardTarget(event.target) ||
     (!event.metaKey && !event.ctrlKey)
@@ -361,6 +502,14 @@ function handleScheduleShortcut(event: KeyboardEvent) {
 
 onMounted(() => {
   window.addEventListener("keydown", handleScheduleShortcut);
+  compactScheduleViewMediaQuery = window.matchMedia(
+    COMPACT_SCHEDULE_VIEW_MEDIA_QUERY,
+  );
+  syncCompactScheduleViewState(compactScheduleViewMediaQuery);
+  compactScheduleViewMediaQuery.addEventListener(
+    "change",
+    handleCompactScheduleViewMediaChange,
+  );
 
   if (shellHostRef.value) {
     resizeObserver = new ResizeObserver(() => {
@@ -377,6 +526,11 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener("keydown", handleScheduleShortcut);
+  compactScheduleViewMediaQuery?.removeEventListener(
+    "change",
+    handleCompactScheduleViewMediaChange,
+  );
+  compactScheduleViewMediaQuery = null;
   window.removeEventListener("pointermove", handleDailyReportPanelResizeMove, true);
   window.removeEventListener("pointerup", endDailyReportPanelResize, true);
   window.removeEventListener("pointercancel", endDailyReportPanelResize, true);
@@ -393,6 +547,7 @@ watch(
       load.status,
       chartViewportWidth.value,
       showDailyReportEditor.value,
+      isCompactScheduleView.value,
     ] as const,
   async ([nextScheduleLoadStatus, nextChartViewportWidth]) => {
     if (
@@ -429,7 +584,8 @@ watch(
     access.isReadOnly,
     showDailyReportEditor.value,
     dailyReportPanelWidth.value,
-    layout.rowPanelWidth,
+    effectiveRowPanelWidth.value,
+    effectiveWorkTypeColumnWidth.value,
   ],
   async () => {
     await nextTick();
@@ -437,10 +593,29 @@ watch(
   },
   { immediate: true },
 );
+
+watch(
+  () =>
+    [
+      isCompactScheduleView.value,
+      load.status,
+      currentMainScheduleVersionId.value,
+      version.selectedId,
+    ] as const,
+  () => {
+    ensureCompactScheduleUsesCurrentMainVersion();
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
-  <main class="desktop-schedule-page">
+  <main
+    class="desktop-schedule-page"
+    :class="{
+      'desktop-schedule-page--compact-viewer': isCompactScheduleView,
+    }"
+  >
     <DesktopAppHeader />
 
     <Transition name="desktop-schedule-toast">
@@ -502,7 +677,8 @@ watch(
             <DesktopScheduleShell
               :timeline="layout.timeline"
               :shell-layout="layout.shell"
-              :read-only="access.isReadOnly"
+              :read-only="effectiveScheduleReadOnly"
+              :reference-only="effectiveReferenceOnly"
               :schedule-versions="version.versions"
               :past-main-schedule-versions="version.pastMainVersions"
               :selected-schedule-version-id="version.selectedId"
@@ -527,8 +703,8 @@ watch(
               :selected-work-connection-ids="selection.state.workConnectionIds"
               :selected-milestone-ids="selection.state.milestoneIds"
               :connection-creation-state="connection.creationState"
-              :row-panel-width="layout.rowPanelWidth"
-              :work-type-column-width="layout.workTypeColumnWidth"
+              :row-panel-width="effectiveRowPanelWidth"
+              :work-type-column-width="effectiveWorkTypeColumnWidth"
               :editing-division-id="rename.divisionId"
               :editing-work-type-id="rename.workTypeId"
               :editing-sub-work-type-id="rename.subWorkTypeId"
@@ -542,14 +718,20 @@ watch(
               :can-undo="history.canUndo"
               :can-redo="history.canRedo"
               :history-syncing="history.isSyncing"
+              :compact-view="isCompactScheduleView"
               :panel-open="showDailyReportEditor"
-              :show-panel-toggle="access.isCurrentMainScheduleVersionSelected"
-              panel-toggle-open-label="패널 숨기기"
-              panel-toggle-closed-label="패널 보기"
+              :show-panel-toggle="showDailyReportPanelToggle"
+              panel-toggle-open-label="작업일보 닫기"
+              panel-toggle-closed-label="작업일보 작성"
+              :left-panel-open="isScheduleLeftPanelOpen"
+              :show-left-panel-toggle="showCompactLeftPanelToggle"
+              left-panel-toggle-open-label="왼쪽 패널 숨기기"
+              left-panel-toggle-closed-label="왼쪽 패널 보기"
               @scroll-sync="scroll.syncChart"
               @row-panel-width-change="handleRowPanelWidthChange"
               @work-type-column-width-change="handleWorkTypeColumnWidthChange"
               @toggle-panel="handleToggleDailyReportPanel"
+              @toggle-left-panel="handleToggleCompactScheduleLeftPanel"
               @undo="history.undo"
               @redo="history.redo"
               @create-draft-version="version.createDraftFromCurrent"
@@ -661,7 +843,7 @@ watch(
 
       <Transition name="desktop-schedule-daily-report-splitter">
         <button
-          v-if="showDailyReportEditor"
+          v-if="showDailyReportPanelSplitter"
           type="button"
           class="desktop-schedule-page__daily-report-splitter"
           aria-label="공정표와 공사일보 작성 패널 너비 조절"
@@ -675,12 +857,46 @@ watch(
         </button>
       </Transition>
 
+      <Transition name="desktop-schedule-daily-report-backdrop">
+        <button
+          v-if="showCompactDailyReportEditor"
+          type="button"
+          class="desktop-schedule-page__daily-report-backdrop"
+          aria-label="작업일보 패널 닫기"
+          @click="closeDailyReportPanel"
+        />
+      </Transition>
+
       <Transition name="desktop-schedule-daily-report-panel">
-        <DailyReportEditorPanel
+        <section
           v-show="showDailyReportEditor"
           class="desktop-schedule-page__daily-report-panel"
-          @report-date-change="handleDailyReportDateChange"
-        />
+          aria-label="작업일보 작성 패널"
+          :role="showCompactDailyReportEditor ? 'dialog' : undefined"
+          :aria-modal="showCompactDailyReportEditor ? true : undefined"
+        >
+          <header class="desktop-schedule-page__daily-report-mobile-header">
+            <strong>작업일보</strong>
+            <button
+              type="button"
+              class="desktop-schedule-page__daily-report-close"
+              aria-label="작업일보 패널 닫기"
+              @click="closeDailyReportPanel"
+            >
+              <img
+                class="desktop-schedule-page__daily-report-close-icon"
+                :src="dismissIcon"
+                alt=""
+                aria-hidden="true"
+              />
+            </button>
+          </header>
+
+          <DailyReportEditorPanel
+            class="desktop-schedule-page__daily-report-editor"
+            @report-date-change="handleDailyReportDateChange"
+          />
+        </section>
       </Transition>
     </div>
   </main>

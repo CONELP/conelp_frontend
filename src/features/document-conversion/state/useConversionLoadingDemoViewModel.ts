@@ -14,54 +14,51 @@ import type { DocumentCatalogType } from "@/features/document-conversion/model/d
 import { useDocumentConversionDemoStore } from "@/features/document-conversion/state/useDocumentConversionDemoStore";
 import { analyticsClient } from "@/shared/analytics/analytics-stub";
 
-const LOADING_TEXT_TOTAL_DURATION_MS = 5000;
-const LOADING_TEXT_FIRST_TRANSITION_MS = Math.round(
-  LOADING_TEXT_TOTAL_DURATION_MS / 3,
-);
-const LOADING_TEXT_SECOND_TRANSITION_MS = Math.round(
-  (LOADING_TEXT_TOTAL_DURATION_MS * 2) / 3,
-);
+const LOADING_TEXT_STEP_DURATION_MS = 1500;
+const LOADING_TEXT_TOTAL_DURATION_MS = LOADING_TEXT_STEP_DURATION_MS * 3;
+const LOADING_TEXT_FIRST_TRANSITION_MS = LOADING_TEXT_STEP_DURATION_MS;
+const LOADING_TEXT_SECOND_TRANSITION_MS = LOADING_TEXT_STEP_DURATION_MS * 2;
 const EVEN_LOADING_STEP_TRANSITIONS = [
   { delayMs: LOADING_TEXT_FIRST_TRANSITION_MS, stepIndex: 1 },
   { delayMs: LOADING_TEXT_SECOND_TRANSITION_MS, stepIndex: 2 },
 ] as const;
 
 const MIR_ANALYSIS_LOADING_STEPS = [
-  "업로드한 이미지를 정리하고 있어요.",
-  "송장, 밀시트, 태그 내용을 분석하고 있어요.",
-  "검토 화면에 들어갈 항목을 준비하고 있어요.",
+  "업로드한 반입 사진을 분류하고 흐릿한 영역을 보정하고 있어요.",
+  "송장, 밀시트, 태그에서 자재명과 규격, 수량 정보를 읽고 있어요.",
+  "검수요청서에 들어갈 반입 정보와 사진 근거를 맞춰보고 있어요.",
 ] as const;
 
 const MIR_ANALYSIS_STEP_TRANSITIONS = EVEN_LOADING_STEP_TRANSITIONS;
 
 const MIR_CREATE_LOADING_STEPS = [
-  "검토한 자재 반입 정보를 정리하고 있어요.",
-  "문서 생성에 필요한 데이터를 저장하고 있어요.",
-  "자재 반입 검수요청서를 렌더링하고 있어요.",
+  "검토한 자재명, 규격, 수량과 사용 위치를 문서 항목에 맞추고 있어요.",
+  "반입 사진과 검수 데이터를 저장하고 요청서 생성 작업을 준비하고 있어요.",
+  "자재 반입 검수요청서 서식에 값을 채워 최종 문서를 만들고 있어요.",
 ] as const;
 
 const MIR_CREATE_STEP_TRANSITIONS = EVEN_LOADING_STEP_TRANSITIONS;
 
 const CAT_ANALYSIS_LOADING_STEPS = [
-  "송장과 콘크리트 시험사진을 정리하고 있어요.",
-  "배치별 슬럼프, 공기량, 온도 값을 분석하고 있어요.",
-  "콘크리트 반입시험 검토 화면을 준비하고 있어요.",
+  "송장 사진과 시험 사진을 구분하고 배치 번호별로 묶고 있어요.",
+  "슬럼프, 공기량, 염화물량, 온도 같은 시험값을 읽고 있어요.",
+  "검토 화면에서 확인할 반입 정보와 시험 결과를 정리하고 있어요.",
 ] as const;
 
 const CAT_ANALYSIS_STEP_TRANSITIONS = EVEN_LOADING_STEP_TRANSITIONS;
 
 const CAT_CREATE_LOADING_STEPS = [
-  "검토한 콘크리트 반입시험 정보를 정리하고 있어요.",
-  "배치 시험값과 사진 데이터를 저장하고 있어요.",
-  "콘크리트 반입시험 문서를 렌더링하고 있어요.",
+  "검토한 배치별 반입 정보와 시험값을 문서 항목에 맞추고 있어요.",
+  "송장, 시험 사진, 배치별 측정값을 저장하고 생성 작업을 준비하고 있어요.",
+  "콘크리트 반입시험 서식에 값을 채워 최종 문서를 만들고 있어요.",
 ] as const;
 
 const CAT_CREATE_STEP_TRANSITIONS = EVEN_LOADING_STEP_TRANSITIONS;
 
 const CONCRETE_STRENGTH_LOADING_STEPS = [
-  "업로드한 압축강도 사진을 로트별로 정리하고 있어요.",
-  "7일 강도와 28일 강도 자료를 구분하고 있어요.",
-  "콘크리트 압축강도 문서를 생성하고 있어요.",
+  "업로드한 압축강도 시험 사진을 로트와 공시체 기준으로 정리하고 있어요.",
+  "7일, 28일 강도값과 판정 정보를 구분해서 문서 항목에 맞추고 있어요.",
+  "콘크리트 압축강도 시험 서식에 값을 채워 최종 문서를 만들고 있어요.",
 ] as const;
 
 const CONCRETE_STRENGTH_STEP_TRANSITIONS = EVEN_LOADING_STEP_TRANSITIONS;
@@ -87,6 +84,7 @@ export function useConversionLoadingDemoViewModel() {
 
   const loadingStepIndex = ref(0);
   const loadingErrorMessage = ref("");
+  const mirGenerationStage = ref<"analysis" | "create">("analysis");
   const loadingStepTimers: ReturnType<typeof setTimeout>[] = [];
   let loadingRunId = 0;
 
@@ -96,8 +94,16 @@ export function useConversionLoadingDemoViewModel() {
   const isCatCreateLoading = computed(
     () => route.query.phase === "cat-create",
   );
+  const isDirectMirGenerationLoading = computed(
+    () =>
+      selectedDocument.value.type === "material_registration" &&
+      !isMirCreateLoading.value,
+  );
   const isDocumentCreateLoading = computed(
-    () => isMirCreateLoading.value || isCatCreateLoading.value,
+    () =>
+      isMirCreateLoading.value ||
+      isCatCreateLoading.value ||
+      isDirectMirGenerationLoading.value,
   );
 
   function toDocumentRoute(path: string, query: Record<string, string> = {}): RouteLocationRaw {
@@ -123,8 +129,7 @@ export function useConversionLoadingDemoViewModel() {
 
   const loadingBackRoute = computed<RouteLocationRaw>(() => {
     const path =
-      (selectedDocument.value.type === "material_registration" && isMirCreateLoading.value) ||
-      (selectedDocument.value.type === "concrete_delivery_csi" && isCatCreateLoading.value)
+      selectedDocument.value.type === "concrete_delivery_csi" && isCatCreateLoading.value
         ? OCR_VALIDATION_ROUTE
         : selectedDocument.value.generationMode === "upload_required"
         ? UPLOAD_DOCUMENT_ROUTE
@@ -137,7 +142,7 @@ export function useConversionLoadingDemoViewModel() {
 
   const baseLoadingDescription = computed(() => {
     if (selectedDocument.value.type === "material_registration") {
-      return isMirCreateLoading.value
+      return isMirCreateLoading.value || mirGenerationStage.value === "create"
         ? MIR_CREATE_LOADING_STEPS[loadingStepIndex.value]
         : MIR_ANALYSIS_LOADING_STEPS[loadingStepIndex.value];
     }
@@ -158,7 +163,6 @@ export function useConversionLoadingDemoViewModel() {
   });
 
   const loadingDestinationPath = computed(() =>
-    selectedDocument.value.type === "material_registration" ||
     selectedDocument.value.type === "concrete_delivery_csi"
       ? OCR_VALIDATION_ROUTE
       : RESULT_ROUTE,
@@ -167,6 +171,18 @@ export function useConversionLoadingDemoViewModel() {
   function clearLoadingStepTimers() {
     loadingStepTimers.forEach((timer) => clearTimeout(timer));
     loadingStepTimers.length = 0;
+  }
+
+  function scheduleLoadingStepTransitions(
+    transitions: ReadonlyArray<{ delayMs: number; stepIndex: number }>,
+  ) {
+    transitions.forEach(({ delayMs, stepIndex }) => {
+      loadingStepTimers.push(
+        setTimeout(() => {
+          loadingStepIndex.value = stepIndex;
+        }, delayMs),
+      );
+    });
   }
 
   function scheduleRouteNavigation(route: RouteLocationRaw, delayMs: number) {
@@ -252,10 +268,7 @@ export function useConversionLoadingDemoViewModel() {
     };
   }
 
-  function toCreateMirDocumentRequest(
-    result: MirAnalysisResponse,
-    active: boolean,
-  ): CreateMirDocumentRequest {
+  function toCreateMirDocumentRequest(result: MirAnalysisResponse): CreateMirDocumentRequest {
     return {
       application: result.application,
       supplier: result.supplier,
@@ -271,16 +284,12 @@ export function useConversionLoadingDemoViewModel() {
         type: photo.type,
         description: photo.description,
       })),
-      active,
     };
   }
 
-  function toCreateCatDocumentRequest(
-    result: CatAnalysisResponse,
-    active: boolean,
-  ): CreateCatDocumentRequest {
+  function toCreateCatDocumentRequest(result: CatAnalysisResponse): CreateCatDocumentRequest {
     return {
-      ...toCreateMirDocumentRequest(result, active),
+      ...toCreateMirDocumentRequest(result),
       batches: result.batches.map((batch) => ({
         batch: String(batch.batch),
         lineData: {
@@ -300,10 +309,11 @@ export function useConversionLoadingDemoViewModel() {
     };
   }
 
-  async function startMirAnalysisLoadingSequence() {
+  async function startMirGenerationLoadingSequence() {
     clearLoadingStepTimers();
     loadingStepIndex.value = 0;
     loadingErrorMessage.value = "";
+    mirGenerationStage.value = "analysis";
     store.setMirAnalysisErrorMessage("");
 
     const currentRunId = ++loadingRunId;
@@ -320,13 +330,7 @@ export function useConversionLoadingDemoViewModel() {
       return;
     }
 
-    MIR_ANALYSIS_STEP_TRANSITIONS.forEach(({ delayMs, stepIndex }) => {
-      loadingStepTimers.push(
-        setTimeout(() => {
-          loadingStepIndex.value = stepIndex;
-        }, delayMs),
-      );
-    });
+    scheduleLoadingStepTransitions(MIR_ANALYSIS_STEP_TRANSITIONS);
 
     try {
       const result = await materialInspectionRequestApi.analyzeMirPhoto({
@@ -343,24 +347,58 @@ export function useConversionLoadingDemoViewModel() {
       trackDocumentAction("analyze", "success", {
         file_count: store.uploadedImageFiles.length,
       });
-      void router.replace(toDocumentRoute(OCR_VALIDATION_ROUTE));
+
+      clearLoadingStepTimers();
+      loadingStepIndex.value = 0;
+      mirGenerationStage.value = "create";
+      scheduleLoadingStepTransitions(MIR_CREATE_STEP_TRANSITIONS);
+
+      const createResult = await materialInspectionRequestApi.createMirDocument(
+        toCreateMirDocumentRequest(result),
+      );
+
+      if (currentRunId !== loadingRunId) {
+        return;
+      }
+
+      store.saveMirCreateResult(createResult);
+      trackDocumentAction("create_document", "success", {
+        direct_generation: true,
+      });
+      void router.replace(
+        toDocumentRoute(RESULT_ROUTE, { jobId: String(createResult.jobId) }),
+      );
     } catch (error) {
       if (currentRunId !== loadingRunId) {
         return;
       }
 
+      const fallbackErrorMessage =
+        mirGenerationStage.value === "create"
+          ? "자재 반입 검수요청서 생성에 실패했습니다."
+          : "자재 반입 검수요청 자료 분석에 실패했습니다.";
       const errorMessage =
         error instanceof Error
           ? error.message
-          : "자재 반입 검수요청 자료 분석에 실패했습니다.";
+          : fallbackErrorMessage;
 
       store.setMirAnalysisErrorMessage(errorMessage);
-      loadingErrorMessage.value = "분석에 실패했어요. 업로드 화면으로 돌아갑니다.";
+      loadingErrorMessage.value =
+        mirGenerationStage.value === "create"
+          ? "생성에 실패했어요. 업로드 화면으로 돌아갑니다."
+          : "분석에 실패했어요. 업로드 화면으로 돌아갑니다.";
       clearLoadingStepTimers();
-      trackDocumentAction("analyze", "fail", {
-        error_kind: "api",
-        file_count: store.uploadedImageFiles.length,
-      });
+      const failedFileCount = store.uploadedImageFiles.length;
+      trackDocumentAction(
+        mirGenerationStage.value === "create" ? "create_document" : "analyze",
+        "fail",
+        {
+          error_kind: "api",
+          file_count: failedFileCount,
+          direct_generation: true,
+        },
+      );
+      store.resetUploadAfterFailure(errorMessage);
       scheduleRouteNavigation(toDocumentRoute(UPLOAD_DOCUMENT_ROUTE), 1800);
     }
   }
@@ -385,13 +423,7 @@ export function useConversionLoadingDemoViewModel() {
       return;
     }
 
-    CAT_ANALYSIS_STEP_TRANSITIONS.forEach(({ delayMs, stepIndex }) => {
-      loadingStepTimers.push(
-        setTimeout(() => {
-          loadingStepIndex.value = stepIndex;
-        }, delayMs),
-      );
-    });
+    scheduleLoadingStepTransitions(CAT_ANALYSIS_STEP_TRANSITIONS);
 
     const uploadPayload = createCatAnalysisUploadPayload();
 
@@ -426,10 +458,12 @@ export function useConversionLoadingDemoViewModel() {
       store.setMirAnalysisErrorMessage(errorMessage);
       loadingErrorMessage.value = "분석에 실패했어요. 업로드 화면으로 돌아갑니다.";
       clearLoadingStepTimers();
+      const failedFileCount = store.uploadedImageFiles.length;
       trackDocumentAction("analyze", "fail", {
         error_kind: "api",
-        file_count: store.uploadedImageFiles.length,
+        file_count: failedFileCount,
       });
+      store.resetUploadAfterFailure(errorMessage);
       scheduleRouteNavigation(toDocumentRoute(UPLOAD_DOCUMENT_ROUTE), 1800);
     }
   }
@@ -439,13 +473,7 @@ export function useConversionLoadingDemoViewModel() {
     loadingStepIndex.value = 0;
     loadingErrorMessage.value = "";
 
-    CONCRETE_STRENGTH_STEP_TRANSITIONS.forEach(({ delayMs, stepIndex }) => {
-      loadingStepTimers.push(
-        setTimeout(() => {
-          loadingStepIndex.value = stepIndex;
-        }, delayMs),
-      );
-    });
+    scheduleLoadingStepTransitions(CONCRETE_STRENGTH_STEP_TRANSITIONS);
 
     trackDocumentAction("create_document", "success", {
       file_count: store.uploadedImageFiles.length,
@@ -466,21 +494,19 @@ export function useConversionLoadingDemoViewModel() {
     const draft = store.mirDocumentSubmissionDraft;
 
     if (!draft) {
-      loadingErrorMessage.value = "생성할 문서 데이터가 없어 검토 화면으로 돌아갑니다.";
+      const errorMessage = "생성할 문서 데이터가 없어 업로드 화면으로 돌아갑니다.";
+
+      loadingErrorMessage.value = errorMessage;
       trackDocumentAction("create_document", "fail", {
         error_kind: "missing_draft",
       });
-      scheduleRouteNavigation(toDocumentRoute(OCR_VALIDATION_ROUTE), 1400);
+      store.resetUploadAfterFailure(errorMessage);
+      scheduleRouteNavigation(toDocumentRoute(UPLOAD_DOCUMENT_ROUTE), 1400);
       return;
     }
 
-    MIR_CREATE_STEP_TRANSITIONS.forEach(({ delayMs, stepIndex }) => {
-      loadingStepTimers.push(
-        setTimeout(() => {
-          loadingStepIndex.value = stepIndex;
-        }, delayMs),
-      );
-    });
+    mirGenerationStage.value = "create";
+    scheduleLoadingStepTransitions(MIR_CREATE_STEP_TRANSITIONS);
 
     try {
       let createRequest = draft.createRequest;
@@ -495,7 +521,7 @@ export function useConversionLoadingDemoViewModel() {
         }
 
         store.saveMirAnalysisResult(updateResult);
-        createRequest = toCreateMirDocumentRequest(updateResult, draft.active);
+        createRequest = toCreateMirDocumentRequest(updateResult);
       }
 
       if (!createRequest) {
@@ -521,17 +547,22 @@ export function useConversionLoadingDemoViewModel() {
         return;
       }
 
-      loadingErrorMessage.value =
+      const errorMessage =
         error instanceof Error
           ? error.message
           : "자재 반입 검수요청서 생성에 실패했습니다.";
+      const failedFileCount = store.uploadedImageFiles.length;
+
+      loadingErrorMessage.value = errorMessage;
       store.clearMirDocumentSubmissionDraft();
       clearLoadingStepTimers();
       trackDocumentAction("create_document", "fail", {
         error_kind: "api",
         updated_before_create: Boolean(draft.updateRequest),
+        file_count: failedFileCount,
       });
-      scheduleRouteNavigation(toDocumentRoute(OCR_VALIDATION_ROUTE), 2200);
+      store.resetUploadAfterFailure(errorMessage);
+      scheduleRouteNavigation(toDocumentRoute(UPLOAD_DOCUMENT_ROUTE), 2200);
     }
   }
 
@@ -544,21 +575,18 @@ export function useConversionLoadingDemoViewModel() {
     const draft = store.catDocumentSubmissionDraft;
 
     if (!draft) {
-      loadingErrorMessage.value = "생성할 문서 데이터가 없어 검토 화면으로 돌아갑니다.";
+      const errorMessage = "생성할 문서 데이터가 없어 업로드 화면으로 돌아갑니다.";
+
+      loadingErrorMessage.value = errorMessage;
       trackDocumentAction("create_document", "fail", {
         error_kind: "missing_draft",
       });
-      scheduleRouteNavigation(toDocumentRoute(OCR_VALIDATION_ROUTE), 1400);
+      store.resetUploadAfterFailure(errorMessage);
+      scheduleRouteNavigation(toDocumentRoute(UPLOAD_DOCUMENT_ROUTE), 1400);
       return;
     }
 
-    CAT_CREATE_STEP_TRANSITIONS.forEach(({ delayMs, stepIndex }) => {
-      loadingStepTimers.push(
-        setTimeout(() => {
-          loadingStepIndex.value = stepIndex;
-        }, delayMs),
-      );
-    });
+    scheduleLoadingStepTransitions(CAT_CREATE_STEP_TRANSITIONS);
 
     try {
       let createRequest = draft.createRequest;
@@ -573,7 +601,7 @@ export function useConversionLoadingDemoViewModel() {
         }
 
         store.saveCatAnalysisResult(updateResult);
-        createRequest = toCreateCatDocumentRequest(updateResult, draft.active);
+        createRequest = toCreateCatDocumentRequest(updateResult);
       }
 
       if (!createRequest) {
@@ -599,17 +627,22 @@ export function useConversionLoadingDemoViewModel() {
         return;
       }
 
-      loadingErrorMessage.value =
+      const errorMessage =
         error instanceof Error
           ? error.message
           : "콘크리트 반입시험 문서 생성에 실패했습니다.";
+      const failedFileCount = store.uploadedImageFiles.length;
+
+      loadingErrorMessage.value = errorMessage;
       store.clearCatDocumentSubmissionDraft();
       clearLoadingStepTimers();
       trackDocumentAction("create_document", "fail", {
         error_kind: "api",
         updated_before_create: Boolean(draft.updateRequest),
+        file_count: failedFileCount,
       });
-      scheduleRouteNavigation(toDocumentRoute(OCR_VALIDATION_ROUTE), 2200);
+      store.resetUploadAfterFailure(errorMessage);
+      scheduleRouteNavigation(toDocumentRoute(UPLOAD_DOCUMENT_ROUTE), 2200);
     }
   }
 
@@ -636,7 +669,7 @@ export function useConversionLoadingDemoViewModel() {
           return;
         }
 
-        void startMirAnalysisLoadingSequence();
+        void startMirGenerationLoadingSequence();
         return;
       }
 

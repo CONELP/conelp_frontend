@@ -4,3 +4,5 @@ dist/
 legacy/
 backend/constructionHelperBackendMain/
 backend/api/api-list/
+
+data/

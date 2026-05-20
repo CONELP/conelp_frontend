@@ -35,6 +35,8 @@ import {
   SHELL_TOOLBAR_HEIGHT,
   WIDTH_RESIZE_LISTENER_OPTIONS,
 } from "@/features/desktop-schedule/ui/components/desktop-schedule-shell.constants";
+import panelLeftContractIcon from "@fluentui/svg-icons/icons/panel_left_contract_20_regular.svg";
+import panelLeftExpandIcon from "@fluentui/svg-icons/icons/panel_left_expand_20_regular.svg";
 import panelRightContractIcon from "@fluentui/svg-icons/icons/panel_right_contract_20_regular.svg";
 import panelRightExpandIcon from "@fluentui/svg-icons/icons/panel_right_expand_20_regular.svg";
 import redoIcon from "@fluentui/svg-icons/icons/arrow_redo_20_regular.svg";
@@ -110,10 +112,15 @@ const props = defineProps<{
   canUndo: boolean;
   canRedo: boolean;
   historySyncing: boolean;
+  compactView?: boolean;
   panelOpen?: boolean;
   showPanelToggle?: boolean;
   panelToggleOpenLabel?: string;
   panelToggleClosedLabel?: string;
+  leftPanelOpen?: boolean;
+  showLeftPanelToggle?: boolean;
+  leftPanelToggleOpenLabel?: string;
+  leftPanelToggleClosedLabel?: string;
 }>();
 
 const emit = defineEmits<{
@@ -209,6 +216,7 @@ const emit = defineEmits<{
   "zoom-out": [];
   "zoom-change": [zoomIndex: number];
   "toggle-panel": [];
+  "toggle-left-panel": [];
 }>();
 
 const hoveredRowId = ref<string | null>(null);
@@ -334,6 +342,16 @@ const panelToggleLabel = computed(() =>
 const panelToggleIcon = computed(() =>
   isPanelOpen.value ? panelRightContractIcon : panelRightExpandIcon,
 );
+const isLeftPanelOpen = computed(() => props.leftPanelOpen ?? true);
+const showLeftPanelToggle = computed(() => props.showLeftPanelToggle ?? false);
+const leftPanelToggleLabel = computed(() =>
+  isLeftPanelOpen.value
+    ? (props.leftPanelToggleOpenLabel ?? "왼쪽 패널 숨기기")
+    : (props.leftPanelToggleClosedLabel ?? "왼쪽 패널 보기"),
+);
+const leftPanelToggleIcon = computed(() =>
+  isLeftPanelOpen.value ? panelLeftContractIcon : panelLeftExpandIcon,
+);
 const isScheduleVersionReviewActive = computed(
   () =>
     props.scheduleVersionReview.open &&
@@ -365,8 +383,11 @@ const activeVersionActionMenuVersion = computed(() =>
       null
     : null,
 );
+const effectiveLeftPanelWidth = computed(() =>
+  isLeftPanelOpen.value ? props.rowPanelWidth : 0,
+);
 const frameStyle = computed(() => ({
-  gridTemplateColumns: `${props.rowPanelWidth}px minmax(0, 1fr)`,
+  gridTemplateColumns: `${effectiveLeftPanelWidth.value}px minmax(0, 1fr)`,
 }));
 const shellStyle = computed(() => ({
   height: `${shellHeight.value}px`,
@@ -375,7 +396,7 @@ const shellStyle = computed(() => ({
   "--schedule-header-month-height": `${scaledHeaderMonthHeight.value}px`,
   "--schedule-header-week-height": `${scaledHeaderWeekHeight.value}px`,
   "--schedule-header-day-height": `${scaledHeaderDayHeight.value}px`,
-  "--schedule-row-panel-width": `${props.rowPanelWidth}px`,
+  "--schedule-row-panel-width": `${effectiveLeftPanelWidth.value}px`,
   "--schedule-chart-scrollbar-height": `${chartHorizontalScrollbarHeight.value}px`,
 }));
 
@@ -925,6 +946,10 @@ function handleRowPanelResizePointerUp() {
 }
 
 function startRowPanelResize(event: PointerEvent) {
+  if (props.compactView) {
+    return;
+  }
+
   if (event.button !== 0) {
     return;
   }
@@ -992,6 +1017,8 @@ onUnmounted(() => {
       'schedule-shell--resizing': rowPanelResizeState,
       'schedule-shell--readonly': readOnly,
       'schedule-shell--execution-progress': isExecutionProgressCompareEnabled,
+      'schedule-shell--compact': compactView,
+      'schedule-shell--left-panel-collapsed': !isLeftPanelOpen,
     }"
     :style="shellStyle"
   >
@@ -1003,6 +1030,23 @@ onUnmounted(() => {
     <section class="schedule-shell__surface" aria-label="공정표">
     <div class="schedule-shell__toolbar" aria-label="공정표 도구">
       <div ref="versionMenuRootRef" class="schedule-shell__version">
+        <button
+          v-if="showLeftPanelToggle"
+          type="button"
+          class="schedule-shell__left-panel-toggle"
+          :aria-label="leftPanelToggleLabel"
+          :aria-pressed="isLeftPanelOpen"
+          :title="leftPanelToggleLabel"
+          @click="emit('toggle-left-panel')"
+        >
+          <img
+            class="schedule-shell__left-panel-toggle-icon"
+            :src="leftPanelToggleIcon"
+            alt=""
+            aria-hidden="true"
+          />
+        </button>
+
         <div
           v-if="mainScheduleVersion"
           ref="pastMainMenuRootRef"
@@ -1201,6 +1245,9 @@ onUnmounted(() => {
         class="schedule-shell__schedule-actions"
         aria-label="공정표 작업"
       >
+        <!--
+          Temporarily hidden from the draft schedule UI.
+          Restore guide: docs/temporary-disabled-features/dashboard-and-schedule-import.md
         <button
           v-if="!isMainScheduleVersionSelected"
           type="button"
@@ -1209,6 +1256,7 @@ onUnmounted(() => {
         >
           공정표 불러오기
         </button>
+        -->
 
         <div ref="exportMenuRootRef" class="schedule-shell__export-menu-root">
           <button
@@ -1607,51 +1655,54 @@ onUnmounted(() => {
     </Teleport>
 
     <div class="schedule-shell__frame" :style="frameStyle">
-      <div class="schedule-shell__left-column">
-        <div class="schedule-shell__left-header">
-          <span class="schedule-shell__left-version-label">
-            {{ leftHeaderVersionLabel }}
-          </span>
-        </div>
+      <div class="schedule-shell__left-column" :aria-hidden="!isLeftPanelOpen">
+        <template v-if="isLeftPanelOpen">
+          <div class="schedule-shell__left-header">
+            <span class="schedule-shell__left-version-label">
+              {{ leftHeaderVersionLabel }}
+            </span>
+          </div>
 
-        <DesktopScheduleRowPanel
-          :rows="shellLayout.rows"
-          :read-only="readOnly"
-          :viewport-height="rowPanelViewportHeight"
-          :scroll-top="scrollTop"
-          :work-type-column-width="workTypeColumnWidth"
-          :hovered-row-id="hoveredRowId"
-          :selected-row-ids="selectedRowIds"
-          :editing-division-id="editingDivisionId"
-          :editing-work-type-id="editingWorkTypeId"
-          :editing-sub-work-type-id="editingSubWorkTypeId"
-          :create-division-footer-height="createDivisionFooterHeight"
-          :show-create-division-button="createDivisionFooterHeight > 0"
-          @scroll-top-change="handleRowPanelScroll"
-          @select-row="emit('select-row', $event)"
-          @start-division-rename="emit('start-division-rename', $event)"
-          @commit-division-rename="emit('commit-division-rename', $event)"
-          @cancel-division-rename="emit('cancel-division-rename')"
-          @start-work-type-rename="emit('start-work-type-rename', $event)"
-          @commit-work-type-rename="emit('commit-work-type-rename', $event)"
-          @cancel-work-type-rename="emit('cancel-work-type-rename')"
-          @start-sub-work-type-rename="emit('start-sub-work-type-rename', $event)"
-          @commit-sub-work-type-rename="emit('commit-sub-work-type-rename', $event)"
-          @cancel-sub-work-type-rename="emit('cancel-sub-work-type-rename')"
-          @create-division-reference="emit('create-division-reference')"
-          @reorder-divisions="emit('reorder-divisions', $event)"
-          @reorder-work-types="emit('reorder-work-types', $event)"
-          @reorder-sub-work-types="emit('reorder-sub-work-types', $event)"
-          @work-type-column-width-change="emit('work-type-column-width-change', $event)"
-          @header-context-menu="emit('header-context-menu', $event)"
-          @row-context-menu="emit('row-context-menu', $event)"
-          @readonly-edit-attempt="emit('readonly-edit-attempt')"
-        />
+          <DesktopScheduleRowPanel
+            :rows="shellLayout.rows"
+            :read-only="readOnly"
+            :viewport-height="rowPanelViewportHeight"
+            :scroll-top="scrollTop"
+            :work-type-column-width="workTypeColumnWidth"
+            :hovered-row-id="hoveredRowId"
+            :selected-row-ids="selectedRowIds"
+            :editing-division-id="editingDivisionId"
+            :editing-work-type-id="editingWorkTypeId"
+            :editing-sub-work-type-id="editingSubWorkTypeId"
+            :create-division-footer-height="createDivisionFooterHeight"
+            :show-create-division-button="createDivisionFooterHeight > 0"
+            @scroll-top-change="handleRowPanelScroll"
+            @select-row="emit('select-row', $event)"
+            @start-division-rename="emit('start-division-rename', $event)"
+            @commit-division-rename="emit('commit-division-rename', $event)"
+            @cancel-division-rename="emit('cancel-division-rename')"
+            @start-work-type-rename="emit('start-work-type-rename', $event)"
+            @commit-work-type-rename="emit('commit-work-type-rename', $event)"
+            @cancel-work-type-rename="emit('cancel-work-type-rename')"
+            @start-sub-work-type-rename="emit('start-sub-work-type-rename', $event)"
+            @commit-sub-work-type-rename="emit('commit-sub-work-type-rename', $event)"
+            @cancel-sub-work-type-rename="emit('cancel-sub-work-type-rename')"
+            @create-division-reference="emit('create-division-reference')"
+            @reorder-divisions="emit('reorder-divisions', $event)"
+            @reorder-work-types="emit('reorder-work-types', $event)"
+            @reorder-sub-work-types="emit('reorder-sub-work-types', $event)"
+            @work-type-column-width-change="emit('work-type-column-width-change', $event)"
+            @header-context-menu="emit('header-context-menu', $event)"
+            @row-context-menu="emit('row-context-menu', $event)"
+            @readonly-edit-attempt="emit('readonly-edit-attempt')"
+          />
 
-        <div class="schedule-shell__left-bottom-spacer" aria-hidden="true" />
+          <div class="schedule-shell__left-bottom-spacer" aria-hidden="true" />
+        </template>
       </div>
 
       <button
+        v-if="!compactView && isLeftPanelOpen"
         type="button"
         class="schedule-shell__left-resize-handle"
         aria-label="공정표 왼쪽 영역 너비 조절"

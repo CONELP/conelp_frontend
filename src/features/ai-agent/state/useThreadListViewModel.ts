@@ -9,7 +9,6 @@ export function useThreadListViewModel() {
   const store = useAiAgentStore();
 
   const threads = computed(() => store.threadsSorted);
-  const connectionStatus = computed(() => store.connectionStatus);
   const errors = computed(() => store.errors);
 
   function lastMessageOf(threadId: number) {
@@ -69,7 +68,6 @@ export function useThreadListViewModel() {
 
   return {
     threads,
-    connectionStatus,
     errors,
     lastMessageOf,
     botNameOf,

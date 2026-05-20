@@ -43,6 +43,13 @@ class AiAgentWsClient {
   connect(store: AiAgentStore): void {
     this.store = store;
     this.explicitClose = false;
+    if (
+      this.socket &&
+      (this.socket.readyState === WebSocket.OPEN ||
+        this.socket.readyState === WebSocket.CONNECTING)
+    ) {
+      return;
+    }
     this.openSocket();
   }
 
