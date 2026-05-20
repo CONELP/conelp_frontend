@@ -19,7 +19,7 @@ export function createDesktopSchedulePublicApi(deps: Record<string, any>) {
     draftResizeSession, endResizeSession, zoomScale, currentZoomIndex, maxZoomIndex, canZoomIn, canZoomOut, setZoomIndex, zoomIn, zoomOut,
     isAiVerificationModeActive, aiVerificationFlaggedItemIds, toggleAiVerificationMode, toggleAiVerificationFlag, runAiVerification,
     aiVerificationViolationDetailByItemId, aiVerificationFailedWorkTypeIds, aiVerificationStatus, aiVerificationErrorMessage,
-    patchLoadedWorkActualDates, copySelectedItems, pasteCopiedItemsToCanvasTarget,
+    patchLoadedWorkActualDates, copySelectedItems, cutSelectedItems, pasteCopiedItemsToCanvasTarget,
   } = deps;
 
   const load = reactive({
