@@ -154,7 +154,7 @@ export type ApiKeyScope = "READ_ONLY" | "READ_WRITE";
 export interface CreateApiKeyPayload {
   name: string;
   comId: string;
-  projectIds: string[];
+  projectId: string;
   scope: ApiKeyScope;
   expiresAt: string | null;
   allowedIps: string[] | null;
@@ -167,22 +167,23 @@ export interface CreateApiKeyResponse {
   keyPrefix: string;
   name: string;
   scope: ApiKeyScope;
-  projectIds: string[];
+  projectId: string;
   expiresAt: string | null;
 }
 
 export interface ApiKeyMasked {
-  apiKeyId: string;
+  id: string;
   keyPrefix: string;
   keyLast4: string;
   name: string;
-  comId: string;
+  comId?: string;
   scope: ApiKeyScope;
-  projectIds: string[];
+  projectId: string;
   expiresAt: string | null;
   allowedIps: string[] | null;
   rateLimit: number | null;
   lastUsedAt: string | null;
+  totalRequests?: number;
   revokedAt: string | null;
   createdAt: string;
 }

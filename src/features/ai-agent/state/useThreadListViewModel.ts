@@ -58,6 +58,12 @@ export function useThreadListViewModel() {
   async function refreshThreads() {
     try {
       const list = await chatThreadApi.list();
+      const apiIds = new Set(list.map((t) => t.threadId));
+      for (const existing of Array.from(store.threads.values())) {
+        if (!apiIds.has(existing.threadId)) {
+          store.removeThread(existing.threadId);
+        }
+      }
       for (const thread of list) {
         store.upsertThread(thread);
       }

@@ -391,7 +391,9 @@ export const useAiAgentStore = defineStore("ai-agent", () => {
   function handleWsEvent(env: WsEnvelope): void {
     switch (env.type) {
       case "thread.snapshot":
-        applySnapshot(env.payload as ThreadSnapshotPayload);
+        // REST `getThreadList` is the authoritative source for the thread list.
+        // WS snapshot can include threads from other projects (backend ignores X-Project-Id
+        // on the WS handshake), so it must not mutate the thread list here.
         break;
       case "message.created":
         appendMessage(

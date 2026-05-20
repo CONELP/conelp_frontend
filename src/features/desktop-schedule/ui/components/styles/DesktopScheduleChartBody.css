@@ -1116,3 +1116,35 @@
       calc(3px + var(--schedule-ai-glow, 0.55) * 3px)
       rgba(220, 38, 38, var(--schedule-ai-glow, 0.55));
 }
+
+.schedule-chart-body__ai-bubble {
+  position: absolute;
+  transform: translateX(-50%);
+  z-index: 30;
+  pointer-events: none;
+  filter: drop-shadow(0 6px 16px rgba(15, 23, 42, 0.18));
+}
+.schedule-chart-body__ai-bubble-arrow {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 12px;
+  height: 6px;
+  background: #fff;
+  clip-path: polygon(0 100%, 50% 0, 100% 100%);
+  border: 1px solid rgba(220, 38, 38, 0.95);
+  border-bottom: none;
+}
+.schedule-chart-body__ai-bubble-body {
+  background: #fff;
+  color: #7f1d1d;
+  font-size: 12px;
+  line-height: 1.45;
+  border: 1px solid rgba(220, 38, 38, 0.95);
+  border-radius: 8px;
+  padding: 8px 10px;
+  white-space: pre-wrap;
+  word-break: keep-all;
+  font-weight: 500;
+}

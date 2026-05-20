@@ -104,6 +104,10 @@ export function useDesktopScheduleCoreState(storedUiPreferences: DesktopSchedule
   );
   const isAiVerificationModeActive = ref(false);
   const aiVerificationFlaggedItemIds = ref<string[]>([]);
+  const aiVerificationViolationDetailByItemId = ref<Record<string, string>>({});
+  const aiVerificationFailedWorkTypeIds = ref<number[]>([]);
+  const aiVerificationStatus = ref<"idle" | "loading" | "success" | "error">("idle");
+  const aiVerificationErrorMessage = ref<string | null>(null);
   const excludedScheduleVersionIds = ref<Set<DesktopScheduleVersionId>>(new Set());
   const scheduleVersionReviewBaselineCache = ref<ScheduleVersionReviewBaselineCache | null>(null);
   const scheduleVersionReviewSummaryCache = ref<ScheduleVersionReviewSummaryCache | null>(null);
@@ -372,6 +376,10 @@ export function useDesktopScheduleCoreState(storedUiPreferences: DesktopSchedule
     scheduleImportDialogState,
     isAiVerificationModeActive,
     aiVerificationFlaggedItemIds,
+    aiVerificationViolationDetailByItemId,
+    aiVerificationFailedWorkTypeIds,
+    aiVerificationStatus,
+    aiVerificationErrorMessage,
     excludedScheduleVersionIds,
     scheduleVersionReviewBaselineCache,
     scheduleVersionReviewSummaryCache,

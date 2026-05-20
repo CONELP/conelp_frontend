@@ -7,12 +7,11 @@ import AdminButton from "@/shared/ui/admin/Button.vue";
 import AdminInput from "@/shared/ui/admin/Input.vue";
 import AdminLabel from "@/shared/ui/admin/Label.vue";
 import AdminSelect from "@/shared/ui/admin/Select.vue";
-import AdminCheckbox from "@/shared/ui/admin/Checkbox.vue";
 import AdminDialog from "@/shared/ui/admin/Dialog.vue";
 import ConfirmDialog from "@/shared/ui/admin/ConfirmDialog.vue";
-import { useCompanyManagement } from "@/features/system-admin/state/useCompanyManagement";
 import { useApiKeyManagement } from "@/features/system-admin/state/useApiKeyManagement";
 import { systemAdminApi } from "@/features/system-admin/services/system-admin.api";
+import { useSelectedProjectId } from "@/features/project-admin/_shared/state/useSelectedProjectId";
 import type {
   ApiKeyMasked,
   ApiKeyScope,
@@ -20,7 +19,7 @@ import type {
   CreateApiKeyPayload,
 } from "@/features/system-admin/model/system-admin.types";
 
-const { companies, loadCompanies } = useCompanyManagement();
+const { selectedProjectId } = useSelectedProjectId();
 const {
   apiKeys,
   isLoading,
@@ -33,56 +32,77 @@ const {
   clearIssuedKey,
 } = useApiKeyManagement();
 
+const projectCompanies = ref<CompanyToProject[]>([]);
+const isLoadingCompanies = ref(false);
 const selectedCompanyId = ref<string>("");
-const companyOptions = computed(() =>
-  companies.value.map((c) => ({ value: c.id, label: c.companyName })),
-);
 
-const companyProjects = ref<CompanyToProject[]>([]);
-const isLoadingProjects = ref(false);
-
-watch(selectedCompanyId, async (comId) => {
-  if (!comId) {
-    apiKeys.value = [];
-    companyProjects.value = [];
-    return;
-  }
-  await Promise.all([loadApiKeys(comId), loadCompanyProjects(comId)]);
-});
-
-async function loadCompanyProjects(comId: string) {
-  isLoadingProjects.value = true;
-  try {
-    companyProjects.value = await systemAdminApi.getCompanyToProjectList({ companyId: comId });
-  } catch (error) {
-    console.error("회사-프로젝트 매핑 조회 실패:", error);
-    companyProjects.value = [];
-  } finally {
-    isLoadingProjects.value = false;
-  }
-}
-
-const uniqueProjects = computed(() => {
-  const seen = new Map<string, { projectId: string; projectName: string }>();
-  for (const cp of companyProjects.value) {
-    if (!seen.has(cp.projectId)) {
-      seen.set(cp.projectId, { projectId: cp.projectId, projectName: cp.projectName });
+const uniqueCompanies = computed(() => {
+  const seen = new Map<string, { companyId: string; companyName: string }>();
+  for (const cp of projectCompanies.value) {
+    if (!seen.has(cp.companyId)) {
+      seen.set(cp.companyId, { companyId: cp.companyId, companyName: cp.companyName });
     }
   }
   return Array.from(seen.values());
 });
 
+const companyOptions = computed(() =>
+  uniqueCompanies.value.map((c) => ({ value: c.companyId, label: c.companyName })),
+);
+
+const projectCompanyIds = computed(() =>
+  uniqueCompanies.value.map((c) => c.companyId),
+);
+
+const filteredApiKeys = computed(() =>
+  selectedProjectId.value
+    ? apiKeys.value.filter((key) => key.projectId === selectedProjectId.value)
+    : [],
+);
+
+async function loadProjectCompanies(projectId: string) {
+  isLoadingCompanies.value = true;
+  try {
+    projectCompanies.value = await systemAdminApi.getCompanyToProjectList({ projectId });
+  } catch (error) {
+    console.error("프로젝트-회사 매핑 조회 실패:", error);
+    projectCompanies.value = [];
+  } finally {
+    isLoadingCompanies.value = false;
+  }
+}
+
+async function refreshForProject(projectId: string | null) {
+  apiKeys.value = [];
+  projectCompanies.value = [];
+  selectedCompanyId.value = "";
+  if (!projectId) return;
+  await loadProjectCompanies(projectId);
+  await loadApiKeys(projectCompanyIds.value);
+}
+
+onMounted(() => {
+  void refreshForProject(selectedProjectId.value);
+});
+
+watch(selectedProjectId, (next) => {
+  void refreshForProject(next);
+});
+
+watch(selectedCompanyId, (next) => {
+  if (!selectedProjectId.value) return;
+  void loadApiKeys(next ? [next] : projectCompanyIds.value);
+});
+
 const isCreateOpen = ref(false);
 const form = ref<{
   name: string;
-  projectIds: string[];
   scope: ApiKeyScope;
   expiresAt: string;
   allowedIps: string;
   rateLimit: string;
 }>({
   name: "",
-  projectIds: [],
   scope: "READ_ONLY",
   expiresAt: "",
   allowedIps: "",
@@ -92,7 +112,6 @@ const form = ref<{
 function resetForm() {
   form.value = {
     name: "",
-    projectIds: [],
     scope: "READ_ONLY",
     expiresAt: "",
     allowedIps: "",
@@ -101,18 +120,16 @@ function resetForm() {
 }
 
 function openCreate() {
+  if (!selectedProjectId.value) {
+    alert("프로젝트를 먼저 선택해주세요.");
+    return;
+  }
   if (!selectedCompanyId.value) {
     alert("회사를 먼저 선택해주세요.");
     return;
   }
   resetForm();
   isCreateOpen.value = true;
-}
-
-function toggleProjectId(id: string) {
-  form.value.projectIds = form.value.projectIds.includes(id)
-    ? form.value.projectIds.filter((v) => v !== id)
-    : [...form.value.projectIds, id];
 }
 
 const scopeOptions: { value: ApiKeyScope; label: string }[] = [
@@ -129,8 +146,8 @@ async function handleCreate() {
     alert("키 이름은 100자 이하여야 합니다.");
     return;
   }
-  if (form.value.projectIds.length === 0) {
-    alert("프로젝트를 1개 이상 선택해주세요.");
+  if (!selectedProjectId.value) {
+    alert("프로젝트가 선택되지 않았습니다.");
     return;
   }
   let expiresAt: string | null = null;
@@ -161,13 +178,13 @@ async function handleCreate() {
   const payload: CreateApiKeyPayload = {
     name: form.value.name.trim(),
     comId: selectedCompanyId.value,
-    projectIds: form.value.projectIds,
+    projectId: selectedProjectId.value,
     scope: form.value.scope,
     expiresAt,
     allowedIps,
     rateLimit,
   };
-  const ok = await createApiKey(payload);
+  const ok = await createApiKey(payload, projectCompanyIds.value);
   if (ok) {
     isCreateOpen.value = false;
     resetForm();
@@ -193,19 +210,10 @@ function openRevokeDialog(key: ApiKeyMasked) {
 }
 
 async function confirmRevoke() {
-  if (revokeTarget.value && selectedCompanyId.value) {
-    await deleteApiKey(revokeTarget.value.apiKeyId, selectedCompanyId.value);
+  if (revokeTarget.value && selectedProjectId.value) {
+    await deleteApiKey(selectedProjectId.value, projectCompanyIds.value);
   }
   revokeTarget.value = null;
-}
-
-function projectNamesOf(key: ApiKeyMasked): string {
-  if (key.projectIds.length === 0) return "-";
-  const names = key.projectIds.map((pid) => {
-    const match = companyProjects.value.find((cp) => cp.projectId === pid);
-    return match?.projectName ?? pid.slice(0, 8);
-  });
-  return names.join(", ");
 }
 
 function formatDateTime(iso: string | null): string {
@@ -214,10 +222,6 @@ function formatDateTime(iso: string | null): string {
   if (Number.isNaN(d.getTime())) return iso;
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
-
-onMounted(() => {
-  void loadCompanies();
-});
 </script>
 
 <template>
@@ -225,13 +229,23 @@ onMounted(() => {
     <div class="apikey-area__head">
       <div class="apikey-area__company">
         <AdminLabel>회사</AdminLabel>
+        <p v-if="!selectedProjectId" class="apikey-area__hint">프로젝트를 선택해주세요.</p>
+        <p v-else-if="isLoadingCompanies" class="apikey-area__hint">로딩 중...</p>
+        <p v-else-if="uniqueCompanies.length === 0" class="apikey-area__hint">
+          현재 프로젝트에 매핑된 회사가 없습니다.
+        </p>
         <AdminSelect
+          v-else
           v-model="selectedCompanyId"
           :options="companyOptions"
           placeholder="회사 선택"
         />
       </div>
-      <AdminButton :disabled="!selectedCompanyId" @click="openCreate">API 키 발급</AdminButton>
+      <AdminButton
+        :disabled="!selectedProjectId || !selectedCompanyId"
+        @click="openCreate"
+        >API 키 발급</AdminButton
+      >
     </div>
 
     <div class="apikey-area__table-wrap">
@@ -241,7 +255,6 @@ onMounted(() => {
             <th class="apikey-area__th">이름</th>
             <th class="apikey-area__th">키 (마스킹)</th>
             <th class="apikey-area__th">Scope</th>
-            <th class="apikey-area__th">프로젝트</th>
             <th class="apikey-area__th">만료</th>
             <th class="apikey-area__th">마지막 사용</th>
             <th class="apikey-area__th">상태</th>
@@ -249,22 +262,22 @@ onMounted(() => {
           </tr>
         </thead>
         <tbody>
-          <tr v-if="!selectedCompanyId">
-            <td class="apikey-area__td apikey-area__td--empty" colspan="8">
-              회사를 선택해주세요.
+          <tr v-if="!selectedProjectId">
+            <td class="apikey-area__td apikey-area__td--empty" colspan="7">
+              프로젝트를 선택해주세요.
             </td>
           </tr>
           <tr v-else-if="isLoading">
-            <td class="apikey-area__td apikey-area__td--empty" colspan="8">로딩 중...</td>
+            <td class="apikey-area__td apikey-area__td--empty" colspan="7">로딩 중...</td>
           </tr>
-          <tr v-else-if="apiKeys.length === 0">
-            <td class="apikey-area__td apikey-area__td--empty" colspan="8">
-              발급된 API 키가 없습니다.
+          <tr v-else-if="filteredApiKeys.length === 0">
+            <td class="apikey-area__td apikey-area__td--empty" colspan="7">
+              현재 프로젝트에서 발급된 API 키가 없습니다.
             </td>
           </tr>
           <tr
-            v-for="key in apiKeys"
-            :key="key.apiKeyId"
+            v-for="key in filteredApiKeys"
+            :key="key.id"
             :class="{ 'apikey-area__row--revoked': !!key.revokedAt }"
           >
             <td class="apikey-area__td apikey-area__td--name">{{ key.name }}</td>
@@ -279,7 +292,6 @@ onMounted(() => {
                 {{ key.scope }}
               </span>
             </td>
-            <td class="apikey-area__td apikey-area__td--projects">{{ projectNamesOf(key) }}</td>
             <td class="apikey-area__td apikey-area__td--small">
               {{ key.expiresAt ? formatDateTime(key.expiresAt) : "영구" }}
             </td>
@@ -312,7 +324,6 @@ onMounted(() => {
       </table>
     </div>
 
-    <!-- 발급 Dialog -->
     <AdminDialog
       :open="isCreateOpen"
       title="API 키 발급"
@@ -323,28 +334,6 @@ onMounted(() => {
         <div class="apikey-area__field">
           <AdminLabel for="apikey-name">이름 *</AdminLabel>
           <AdminInput id="apikey-name" v-model="form.name" placeholder="예: ai-agent-prod" />
-        </div>
-
-        <div class="apikey-area__field">
-          <AdminLabel>프로젝트 *</AdminLabel>
-          <p class="apikey-area__field-hint">이 회사가 매핑된 프로젝트만 노출됩니다.</p>
-          <div class="apikey-area__check-list">
-            <p v-if="isLoadingProjects" class="apikey-area__hint">로딩 중...</p>
-            <p v-else-if="uniqueProjects.length === 0" class="apikey-area__hint">
-              매핑된 프로젝트가 없습니다.
-            </p>
-            <label
-              v-for="proj in uniqueProjects"
-              :key="proj.projectId"
-              class="apikey-area__check"
-            >
-              <AdminCheckbox
-                :model-value="form.projectIds.includes(proj.projectId)"
-                @update:model-value="toggleProjectId(proj.projectId)"
-              />
-              <span>{{ proj.projectName }}</span>
-            </label>
-          </div>
         </div>
 
         <div class="apikey-area__field">
@@ -385,7 +374,6 @@ onMounted(() => {
       </template>
     </AdminDialog>
 
-    <!-- 평문 키 1회 노출 -->
     <AdminDialog
       :open="issuedKey != null"
       title="API 키 발급 완료"
@@ -483,14 +471,6 @@ onMounted(() => {
   font-family: ui-monospace, SFMono-Regular, monospace;
   font-size: 12px;
 }
-.apikey-area__td--projects {
-  max-width: 240px;
-  font-size: 12px;
-  color: var(--ink-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .apikey-area__td--small {
   font-size: 12px;
 }
@@ -574,23 +554,6 @@ onMounted(() => {
   margin: 0;
   font-size: 11px;
   color: var(--ink-faint);
-}
-.apikey-area__check-list {
-  border: 1px solid var(--outline-soft);
-  border-radius: 8px;
-  padding: 8px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-height: 200px;
-  overflow-y: auto;
-}
-.apikey-area__check {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  cursor: pointer;
 }
 .apikey-area__hint {
   margin: 0;

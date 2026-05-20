@@ -29,7 +29,6 @@ const menuGroups: MenuGroup[] = [
       { label: "사용자/회사 관리", to: "/system-admin/global/user-company" },
       { label: "역할 관리", to: "/system-admin/global/role" },
       { label: "표준 데이터", to: "/system-admin/global/standard" },
-      { label: "API 키", to: "/system-admin/global/api-key" },
     ],
   },
   {
@@ -42,6 +41,8 @@ const menuGroups: MenuGroup[] = [
       { label: "작업일보 설정", to: "/system-admin/project/daily-report" },
       { label: "일괄 배포", to: "/system-admin/project/bulk-deployment" },
       { label: "홈페이지 설정", to: "/system-admin/project/homepage-setting" },
+      { label: "AI 공정표 검증", to: "/system-admin/project/schedule-validation" },
+      { label: "API 키", to: "/system-admin/project/api-key" },
     ],
   },
 ];
