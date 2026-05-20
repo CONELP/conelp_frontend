@@ -172,17 +172,18 @@ export interface CreateApiKeyResponse {
 }
 
 export interface ApiKeyMasked {
-  apiKeyId: string;
+  id: string;
   keyPrefix: string;
   keyLast4: string;
   name: string;
-  comId: string;
+  comId?: string;
   scope: ApiKeyScope;
   projectId: string;
   expiresAt: string | null;
   allowedIps: string[] | null;
   rateLimit: number | null;
   lastUsedAt: string | null;
+  totalRequests?: number;
   revokedAt: string | null;
   createdAt: string;
 }

@@ -14,14 +14,17 @@ export function useApiKeyManagement() {
   const isDeleting = ref(false);
   const issuedKey = ref<CreateApiKeyResponse | null>(null);
 
-  const loadApiKeys = async (comId: string) => {
-    if (!comId) {
+  const loadApiKeys = async (comIds: string[]) => {
+    if (comIds.length === 0) {
       apiKeys.value = [];
       return;
     }
     isLoading.value = true;
     try {
-      apiKeys.value = await systemAdminApi.getApiKeyList(comId);
+      const results = await Promise.all(
+        comIds.map((comId) => systemAdminApi.getApiKeyList(comId)),
+      );
+      apiKeys.value = results.flat();
     } catch (error: unknown) {
       console.error("API 키 목록 조회 실패:", error);
       alert((error as Error).message);
@@ -31,13 +34,16 @@ export function useApiKeyManagement() {
     }
   };
 
-  const createApiKey = async (payload: CreateApiKeyPayload): Promise<boolean> => {
+  const createApiKey = async (
+    payload: CreateApiKeyPayload,
+    refreshComIds: string[],
+  ): Promise<boolean> => {
     if (isCreating.value) return false;
     isCreating.value = true;
     try {
       const res = await systemAdminApi.createApiKey(payload);
       issuedKey.value = res;
-      await loadApiKeys(payload.comId);
+      await loadApiKeys(refreshComIds);
       return true;
     } catch (error: unknown) {
       console.error("API 키 생성 실패:", error);
@@ -48,12 +54,12 @@ export function useApiKeyManagement() {
     }
   };
 
-  const deleteApiKey = async (projectId: string, comId: string) => {
+  const deleteApiKey = async (projectId: string, refreshComIds: string[]) => {
     if (isDeleting.value) return;
     isDeleting.value = true;
     try {
       await systemAdminApi.deleteApiKey(projectId);
-      await loadApiKeys(comId);
+      await loadApiKeys(refreshComIds);
     } catch (error: unknown) {
       console.error("API 키 폐기 실패:", error);
       alert((error as Error).message);

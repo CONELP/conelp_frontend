@@ -50,6 +50,10 @@ const companyOptions = computed(() =>
   uniqueCompanies.value.map((c) => ({ value: c.companyId, label: c.companyName })),
 );
 
+const projectCompanyIds = computed(() =>
+  uniqueCompanies.value.map((c) => c.companyId),
+);
+
 const filteredApiKeys = computed(() =>
   selectedProjectId.value
     ? apiKeys.value.filter((key) => key.projectId === selectedProjectId.value)
@@ -74,6 +78,7 @@ async function refreshForProject(projectId: string | null) {
   selectedCompanyId.value = "";
   if (!projectId) return;
   await loadProjectCompanies(projectId);
+  await loadApiKeys(projectCompanyIds.value);
 }
 
 onMounted(() => {
@@ -84,12 +89,9 @@ watch(selectedProjectId, (next) => {
   void refreshForProject(next);
 });
 
-watch(selectedCompanyId, async (comId) => {
-  if (!comId) {
-    apiKeys.value = [];
-    return;
-  }
-  await loadApiKeys(comId);
+watch(selectedCompanyId, (next) => {
+  if (!selectedProjectId.value) return;
+  void loadApiKeys(next ? [next] : projectCompanyIds.value);
 });
 
 const isCreateOpen = ref(false);
@@ -182,7 +184,7 @@ async function handleCreate() {
     allowedIps,
     rateLimit,
   };
-  const ok = await createApiKey(payload);
+  const ok = await createApiKey(payload, projectCompanyIds.value);
   if (ok) {
     isCreateOpen.value = false;
     resetForm();
@@ -208,8 +210,8 @@ function openRevokeDialog(key: ApiKeyMasked) {
 }
 
 async function confirmRevoke() {
-  if (revokeTarget.value && selectedProjectId.value && selectedCompanyId.value) {
-    await deleteApiKey(selectedProjectId.value, selectedCompanyId.value);
+  if (revokeTarget.value && selectedProjectId.value) {
+    await deleteApiKey(selectedProjectId.value, projectCompanyIds.value);
   }
   revokeTarget.value = null;
 }
@@ -265,11 +267,6 @@ function formatDateTime(iso: string | null): string {
               프로젝트를 선택해주세요.
             </td>
           </tr>
-          <tr v-else-if="!selectedCompanyId">
-            <td class="apikey-area__td apikey-area__td--empty" colspan="7">
-              회사를 선택해주세요.
-            </td>
-          </tr>
           <tr v-else-if="isLoading">
             <td class="apikey-area__td apikey-area__td--empty" colspan="7">로딩 중...</td>
           </tr>
@@ -280,7 +277,7 @@ function formatDateTime(iso: string | null): string {
           </tr>
           <tr
             v-for="key in filteredApiKeys"
-            :key="key.apiKeyId"
+            :key="key.id"
             :class="{ 'apikey-area__row--revoked': !!key.revokedAt }"
           >
             <td class="apikey-area__td apikey-area__td--name">{{ key.name }}</td>
