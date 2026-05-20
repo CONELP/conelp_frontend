@@ -48,11 +48,11 @@ export function useApiKeyManagement() {
     }
   };
 
-  const deleteApiKey = async (apiKeyId: string, comId: string) => {
+  const deleteApiKey = async (projectId: string, comId: string) => {
     if (isDeleting.value) return;
     isDeleting.value = true;
     try {
-      await systemAdminApi.deleteApiKey(apiKeyId);
+      await systemAdminApi.deleteApiKey(projectId);
       await loadApiKeys(comId);
     } catch (error: unknown) {
       console.error("API 키 폐기 실패:", error);

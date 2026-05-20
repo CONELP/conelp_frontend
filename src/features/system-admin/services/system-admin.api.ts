@@ -172,7 +172,7 @@ export const systemAdminApi = {
     const { data } = await axiosClient.get<ApiKeyMasked>(`/super/getApiKey/${apiKeyId}`);
     return data;
   },
-  async deleteApiKey(apiKeyId: string): Promise<void> {
-    await axiosClient.delete(`/super/deleteApiKey/${apiKeyId}`);
+  async deleteApiKey(projectId: string): Promise<void> {
+    await axiosClient.delete(`/super/deleteApiKey/${projectId}`);
   },
 };

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import PageContainer from "@/features/project-admin/_shared/ui/components/PageContainer.vue";
 import AreaCard from "@/features/project-admin/_shared/ui/components/AreaCard.vue";
-import ApiKeyManagementArea from "@/features/system-admin/ui/components/ApiKeyManagementArea.vue";
+import ApiKeyManagementArea from "@/features/project-admin/api-key/ui/components/ApiKeyManagementArea.vue";
 </script>
 
 <template>

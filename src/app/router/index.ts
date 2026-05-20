@@ -27,7 +27,8 @@ const GlobalUserCompanyPage = () =>
 const GlobalRolePage = () => import("@/features/system-admin/ui/pages/GlobalRolePage.vue");
 const GlobalStandardPage = () =>
   import("@/features/system-admin/ui/pages/GlobalStandardPage.vue");
-const GlobalApiKeyPage = () => import("@/features/system-admin/ui/pages/GlobalApiKeyPage.vue");
+const ApiKeyPage = () =>
+  import("@/features/project-admin/api-key/ui/ApiKeyPage.vue");
 const DocumentSettingPage = () =>
   import("@/features/project-admin/document-setting/ui/DocumentSettingPage.vue");
 const BulkDeploymentPage = () =>
@@ -174,11 +175,6 @@ export const router = createRouter({
           component: GlobalStandardPage,
         },
         {
-          path: "global/api-key",
-          name: "system-admin-global-api-key",
-          component: GlobalApiKeyPage,
-        },
-        {
           path: "project/master-data",
           name: "system-admin-project-master-data",
           component: MasterDataPage,
@@ -218,6 +214,11 @@ export const router = createRouter({
           path: "project/schedule-validation",
           name: "system-admin-project-schedule-validation",
           component: ScheduleValidationPage,
+        },
+        {
+          path: "project/api-key",
+          name: "system-admin-project-api-key",
+          component: ApiKeyPage,
         },
       ],
     },
