@@ -1,17 +1,40 @@
 <template>
-  <header class="desktop-app-header" v-bind="attrs">
+  <header
+    ref="headerRef"
+    class="desktop-app-header"
+    :class="{
+      'desktop-app-header--mobile-menu-open': isMobileMenuOpen,
+    }"
+    v-bind="attrs"
+  >
     <div class="desktop-app-header__shell">
       <div class="desktop-app-header__top">
         <RouterLink
           class="desktop-app-header__brand"
-          to="/dashboard"
-          aria-label="대시보드로 이동"
+          to="/schedule"
+          aria-label="공정표로 이동"
+          @click="closeMobileMenu"
         >
           <img class="desktop-app-header__logo" :src="logoSrc" alt="CONELP" />
         </RouterLink>
 
+        <button
+          class="desktop-app-header__mobile-toggle"
+          type="button"
+          :aria-expanded="isMobileMenuOpen"
+          :aria-label="isMobileMenuOpen ? '메뉴 닫기' : '메뉴 열기'"
+          @click="toggleMobileMenu"
+        >
+          <img
+            class="desktop-app-header__mobile-toggle-icon"
+            :src="mobileMenuIcon"
+            alt=""
+            aria-hidden="true"
+          />
+        </button>
+
         <div class="desktop-app-header__controls">
-          <ProjectPicker />
+          <ProjectPicker class="desktop-app-header__project-picker" />
 
           <div ref="settingsRef" class="desktop-app-header__settings-wrap">
             <button
@@ -66,6 +89,7 @@
           class="desktop-app-header__nav-link"
           :class="{ 'desktop-app-header__nav-link--active': isActive(item.id) }"
           :to="item.to"
+          @click="closeMobileMenu"
         >
           {{ item.label }}
         </RouterLink>
@@ -75,6 +99,8 @@
 </template>
 
 <script setup lang="ts">
+import dismissIcon from "@fluentui/svg-icons/icons/dismiss_20_regular.svg";
+import navigationIcon from "@fluentui/svg-icons/icons/navigation_20_regular.svg";
 import settingsIcon from "@fluentui/svg-icons/icons/settings_20_regular.svg";
 import { computed, onMounted, onUnmounted, ref, useAttrs } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
@@ -90,10 +116,15 @@ const attrs = useAttrs();
 const authStore = useAuthStore();
 
 const isMenuOpen = ref(false);
+const isMobileMenuOpen = ref(false);
 const isLoggingOut = ref(false);
+const headerRef = ref<HTMLElement | null>(null);
 const settingsRef = ref<HTMLElement | null>(null);
 
 const userLabel = computed(() => authStore.user?.userName ?? "");
+const mobileMenuIcon = computed(() =>
+  isMobileMenuOpen.value ? dismissIcon : navigationIcon,
+);
 
 function toggleMenu() {
   isMenuOpen.value = !isMenuOpen.value;
@@ -103,12 +134,22 @@ function closeMenu() {
   isMenuOpen.value = false;
 }
 
+function toggleMobileMenu() {
+  isMobileMenuOpen.value = !isMobileMenuOpen.value;
+  closeMenu();
+}
+
+function closeMobileMenu() {
+  isMobileMenuOpen.value = false;
+  closeMenu();
+}
+
 async function handleLogout() {
   if (isLoggingOut.value) return;
   isLoggingOut.value = true;
   try {
     await authStore.logout();
-    closeMenu();
+    closeMobileMenu();
     await router.push("/login");
   } finally {
     isLoggingOut.value = false;
@@ -116,15 +157,24 @@ async function handleLogout() {
 }
 
 function handleDocumentPointerDown(event: PointerEvent) {
-  if (!isMenuOpen.value) return;
+  if (!isMenuOpen.value && !isMobileMenuOpen.value) return;
   const target = event.target;
   if (!(target instanceof Node)) return;
-  if (settingsRef.value?.contains(target)) return;
-  closeMenu();
+
+  if (headerRef.value?.contains(target)) {
+    if (!settingsRef.value?.contains(target)) {
+      closeMenu();
+    }
+    return;
+  }
+
+  closeMobileMenu();
 }
 
 function handleDocumentKeydown(event: KeyboardEvent) {
-  if (event.key === "Escape") closeMenu();
+  if (event.key === "Escape") {
+    closeMobileMenu();
+  }
 }
 
 onMounted(() => {
@@ -140,11 +190,15 @@ onUnmounted(() => {
 });
 
 const navItems: Array<{ id: DesktopHeaderSection; label: string; to: string }> = [
+  /*
+   * Temporarily hidden from the top tab UI.
+   * Restore guide: docs/temporary-disabled-features/dashboard-and-schedule-import.md
   {
     id: "dashboard",
     label: "대시보드",
     to: "/dashboard",
   },
+   */
   {
     id: "schedule",
     label: "공정표",
@@ -166,11 +220,11 @@ function isActive(section: DesktopHeaderSection) {
   const currentPath = route.path;
 
   if (section === "dashboard") {
-    return currentPath === "/" || currentPath.startsWith("/dashboard");
+    return currentPath.startsWith("/dashboard");
   }
 
   if (section === "schedule") {
-    return currentPath.startsWith("/schedule");
+    return currentPath === "/" || currentPath.startsWith("/schedule");
   }
 
   if (section === "ai-agent") {

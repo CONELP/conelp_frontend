@@ -35,13 +35,11 @@ interface UploadedImageFileEntry {
 interface MirDocumentSubmissionDraft {
   createRequest: CreateMirDocumentRequest | null;
   updateRequest: UpdateMirDataRequest | null;
-  active: boolean;
 }
 
 interface CatDocumentSubmissionDraft {
   createRequest: CreateCatDocumentRequest | null;
   updateRequest: UpdateCatDataRequest | null;
-  active: boolean;
 }
 
 interface ConcreteDeliveryUploadBatchDraft {
@@ -218,6 +216,11 @@ export const useDocumentConversionDemoStore = defineStore(
       clearMirResult();
     }
 
+    function resetUploadAfterFailure(errorMessage: string) {
+      clearUpload();
+      mirAnalysisErrorMessage.value = errorMessage;
+    }
+
     function setMirUploadApplication(value: string) {
       mirUploadApplication.value = value;
       clearMirResult();
@@ -308,6 +311,7 @@ export const useDocumentConversionDemoStore = defineStore(
       setConcreteDeliveryUploadBatches,
       setConcreteStrengthUploadLots,
       clearUpload,
+      resetUploadAfterFailure,
       setMirUploadApplication,
       setMirUploadWorkTypeName,
       selectMirUploadWorkType,

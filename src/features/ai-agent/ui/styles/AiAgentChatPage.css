@@ -8,23 +8,43 @@
 .ai-agent-chat {
   display: flex;
   flex-direction: column;
-  width: min(100%, var(--page-max-width));
+  width: min(calc(100% - 3rem), 76rem);
   height: 75vh;
   min-height: 32rem;
-  margin: 1.2rem auto;
+  margin: 1.8rem auto 2.4rem;
   border: 1px solid var(--outline-soft);
-  border-radius: var(--radius-panel);
+  border-radius: 1.3rem;
   background: var(--surface-1);
-  box-shadow: var(--shadow-soft);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.03);
   overflow: hidden;
 }
 
 @media (max-width: 768px) {
+  .ai-agent-chat-frame {
+    height: 100vh;
+    height: 100svh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
   .ai-agent-chat {
-    height: calc(100vh - 9rem);
+    flex: 1 1 auto;
+    width: 100%;
+    height: auto;
+    min-height: 0;
     margin: 0;
     border-radius: 0;
     border: none;
     box-shadow: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ai-agent-chat {
+    opacity: 0;
+    animation: surface-rise var(--motion-page-duration) var(--motion-page-ease)
+      forwards;
+    animation-delay: 70ms;
+    will-change: transform, opacity;
   }
 }

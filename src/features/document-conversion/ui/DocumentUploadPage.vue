@@ -176,84 +176,16 @@
           <label class="upload-field">
             <span class="upload-field__label">공종명</span>
             <span class="upload-field__control">
-              <input
-                :value="mirUploadWorkTypeName"
-                class="upload-field__input"
-                type="text"
-                autocomplete="off"
+              <WorkTypeTypeaheadInput
+                :model-value="mirUploadWorkTypeName"
+                variant="upload"
                 :placeholder="workContextHint.workTypeName"
-                role="combobox"
-                :aria-expanded="isWorkTypeSuggestionListOpen"
-                aria-autocomplete="list"
-                :aria-activedescendant="
-                  highlightedWorkTypeSuggestionIndex >= 0 &&
-                  workTypeSuggestions[highlightedWorkTypeSuggestionIndex]
-                    ? `upload-work-type-option-${workTypeSuggestions[highlightedWorkTypeSuggestionIndex]?.id}`
-                    : undefined
-                "
-                @input="handleWorkTypeNameInput"
-                @keydown.down.prevent="moveHighlightedWorkTypeSuggestion(1)"
-                @keydown.up.prevent="moveHighlightedWorkTypeSuggestion(-1)"
-                @keydown.enter="handleWorkTypeSuggestionEnter"
-                @keydown.esc.prevent="closeWorkTypeSuggestionList"
-                @focus="openWorkTypeSuggestionList"
-                @blur="scheduleCloseWorkTypeSuggestionList"
+                :selected-id="mirUploadWorkTypeId"
+                :load-suggestions="loadWorkTypeSuggestions"
+                option-id-prefix="upload-work-type-option"
+                @update:model-value="updateMirUploadWorkTypeName"
+                @select="selectWorkTypeSuggestion"
               />
-
-              <Transition name="upload-typeahead">
-                <div
-                  v-if="isWorkTypeSuggestionListOpen"
-                  class="upload-typeahead"
-                  role="listbox"
-                  aria-label="공종명 후보"
-                  @mousedown.prevent
-                >
-                  <p
-                    v-if="isWorkTypeSuggestionsLoading"
-                    class="upload-typeahead__state"
-                  >
-                    불러오는 중
-                  </p>
-
-                  <p
-                    v-else-if="workTypeSuggestionsErrorMessage"
-                    class="upload-typeahead__state"
-                  >
-                    {{ workTypeSuggestionsErrorMessage }}
-                  </p>
-
-                  <template v-else-if="workTypeSuggestions.length > 0">
-                    <button
-                      v-for="(suggestion, suggestionIndex) in workTypeSuggestions"
-                      :key="suggestion.id"
-                      :id="`upload-work-type-option-${suggestion.id}`"
-                      class="upload-typeahead__option"
-                      :class="{
-                        'upload-typeahead__option--highlighted':
-                          highlightedWorkTypeSuggestionIndex === suggestionIndex,
-                      }"
-                      type="button"
-                      role="option"
-                      :aria-selected="
-                        highlightedWorkTypeSuggestionIndex === suggestionIndex
-                      "
-                      @mouseenter="
-                        setHighlightedWorkTypeSuggestionIndex(suggestionIndex)
-                      "
-                      @click="selectWorkTypeSuggestion(suggestion)"
-                    >
-                      {{ suggestion.name }}
-                    </button>
-                  </template>
-
-                  <p
-                    v-else-if="mirUploadWorkTypeName.trim() && mirUploadWorkTypeId === null"
-                    class="upload-typeahead__state"
-                  >
-                    매칭되는 공종명이 없어요
-                  </p>
-                </div>
-              </Transition>
             </span>
           </label>
 
@@ -743,9 +675,11 @@ import dismissIcon from "@fluentui/svg-icons/icons/dismiss_16_regular.svg";
 import uploadIcon from "@fluentui/svg-icons/icons/add_24_regular.svg";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
+import { materialInspectionRequestApi } from "@/features/document-conversion/api/material-inspection-request.api";
 import type { UploadSampleFile } from "@/features/document-conversion/model/document-conversion-demo.types";
 import { useDocumentUploadDemoViewModel } from "@/features/document-conversion/state/useDocumentUploadDemoViewModel";
 import { analyticsClient } from "@/shared/analytics/analytics-stub";
+import WorkTypeTypeaheadInput from "@/shared/ui/WorkTypeTypeaheadInput.vue";
 
 type UploadFileDropPlacement = "before" | "after";
 type StrengthUploadSectionId = "sevenDay" | "twentyEightDay";
@@ -770,11 +704,6 @@ const {
   mirUploadWorkTypeName,
   mirUploadWorkTypeId,
   workContextHint,
-  workTypeSuggestions,
-  highlightedWorkTypeSuggestionIndex,
-  isWorkTypeSuggestionsLoading,
-  workTypeSuggestionsErrorMessage,
-  isWorkTypeSuggestionListOpen,
   requiresUpload,
   uploadedFiles,
   linkedConcreteDeliveryDocumentOptions,
@@ -790,12 +719,6 @@ const {
   selectLinkedConcreteDeliveryDocument,
   selectUploadDocument,
   updateMirUploadWorkTypeName,
-  moveHighlightedWorkTypeSuggestion,
-  handleWorkTypeSuggestionEnter,
-  closeWorkTypeSuggestionList,
-  setHighlightedWorkTypeSuggestionIndex,
-  openWorkTypeSuggestionList,
-  scheduleCloseWorkTypeSuggestionList,
   selectWorkTypeSuggestion,
 } = useDocumentUploadDemoViewModel();
 const router = useRouter();
@@ -923,10 +846,8 @@ function openFilePicker(
   fileInput.value?.click();
 }
 
-function handleWorkTypeNameInput(event: Event) {
-  const input = event.target as HTMLInputElement | null;
-
-  updateMirUploadWorkTypeName(input?.value ?? "");
+function loadWorkTypeSuggestions(query: string) {
+  return materialInspectionRequestApi.getWorkTypeListByName(query);
 }
 
 function handleFileSelection(event: Event) {

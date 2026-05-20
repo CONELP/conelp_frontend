@@ -3,16 +3,6 @@
     <DesktopAppHeader class="selection-page__desktop-header" />
 
     <main class="selection-page">
-      <header class="selection-header">
-        <div class="selection-header__inner">
-          <img class="selection-header__logo" :src="logoSrc" alt="CONELP" />
-
-          <button class="selection-header__menu" type="button" aria-label="메뉴 열기">
-            <img class="selection-header__menu-icon" :src="menuIcon" alt="" aria-hidden="true" />
-          </button>
-        </div>
-      </header>
-
       <div class="selection-layout">
         <section class="selection-main">
           <section class="selection-shell selection-intro">
@@ -117,7 +107,6 @@
 import { RouterLink, useRouter } from "vue-router";
 import documentsIcon from "@fluentui/svg-icons/icons/chevron_right_20_regular.svg";
 import documentIcon from "@fluentui/svg-icons/icons/document_20_regular.svg";
-import menuIcon from "@fluentui/svg-icons/icons/text_align_justify_24_regular.svg";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
 import { useGeneratedDocumentsDemoViewModel } from "@/features/document-conversion/state/useGeneratedDocumentsDemoViewModel";
@@ -175,8 +164,6 @@ function handleSelectDocument(type: string) {
     query: { documentType: type },
   });
 }
-
-const logoSrc = new URL("../../../../conelp_logo.png", import.meta.url).href;
 </script>
 
 <style scoped src="./styles/DocumentSelectionPage.css"></style>

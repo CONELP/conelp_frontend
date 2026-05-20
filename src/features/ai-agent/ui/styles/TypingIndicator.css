@@ -13,7 +13,7 @@
   padding: 0 0.4rem;
   color: var(--primary);
   font-size: 0.78rem;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .typing-indicator__sender-icon {
@@ -22,19 +22,17 @@
   justify-content: center;
   width: 1rem;
   height: 1rem;
+  border: 1px solid var(--primary-outline);
   border-radius: var(--radius-pill);
-  background: linear-gradient(
-    135deg,
-    var(--primary-gradient-start),
-    var(--primary-gradient-end)
-  );
-  color: #fff;
+  background: rgba(30, 24, 136, 0.06);
+  color: var(--primary);
   font-size: 0.65rem;
+  font-weight: 800;
 }
 
 .typing-indicator__sender-suffix {
   color: var(--ink-faint);
-  font-weight: 500;
+  font-weight: 650;
 }
 
 .typing-indicator__body {
@@ -42,17 +40,10 @@
   align-items: center;
   gap: 0.32rem;
   padding: 0.75rem 0.95rem;
-  border-radius: 18px;
-  border-bottom-left-radius: 6px;
-  background:
-    linear-gradient(var(--surface-1), var(--surface-1)) padding-box,
-    linear-gradient(
-      135deg,
-      var(--primary-gradient-start),
-      var(--primary-gradient-end)
-    ) border-box;
-  border: 1.5px solid transparent;
-  box-shadow: 0 4px 14px var(--primary-glow);
+  border: 1px solid var(--primary-outline);
+  border-radius: 0.8rem;
+  border-bottom-left-radius: 0.3rem;
+  background: #fff;
 }
 
 .typing-indicator__dot {

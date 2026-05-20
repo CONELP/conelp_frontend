@@ -97,13 +97,26 @@
 }
 
 .desktop-schedule-page__daily-report-panel {
+  position: relative;
   display: flex;
+  flex-direction: column;
   grid-column: 3;
   grid-row: 2;
   min-width: 0;
   min-height: 0;
   align-self: stretch;
   overflow: hidden;
+}
+
+.desktop-schedule-page__daily-report-mobile-header {
+  display: none;
+}
+
+.desktop-schedule-page__daily-report-editor {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
 }
 
 .desktop-schedule-page__shell--panel-resizing,
@@ -132,6 +145,16 @@
 
 .desktop-schedule-daily-report-splitter-enter-from,
 .desktop-schedule-daily-report-splitter-leave-to {
+  opacity: 0;
+}
+
+.desktop-schedule-daily-report-backdrop-enter-active,
+.desktop-schedule-daily-report-backdrop-leave-active {
+  transition: opacity 180ms ease;
+}
+
+.desktop-schedule-daily-report-backdrop-enter-from,
+.desktop-schedule-daily-report-backdrop-leave-to {
   opacity: 0;
 }
 
@@ -319,5 +342,140 @@
 
   .desktop-schedule-page__workspace {
     animation-delay: 70ms;
+  }
+}
+
+@media (max-width: 1023px) {
+  .desktop-schedule-page {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .desktop-schedule-page__shell,
+  .desktop-schedule-page__shell--with-daily-report-panel {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    padding: 0.55rem;
+  }
+
+  .desktop-schedule-page__workspace {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .desktop-schedule-page__daily-report-splitter {
+    display: none;
+  }
+
+  .desktop-schedule-page__daily-report-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 120;
+    padding: 0;
+    border: 0;
+    background: rgba(15, 23, 42, 0.28);
+    backdrop-filter: blur(2px);
+  }
+
+  .desktop-schedule-page__daily-report-panel {
+    position: fixed;
+    top: 0.55rem;
+    right: 0.55rem;
+    bottom: 0.55rem;
+    z-index: 130;
+    grid-column: auto;
+    grid-row: auto;
+    width: min(32rem, calc(100vw - 1.1rem));
+    max-width: calc(100vw - 1.1rem);
+    min-height: 0;
+    align-self: auto;
+    border-radius: 1rem;
+    background: #fff;
+    box-shadow: 0 24px 72px rgba(15, 23, 42, 0.28);
+  }
+
+  .desktop-schedule-page__daily-report-mobile-header {
+    display: flex;
+    min-height: 3.1rem;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.62rem 0.72rem 0.52rem 0.95rem;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+    background: #fff;
+    color: #111827;
+    font-size: 0.92rem;
+    line-height: 1.2;
+  }
+
+  .desktop-schedule-page__daily-report-close {
+    display: inline-flex;
+    width: 2rem;
+    height: 2rem;
+    flex: 0 0 2rem;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    border-radius: 0.5rem;
+    background: #fff;
+  }
+
+  .desktop-schedule-page__daily-report-close:focus-visible {
+    outline: 2px solid rgba(107, 114, 128, 0.42);
+    outline-offset: -2px;
+  }
+
+  .desktop-schedule-page__daily-report-close-icon {
+    width: 1.12rem;
+    height: 1.12rem;
+    opacity: 0.78;
+  }
+
+  .desktop-schedule-page__daily-report-editor .daily-report-write-panel {
+    border: 0;
+    border-radius: 0 0 1rem 1rem;
+    box-shadow: none;
+  }
+
+  .desktop-schedule-page__daily-report-editor .daily-report-date-bar {
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding: 0.38rem;
+  }
+
+  .desktop-schedule-page__daily-report-editor
+    .daily-report-date-bar__controls {
+    gap: 0.24rem;
+  }
+
+  .desktop-schedule-page__daily-report-editor .daily-report-date-bar__nav {
+    min-width: 1.82rem;
+    height: 1.86rem;
+    padding: 0 0.42rem;
+  }
+
+  .desktop-schedule-page__daily-report-editor
+    .daily-report-date-bar__current {
+    min-width: 8.4rem;
+    height: 1.86rem;
+    padding: 0 0.56rem;
+    font-size: 0.82rem;
+  }
+
+  .desktop-schedule-page__refresh-overlay {
+    padding: 0.8rem;
+    border-radius: 0.7rem;
+  }
+
+  .desktop-schedule-page__refresh-card {
+    min-width: min(15rem, calc(100vw - 2rem));
+    padding: 1.05rem 1.1rem;
+  }
+
+  .desktop-schedule-page__toast {
+    top: 0.65rem;
+    max-width: calc(100vw - 1.4rem);
   }
 }

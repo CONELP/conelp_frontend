@@ -154,7 +154,8 @@ export function cloneSelectionState(selection: ReturnType<typeof createEmptyDesk
 export function hasDateOrLayoutChange(baseItem: DesktopScheduleItem, nextItem: DesktopScheduleItem) {
   return (
     baseItem.startDate !== nextItem.startDate ||
-    baseItem.durationDays !== nextItem.durationDays
+    baseItem.durationDays !== nextItem.durationDays ||
+    baseItem.rowId !== nextItem.rowId
   );
 }
 

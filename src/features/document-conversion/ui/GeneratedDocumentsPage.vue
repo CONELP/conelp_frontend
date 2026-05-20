@@ -76,19 +76,6 @@
                   />
                 </button>
 
-                <button
-                  class="generated-row__open"
-                  type="button"
-                  aria-label="생성된 문서 열기"
-                  @click="handleOpenGeneratedDocument(document)"
-                >
-                  <img
-                    class="generated-row__open-icon"
-                    :src="chevronRightIcon"
-                    alt=""
-                    aria-hidden="true"
-                  />
-                </button>
               </div>
             </article>
           </div>
@@ -104,10 +91,9 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import { RouterLink, useRouter } from "vue-router";
+import { RouterLink } from "vue-router";
 import downloadIcon from "@fluentui/svg-icons/icons/arrow_download_20_regular.svg";
 import backIcon from "@fluentui/svg-icons/icons/chevron_left_24_regular.svg";
-import chevronRightIcon from "@fluentui/svg-icons/icons/chevron_right_20_regular.svg";
 import documentIcon from "@fluentui/svg-icons/icons/document_20_regular.svg";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
@@ -122,7 +108,6 @@ const {
   generatedDocumentsErrorMessage,
 } = useGeneratedDocumentsDemoViewModel();
 
-const router = useRouter();
 const downloadingDocumentId = ref<string | null>(null);
 
 function isStorageObjectKey(value: string) {
@@ -206,23 +191,6 @@ async function handleDownloadGeneratedDocument(document: GeneratedDocumentListIt
   }
 }
 
-function handleOpenGeneratedDocument(document: GeneratedDocumentListItem) {
-  const query: Record<string, string> = {
-    jobId: String(document.jobId),
-  };
-
-  if (document.documentType) {
-    query.documentType = document.documentType;
-  }
-
-  analyticsClient.trackAction("document", "open_generated", "success", {
-    document_type: document.documentType ?? "unknown",
-  });
-  void router.push({
-    path: "/documents/result",
-    query,
-  });
-}
 </script>
 
 <style scoped src="./styles/GeneratedDocumentsPage.css"></style>

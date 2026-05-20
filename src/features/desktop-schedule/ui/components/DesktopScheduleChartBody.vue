@@ -1560,7 +1560,11 @@ function getShellRowAtContentY(contentY: number) {
 }
 
 function isSelectableGridRow(row: DesktopScheduleShellLayout["rows"][number]) {
-  return row.kind === "child-process" || row.kind === "parent-process";
+  return (
+    row.kind === "child-process" ||
+    row.kind === "parent-process" ||
+    row.kind === "milestone"
+  );
 }
 
 function getSelectableCellAtContentPoint(point: { x: number; y: number }) {
@@ -1598,6 +1602,68 @@ function getCellRangeBounds(
   };
 }
 
+function doRectsIntersect(
+  first: { left: number; right: number; top: number; bottom: number },
+  second: { left: number; right: number; top: number; bottom: number },
+) {
+  return (
+    first.left < second.right &&
+    first.right > second.left &&
+    first.top < second.bottom &&
+    first.bottom > second.top
+  );
+}
+
+function getEntityIdsInCellRangeBounds(
+  rangeBounds: { left: number; right: number; top: number; bottom: number },
+) {
+  const selectedItemIds = props.shellLayout.bars
+    .filter((bar) => {
+      if (bar.kind !== "item") {
+        return false;
+      }
+
+      return doRectsIntersect(
+        {
+          left: bar.left,
+          right: bar.left + bar.width,
+          top: bar.top,
+          bottom: bar.top + bar.height,
+        },
+        rangeBounds,
+      );
+    })
+    .map((bar) => bar.itemId);
+
+  const selectedMilestoneIds = props.shellLayout.milestones
+    .filter((milestone) => {
+      const markerBounds = {
+        left: milestone.left,
+        right: milestone.left + milestone.width,
+        top: milestone.top,
+        bottom: milestone.top + milestone.height,
+      };
+      const markerCenter = milestone.left + milestone.width / 2;
+      const labelBounds = {
+        left: markerCenter - milestone.labelWidth,
+        right: markerCenter,
+        top: milestone.top,
+        bottom: milestone.top + milestone.height,
+      };
+
+      return (
+        doRectsIntersect(markerBounds, rangeBounds) ||
+        doRectsIntersect(labelBounds, rangeBounds)
+      );
+    })
+    .map((milestone) => milestone.id);
+
+  return {
+    itemIds: selectedItemIds,
+    milestoneIds: selectedMilestoneIds,
+  };
+}
+
 function selectBarsInCellRange(focusCell: GridCellSelectionPoint) {
   const anchorCell = cellSelectionAnchor.value ?? focusCell;
   const rangeBounds = getCellRangeBounds(anchorCell, focusCell);
@@ -1614,36 +1680,28 @@ function selectBarsInCellRange(focusCell: GridCellSelectionPoint) {
     return;
   }
 
-  const selectedItemIds = props.shellLayout.bars
-    .filter((bar) => {
-      if (bar.kind !== "item") {
-        return false;
-      }
-
-      const barRight = bar.left + bar.width;
-      const barBottom = bar.top + bar.height;
-      return (
-        bar.left < rangeBounds.right &&
-        barRight > rangeBounds.left &&
-        bar.top < rangeBounds.bottom &&
-        barBottom > rangeBounds.top
-      );
-    })
-    .map((bar) => bar.itemId);
+  const selectedEntities = getEntityIdsInCellRangeBounds(rangeBounds);
 
   emit("select-bars", {
-    itemIds: selectedItemIds,
+    itemIds: selectedEntities.itemIds,
     rowIds: [],
+    milestoneIds: selectedEntities.milestoneIds,
   });
 }
 
 function selectSingleCell(cell: GridCellSelectionPoint) {
+  const rangeBounds = getCellRangeBounds(cell, cell);
+  const selectedEntities = rangeBounds
+    ? getEntityIdsInCellRangeBounds(rangeBounds)
+    : { itemIds: [], milestoneIds: [] };
+
   cellSelectionAnchor.value = cell;
   cellSelectionFocus.value = cell;
   emit("cell-selection-change", cell);
   emit("select-bars", {
-    itemIds: [],
+    itemIds: selectedEntities.itemIds,
     rowIds: [],
+    milestoneIds: selectedEntities.milestoneIds,
   });
 }
 
@@ -2124,10 +2182,6 @@ function handleRowPointerDown(row: DesktopScheduleShellLayout["rows"][number], e
   if (isReviewDeletedRow(row)) {
     event.stopPropagation();
     return;
-  }
-
-  if (row.kind === "milestone") {
-    event.stopPropagation();
   }
 
   if (row.kind === "division" && !isSpacePressed.value) {

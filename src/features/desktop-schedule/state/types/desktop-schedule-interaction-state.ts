@@ -22,6 +22,7 @@ export type DesktopScheduleContextMenuTarget =
 
 export type DesktopScheduleContextMenuCommand =
   | "copy-items"
+  | "cut-items"
   | "paste-items"
   | "create-milestone"
   | "create-item"
@@ -43,6 +44,7 @@ export type DesktopScheduleContextMenuCommand =
 export type DesktopScheduleContextMenuIcon =
   | "plus"
   | "copy"
+  | "cut"
   | "paste"
   | "trash"
   | "connection"

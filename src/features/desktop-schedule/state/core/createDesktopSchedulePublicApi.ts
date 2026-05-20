@@ -80,6 +80,7 @@ export function createDesktopSchedulePublicApi(deps: Record<string, any>) {
 
   const clipboard = reactive({
     copyItems: copySelectedItems,
+    cutItems: cutSelectedItems,
     pasteItemsToCell: pasteCopiedItemsToCanvasTarget,
   });
   

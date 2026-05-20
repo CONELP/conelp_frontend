@@ -6,14 +6,16 @@
   margin: 0.4rem 0;
   color: var(--ink-faint);
   font-size: 0.78rem;
+  font-weight: 650;
 }
 
 .system-banner__pill {
   padding: 0.3rem 0.7rem;
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: var(--radius-pill);
-  background: var(--surface-3);
+  background: #fff;
   color: var(--ink-muted);
-  font-weight: 500;
+  font-weight: 700;
 }
 
 .system-banner__time {

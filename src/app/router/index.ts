@@ -45,7 +45,7 @@ export const router = createRouter({
   routes: [
     {
       path: "/",
-      redirect: "/dashboard",
+      redirect: "/schedule",
     },
     {
       path: "/login",
@@ -116,6 +116,16 @@ export const router = createRouter({
       path: "/documents/upload/review",
       name: "document-upload-review",
       component: UploadFeedbackPage,
+      beforeEnter: (to) => {
+        if (to.query.documentType === "material_registration") {
+          return {
+            path: "/documents/generation",
+            query: to.query,
+          };
+        }
+
+        return true;
+      },
     },
     {
       path: "/documents/generation",
@@ -235,7 +245,7 @@ router.beforeEach(async (to) => {
 
   if (to.meta.public) {
     if (to.path === "/login" && authStore.isAuthenticated) {
-      return "/dashboard";
+      return "/schedule";
     }
 
     return true;
@@ -252,7 +262,7 @@ router.beforeEach(async (to) => {
 
   const requiresSuper = to.matched.some((route) => route.meta.requiresSuper);
   if (requiresSuper && authStore.user?.systemRole !== "SUPER") {
-    return "/dashboard";
+    return "/schedule";
   }
 
   return true;

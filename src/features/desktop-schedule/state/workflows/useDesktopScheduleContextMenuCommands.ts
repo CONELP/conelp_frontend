@@ -51,7 +51,8 @@ type DesktopScheduleContextMenuCommandsDeps = Record<string, any> & {
   removeLoadedMilestones: (milestoneApiIds: number[]) => void;
   canCreateItemOnCanvasTarget: (target: Extract<DesktopScheduleContextMenuTarget, { kind: "canvas" }>) => boolean;
   canCreateMilestoneOnCanvasTarget: (target: Extract<DesktopScheduleContextMenuTarget, { kind: "canvas" }>) => boolean;
-  copySelectedItems: (targetItemId?: string) => void;
+  copySelectedItems: (targetItemId?: string, targetMilestoneId?: string) => void;
+  cutSelectedItems: (targetItemId?: string, targetMilestoneId?: string) => void;
   pasteCopiedItemsToCanvasTarget: (target: { rowId: string | null; date: string | null }) => Promise<void>;
   canPasteCopiedItemsToCanvasTarget: (target: { rowId: string | null; date: string | null }) => boolean;
   openColorPalette: (target: Extract<DesktopScheduleContextMenuTarget, { kind: "row" | "item" }>, selectedColor: string | null | undefined) => void;
@@ -102,6 +103,7 @@ export function useDesktopScheduleContextMenuCommands(deps: DesktopScheduleConte
     canCreateItemOnCanvasTarget,
     canCreateMilestoneOnCanvasTarget,
     copySelectedItems,
+    cutSelectedItems,
     pasteCopiedItemsToCanvasTarget,
     canPasteCopiedItemsToCanvasTarget,
     openColorPalette,
@@ -133,21 +135,21 @@ export function useDesktopScheduleContextMenuCommands(deps: DesktopScheduleConte
       target.kind === "sub-work-type-header"
     ) {
       const createItem =
-        target.kind === "reference-header"
+        target.kind === "reference-header" || target.kind === "division-header"
           ? {
               id: "create-division-reference",
-              label: "분류 생성",
+              label: "분류 추가",
               command: "create-division-reference" as const,
               icon: "plus" as const,
             }
-          : target.kind === "division-header"
+          : target.kind === "work-type-header"
               ? {
                 id: "create-work-type-reference",
-                label: "공종 생성",
+                label: "공종 추가",
                 command: "create-work-type-reference" as const,
                 icon: "plus" as const,
               }
-            : target.kind === "work-type-header" || target.kind === "sub-work-type-header"
+            : target.kind === "sub-work-type-header"
               ? {
                 id: "create-sub-work-type-reference",
                 label: "세부공종 생성",
@@ -194,6 +196,12 @@ export function useDesktopScheduleContextMenuCommands(deps: DesktopScheduleConte
     if (target.kind === "item") {
       return [
         {
+          id: "cut-items",
+          label: "잘라내기",
+          command: "cut-items",
+          icon: "cut",
+        },
+        {
           id: "copy-items",
           label: "복사",
           command: "copy-items",
@@ -236,6 +244,18 @@ export function useDesktopScheduleContextMenuCommands(deps: DesktopScheduleConte
   
     if (target.kind === "milestone") {
       return [
+        {
+          id: "cut-items",
+          label: "잘라내기",
+          command: "cut-items",
+          icon: "cut",
+        },
+        {
+          id: "copy-items",
+          label: "복사",
+          command: "copy-items",
+          icon: "copy",
+        },
         {
           id: "change-milestone-properties",
           label: "이름 변경",
@@ -281,6 +301,25 @@ export function useDesktopScheduleContextMenuCommands(deps: DesktopScheduleConte
     }
   
     if (target.kind === "canvas") {
+      const canCopySelection =
+        selectionState.value.itemIds.length > 0 ||
+        selectionState.value.milestoneIds.length > 0;
+      const clipboardSelectionItems: DesktopScheduleContextMenuItem[] = canCopySelection
+        ? [
+            {
+              id: "cut-items",
+              label: "잘라내기",
+              command: "cut-items",
+              icon: "cut",
+            },
+            {
+              id: "copy-items",
+              label: "복사",
+              command: "copy-items",
+              icon: "copy",
+            },
+          ]
+        : [];
       const pasteItem = {
         id: "paste-items",
         label: "붙여넣기",
@@ -291,6 +330,7 @@ export function useDesktopScheduleContextMenuCommands(deps: DesktopScheduleConte
 
       if (canCreateMilestoneOnCanvasTarget(target)) {
         return [
+          ...clipboardSelectionItems,
           {
             id: "create-milestone",
             label: "마일스톤 생성",
@@ -302,6 +342,7 @@ export function useDesktopScheduleContextMenuCommands(deps: DesktopScheduleConte
       }
   
       return [
+        ...clipboardSelectionItems,
         {
           id: "create-item",
           label: "작업 생성",
@@ -345,12 +386,15 @@ export function useDesktopScheduleContextMenuCommands(deps: DesktopScheduleConte
         return;
       }
   
-      if (command === "create-division-reference" && target.kind === "reference-header") {
+      if (
+        command === "create-division-reference" &&
+        (target.kind === "reference-header" || target.kind === "division-header")
+      ) {
         createReferenceDivisionSet();
         return;
       }
   
-      if (command === "create-work-type-reference" && target.kind === "division-header") {
+      if (command === "create-work-type-reference" && target.kind === "work-type-header") {
         const targetHierarchyItem = scheduleLoadState.value.data?.workHierarchy.find(
           (item) => item.divisionId === target.divisionId,
         );
@@ -364,7 +408,7 @@ export function useDesktopScheduleContextMenuCommands(deps: DesktopScheduleConte
   
       if (
         command === "create-sub-work-type-reference" &&
-        (target.kind === "work-type-header" || target.kind === "sub-work-type-header")
+        target.kind === "sub-work-type-header"
       ) {
         createReferenceSubWorkTypeSet({
           workTypeId: target.workTypeId,
@@ -492,6 +536,22 @@ export function useDesktopScheduleContextMenuCommands(deps: DesktopScheduleConte
     }
 
     if (
+      target.kind === "canvas" &&
+      command === "copy-items"
+    ) {
+      copySelectedItems();
+      return;
+    }
+
+    if (
+      target.kind === "canvas" &&
+      command === "cut-items"
+    ) {
+      cutSelectedItems();
+      return;
+    }
+
+    if (
       command === "paste-items" &&
       target.kind === "canvas"
     ) {
@@ -557,6 +617,11 @@ export function useDesktopScheduleContextMenuCommands(deps: DesktopScheduleConte
 
       if (command === "copy-items") {
         copySelectedItems(target.itemId);
+        return;
+      }
+
+      if (command === "cut-items") {
+        cutSelectedItems(target.itemId);
         return;
       }
   
@@ -665,6 +730,16 @@ export function useDesktopScheduleContextMenuCommands(deps: DesktopScheduleConte
         pushLocalHistoryEntry(snapshot);
       }
       trackScheduleMutationResult("remove_milestone", didSave);
+      return;
+    }
+
+    if (target.kind === "milestone" && command === "copy-items") {
+      copySelectedItems(undefined, target.milestoneId);
+      return;
+    }
+
+    if (target.kind === "milestone" && command === "cut-items") {
+      cutSelectedItems(undefined, target.milestoneId);
       return;
     }
   

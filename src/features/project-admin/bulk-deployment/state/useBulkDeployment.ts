@@ -60,10 +60,14 @@ export function useBulkDeployment() {
       { workTypeId: number; workTypeName: string; laborTypes: LaborTypeResponse[] }
     >();
     for (const lt of laborTypes.value) {
+      if (lt.workTypeId === null) {
+        continue;
+      }
+
       if (!map.has(lt.workTypeId)) {
         map.set(lt.workTypeId, {
           workTypeId: lt.workTypeId,
-          workTypeName: lt.workTypeName,
+          workTypeName: lt.workTypeName ?? "",
           laborTypes: [],
         });
       }
@@ -111,8 +115,12 @@ export function useBulkDeployment() {
 
       const wtMap = new Map<number, { id: number; name: string }>();
       laborRes.forEach((lt) => {
+        if (lt.workTypeId === null) {
+          return;
+        }
+
         if (!wtMap.has(lt.workTypeId)) {
-          wtMap.set(lt.workTypeId, { id: lt.workTypeId, name: lt.workTypeName });
+          wtMap.set(lt.workTypeId, { id: lt.workTypeId, name: lt.workTypeName ?? "" });
         }
       });
       workTypes.value = Array.from(wtMap.values());

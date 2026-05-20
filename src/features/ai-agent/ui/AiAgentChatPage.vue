@@ -49,7 +49,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
@@ -105,8 +105,13 @@ const reconnectAttempts = computed(() => store.reconnectAttempts);
 const isConnected = computed(() => connectionStatus.value === "open");
 
 onMounted(() => {
+  aiAgentWsClient.connect(store);
   void ensureLoaded();
   void ensureProjectMembersLoaded();
+});
+
+onBeforeUnmount(() => {
+  aiAgentWsClient.disconnect();
 });
 
 watch(

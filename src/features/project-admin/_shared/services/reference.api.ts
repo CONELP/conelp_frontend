@@ -36,8 +36,9 @@ export interface WorkStepResponse {
 export interface LaborTypeResponse {
   id: number;
   name: string;
-  workTypeId: number;
-  workTypeName: string;
+  workTypeId: number | null;
+  workTypeName: string | null;
+  isVisible: boolean;
 }
 
 // 장비 마스터 타입
@@ -51,6 +52,7 @@ export interface EquipmentSpecResponse {
   name: string;
   equipmentTypeId: number;
   equipmentTypeName: string;
+  isVisible: boolean;
 }
 
 // 자재 마스터 타입
@@ -64,6 +66,7 @@ export interface MaterialSpecResponse {
   id: number;
   name: string;
   materialTypeId: number;
+  isVisible: boolean;
 }
 
 // 부재 코드 타입
@@ -108,6 +111,7 @@ export interface UpdateReferenceRequest {
   name?: string;
   unit?: string;
   ids?: number[];
+  isVisible?: boolean;
 }
 
 export interface UpdateChildReferenceRequest extends UpdateReferenceRequest {
@@ -207,10 +211,15 @@ export const referenceApi = {
     return data;
   },
 
-  async createMaterialSpec(materialTypeId: number, name: string): Promise<MaterialSpecResponse> {
+  async createMaterialSpec(
+    materialTypeId: number,
+    name: string,
+    isVisible?: boolean,
+  ): Promise<MaterialSpecResponse> {
     const { data } = await axiosClient.post<MaterialSpecResponse>("/reference/createMaterialSpec", {
       materialTypeId,
       name,
+      isVisible,
     });
     return data;
   },
@@ -326,10 +335,14 @@ export const referenceApi = {
     return data;
   },
 
-  async createEquipmentSpec(equipmentTypeId: number, name: string): Promise<EquipmentSpecResponse> {
+  async createEquipmentSpec(
+    equipmentTypeId: number,
+    name: string,
+    isVisible?: boolean,
+  ): Promise<EquipmentSpecResponse> {
     const { data } = await axiosClient.post<EquipmentSpecResponse>(
-      "/super/reference/createEquipmentSpec",
-      { equipmentTypeId, name },
+      "/reference/createEquipmentSpec",
+      { equipmentTypeId, name, isVisible },
     );
     return data;
   },
@@ -349,9 +362,13 @@ export const referenceApi = {
     return data;
   },
 
-  async createLaborType(params: { name: string; workTypeId: number }): Promise<LaborTypeResponse> {
+  async createLaborType(params: {
+    name: string;
+    workTypeId: number;
+    isVisible?: boolean;
+  }): Promise<LaborTypeResponse> {
     const { data } = await axiosClient.post<LaborTypeResponse>(
-      "/super/reference/createLaborType",
+      "/reference/createLaborType",
       params,
     );
     return data;
@@ -376,7 +393,7 @@ export const referenceApi = {
   },
 
   async updateLaborType(params: UpdateReferenceRequest): Promise<void> {
-    await axiosClient.post("/super/reference/updateLaborType", params);
+    await axiosClient.post("/reference/updateLaborType", params);
   },
 
   async updateZone(params: UpdateReferenceRequest): Promise<void> {
@@ -404,7 +421,7 @@ export const referenceApi = {
   },
 
   async updateEquipmentSpec(params: UpdateChildReferenceRequest): Promise<void> {
-    await axiosClient.post("/super/reference/updateEquipmentSpec", params);
+    await axiosClient.post("/reference/updateEquipmentSpec", params);
   },
 
   async updateComponentCode(params: UpdateChildReferenceRequest): Promise<void> {
@@ -442,7 +459,7 @@ export const referenceApi = {
   },
 
   async deleteEquipmentSpec(id: number): Promise<void> {
-    await axiosClient.delete(`/super/reference/deleteEquipmentSpec/${id}`);
+    await axiosClient.delete(`/reference/deleteEquipmentSpec/${id}`);
   },
 
   async deleteComponentType(id: number): Promise<void> {
@@ -450,7 +467,7 @@ export const referenceApi = {
   },
 
   async deleteLaborType(id: number): Promise<void> {
-    await axiosClient.delete(`/super/reference/deleteLaborType/${id}`);
+    await axiosClient.delete(`/reference/deleteLaborType/${id}`);
   },
 
   async deleteCcodeDetail(id: number): Promise<void> {

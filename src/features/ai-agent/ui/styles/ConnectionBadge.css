@@ -2,14 +2,14 @@
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  padding: 0.35rem 0.7rem;
-  border: 1px solid var(--outline-soft);
+  min-height: 2.22rem;
+  padding: 0 0.74rem;
+  border: 1px solid rgba(15, 23, 42, 0.12);
   border-radius: var(--radius-pill);
-  background: var(--surface-1);
+  background: #fff;
   color: var(--ink-muted);
-  font-family: var(--font-body);
   font-size: 0.78rem;
-  font-weight: 500;
+  font-weight: 700;
   line-height: 1;
   cursor: default;
   transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
@@ -72,10 +72,10 @@
   min-width: 1.1rem;
   padding: 0 0.35rem;
   border-radius: var(--radius-pill);
-  background: var(--primary-soft);
+  background: rgba(30, 24, 136, 0.06);
   color: var(--primary);
   font-size: 0.7rem;
-  font-weight: 600;
+  font-weight: 800;
 }
 
 @keyframes connection-pulse {
