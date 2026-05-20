@@ -1,8 +1,15 @@
 export interface DailyReportLaborTypeResponse {
   id: number;
   name: string;
+  workTypeId: number | null;
+  workTypeName: string | null;
+  isVisible: boolean;
+}
+
+export interface DailyReportLaborTypeCreateRequest {
+  name: string;
   workTypeId: number;
-  workTypeName: string;
+  isVisible?: boolean;
 }
 
 export interface DailyReportEquipmentSpecResponse {
@@ -10,6 +17,22 @@ export interface DailyReportEquipmentSpecResponse {
   name: string;
   equipmentTypeId: number;
   equipmentTypeName: string;
+  isVisible: boolean;
+}
+
+export interface DailyReportEquipmentTypeResponse {
+  id: number;
+  name: string;
+}
+
+export interface DailyReportEquipmentTypeCreateRequest {
+  name: string;
+}
+
+export interface DailyReportEquipmentSpecCreateRequest {
+  name: string;
+  equipmentTypeId: number;
+  isVisible?: boolean;
 }
 
 export interface DailyReportAttendanceByDateResponse {
@@ -44,7 +67,7 @@ export interface DailyReportEquipmentDeploymentResponse {
   companyDisplayName: string | null;
 }
 
-export interface DailyReportEquipmentDeploymentRequest {
+export interface DailyReportEquipmentDeploymentUpdateRequest {
   date: string;
   entries: Array<{
     equipmentSpecId: number;
@@ -67,10 +90,22 @@ export interface DailyReportMaterialTypeResponse {
   unit: string | null;
 }
 
+export interface DailyReportMaterialTypeCreateRequest {
+  name: string;
+  unit?: string;
+}
+
 export interface DailyReportMaterialSpecResponse {
   id: number;
   name: string;
   materialTypeId: number;
+  isVisible: boolean;
+}
+
+export interface DailyReportMaterialSpecCreateRequest {
+  name: string;
+  materialTypeId: number;
+  isVisible?: boolean;
 }
 
 export interface DailyReportMaterialDeliveryLineResponse {

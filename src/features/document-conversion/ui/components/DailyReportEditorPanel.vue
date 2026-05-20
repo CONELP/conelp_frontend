@@ -11,6 +11,7 @@ import type { ActualWorkResponse } from "@/features/document-conversion/api/actu
 import { dailyReportResourceApi } from "@/features/document-conversion/api/daily-report-resource.api";
 import type {
   DailyReportEquipmentSpecResponse,
+  DailyReportEquipmentTypeResponse,
   DailyReportLaborTypeResponse,
   DailyReportMaterialDeliveryResponse,
   DailyReportMaterialDeliveryUpdateRequest,
@@ -249,6 +250,7 @@ type DailyReportMaterialAddDraft = Pick<
 type DailyReportEquipmentAddDraft = Pick<
   DailyReportEquipmentDraft,
   | "includedInDocument"
+  | "workTypeId"
   | "process"
   | "type"
   | "specification"
@@ -258,7 +260,7 @@ type DailyReportEquipmentAddDraft = Pick<
 
 type DailyReportLaborAddDraft = Pick<
   DailyReportLaborDraft,
-  "includedInDocument" | "workType" | "subWorkType" | "todayQuantity"
+  "includedInDocument" | "workTypeId" | "workType" | "subWorkType" | "todayQuantity"
 >;
 
 type DailyReportResourceAddFormState = Record<DailyReportResourceKind, boolean>;
@@ -288,6 +290,7 @@ const equipmentRows = ref<DailyReportEquipmentDraft[]>([]);
 const laborRows = ref<DailyReportLaborDraft[]>([]);
 const laborTypeOptions = ref<DailyReportLaborTypeResponse[]>([]);
 const equipmentSpecOptions = ref<DailyReportEquipmentSpecResponse[]>([]);
+const equipmentTypeOptions = ref<DailyReportEquipmentTypeResponse[]>([]);
 const materialTypeOptions = ref<DailyReportMaterialTypeResponse[]>([]);
 const materialSpecOptionsByTypeId = ref(
   new Map<number, DailyReportMaterialSpecResponse[]>(),
@@ -613,6 +616,7 @@ function createDailyReportMaterialAddDraft(): DailyReportMaterialAddDraft {
 function createDailyReportEquipmentAddDraft(): DailyReportEquipmentAddDraft {
   return {
     includedInDocument: true,
+    workTypeId: null,
     process: "",
     type: "",
     specification: "",
@@ -624,6 +628,7 @@ function createDailyReportEquipmentAddDraft(): DailyReportEquipmentAddDraft {
 function createDailyReportLaborAddDraft(): DailyReportLaborAddDraft {
   return {
     includedInDocument: true,
+    workTypeId: null,
     workType: "",
     subWorkType: "",
     todayQuantity: "",
@@ -1677,6 +1682,17 @@ async function syncTaskCreate(
       character_count: trimmedName.length,
     });
   } catch (error) {
+    if (isDailyReportMainWorkTypeConnectorError(error)) {
+      workType.workTypeId = null;
+      trackDailyReportPanelAction("save_work_content", "fail", {
+        operation: "create",
+        section,
+        has_work_type: false,
+        error_kind: "missing_connector",
+      });
+      return;
+    }
+
     console.error("createActualWork failed", error);
     trackDailyReportPanelAction("save_work_content", "fail", {
       operation: "create",
@@ -1727,6 +1743,17 @@ async function syncTaskUpdate(
       character_count: typeof patch.context === "string" ? patch.context.length : 0,
     });
   } catch (error) {
+    if (isDailyReportMainWorkTypeConnectorError(error)) {
+      trackDailyReportPanelAction("save_work_content", "fail", {
+        operation: "update",
+        section: findSectionForTask(task) ?? "unknown",
+        update_work_type: typeof patch.workTypeId === "number",
+        update_context: typeof patch.context === "string",
+        error_kind: "missing_connector",
+      });
+      return;
+    }
+
     console.error("updateActualWork failed", error);
     trackDailyReportPanelAction("save_work_content", "fail", {
       operation: "update",
@@ -1901,6 +1928,26 @@ function selectDailyReportWorkTypeSuggestion(
       void syncTaskCreate(task, workType, section);
     }
   });
+}
+
+function isDailyReportMainWorkTypeConnectorError(error: unknown) {
+  return (
+    error instanceof Error &&
+    error.message.includes("workTypeId가 메인 공정표 소속이 아니거나 connector가 없습니다")
+  );
+}
+
+async function resolveDailyReportWorkContentWorkTypeId(
+  workType: DailyReportWorkTypeDraft,
+) {
+  const resolvedWorkTypeId = await resolveDailyReportWorkTypeId(workType.workTypeName);
+
+  if (resolvedWorkTypeId !== null) {
+    workType.workTypeId = resolvedWorkTypeId;
+    return resolvedWorkTypeId;
+  }
+
+  return workType.workTypeId;
 }
 
 function readImageFileAsDataUrl(file: File) {
@@ -2152,8 +2199,12 @@ function formatDailyReportQuantity(value: number) {
   });
 }
 
+function cleanDailyReportReferenceName(value: string | null | undefined) {
+  return (value ?? "").trim().replace(/[.,;:，。；：]+$/g, "").trim();
+}
+
 function normalizeDailyReportMatchText(value: string | null | undefined) {
-  return (value ?? "").trim().replace(/\s+/g, "").toLowerCase();
+  return cleanDailyReportReferenceName(value).replace(/\s+/g, "").toLowerCase();
 }
 
 function createDailyReportResourceInclusionKey(
@@ -2242,6 +2293,27 @@ function findDailyReportLaborType(workType: string, laborTypeName: string) {
   );
 }
 
+function isDailyReportLaborTypeMatchForRow(
+  laborType: DailyReportLaborTypeResponse,
+  row: DailyReportLaborDraft,
+) {
+  if (
+    normalizeDailyReportMatchText(laborType.name) !==
+    normalizeDailyReportMatchText(row.subWorkType)
+  ) {
+    return false;
+  }
+
+  if (row.workType.trim()) {
+    return (
+      normalizeDailyReportMatchText(laborType.workTypeName) ===
+      normalizeDailyReportMatchText(row.workType)
+    );
+  }
+
+  return row.workTypeId !== null && row.workTypeId === laborType.workTypeId;
+}
+
 function findDailyReportEquipmentSpec(type: string, specification: string) {
   const normalizedType = normalizeDailyReportMatchText(type);
   const normalizedSpecification = normalizeDailyReportMatchText(specification);
@@ -2255,6 +2327,28 @@ function findDailyReportEquipmentSpec(type: string, specification: string) {
       normalizeDailyReportMatchText(option.name) === normalizedSpecification &&
       (!normalizedType ||
         normalizeDailyReportMatchText(option.equipmentTypeName) === normalizedType),
+  );
+
+  return exactMatches.length === 1 ? exactMatches[0]! : null;
+}
+
+async function ensureDailyReportEquipmentTypesLoaded() {
+  if (equipmentTypeOptions.value.length > 0) {
+    return;
+  }
+
+  equipmentTypeOptions.value = await dailyReportResourceApi.getEquipmentTypeList();
+}
+
+function findDailyReportEquipmentType(typeName: string) {
+  const normalizedTypeName = normalizeDailyReportMatchText(typeName);
+
+  if (!normalizedTypeName) {
+    return null;
+  }
+
+  const exactMatches = equipmentTypeOptions.value.filter(
+    (option) => normalizeDailyReportMatchText(option.name) === normalizedTypeName,
   );
 
   return exactMatches.length === 1 ? exactMatches[0]! : null;
@@ -2378,7 +2472,13 @@ function findKnownDailyReportWorkTypeId(workTypeName: string) {
   const exactMatches = laborTypeOptions.value.filter(
     (option) => normalizeDailyReportMatchText(option.workTypeName) === normalizedWorkTypeName,
   );
-  const uniqueIds = Array.from(new Set(exactMatches.map((option) => option.workTypeId)));
+  const uniqueIds = Array.from(
+    new Set(
+      exactMatches
+        .map((option) => option.workTypeId)
+        .filter((id): id is number => id !== null),
+    ),
+  );
 
   return uniqueIds.length === 1 ? uniqueIds[0]! : null;
 }
@@ -2406,16 +2506,31 @@ async function resolveDailyReportWorkTypeId(workTypeName: string) {
   return exactMatches.length === 1 ? exactMatches[0]!.id : null;
 }
 
+async function resolveDailyReportResourceWorkTypeId(
+  workTypeName: string,
+  currentWorkTypeId: number | null,
+) {
+  const cleanedWorkTypeName = cleanDailyReportReferenceName(workTypeName);
+
+  if (!cleanedWorkTypeName) {
+    return currentWorkTypeId;
+  }
+
+  return await resolveDailyReportWorkTypeId(cleanedWorkTypeName);
+}
+
 async function loadDailyReportResourceReferences() {
   try {
-    const [laborTypes, equipmentSpecs, materialTypes] = await Promise.all([
+    const [laborTypes, equipmentSpecs, equipmentTypes, materialTypes] = await Promise.all([
       dailyReportResourceApi.getLaborTypeList(),
       dailyReportResourceApi.getEquipmentSpecList(),
+      dailyReportResourceApi.getEquipmentTypeList(),
       dailyReportResourceApi.getMaterialTypeList(),
     ]);
 
     laborTypeOptions.value = laborTypes;
     equipmentSpecOptions.value = equipmentSpecs;
+    equipmentTypeOptions.value = equipmentTypes;
     materialTypeOptions.value = materialTypes;
   } catch (error) {
     console.error("daily report resource references failed", error);
@@ -2640,7 +2755,9 @@ function addDailyReportEquipmentResource() {
     equipmentAddDraft.value.type,
     equipmentAddDraft.value.specification,
   );
-  const workTypeId = findKnownDailyReportWorkTypeId(equipmentAddDraft.value.process);
+  const workTypeId =
+    equipmentAddDraft.value.workTypeId ??
+    findKnownDailyReportWorkTypeId(equipmentAddDraft.value.process);
   const quantity = normalizeDailyReportQuantityInput(
     equipmentAddDraft.value.todayQuantity,
   );
@@ -2685,6 +2802,10 @@ function addDailyReportLaborResource() {
     laborAddDraft.value.workType,
     laborAddDraft.value.subWorkType,
   );
+  const workTypeId =
+    laborType?.workTypeId ??
+    laborAddDraft.value.workTypeId ??
+    findKnownDailyReportWorkTypeId(laborAddDraft.value.workType);
   const quantity = normalizeDailyReportQuantityInput(
     laborAddDraft.value.todayQuantity,
   );
@@ -2694,7 +2815,7 @@ function addDailyReportLaborResource() {
     createDailyReportLaborRow({
       includedInDocument: laborAddDraft.value.includedInDocument,
       laborTypeId: laborType?.id ?? null,
-      workTypeId: laborType?.workTypeId ?? null,
+      workTypeId,
       workType: laborAddDraft.value.workType.trim(),
       subWorkType: laborAddDraft.value.subWorkType.trim(),
       previousQuantity: 0,
@@ -2741,28 +2862,41 @@ async function saveDailyReportTask(
     return;
   }
 
-  if (workType.workTypeId === null) {
+  const workTypeId = await resolveDailyReportWorkContentWorkTypeId(workType);
+
+  if (workTypeId === null) {
     throw new Error("작업내용의 공종을 선택해 주세요.");
   }
 
-  if (task.actualWorkId === null) {
-    const response = await actualWorkApi.create({
+  try {
+    if (task.actualWorkId === null) {
+      const response = await actualWorkApi.create({
+        date: getSectionDate(section),
+        workTypeId,
+        context: trimmedContext,
+      });
+      applyResponseToTask(task, response);
+      applyActualWorkAffectedWorks(response);
+      return;
+    }
+
+    const response = await actualWorkApi.update(task.actualWorkId, {
       date: getSectionDate(section),
-      workTypeId: workType.workTypeId,
+      workTypeId,
       context: trimmedContext,
     });
     applyResponseToTask(task, response);
     applyActualWorkAffectedWorks(response);
-    return;
-  }
+  } catch (error) {
+    if (isDailyReportMainWorkTypeConnectorError(error)) {
+      workType.workTypeId = null;
+      throw new Error(
+        `작업내용의 공종을 다시 선택해 주세요: ${workType.workTypeName}`,
+      );
+    }
 
-  const response = await actualWorkApi.update(task.actualWorkId, {
-    date: getSectionDate(section),
-    workTypeId: workType.workTypeId,
-    context: trimmedContext,
-  });
-  applyResponseToTask(task, response);
-  applyActualWorkAffectedWorks(response);
+    throw error;
+  }
 }
 
 async function saveDailyReportWorkSection(section: DailyReportWorkSection) {
@@ -2773,9 +2907,31 @@ async function saveDailyReportWorkSection(section: DailyReportWorkSection) {
   }
 }
 
-function resolveDailyReportLaborTypeId(row: DailyReportLaborDraft) {
+async function resolveDailyReportLaborTypeId(
+  row: DailyReportLaborDraft,
+  shouldCreateMissing = false,
+) {
   if (row.laborTypeId !== null) {
-    return row.laborTypeId;
+    const existingLaborType =
+      laborTypeOptions.value.find((option) => option.id === row.laborTypeId) ?? null;
+
+    if (
+      existingLaborType &&
+      isDailyReportLaborTypeMatchForRow(existingLaborType, row)
+    ) {
+      return row.laborTypeId;
+    }
+
+    if (
+      existingLaborType &&
+      row.workTypeId === existingLaborType.workTypeId &&
+      normalizeDailyReportMatchText(row.workType) !==
+        normalizeDailyReportMatchText(existingLaborType.workTypeName)
+    ) {
+      row.workTypeId = null;
+    }
+
+    row.laborTypeId = null;
   }
 
   const laborType = findDailyReportLaborType(row.workType, row.subWorkType);
@@ -2785,31 +2941,154 @@ function resolveDailyReportLaborTypeId(row: DailyReportLaborDraft) {
     return laborType.id;
   }
 
-  return null;
+  if (!shouldCreateMissing) {
+    return null;
+  }
+
+  const laborTypeName = cleanDailyReportReferenceName(row.subWorkType);
+  const workTypeName = cleanDailyReportReferenceName(row.workType);
+
+  if (!laborTypeName || !workTypeName) {
+    return null;
+  }
+
+  const workTypeId = await resolveDailyReportResourceWorkTypeId(
+    workTypeName,
+    row.workTypeId,
+  );
+
+  if (workTypeId === null) {
+    return null;
+  }
+
+  const createdLaborType = await dailyReportResourceApi.createLaborType({
+    name: laborTypeName,
+    workTypeId,
+    isVisible: true,
+  });
+
+  laborTypeOptions.value = [...laborTypeOptions.value, createdLaborType];
+  row.laborTypeId = createdLaborType.id;
+  row.workTypeId = createdLaborType.workTypeId;
+  row.workType = createdLaborType.workTypeName || workTypeName;
+  row.subWorkType = createdLaborType.name;
+
+  return createdLaborType.id;
+}
+
+async function resolveDailyReportEquipmentTypeId(
+  row: DailyReportEquipmentDraft,
+  shouldCreateMissing = false,
+) {
+  if (row.equipmentTypeId !== null) {
+    return row.equipmentTypeId;
+  }
+
+  await ensureDailyReportEquipmentTypesLoaded();
+  const equipmentType = findDailyReportEquipmentType(row.type);
+
+  if (equipmentType) {
+    row.equipmentTypeId = equipmentType.id;
+    row.type = equipmentType.name;
+    return equipmentType.id;
+  }
+
+  if (!shouldCreateMissing) {
+    return null;
+  }
+
+  const equipmentTypeName = cleanDailyReportReferenceName(row.type);
+
+  if (!equipmentTypeName) {
+    return null;
+  }
+
+  const createdEquipmentType = await dailyReportResourceApi.createEquipmentType({
+    name: equipmentTypeName,
+  });
+
+  equipmentTypeOptions.value = [...equipmentTypeOptions.value, createdEquipmentType];
+  row.equipmentTypeId = createdEquipmentType.id;
+  row.type = createdEquipmentType.name;
+
+  return createdEquipmentType.id;
+}
+
+async function resolveDailyReportMaterialTypeId(
+  row: DailyReportMaterialDraft,
+  shouldCreateMissing = false,
+) {
+  if (row.materialTypeId !== null) {
+    return row.materialTypeId;
+  }
+
+  await ensureDailyReportMaterialTypesLoaded();
+  const materialType = findDailyReportMaterialType(row.type);
+
+  if (materialType) {
+    row.materialTypeId = materialType.id;
+
+    if (!row.unit.trim()) {
+      row.unit = materialType.unit ?? "";
+    }
+
+    return materialType.id;
+  }
+
+  if (!shouldCreateMissing) {
+    return null;
+  }
+
+  const materialTypeName = cleanDailyReportReferenceName(row.type);
+
+  if (!materialTypeName) {
+    return null;
+  }
+
+  const createdMaterialType = await dailyReportResourceApi.createMaterialType({
+    name: materialTypeName,
+    unit: cleanDailyReportReferenceName(row.unit) || undefined,
+  });
+
+  materialTypeOptions.value = [...materialTypeOptions.value, createdMaterialType];
+  row.materialTypeId = createdMaterialType.id;
+  row.type = createdMaterialType.name;
+
+  if (!row.unit.trim()) {
+    row.unit = createdMaterialType.unit ?? "";
+  }
+
+  return createdMaterialType.id;
+}
+
+function appendDailyReportMaterialSpecOption(
+  materialTypeId: number,
+  materialSpec: DailyReportMaterialSpecResponse,
+) {
+  const nextSpecsByTypeId = new Map(materialSpecOptionsByTypeId.value);
+  const specs = nextSpecsByTypeId.get(materialTypeId) ?? [];
+  nextSpecsByTypeId.set(materialTypeId, [...specs, materialSpec]);
+  materialSpecOptionsByTypeId.value = nextSpecsByTypeId;
 }
 
 async function saveDailyReportAttendance() {
   const entryMap = new Map<number, number>();
   const unresolvedRows: string[] = [];
 
-  laborRows.value.forEach((row) => {
-    if (!row.includedInDocument) {
-      return;
-    }
-
+  for (const row of laborRows.value) {
     const count = Math.max(0, Math.round(parseDailyReportQuantity(row.todayQuantity)));
     const hasInput = row.todayQuantity.trim().length > 0 || count > 0;
-    const laborTypeId = resolveDailyReportLaborTypeId(row);
+    const laborTypeId = await resolveDailyReportLaborTypeId(row, hasInput);
 
     if (laborTypeId === null) {
       if (hasInput) {
         unresolvedRows.push(`${row.workType} / ${row.subWorkType}`);
       }
-      return;
+      continue;
     }
 
     entryMap.set(laborTypeId, (entryMap.get(laborTypeId) ?? 0) + count);
-  });
+  }
 
   if (unresolvedRows.length > 0) {
     throw new Error(`인력 항목의 직종을 찾지 못했습니다: ${unresolvedRows.join(", ")}`);
@@ -2826,7 +3105,10 @@ async function saveDailyReportAttendance() {
   });
 }
 
-async function resolveDailyReportEquipmentRowIds(row: DailyReportEquipmentDraft) {
+async function resolveDailyReportEquipmentRowIds(
+  row: DailyReportEquipmentDraft,
+  shouldCreateMissing = false,
+) {
   let equipmentSpecId = row.equipmentSpecId;
   let workTypeId = row.workTypeId;
 
@@ -2839,10 +3121,28 @@ async function resolveDailyReportEquipmentRowIds(row: DailyReportEquipmentDraft)
     }
   }
 
-  if (workTypeId === null) {
-    workTypeId = await resolveDailyReportWorkTypeId(row.process);
-    row.workTypeId = workTypeId;
+  if (equipmentSpecId === null && shouldCreateMissing) {
+    const equipmentTypeId = await resolveDailyReportEquipmentTypeId(row, true);
+    const equipmentSpecName = cleanDailyReportReferenceName(row.specification);
+
+    if (equipmentTypeId !== null && equipmentSpecName) {
+      const createdEquipmentSpec = await dailyReportResourceApi.createEquipmentSpec({
+        name: equipmentSpecName,
+        equipmentTypeId,
+        isVisible: true,
+      });
+
+      equipmentSpecOptions.value = [...equipmentSpecOptions.value, createdEquipmentSpec];
+      row.equipmentSpecId = createdEquipmentSpec.id;
+      row.equipmentTypeId = createdEquipmentSpec.equipmentTypeId;
+      row.type = createdEquipmentSpec.equipmentTypeName || row.type;
+      row.specification = createdEquipmentSpec.name;
+      equipmentSpecId = createdEquipmentSpec.id;
+    }
   }
+
+  workTypeId = await resolveDailyReportResourceWorkTypeId(row.process, workTypeId);
+  row.workTypeId = workTypeId;
 
   return equipmentSpecId !== null && workTypeId !== null
     ? { equipmentSpecId, workTypeId }
@@ -2854,13 +3154,9 @@ async function saveDailyReportEquipment() {
   const unresolvedRows: string[] = [];
 
   for (const row of equipmentRows.value) {
-    if (!row.includedInDocument) {
-      continue;
-    }
-
     const count = Math.max(0, Math.round(parseDailyReportQuantity(row.todayQuantity)));
     const hasInput = row.todayQuantity.trim().length > 0 || count > 0;
-    const resolved = await resolveDailyReportEquipmentRowIds(row);
+    const resolved = await resolveDailyReportEquipmentRowIds(row, hasInput);
 
     if (!resolved) {
       if (hasInput) {
@@ -2883,29 +3179,22 @@ async function saveDailyReportEquipment() {
 
   const entries = Array.from(entryMap.values());
 
-  await dailyReportResourceApi.createEquipmentDeployment({
+  await dailyReportResourceApi.updateEquipmentDeployment({
     date: reportDates.value.today,
     entries,
   });
 }
 
-async function resolveDailyReportMaterialRowIds(row: DailyReportMaterialDraft) {
+async function resolveDailyReportMaterialRowIds(
+  row: DailyReportMaterialDraft,
+  shouldCreateMissing = false,
+) {
   let materialTypeId = row.materialTypeId;
   let materialSpecId = row.materialSpecId;
   let workTypeId = row.workTypeId;
 
   if (materialTypeId === null) {
-    await ensureDailyReportMaterialTypesLoaded();
-    const materialType = findDailyReportMaterialType(row.type);
-
-    if (materialType) {
-      row.materialTypeId = materialType.id;
-      materialTypeId = materialType.id;
-
-      if (!row.unit.trim()) {
-        row.unit = materialType.unit ?? "";
-      }
-    }
+    materialTypeId = await resolveDailyReportMaterialTypeId(row, shouldCreateMissing);
   }
 
   if (materialTypeId !== null && materialSpecId === null) {
@@ -2920,10 +3209,25 @@ async function resolveDailyReportMaterialRowIds(row: DailyReportMaterialDraft) {
     }
   }
 
-  if (workTypeId === null) {
-    workTypeId = await resolveDailyReportWorkTypeId(row.workType);
-    row.workTypeId = workTypeId;
+  if (materialTypeId !== null && materialSpecId === null && shouldCreateMissing) {
+    const materialSpecName = cleanDailyReportReferenceName(row.specification);
+
+    if (materialSpecName) {
+      const createdMaterialSpec = await dailyReportResourceApi.createMaterialSpec({
+        name: materialSpecName,
+        materialTypeId,
+        isVisible: true,
+      });
+
+      appendDailyReportMaterialSpecOption(materialTypeId, createdMaterialSpec);
+      row.materialSpecId = createdMaterialSpec.id;
+      row.specification = createdMaterialSpec.name;
+      materialSpecId = createdMaterialSpec.id;
+    }
   }
+
+  workTypeId = await resolveDailyReportResourceWorkTypeId(row.workType, workTypeId);
+  row.workTypeId = workTypeId;
 
   return materialTypeId !== null &&
     materialSpecId !== null &&
@@ -2995,17 +3299,13 @@ async function buildCurrentDateMaterialDeliveryRequests(
   const unresolvedRows: string[] = [];
 
   for (const row of materialRows.value) {
-    if (!row.includedInDocument) {
-      continue;
-    }
-
     const hasInput =
       row.workType.trim() ||
       row.type.trim() ||
       row.specification.trim() ||
       row.unit.trim() ||
       row.todayQuantity.trim();
-    const resolved = await resolveDailyReportMaterialRowIds(row);
+    const resolved = await resolveDailyReportMaterialRowIds(row, Boolean(hasInput));
 
     if (!resolved) {
       if (hasInput) {
@@ -4145,8 +4445,14 @@ onUnmounted(() => {
                       aria-label="추가할 인력 공종"
                       :load-suggestions="loadWorkTypeSuggestions"
                       option-id-prefix="daily-report-labor-add-work-type"
-                      @update:model-value="laborAddDraft.workType = $event"
-                      @select="laborAddDraft.workType = $event.name"
+                      @update:model-value="
+                        laborAddDraft.workType = $event;
+                        laborAddDraft.workTypeId = null;
+                      "
+                      @select="
+                        laborAddDraft.workType = $event.name;
+                        laborAddDraft.workTypeId = $event.id;
+                      "
                     />
                   </td>
                   <td class="daily-report-resource-sheet__add-input-cell">
@@ -4861,8 +5167,14 @@ onUnmounted(() => {
                       aria-label="추가할 장비 공종"
                       :load-suggestions="loadWorkTypeSuggestions"
                       option-id-prefix="daily-report-equipment-add-work-type"
-                      @update:model-value="equipmentAddDraft.process = $event"
-                      @select="equipmentAddDraft.process = $event.name"
+                      @update:model-value="
+                        equipmentAddDraft.process = $event;
+                        equipmentAddDraft.workTypeId = null;
+                      "
+                      @select="
+                        equipmentAddDraft.process = $event.name;
+                        equipmentAddDraft.workTypeId = $event.id;
+                      "
                     />
                   </td>
                   <td class="daily-report-resource-sheet__add-input-cell">

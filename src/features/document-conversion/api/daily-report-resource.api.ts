@@ -2,14 +2,20 @@ import { apiFetch } from "@/shared/network/api-client";
 import type {
   DailyReportAttendanceByDateResponse,
   DailyReportAttendanceUpdateRequest,
-  DailyReportEquipmentDeploymentRequest,
+  DailyReportEquipmentSpecCreateRequest,
+  DailyReportEquipmentDeploymentUpdateRequest,
   DailyReportEquipmentDeploymentResponse,
   DailyReportEquipmentSpecResponse,
+  DailyReportEquipmentTypeCreateRequest,
+  DailyReportEquipmentTypeResponse,
+  DailyReportLaborTypeCreateRequest,
   DailyReportLaborTypeResponse,
   DailyReportMaterialDeliveryResponse,
   DailyReportMaterialDeliveryUpdateRequest,
   DailyReportMaterialQuantityByDateResponse,
+  DailyReportMaterialSpecCreateRequest,
   DailyReportMaterialSpecResponse,
+  DailyReportMaterialTypeCreateRequest,
   DailyReportMaterialTypeResponse,
 } from "@/features/document-conversion/api/daily-report-resource-api.types";
 
@@ -52,9 +58,38 @@ export const dailyReportResourceApi = {
     return apiFetch<DailyReportLaborTypeResponse[]>("/reference/getLaborTypeList");
   },
 
+  async createLaborType(body: DailyReportLaborTypeCreateRequest) {
+    await ensureSelectedProjectId();
+    return apiFetch<DailyReportLaborTypeResponse>("/reference/createLaborType", {
+      method: "POST",
+      body: toApiBody(body),
+    });
+  },
+
   async getEquipmentSpecList() {
     await ensureSelectedProjectId();
     return apiFetch<DailyReportEquipmentSpecResponse[]>("/reference/getEquipmentSpecList");
+  },
+
+  async getEquipmentTypeList() {
+    await ensureSelectedProjectId();
+    return apiFetch<DailyReportEquipmentTypeResponse[]>("/reference/getEquipmentTypeList");
+  },
+
+  async createEquipmentType(body: DailyReportEquipmentTypeCreateRequest) {
+    await ensureSelectedProjectId();
+    return apiFetch<DailyReportEquipmentTypeResponse>("/reference/createEquipmentType", {
+      method: "POST",
+      body: toApiBody(body),
+    });
+  },
+
+  async createEquipmentSpec(body: DailyReportEquipmentSpecCreateRequest) {
+    await ensureSelectedProjectId();
+    return apiFetch<DailyReportEquipmentSpecResponse>("/reference/createEquipmentSpec", {
+      method: "POST",
+      body: toApiBody(body),
+    });
   },
 
   async getAttendanceListByDate(date: string) {
@@ -79,9 +114,9 @@ export const dailyReportResourceApi = {
     );
   },
 
-  async createEquipmentDeployment(body: DailyReportEquipmentDeploymentRequest) {
+  async updateEquipmentDeployment(body: DailyReportEquipmentDeploymentUpdateRequest) {
     await ensureSelectedProjectId();
-    return apiFetch<void>("/equipment/createEquipmentDeployment", {
+    return apiFetch<void>("/equipment/updateEquipmentDeployment", {
       method: "POST",
       body: toApiBody(body),
     });
@@ -119,10 +154,26 @@ export const dailyReportResourceApi = {
     );
   },
 
+  async createMaterialType(body: DailyReportMaterialTypeCreateRequest) {
+    await ensureSelectedProjectId();
+    return apiFetch<DailyReportMaterialTypeResponse>("/reference/createMaterialType", {
+      method: "POST",
+      body: toApiBody(body),
+    });
+  },
+
   async getMaterialSpecList(materialTypeId: number) {
     await ensureSelectedProjectId();
     return apiFetch<DailyReportMaterialSpecResponse[]>(
       `/reference/getMaterialSpecList?materialTypeId=${encodeURIComponent(String(materialTypeId))}`,
     );
+  },
+
+  async createMaterialSpec(body: DailyReportMaterialSpecCreateRequest) {
+    await ensureSelectedProjectId();
+    return apiFetch<DailyReportMaterialSpecResponse>("/reference/createMaterialSpec", {
+      method: "POST",
+      body: toApiBody(body),
+    });
   },
 };
