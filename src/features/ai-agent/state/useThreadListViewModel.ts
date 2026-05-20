@@ -1,4 +1,4 @@
-import { computed } from "vue";
+import { computed, watch } from "vue";
 
 import { chatThreadApi } from "@/features/ai-agent/api/chat-thread.api";
 import { aiAgentCopy } from "@/features/ai-agent/data/ai-agent.copy";
@@ -59,6 +59,12 @@ export function useThreadListViewModel() {
   async function refreshThreads() {
     try {
       const list = await chatThreadApi.list();
+      const apiIds = new Set(list.map((t) => t.threadId));
+      for (const existing of Array.from(store.threads.values())) {
+        if (!apiIds.has(existing.threadId)) {
+          store.removeThread(existing.threadId);
+        }
+      }
       for (const thread of list) {
         store.upsertThread(thread);
       }
@@ -66,6 +72,15 @@ export function useThreadListViewModel() {
       // best-effort hydration; WS snapshot is source of truth
     }
   }
+
+  watch(
+    () => store.connectionStatus,
+    (status, prev) => {
+      if (status === "open" && prev !== "open") {
+        void refreshThreads();
+      }
+    },
+  );
 
   return {
     threads,
