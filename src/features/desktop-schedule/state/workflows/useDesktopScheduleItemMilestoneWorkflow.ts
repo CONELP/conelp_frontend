@@ -11,7 +11,11 @@ import type {
     DesktopScheduleWorkConnection
 } from "@/features/desktop-schedule/model/desktop-schedule.types";
 import { diffDays, shiftDateString } from "@/features/desktop-schedule/services/desktop-schedule-date.service";
-import { DESKTOP_SCHEDULE_MILESTONE_ROW_ID, desktopScheduleService } from "@/features/desktop-schedule/services/desktop-schedule.service";
+import {
+  DESKTOP_SCHEDULE_MILESTONE_ROW_ID,
+  desktopScheduleService,
+} from "@/features/desktop-schedule/services/desktop-schedule.service";
+import { createEmptyMilestoneSyncName } from "@/features/desktop-schedule/services/domain/desktop-schedule-milestone-label.service";
 import {
     getMilestoneApiId
 } from "@/features/desktop-schedule/services/domain/desktop-schedule-version-review.service";
@@ -27,11 +31,16 @@ import type {
     DesktopScheduleSelectionState
 } from "@/features/desktop-schedule/state/types/desktop-schedule-interaction-state";
 import { createEmptyDesktopScheduleSelectionState } from "@/features/desktop-schedule/state/types/desktop-schedule-interaction-state";
+import type { DesktopScheduleLocalSnapshot } from "@/features/desktop-schedule/state/types/desktop-schedule-history.types";
 
 
 type AnyFunction = (...args: any[]) => any;
 
+type ScheduleClipboardMode = "copy" | "cut";
+
 type CopiedScheduleItem = {
+  sourceItemId?: string;
+  sourceItem?: DesktopScheduleItem;
   rowOffset: number;
   dayOffset: number;
   name: string;
@@ -41,6 +50,22 @@ type CopiedScheduleItem = {
   zoneIds: number[];
   floorIds: number[];
   componentTypeIds: number[];
+};
+
+type CopiedScheduleMilestone = {
+  sourceMilestoneId?: string;
+  sourceMilestone?: DesktopScheduleMilestone;
+  dayOffset: number;
+  label: string;
+  rowId: string | null;
+};
+
+type CopiedScheduleClipboard = {
+  mode: ScheduleClipboardMode;
+  items: CopiedScheduleItem[];
+  milestones: CopiedScheduleMilestone[];
+  cutOriginSnapshot?: DesktopScheduleLocalSnapshot;
+  cutWorkConnections?: DesktopScheduleWorkConnection[];
 };
 
 type SchedulePasteTarget = {
@@ -55,11 +80,18 @@ type PreparedCopiedScheduleItem = {
   durationDays: number;
 };
 
+type PreparedCopiedScheduleMilestone = {
+  copiedMilestone: CopiedScheduleMilestone;
+  date: string;
+};
+
 type Deferred<T> = {
   promise: Promise<T>;
   resolve: (value: T) => void;
   reject: (reason?: unknown) => void;
 };
+
+const ITEM_NAME_HINT_FALLBACK_TEXT = "작업명";
 
 function createDeferred<T>(): Deferred<T> {
   let resolve!: (value: T) => void;
@@ -70,6 +102,26 @@ function createDeferred<T>(): Deferred<T> {
   });
   promise.catch(() => undefined);
   return { promise, resolve, reject };
+}
+
+function cloneScheduleItem(item: DesktopScheduleItem): DesktopScheduleItem {
+  return {
+    ...item,
+    zoneIds: item.zoneIds ? [...item.zoneIds] : undefined,
+    floorIds: item.floorIds ? [...item.floorIds] : undefined,
+    componentTypeIds: item.componentTypeIds ? [...item.componentTypeIds] : undefined,
+    actualDates: item.actualDates ? [...item.actualDates] : undefined,
+  };
+}
+
+function cloneScheduleMilestone(milestone: DesktopScheduleMilestone): DesktopScheduleMilestone {
+  return { ...milestone };
+}
+
+function cloneScheduleWorkConnection(
+  workConnection: DesktopScheduleWorkConnection,
+): DesktopScheduleWorkConnection {
+  return { ...workConnection };
 }
 
 type DesktopScheduleItemMilestoneWorkflowDeps = Record<string, any> & {
@@ -90,15 +142,21 @@ type DesktopScheduleItemMilestoneWorkflowDeps = Record<string, any> & {
   getSelectedScheduleVersionId: () => DesktopScheduleVersionId | null;
   waitForPendingItemCreations: (itemIds: string[]) => Promise<void>;
   getPersistedWorkIdForItem: (item: DesktopScheduleItem) => number;
+  withPersistedWorkIds: (items: DesktopScheduleItem[]) => DesktopScheduleItem[];
   getWorkConnectionById: (workConnectionId: string) => DesktopScheduleWorkConnection | null;
   getWorkLeadTimeWithinProject: (startDate: string, range: ProjectScheduleDateRange | null) => number;
   createWorkUpdateRequest: AnyFunction;
   orderWorkUpdateItemsByDependency: AnyFunction;
+  updateWorkWithFrontendRecovery: (
+    updateItems: Array<{ workId: number; workName?: string; startDate?: string; workLeadTime?: number; subWorkTypeId?: number }>,
+    sourceItems: DesktopScheduleItem[],
+  ) => Promise<unknown>;
   captureWorkingSnapshot: AnyFunction;
   restoreWorkingSnapshot: AnyFunction;
   pushLocalHistoryEntry: AnyFunction;
   runScheduleMutation: AnyFunction;
   applyServerMutationPatch: AnyFunction;
+  replaceWorkingMilestoneWithApiMilestone: AnyFunction;
   pendingWorkCreationByItemId: Map<string, Promise<number>>;
   resolvedWorkIdByPendingItemId: Map<string, number>;
   pendingMilestoneCreationByMilestoneId: Map<string, Promise<number>>;
@@ -114,6 +172,7 @@ export function useDesktopScheduleItemMilestoneWorkflow(deps: DesktopScheduleIte
     handleMutationError,
     waitForPendingItemCreations,
     getPersistedWorkIdForItem,
+    withPersistedWorkIds,
     syncLoadedMilestoneFromModel,
     scheduleLoadState,
     workingRows,
@@ -143,6 +202,7 @@ export function useDesktopScheduleItemMilestoneWorkflow(deps: DesktopScheduleIte
     getWorkConnectionById,
     createWorkUpdateRequest,
     orderWorkUpdateItemsByDependency,
+    updateWorkWithFrontendRecovery,
     applyServerMutationPatch,
     removeLoadedWorksAndWorkDeps,
     removeLoadedWorkDeps,
@@ -151,6 +211,7 @@ export function useDesktopScheduleItemMilestoneWorkflow(deps: DesktopScheduleIte
     syncLoadedSubWorkTypeColor,
     upsertLoadedMilestone,
     removeLoadedMilestones,
+    replaceWorkingMilestoneWithApiMilestone,
     removeReferenceLocally,
     createReferenceWorkTypeSet,
     createReferenceSubWorkTypeSet,
@@ -162,7 +223,11 @@ export function useDesktopScheduleItemMilestoneWorkflow(deps: DesktopScheduleIte
     resolvedMilestoneApiIdByPendingMilestoneId,
   } = deps;
 
-  let copiedItemsClipboard: CopiedScheduleItem[] = [];
+  let copiedScheduleClipboard: CopiedScheduleClipboard = {
+    mode: "copy",
+    items: [],
+    milestones: [],
+  };
 
   
   async function deleteSelection() {
@@ -385,14 +450,19 @@ export function useDesktopScheduleItemMilestoneWorkflow(deps: DesktopScheduleIte
   }
   
   function openItemContextMenu(payload: { itemId: string; x: number; y: number }) {
-    const nextSelectedItemIds = selectionState.value.itemIds.includes(payload.itemId)
-      ? selectionState.value.itemIds
-      : [payload.itemId];
+    const shouldPreserveSelection = selectionState.value.itemIds.includes(payload.itemId);
   
-    selectionState.value = {
-      ...createEmptyDesktopScheduleSelectionState(),
-      itemIds: nextSelectedItemIds,
-    };
+    selectionState.value = shouldPreserveSelection
+      ? {
+          ...selectionState.value,
+          workConnectionIds: [],
+          criticalPathIds: [],
+          groupIds: [],
+        }
+      : {
+          ...createEmptyDesktopScheduleSelectionState(),
+          itemIds: [payload.itemId],
+        };
     contextMenuState.value = {
       open: true,
       x: payload.x,
@@ -425,10 +495,18 @@ export function useDesktopScheduleItemMilestoneWorkflow(deps: DesktopScheduleIte
       return;
     }
   
-    selectionState.value = {
-      ...createEmptyDesktopScheduleSelectionState(),
-      milestoneIds: [payload.milestoneId],
-    };
+    const shouldPreserveSelection = selectionState.value.milestoneIds.includes(payload.milestoneId);
+    selectionState.value = shouldPreserveSelection
+      ? {
+          ...selectionState.value,
+          workConnectionIds: [],
+          criticalPathIds: [],
+          groupIds: [],
+        }
+      : {
+          ...createEmptyDesktopScheduleSelectionState(),
+          milestoneIds: [payload.milestoneId],
+        };
     contextMenuState.value = {
       open: true,
       x: payload.x,
@@ -508,15 +586,201 @@ export function useDesktopScheduleItemMilestoneWorkflow(deps: DesktopScheduleIte
       : [targetItemId];
   }
 
+  function getCopyScope(targetItemId?: string, targetMilestoneId?: string) {
+    const targetItemSelected =
+      !!targetItemId && selectionState.value.itemIds.includes(targetItemId);
+    const targetMilestoneSelected =
+      !!targetMilestoneId && selectionState.value.milestoneIds.includes(targetMilestoneId);
+
+    if (targetItemId && !targetItemSelected) {
+      return {
+        itemIds: [targetItemId],
+        milestoneIds: [],
+      };
+    }
+
+    if (targetMilestoneId && !targetMilestoneSelected) {
+      return {
+        itemIds: [],
+        milestoneIds: [targetMilestoneId],
+      };
+    }
+
+    return {
+      itemIds: selectionState.value.itemIds,
+      milestoneIds: selectionState.value.milestoneIds,
+    };
+  }
+
+  function hasCopiedScheduleClipboard() {
+    return (
+      copiedScheduleClipboard.items.length > 0 ||
+      copiedScheduleClipboard.milestones.length > 0
+    );
+  }
+
+  function formatScheduleEntityCount(itemCount: number, milestoneCount: number) {
+    return [
+      itemCount > 0 ? `작업 ${itemCount}개` : null,
+      milestoneCount > 0 ? `마일스톤 ${milestoneCount}개` : null,
+    ]
+      .filter((label): label is string => label !== null)
+      .join(", ");
+  }
+
+  function getItemNameHintText(item: DesktopScheduleItem) {
+    const row = rowById.value.get(item.rowId);
+    return (
+      row?.source.subWorkType?.trim() ||
+      row?.name.trim() ||
+      item.subWorkType.trim() ||
+      ITEM_NAME_HINT_FALLBACK_TEXT
+    );
+  }
+
+  function getCommittedItemRenameName(item: DesktopScheduleItem, inputName: string) {
+    if (item.name.trim().length === 0 && inputName.trim().length === 0) {
+      return getItemNameHintText(item);
+    }
+
+    return inputName;
+  }
+
+  function getCommittedMilestoneLabel(inputLabel: string) {
+    return inputLabel.trim();
+  }
+
+  function createUniqueCopiedMilestoneLabel(label: string, reservedLabels: Set<string>) {
+    const baseLabel = label.trim();
+
+    if (baseLabel.length === 0) {
+      return "";
+    }
+
+    let copyIndex = 1;
+    let nextLabel = `${baseLabel}-${copyIndex}`;
+
+    while (reservedLabels.has(nextLabel)) {
+      copyIndex += 1;
+      nextLabel = `${baseLabel}-${copyIndex}`;
+    }
+
+    reservedLabels.add(nextLabel);
+    return nextLabel;
+  }
+
   function getOrderedChildRows() {
     return workingRows.value
       .filter((row) => row.kind === "child-process")
       .sort((first, second) => first.order - second.order);
   }
 
-  function copySelectedItems(targetItemId?: string) {
-    const itemIds = targetItemId ? getScopedItemIds(targetItemId) : selectionState.value.itemIds;
+  function restorePendingCutClipboardEntities() {
+    if (copiedScheduleClipboard.mode !== "cut") {
+      return false;
+    }
+
+    const cutItems = copiedScheduleClipboard.items
+      .map((item) => item.sourceItem)
+      .filter((item): item is DesktopScheduleItem => item !== undefined)
+      .map(cloneScheduleItem);
+    const cutMilestones = copiedScheduleClipboard.milestones
+      .map((milestone) => milestone.sourceMilestone)
+      .filter((milestone): milestone is DesktopScheduleMilestone => milestone !== undefined)
+      .map(cloneScheduleMilestone);
+    const cutItemIds = new Set(cutItems.map((item) => item.id));
+    const cutMilestoneIds = new Set(cutMilestones.map((milestone) => milestone.id));
+
+    if (cutItems.length > 0) {
+      const existingItemIds = new Set(workingItems.value.map((item) => item.id));
+      workingItems.value = [
+        ...workingItems.value,
+        ...cutItems.filter((item) => !existingItemIds.has(item.id)),
+      ];
+    }
+
+    if (cutMilestones.length > 0) {
+      const existingMilestoneIds = new Set(workingMilestones.value.map((milestone) => milestone.id));
+      workingMilestones.value = [
+        ...workingMilestones.value,
+        ...cutMilestones.filter((milestone) => !existingMilestoneIds.has(milestone.id)),
+      ];
+    }
+
+    const nextItemIds = new Set(workingItems.value.map((item) => item.id));
+    const cutWorkConnections = (copiedScheduleClipboard.cutWorkConnections ?? [])
+      .map(cloneScheduleWorkConnection)
+      .filter(
+        (workConnection) =>
+          nextItemIds.has(workConnection.sourceItemId) &&
+          nextItemIds.has(workConnection.targetItemId),
+      );
+
+    if (cutWorkConnections.length > 0) {
+      const restoredWorkConnectionIds = new Set(cutWorkConnections.map((workConnection) => workConnection.id));
+      const restoredWorkConnectionPathIds = new Set(
+        cutWorkConnections.map((workConnection) => workConnection.pathId),
+      );
+      workingWorkConnections.value = [
+        ...workingWorkConnections.value.filter(
+          (workConnection) =>
+            !restoredWorkConnectionIds.has(workConnection.id) &&
+            !restoredWorkConnectionPathIds.has(workConnection.pathId),
+        ),
+        ...cutWorkConnections,
+      ];
+    }
+
+    if (
+      selectionState.value.itemIds.some((itemId) => cutItemIds.has(itemId)) ||
+      selectionState.value.milestoneIds.some((milestoneId) => cutMilestoneIds.has(milestoneId))
+    ) {
+      selectionState.value = createEmptyDesktopScheduleSelectionState();
+    }
+
+    return true;
+  }
+
+  function hideCutClipboardEntities(
+    sourceItems: DesktopScheduleItem[],
+    sourceMilestones: DesktopScheduleMilestone[],
+  ) {
+    const sourceItemIds = sourceItems.map((item) => item.id);
+    const sourceMilestoneIds = sourceMilestones.map((milestone) => milestone.id);
+
+    if (sourceItemIds.length > 0) {
+      workingItems.value = desktopScheduleService.deleteItems(workingItems.value, sourceItemIds);
+      workingWorkConnections.value = desktopScheduleService.removeWorkConnectionsForItems(
+        workingWorkConnections.value,
+        sourceItemIds,
+      );
+    }
+
+    if (sourceMilestoneIds.length > 0) {
+      workingMilestones.value = desktopScheduleService.removeMilestonesByIds(
+        workingMilestones.value,
+        sourceMilestoneIds,
+      );
+    }
+
+    selectionState.value = createEmptyDesktopScheduleSelectionState();
+    connectionCreationState.value = null;
+    renamingItemId.value = null;
+    renamingMilestoneId.value = null;
+  }
+
+  function setSelectedItemsClipboard(
+    mode: ScheduleClipboardMode,
+    targetItemId?: string,
+    targetMilestoneId?: string,
+  ) {
+    const { itemIds, milestoneIds } = getCopyScope(targetItemId, targetMilestoneId);
+    if (restorePendingCutClipboardEntities()) {
+      clearScheduleClipboard();
+    }
+
     const itemIdSet = new Set(itemIds);
+    const milestoneIdSet = new Set(milestoneIds);
     const childRows = getOrderedChildRows();
     const childRowIndexById = new Map(childRows.map((row, index) => [row.id, index] as const));
     const sourceItems = workingItems.value
@@ -530,48 +794,119 @@ export function useDesktopScheduleItemMilestoneWorkflow(deps: DesktopScheduleIte
           first.workId - second.workId
         );
       });
+    const sourceMilestones = workingMilestones.value
+      .filter((milestone) => milestoneIdSet.has(milestone.id))
+      .sort((first, second) =>
+        first.date.localeCompare(second.date) ||
+        first.label.localeCompare(second.label, "ko") ||
+        first.id.localeCompare(second.id),
+      );
 
-    if (sourceItems.length === 0) {
-      showScheduleToast("복사할 작업을 선택해주세요.");
+    if (sourceItems.length === 0 && sourceMilestones.length === 0) {
+      showScheduleToast(
+        mode === "cut"
+          ? "잘라낼 작업 또는 마일스톤을 선택해주세요."
+          : "복사할 작업 또는 마일스톤을 선택해주세요.",
+      );
       closeContextMenu();
       return;
     }
 
-    const anchorStartDate = sourceItems.reduce((earliestDate, item) =>
-      item.startDate < earliestDate ? item.startDate : earliestDate,
-    sourceItems[0]!.startDate);
-    const anchorRowIndex = Math.min(
-      ...sourceItems.map((item) => childRowIndexById.get(item.rowId) ?? 0),
+    const cutOriginSnapshot = mode === "cut" ? captureWorkingSnapshot() : undefined;
+    const sourceWorkConnections =
+      mode === "cut"
+        ? workingWorkConnections.value
+            .filter(
+              (workConnection) =>
+                itemIdSet.has(workConnection.sourceItemId) ||
+                itemIdSet.has(workConnection.targetItemId),
+            )
+            .map(cloneScheduleWorkConnection)
+        : [];
+    const sourceDateCandidates = [
+      ...sourceItems.map((item) => item.startDate),
+      ...sourceMilestones.map((milestone) => milestone.date),
+    ];
+    const anchorStartDate = sourceDateCandidates.reduce((earliestDate, date) =>
+      date < earliestDate ? date : earliestDate,
+    sourceDateCandidates[0]!);
+    const anchorRowIndex =
+      sourceItems.length > 0
+        ? Math.min(...sourceItems.map((item) => childRowIndexById.get(item.rowId) ?? 0))
+        : 0;
+
+    copiedScheduleClipboard = {
+      mode,
+      items: sourceItems.map((item) => ({
+        sourceItemId: mode === "cut" ? item.id : undefined,
+        sourceItem: mode === "cut" ? cloneScheduleItem(item) : undefined,
+        rowOffset: (childRowIndexById.get(item.rowId) ?? anchorRowIndex) - anchorRowIndex,
+        dayOffset: diffDays(anchorStartDate, item.startDate),
+        name: item.name,
+        durationDays: item.durationDays,
+        colorHex: item.colorHex ?? null,
+        annotation: item.annotation ?? "",
+        zoneIds: item.zoneIds ? [...item.zoneIds] : [],
+        floorIds: item.floorIds ? [...item.floorIds] : [],
+        componentTypeIds: item.componentTypeIds ? [...item.componentTypeIds] : [],
+      })),
+      milestones: sourceMilestones.map((milestone) => ({
+        sourceMilestoneId: mode === "cut" ? milestone.id : undefined,
+        sourceMilestone: mode === "cut" ? cloneScheduleMilestone(milestone) : undefined,
+        dayOffset: diffDays(anchorStartDate, milestone.date),
+        label: milestone.label,
+        rowId: milestone.rowId ?? null,
+      })),
+      cutOriginSnapshot,
+      cutWorkConnections: sourceWorkConnections,
+    };
+
+    if (mode === "cut") {
+      hideCutClipboardEntities(sourceItems, sourceMilestones);
+    }
+
+    showScheduleToast(
+      `${formatScheduleEntityCount(sourceItems.length, sourceMilestones.length)}를 ${
+        mode === "cut" ? "잘라냈어요" : "복사했어요"
+      }.`,
     );
-
-    copiedItemsClipboard = sourceItems.map((item) => ({
-      rowOffset: (childRowIndexById.get(item.rowId) ?? anchorRowIndex) - anchorRowIndex,
-      dayOffset: diffDays(anchorStartDate, item.startDate),
-      name: item.name,
-      durationDays: item.durationDays,
-      colorHex: item.colorHex ?? null,
-      annotation: item.annotation ?? "",
-      zoneIds: item.zoneIds ? [...item.zoneIds] : [],
-      floorIds: item.floorIds ? [...item.floorIds] : [],
-      componentTypeIds: item.componentTypeIds ? [...item.componentTypeIds] : [],
-    }));
-
-    showScheduleToast(`${sourceItems.length}개 작업을 복사했어요.`);
     closeContextMenu();
-    trackScheduleAction("copy_items", "success", {
+    trackScheduleAction(mode === "cut" ? "cut_items" : "copy_items", "success", {
       item_count: sourceItems.length,
+      milestone_count: sourceMilestones.length,
       local_only: true,
     });
+  }
+
+  function copySelectedItems(targetItemId?: string, targetMilestoneId?: string) {
+    setSelectedItemsClipboard("copy", targetItemId, targetMilestoneId);
+  }
+
+  function cutSelectedItems(targetItemId?: string, targetMilestoneId?: string) {
+    setSelectedItemsClipboard("cut", targetItemId, targetMilestoneId);
   }
 
   function canPasteCopiedItemsToCanvasTarget(
     target: SchedulePasteTarget,
   ) {
-    return copiedItemsClipboard.length > 0 && canCreateItemOnCanvasTarget({
-      kind: "canvas",
-      rowId: target.rowId,
-      date: target.date,
-    });
+    const preparedItems = prepareCopiedItemsForPaste(target);
+    const preparedMilestones = prepareCopiedMilestonesForPaste(target);
+
+    if (copiedScheduleClipboard.mode === "cut") {
+      return (
+        hasCopiedScheduleClipboard() &&
+        preparedItems.length === copiedScheduleClipboard.items.length &&
+        preparedMilestones.length === copiedScheduleClipboard.milestones.length
+      );
+    }
+
+    return (
+      hasCopiedScheduleClipboard() &&
+      (
+        preparedItems.length > 0 ||
+        preparedMilestones.length > 0
+      )
+    );
   }
 
   function prepareCopiedItemsForPaste(target: SchedulePasteTarget) {
@@ -589,7 +924,7 @@ export function useDesktopScheduleItemMilestoneWorkflow(deps: DesktopScheduleIte
       return [];
     }
 
-    return copiedItemsClipboard
+    return copiedScheduleClipboard.items
       .map((copiedItem): PreparedCopiedScheduleItem | null => {
         const targetRow = childRows[targetRowIndex + copiedItem.rowOffset];
         const subWorkTypeId = targetRow?.source.subWorkTypeId;
@@ -610,13 +945,259 @@ export function useDesktopScheduleItemMilestoneWorkflow(deps: DesktopScheduleIte
           copiedItem,
           row: targetRow,
           startDate,
-          durationDays: Math.max(
-            1,
-            Math.min(copiedItem.durationDays, getWorkLeadTimeWithinProject(startDate, projectDateRange)),
-          ),
+          durationDays: projectDateRange
+            ? Math.max(
+                1,
+                Math.min(
+                  copiedItem.durationDays,
+                  diffDays(startDate, projectDateRange.endDate) + 1,
+                ),
+              )
+            : copiedItem.durationDays,
         };
       })
       .filter((item): item is PreparedCopiedScheduleItem => item !== null);
+  }
+
+  function prepareCopiedMilestonesForPaste(target: SchedulePasteTarget) {
+    const targetDate = target.date;
+
+    if (!target.rowId || !targetDate) {
+      return [];
+    }
+
+    const projectDateRange = getProjectScheduleDateRange();
+
+    return copiedScheduleClipboard.milestones
+      .map((copiedMilestone): PreparedCopiedScheduleMilestone | null => {
+        const date = shiftDateString(targetDate, copiedMilestone.dayOffset);
+
+        if (projectDateRange && !isDateWithinProjectRange(date, projectDateRange)) {
+          return null;
+        }
+
+        return {
+          copiedMilestone,
+          date,
+        };
+      })
+      .filter((milestone): milestone is PreparedCopiedScheduleMilestone => milestone !== null);
+  }
+
+  function clearScheduleClipboard() {
+    copiedScheduleClipboard = {
+      mode: "copy",
+      items: [],
+      milestones: [],
+    };
+  }
+
+  async function pasteCutItemsToCanvasTarget(
+    preparedItems: PreparedCopiedScheduleItem[],
+    preparedMilestones: PreparedCopiedScheduleMilestone[],
+    scheduleVersionId: DesktopScheduleVersionId,
+  ) {
+    if (
+      preparedItems.length !== copiedScheduleClipboard.items.length ||
+      preparedMilestones.length !== copiedScheduleClipboard.milestones.length
+    ) {
+      showScheduleToast("잘라낸 항목을 모두 붙여넣을 수 있는 위치를 선택해주세요.");
+      closeContextMenu();
+      return;
+    }
+
+    const cutPreparedItems = preparedItems
+      .map((preparedItem) => {
+        const sourceItem = preparedItem.copiedItem.sourceItem
+          ? cloneScheduleItem(preparedItem.copiedItem.sourceItem)
+          : null;
+
+        return sourceItem ? { sourceItem, preparedItem } : null;
+      })
+      .filter((item): item is {
+        sourceItem: DesktopScheduleItem;
+        preparedItem: PreparedCopiedScheduleItem;
+      } => item !== null);
+    const cutPreparedMilestones = preparedMilestones
+      .map((preparedMilestone) => {
+        const sourceMilestone = preparedMilestone.copiedMilestone.sourceMilestone
+          ? cloneScheduleMilestone(preparedMilestone.copiedMilestone.sourceMilestone)
+          : null;
+
+        return sourceMilestone ? { sourceMilestone, preparedMilestone } : null;
+      })
+      .filter((milestone): milestone is {
+        sourceMilestone: DesktopScheduleMilestone;
+        preparedMilestone: PreparedCopiedScheduleMilestone;
+      } => milestone !== null);
+
+    if (
+      cutPreparedItems.length !== copiedScheduleClipboard.items.length ||
+      cutPreparedMilestones.length !== copiedScheduleClipboard.milestones.length
+    ) {
+      showScheduleToast("잘라낸 항목 중 현재 공정표에 없는 항목이 있습니다.");
+      closeContextMenu();
+      return;
+    }
+
+    const snapshot = captureWorkingSnapshot();
+    const historySnapshot = copiedScheduleClipboard.cutOriginSnapshot ?? snapshot;
+    const cutItemIds = new Set(cutPreparedItems.map(({ sourceItem }) => sourceItem.id));
+    const cutMilestoneIds = new Set(
+      cutPreparedMilestones.map(({ sourceMilestone }) => sourceMilestone.id),
+    );
+    const movedItems = cutPreparedItems.map(({ sourceItem, preparedItem }) => {
+      const targetRow = preparedItem.row;
+      const durationDays = preparedItem.durationDays;
+
+      return {
+        ...cloneScheduleItem(sourceItem),
+        rowId: targetRow.id,
+        startDate: preparedItem.startDate,
+        endDate: shiftDateString(preparedItem.startDate, durationDays - 1),
+        durationDays,
+        division: targetRow.source.division ?? sourceItem.division,
+        workType: targetRow.source.workType ?? sourceItem.workType,
+        subWorkType: targetRow.source.subWorkType ?? sourceItem.subWorkType,
+      };
+    });
+    const nextItems = [
+      ...workingItems.value.filter((item) => !cutItemIds.has(item.id)),
+      ...movedItems,
+    ];
+    const movedMilestones = cutPreparedMilestones.map(({ sourceMilestone, preparedMilestone }) => ({
+      ...cloneScheduleMilestone(sourceMilestone),
+      date: preparedMilestone.date,
+    }));
+    const nextMilestones = [
+      ...workingMilestones.value.filter((milestone) => !cutMilestoneIds.has(milestone.id)),
+      ...movedMilestones,
+    ];
+    const nextItemIds = new Set(nextItems.map((item) => item.id));
+    const cutWorkConnections = (copiedScheduleClipboard.cutWorkConnections ?? [])
+      .map(cloneScheduleWorkConnection)
+      .filter(
+        (workConnection) =>
+          nextItemIds.has(workConnection.sourceItemId) &&
+          nextItemIds.has(workConnection.targetItemId),
+      );
+    const cutWorkConnectionIds = new Set(cutWorkConnections.map((workConnection) => workConnection.id));
+    const cutWorkConnectionPathIds = new Set(
+      cutWorkConnections.map((workConnection) => workConnection.pathId),
+    );
+    const nextWorkConnections = [
+      ...workingWorkConnections.value.filter(
+        (workConnection) =>
+          !cutItemIds.has(workConnection.sourceItemId) &&
+          !cutItemIds.has(workConnection.targetItemId) &&
+          !cutWorkConnectionIds.has(workConnection.id) &&
+          !cutWorkConnectionPathIds.has(workConnection.pathId),
+      ),
+      ...cutWorkConnections,
+    ];
+
+    workingItems.value = nextItems;
+    workingWorkConnections.value = nextWorkConnections;
+    workingMilestones.value = nextMilestones;
+    selectionState.value = {
+      ...createEmptyDesktopScheduleSelectionState(),
+      itemIds: cutPreparedItems.map(({ sourceItem }) => sourceItem.id),
+      milestoneIds: cutPreparedMilestones.map(({ sourceMilestone }) => sourceMilestone.id),
+    };
+    renamingItemId.value = null;
+    renamingMilestoneId.value = null;
+    closeContextMenu();
+
+    const nextItemById = new Map(nextItems.map((item) => [item.id, item] as const));
+    const updateItems = cutPreparedItems
+      .map(({ sourceItem }) => {
+        const nextItem = nextItemById.get(sourceItem.id);
+
+        if (!nextItem) {
+          return null;
+        }
+
+        const request = createWorkUpdateRequest(sourceItem, nextItem);
+        return Object.keys(request).length > 1 ? request : null;
+      })
+      .filter((item): item is {
+        workId: number;
+        workName?: string;
+        startDate?: string;
+        workLeadTime?: number;
+        subWorkTypeId?: number;
+      } => item !== null);
+
+    const didSave = await runScheduleMutation(
+      async () => {
+        if (cutPreparedItems.length > 0) {
+          await waitForPendingItemCreations(cutPreparedItems.map(({ sourceItem }) => sourceItem.id));
+        }
+
+        if (updateItems.length > 0) {
+          await updateWorkWithFrontendRecovery(
+            orderWorkUpdateItemsByDependency(updateItems, nextItems, nextWorkConnections),
+            nextItems,
+          );
+        }
+
+        await Promise.all(
+          cutPreparedMilestones.map(async ({ sourceMilestone }) => {
+            const nextMilestone = nextMilestones.find(
+              (milestone) => milestone.id === sourceMilestone.id,
+            );
+
+            if (!nextMilestone) {
+              return;
+            }
+
+            let apiId = getMilestoneApiId(nextMilestone);
+            if (apiId === null) {
+              apiId =
+                resolvedMilestoneApiIdByPendingMilestoneId.get(nextMilestone.id) ?? null;
+            }
+            if (apiId === null) {
+              const pendingMilestoneCreation =
+                pendingMilestoneCreationByMilestoneId.get(nextMilestone.id);
+              apiId = pendingMilestoneCreation ? await pendingMilestoneCreation : null;
+            }
+
+            if (apiId === null) {
+              return;
+            }
+
+            await desktopScheduleApi.updateMilestone({
+              scheduleVersionId,
+              id: apiId,
+              date: nextMilestone.date,
+              name: nextMilestone.label,
+            });
+            syncLoadedMilestoneFromModel(nextMilestone);
+          }),
+        );
+      },
+      "잘라낸 항목을 붙여넣지 못했습니다.",
+      {
+        rollback: () => restoreWorkingSnapshot(snapshot),
+      },
+    );
+
+    if (didSave) {
+      syncLoadedDataFromWorkingItemsAndConnections(
+        withPersistedWorkIds(nextItems),
+        nextWorkConnections,
+      );
+      pushLocalHistoryEntry(historySnapshot);
+      showScheduleToast(
+        `${formatScheduleEntityCount(cutPreparedItems.length, cutPreparedMilestones.length)}를 이동했어요.`,
+      );
+      clearScheduleClipboard();
+    }
+    trackScheduleMutationResult("paste_items", didSave, {
+      clipboard_mode: "cut",
+      item_count: cutPreparedItems.length,
+      milestone_count: cutPreparedMilestones.length,
+    });
   }
 
   async function pasteCopiedItemsToCanvasTarget(target: SchedulePasteTarget) {
@@ -624,8 +1205,8 @@ export function useDesktopScheduleItemMilestoneWorkflow(deps: DesktopScheduleIte
       return;
     }
 
-    if (copiedItemsClipboard.length === 0) {
-      showScheduleToast("붙여넣을 작업이 없습니다.");
+    if (!hasCopiedScheduleClipboard()) {
+      showScheduleToast("붙여넣을 작업 또는 마일스톤이 없습니다.");
       closeContextMenu();
       return;
     }
@@ -634,18 +1215,24 @@ export function useDesktopScheduleItemMilestoneWorkflow(deps: DesktopScheduleIte
 
     if (!scheduleVersionId) {
       handleMutationError(
-        new Error("작업을 붙여넣을 공정표 버전 정보가 없습니다."),
-        "작업을 붙여넣지 못했습니다.",
+        new Error("작업 또는 마일스톤을 붙여넣을 공정표 버전 정보가 없습니다."),
+        "작업 또는 마일스톤을 붙여넣지 못했습니다.",
       );
       closeContextMenu();
       return;
     }
 
     const preparedItems = prepareCopiedItemsForPaste(target);
+    const preparedMilestones = prepareCopiedMilestonesForPaste(target);
 
-    if (preparedItems.length === 0) {
+    if (preparedItems.length === 0 && preparedMilestones.length === 0) {
       showScheduleToast("붙여넣을 수 있는 위치가 없습니다.");
       closeContextMenu();
+      return;
+    }
+
+    if (copiedScheduleClipboard.mode === "cut") {
+      await pasteCutItemsToCanvasTarget(preparedItems, preparedMilestones, scheduleVersionId);
       return;
     }
 
@@ -654,7 +1241,12 @@ export function useDesktopScheduleItemMilestoneWorkflow(deps: DesktopScheduleIte
       localItem: DesktopScheduleItem;
       preparedItem: PreparedCopiedScheduleItem;
     }> = [];
+    const createdMilestones: Array<{
+      localMilestone: DesktopScheduleMilestone;
+      preparedMilestone: PreparedCopiedScheduleMilestone;
+    }> = [];
     let nextItems = workingItems.value;
+    let nextMilestones = workingMilestones.value;
 
     preparedItems.forEach((preparedItem) => {
       const previousItemIds = new Set(nextItems.map((item) => item.id));
@@ -681,20 +1273,56 @@ export function useDesktopScheduleItemMilestoneWorkflow(deps: DesktopScheduleIte
       }
     });
 
-    if (createdItems.length === 0) {
-      showScheduleToast("붙여넣을 수 있는 작업이 없습니다.");
+    const reservedMilestoneLabels = new Set(
+      nextMilestones
+        .map((milestone) => milestone.label.trim())
+        .filter((label) => label.length > 0),
+    );
+
+    preparedMilestones.forEach((preparedMilestone) => {
+      const previousMilestoneIds = new Set(nextMilestones.map((milestone) => milestone.id));
+      const nextMilestoneLabel = createUniqueCopiedMilestoneLabel(
+        preparedMilestone.copiedMilestone.label,
+        reservedMilestoneLabels,
+      );
+      nextMilestones = desktopScheduleService.createMilestone(nextMilestones, {
+        date: preparedMilestone.date,
+        label: nextMilestoneLabel,
+        rowId: preparedMilestone.copiedMilestone.rowId,
+      });
+
+      const createdMilestone = nextMilestones.find(
+        (milestone) => !previousMilestoneIds.has(milestone.id),
+      );
+      if (createdMilestone) {
+        createdMilestones.push({
+          localMilestone: createdMilestone,
+          preparedMilestone,
+        });
+      }
+    });
+
+    if (createdItems.length === 0 && createdMilestones.length === 0) {
+      showScheduleToast("붙여넣을 수 있는 작업 또는 마일스톤이 없습니다.");
       closeContextMenu();
       return;
     }
 
     const pendingCreationByItemId = new Map<string, Deferred<number>>();
+    const pendingCreationByMilestoneId = new Map<string, Deferred<number>>();
     createdItems.forEach(({ localItem }) => {
       const pendingCreation = createDeferred<number>();
       pendingCreationByItemId.set(localItem.id, pendingCreation);
       pendingWorkCreationByItemId.set(localItem.id, pendingCreation.promise);
     });
+    createdMilestones.forEach(({ localMilestone }) => {
+      const pendingCreation = createDeferred<number>();
+      pendingCreationByMilestoneId.set(localMilestone.id, pendingCreation);
+      pendingMilestoneCreationByMilestoneId.set(localMilestone.id, pendingCreation.promise);
+    });
 
     workingItems.value = nextItems;
+    workingMilestones.value = nextMilestones;
     createdItems.forEach(({ localItem, preparedItem }) => {
       if (preparedItem.copiedItem.colorHex !== null) {
         workingItems.value = desktopScheduleService.updateItemColor(
@@ -707,6 +1335,7 @@ export function useDesktopScheduleItemMilestoneWorkflow(deps: DesktopScheduleIte
     selectionState.value = {
       ...createEmptyDesktopScheduleSelectionState(),
       itemIds: createdItems.map(({ localItem }) => localItem.id),
+      milestoneIds: createdMilestones.map(({ localMilestone }) => localMilestone.id),
     };
     renamingItemId.value = null;
     renamingMilestoneId.value = null;
@@ -715,6 +1344,9 @@ export function useDesktopScheduleItemMilestoneWorkflow(deps: DesktopScheduleIte
     const didSave = await runScheduleMutation(
       async () => {
         const remainingPendingItemIds = new Set(createdItems.map(({ localItem }) => localItem.id));
+        const remainingPendingMilestoneIds = new Set(
+          createdMilestones.map(({ localMilestone }) => localMilestone.id),
+        );
 
         try {
           for (const { localItem, preparedItem } of createdItems) {
@@ -775,6 +1407,37 @@ export function useDesktopScheduleItemMilestoneWorkflow(deps: DesktopScheduleIte
               pendingWorkCreationByItemId.delete(localItem.id);
             }
           }
+
+          for (const { localMilestone, preparedMilestone } of createdMilestones) {
+            const pendingCreation = pendingCreationByMilestoneId.get(localMilestone.id);
+
+            try {
+              const apiMilestone = await desktopScheduleApi.createMilestone({
+                scheduleVersionId,
+                date: preparedMilestone.date,
+                name:
+                  localMilestone.label.trim() ||
+                  createEmptyMilestoneSyncName(localMilestone.id),
+              });
+
+              resolvedMilestoneApiIdByPendingMilestoneId.set(
+                localMilestone.id,
+                apiMilestone.id,
+              );
+              if (getSelectedScheduleVersionId() === scheduleVersionId) {
+                replaceWorkingMilestoneWithApiMilestone(localMilestone.id, apiMilestone, {
+                  preserveLocalLabel: true,
+                });
+              }
+              pendingCreation?.resolve(apiMilestone.id);
+            } catch (error) {
+              pendingCreation?.reject(error);
+              throw error;
+            } finally {
+              remainingPendingMilestoneIds.delete(localMilestone.id);
+              pendingMilestoneCreationByMilestoneId.delete(localMilestone.id);
+            }
+          }
         } finally {
           remainingPendingItemIds.forEach((itemId) => {
             pendingCreationByItemId
@@ -782,9 +1445,15 @@ export function useDesktopScheduleItemMilestoneWorkflow(deps: DesktopScheduleIte
               ?.reject(new Error("작업 붙여넣기 동기화가 중단되었습니다."));
             pendingWorkCreationByItemId.delete(itemId);
           });
+          remainingPendingMilestoneIds.forEach((milestoneId) => {
+            pendingCreationByMilestoneId
+              .get(milestoneId)
+              ?.reject(new Error("마일스톤 붙여넣기 동기화가 중단되었습니다."));
+            pendingMilestoneCreationByMilestoneId.delete(milestoneId);
+          });
         }
       },
-      "작업을 붙여넣지 못했습니다.",
+      "작업 또는 마일스톤을 붙여넣지 못했습니다.",
       {
         rollback: () => restoreWorkingSnapshot(snapshot),
       },
@@ -792,10 +1461,13 @@ export function useDesktopScheduleItemMilestoneWorkflow(deps: DesktopScheduleIte
 
     if (didSave) {
       pushLocalHistoryEntry(snapshot);
-      showScheduleToast(`${createdItems.length}개 작업을 붙여넣었어요.`);
+      showScheduleToast(
+        `${formatScheduleEntityCount(createdItems.length, createdMilestones.length)}를 붙여넣었어요.`,
+      );
     }
     trackScheduleMutationResult("paste_items", didSave, {
       item_count: createdItems.length,
+      milestone_count: createdMilestones.length,
     });
   }
   
@@ -1045,7 +1717,6 @@ export function useDesktopScheduleItemMilestoneWorkflow(deps: DesktopScheduleIte
       return;
     }
   
-    const nextName = payload.name;
     const targetItem = workingItems.value.find((item) => item.id === payload.itemId);
   
     renamingItemId.value = null;
@@ -1054,6 +1725,8 @@ export function useDesktopScheduleItemMilestoneWorkflow(deps: DesktopScheduleIte
       closeContextMenu();
       return;
     }
+
+    const nextName = getCommittedItemRenameName(targetItem, payload.name);
   
     if (targetItem.name === nextName) {
       closeContextMenu();
@@ -1076,15 +1749,20 @@ export function useDesktopScheduleItemMilestoneWorkflow(deps: DesktopScheduleIte
       async () => {
         await waitForPendingItemCreations([payload.itemId]);
         const persistedWorkId = getPersistedWorkIdForItem(targetItem);
-        const response = await desktopScheduleApi.updateWork({
-          items: [
+        await updateWorkWithFrontendRecovery(
+          [
             {
               workId: persistedWorkId,
               workName: nextName,
             },
           ],
-        });
-        applyServerMutationPatch(response);
+          [
+            {
+              ...targetItem,
+              name: nextName,
+            },
+          ],
+        );
       },
       "작업명을 저장하지 못했습니다.",
       {
@@ -1132,14 +1810,20 @@ export function useDesktopScheduleItemMilestoneWorkflow(deps: DesktopScheduleIte
       return;
     }
   
-    const nextLabel = payload.label.trim();
     const targetMilestone = workingMilestones.value.find(
       (milestone) => milestone.id === payload.milestoneId,
     );
   
     renamingMilestoneId.value = null;
   
-    if (!targetMilestone || targetMilestone.label === nextLabel) {
+    if (!targetMilestone) {
+      closeContextMenu();
+      return;
+    }
+
+    const nextLabel = getCommittedMilestoneLabel(payload.label);
+
+    if (targetMilestone.label === nextLabel) {
       closeContextMenu();
       return;
     }
@@ -1218,6 +1902,7 @@ export function useDesktopScheduleItemMilestoneWorkflow(deps: DesktopScheduleIte
     openCanvasContextMenu,
     getScopedItemIds,
     copySelectedItems,
+    cutSelectedItems,
     canPasteCopiedItemsToCanvasTarget,
     pasteCopiedItemsToCanvasTarget,
     openColorPalette,

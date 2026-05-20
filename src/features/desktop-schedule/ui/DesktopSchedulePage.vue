@@ -279,6 +279,29 @@ function isEditableKeyboardTarget(target: EventTarget | null) {
   );
 }
 
+function getScheduleShortcutKey(event: KeyboardEvent) {
+  switch (event.code) {
+    case "KeyC":
+      return "c";
+    case "KeyX":
+      return "x";
+    case "KeyV":
+      return "v";
+    case "KeyZ":
+      return "z";
+    case "KeyY":
+      return "y";
+    default:
+      return event.key.toLowerCase();
+  }
+}
+
+function claimScheduleShortcut(event: KeyboardEvent) {
+  event.preventDefault();
+  event.stopPropagation();
+  event.stopImmediatePropagation();
+}
+
 function handleScheduleShortcut(event: KeyboardEvent) {
   if (
     isEditableKeyboardTarget(event.target) ||
@@ -287,22 +310,31 @@ function handleScheduleShortcut(event: KeyboardEvent) {
     return;
   }
 
-  const key = event.key.toLowerCase();
+  const key = getScheduleShortcutKey(event);
   const isCopy = key === "c" && !event.shiftKey && !event.altKey;
+  const isCut = key === "x" && !event.shiftKey && !event.altKey;
   const isPaste = key === "v" && !event.shiftKey && !event.altKey;
   const isUndo = key === "z" && !event.shiftKey;
   const isRedo = (key === "z" && event.shiftKey) || key === "y";
 
-  if (!isCopy && !isPaste && !isUndo && !isRedo) {
+  if (!isCopy && !isCut && !isPaste && !isUndo && !isRedo) {
     return;
   }
 
-  if (isCopy) {
-    if (selection.state.itemIds.length === 0) {
+  if (isCopy || isCut) {
+    if (
+      selection.state.itemIds.length === 0 &&
+      selection.state.milestoneIds.length === 0
+    ) {
       return;
     }
 
-    event.preventDefault();
+    claimScheduleShortcut(event);
+    if (isCut) {
+      clipboard.cutItems();
+      return;
+    }
+
     clipboard.copyItems();
     return;
   }
@@ -312,12 +344,12 @@ function handleScheduleShortcut(event: KeyboardEvent) {
       return;
     }
 
-    event.preventDefault();
+    claimScheduleShortcut(event);
     void clipboard.pasteItemsToCell(selectedScheduleCell.value);
     return;
   }
 
-  event.preventDefault();
+  claimScheduleShortcut(event);
 
   if (isUndo) {
     history.undo();

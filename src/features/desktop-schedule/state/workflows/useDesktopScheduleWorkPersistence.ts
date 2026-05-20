@@ -11,11 +11,126 @@ import { hasDateOrLayoutChange, hasWorkConnectionGapChange } from "@/features/de
 
 export function useDesktopScheduleWorkPersistence(deps: Record<string, any>) {
   const {
+    workingItems,
+    rowById,
+    getSelectedScheduleVersionId,
     getWorkConnectionById,
     getPersistedWorkIdForItem,
     waitForPendingItemCreations,
     applyServerMutationPatch,
+    resolvedWorkIdByPendingItemId,
   } = deps;
+
+  function isMissingWorkError(error: unknown) {
+    return error instanceof Error && /work\s+not\s+found/i.test(error.message);
+  }
+
+  function getMissingWorkIdFromError(error: unknown) {
+    if (!(error instanceof Error)) {
+      return null;
+    }
+
+    const match = error.message.match(/work\s+not\s+found\s*:?\s*(\d+)/i);
+    if (!match?.[1]) {
+      return null;
+    }
+
+    const workId = Number(match[1]);
+    return Number.isFinite(workId) ? workId : null;
+  }
+
+  async function recreateMissingWorkFromFrontend(item: DesktopScheduleItem) {
+    const scheduleVersionId = getSelectedScheduleVersionId();
+    const targetRow = rowById.value.get(item.rowId);
+    const subWorkTypeId = targetRow?.source.subWorkTypeId;
+
+    if (
+      !scheduleVersionId ||
+      !targetRow ||
+      targetRow.kind !== "child-process" ||
+      targetRow.source.kind !== "sub-work-type" ||
+      typeof subWorkTypeId !== "number" ||
+      subWorkTypeId <= 0
+    ) {
+      throw new Error("누락된 작업을 동기화할 공정표 버전 또는 세부공종 정보가 없습니다.");
+    }
+
+    const response = await desktopScheduleApi.createWork({
+      startDate: item.startDate,
+      workLeadTime: item.durationDays,
+      subWorkTypeId,
+      scheduleVersionId,
+    });
+    const createdWork = response.updatedWorks?.[0];
+
+    if (!createdWork) {
+      throw new Error("동기화할 작업 ID를 확인하지 못했습니다.");
+    }
+
+    resolvedWorkIdByPendingItemId.set(item.id, createdWork.workId);
+    workingItems.value = workingItems.value.map((currentItem: DesktopScheduleItem) =>
+      currentItem.id === item.id
+        ? {
+            ...currentItem,
+            workId: createdWork.workId,
+          }
+        : currentItem,
+    );
+    applyServerMutationPatch(response);
+
+    return createdWork.workId;
+  }
+
+  async function updateWorkWithFrontendRecovery(
+    updateItems: DesktopScheduleWorkUpdateItem[],
+    sourceItems: DesktopScheduleItem[],
+  ) {
+    let nextUpdateItems = updateItems.map((item) => ({ ...item }));
+    const recoveredWorkIds = new Set<number>();
+    const maxAttempts = Math.max(nextUpdateItems.length, 1);
+
+    for (let attempt = 0; attempt <= maxAttempts; attempt += 1) {
+      try {
+        const response = await desktopScheduleApi.updateWork({ items: nextUpdateItems });
+        applyServerMutationPatch(response);
+        return response;
+      } catch (error) {
+        const missingWorkId =
+          getMissingWorkIdFromError(error) ??
+          (isMissingWorkError(error) && nextUpdateItems.length === 1
+            ? nextUpdateItems[0]!.workId
+            : null);
+
+        if (missingWorkId === null || recoveredWorkIds.has(missingWorkId)) {
+          throw error;
+        }
+
+        const sourceItem = sourceItems.find(
+          (item) =>
+            item.workId === missingWorkId ||
+            getPersistedWorkIdForItem(item) === missingWorkId,
+        );
+
+        if (!sourceItem) {
+          throw error;
+        }
+
+        recoveredWorkIds.add(missingWorkId);
+        const recoveredWorkId = await recreateMissingWorkFromFrontend(sourceItem);
+        nextUpdateItems = nextUpdateItems.map((item) =>
+          item.workId === missingWorkId
+            ? {
+                ...item,
+                workId: recoveredWorkId,
+                workName: sourceItem.name,
+              }
+            : item,
+        );
+      }
+    }
+
+    throw new Error("누락된 작업을 동기화하지 못했습니다.");
+  }
 
   function createWorkUpdateRequest(
     baseItem: DesktopScheduleItem,
@@ -32,6 +147,20 @@ export function useDesktopScheduleWorkPersistence(deps: Record<string, any>) {
   
     if (baseItem.durationDays !== nextItem.durationDays) {
       request.workLeadTime = nextItem.durationDays;
+    }
+
+    if (baseItem.rowId !== nextItem.rowId) {
+      const targetRow = rowById.value.get(nextItem.rowId);
+      const subWorkTypeId = targetRow?.source.subWorkTypeId;
+
+      if (
+        targetRow?.kind === "child-process" &&
+        targetRow.source.kind === "sub-work-type" &&
+        typeof subWorkTypeId === "number" &&
+        subWorkTypeId > 0
+      ) {
+        request.subWorkTypeId = subWorkTypeId;
+      }
     }
   
     return request;
@@ -186,11 +315,10 @@ export function useDesktopScheduleWorkPersistence(deps: Record<string, any>) {
       return null;
     }
   
-    const response = await desktopScheduleApi.updateWork({
-      items: orderWorkUpdateItemsByDependency(updateItems, nextItems, workConnections),
-    });
-  
-    applyServerMutationPatch(response);
+    const response = await updateWorkWithFrontendRecovery(
+      orderWorkUpdateItemsByDependency(updateItems, nextItems, workConnections),
+      nextItems,
+    );
     return response;
   }
   
@@ -198,6 +326,7 @@ export function useDesktopScheduleWorkPersistence(deps: Record<string, any>) {
   return {
     createWorkUpdateRequest,
     orderWorkUpdateItemsByDependency,
+    updateWorkWithFrontendRecovery,
     persistWorkConnectionGapChanges,
     persistItemDateAndLayoutChanges,
   };

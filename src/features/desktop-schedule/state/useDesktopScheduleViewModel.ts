@@ -290,14 +290,18 @@ function createDesktopScheduleViewModel() {
   const workPersistence = useDesktopScheduleWorkPersistence({
     workingItems,
     workingWorkConnections,
+    rowById,
+    getSelectedScheduleVersionId,
     getWorkConnectionById,
     getPersistedWorkIdForItem,
     waitForPendingItemCreations,
     applyServerMutationPatch,
+    resolvedWorkIdByPendingItemId,
   });
   const {
     createWorkUpdateRequest,
     orderWorkUpdateItemsByDependency,
+    updateWorkWithFrontendRecovery,
     persistWorkConnectionGapChanges,
     persistItemDateAndLayoutChanges,
   } = workPersistence;
@@ -551,6 +555,7 @@ function createDesktopScheduleViewModel() {
     handleMutationError,
     waitForPendingItemCreations,
     getPersistedWorkIdForItem,
+    withPersistedWorkIds,
     syncLoadedMilestoneFromModel,
     DEFAULT_NEW_WORK_LEAD_TIME,
     scheduleLoadState,
@@ -582,6 +587,7 @@ function createDesktopScheduleViewModel() {
     getWorkConnectionById,
     createWorkUpdateRequest,
     orderWorkUpdateItemsByDependency,
+    updateWorkWithFrontendRecovery,
     applyServerMutationPatch,
     removeLoadedWorksAndWorkDeps,
     removeLoadedWorkDeps,
@@ -615,6 +621,7 @@ function createDesktopScheduleViewModel() {
     openCanvasContextMenu,
     openColorPalette,
     copySelectedItems,
+    cutSelectedItems,
     canPasteCopiedItemsToCanvasTarget,
     pasteCopiedItemsToCanvasTarget,
     applyColorSelection,
@@ -699,6 +706,7 @@ function createDesktopScheduleViewModel() {
     canCreateItemOnCanvasTarget,
     canCreateMilestoneOnCanvasTarget,
     copySelectedItems,
+    cutSelectedItems,
     canPasteCopiedItemsToCanvasTarget,
     pasteCopiedItemsToCanvasTarget,
     openColorPalette,
@@ -815,7 +823,7 @@ function createDesktopScheduleViewModel() {
     isLocalHistorySyncInFlight, undoLocalHistory, redoLocalHistory, connectionCreationState, cancelConnectionCreation, completeConnectionCreation, activateMilestone, interactionCancelVersion, startMoveSession,
     draftMoveSession, endMoveSession, startResizeSession, draftResizeSession, endResizeSession, zoomScale, currentZoomIndex, maxZoomIndex,
     canZoomIn, canZoomOut, setZoomIndex, zoomIn, zoomOut, isAiVerificationModeActive, aiVerificationFlaggedItemIds, toggleAiVerificationMode,
-    toggleAiVerificationFlag, patchLoadedWorkActualDates, copySelectedItems, pasteCopiedItemsToCanvasTarget,
+    toggleAiVerificationFlag, patchLoadedWorkActualDates, copySelectedItems, cutSelectedItems, pasteCopiedItemsToCanvasTarget,
   });
 }
 

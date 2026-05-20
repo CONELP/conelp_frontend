@@ -58,6 +58,8 @@ function getIconGlyph(icon: DesktopScheduleContextMenuIcon) {
       return "+";
     case "copy":
       return "⧉";
+    case "cut":
+      return "✂";
     case "paste":
       return "⌄";
     case "trash":

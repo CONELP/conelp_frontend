@@ -18,7 +18,7 @@ export function createDesktopSchedulePublicApi(deps: Record<string, any>) {
     cancelConnectionCreation, completeConnectionCreation, activateMilestone, interactionCancelVersion, startMoveSession, draftMoveSession, endMoveSession, startResizeSession,
     draftResizeSession, endResizeSession, zoomScale, currentZoomIndex, maxZoomIndex, canZoomIn, canZoomOut, setZoomIndex, zoomIn, zoomOut,
     isAiVerificationModeActive, aiVerificationFlaggedItemIds, toggleAiVerificationMode, toggleAiVerificationFlag, patchLoadedWorkActualDates,
-    copySelectedItems, pasteCopiedItemsToCanvasTarget,
+    copySelectedItems, cutSelectedItems, pasteCopiedItemsToCanvasTarget,
   } = deps;
 
   const load = reactive({
@@ -79,6 +79,7 @@ export function createDesktopSchedulePublicApi(deps: Record<string, any>) {
 
   const clipboard = reactive({
     copyItems: copySelectedItems,
+    cutItems: cutSelectedItems,
     pasteItemsToCell: pasteCopiedItemsToCanvasTarget,
   });
   
