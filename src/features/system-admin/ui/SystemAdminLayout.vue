@@ -42,6 +42,7 @@ const menuGroups: MenuGroup[] = [
       { label: "작업일보 설정", to: "/system-admin/project/daily-report" },
       { label: "일괄 배포", to: "/system-admin/project/bulk-deployment" },
       { label: "홈페이지 설정", to: "/system-admin/project/homepage-setting" },
+      { label: "AI 공정표 검증", to: "/system-admin/project/schedule-validation" },
     ],
   },
 ];

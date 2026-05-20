@@ -486,6 +486,7 @@ watch(
               :schedule-import-dialog="importFlow.state"
               :is-ai-verification-mode-active="aiVerification.isActive"
               :ai-verification-flagged-item-ids="aiVerification.flaggedItemIds"
+              :ai-verification-violation-detail-by-item-id="aiVerification.violationDetailByItemId"
               :viewport-height="shellViewportHeight"
               :scroll-top="scroll.top"
               :scroll-left="scroll.left"

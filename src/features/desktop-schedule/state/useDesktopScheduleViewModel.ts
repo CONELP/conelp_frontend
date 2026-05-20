@@ -97,6 +97,10 @@ function createDesktopScheduleViewModel() {
     scheduleImportDialogState,
     isAiVerificationModeActive,
     aiVerificationFlaggedItemIds,
+    aiVerificationViolationDetailByItemId,
+    aiVerificationFailedWorkTypeIds,
+    aiVerificationStatus,
+    aiVerificationErrorMessage,
     excludedScheduleVersionIds,
     scheduleVersionReviewBaselineCache,
     scheduleVersionReviewSummaryCache,
@@ -773,17 +777,23 @@ function createDesktopScheduleViewModel() {
     loadSchedule,
   });
 
-  const { toggleAiVerificationMode, toggleAiVerificationFlag } = useDesktopScheduleAiVerification({
-    selectedScheduleVersionId,
-    isAiVerificationModeActive,
-    aiVerificationFlaggedItemIds,
-    workingRows,
-    workingItems,
-    captureWorkingSnapshot,
-    pushLocalHistoryEntry,
-    syncLoadedSubWorkTypeColor,
-    trackScheduleAction,
-  });
+  const { toggleAiVerificationMode, toggleAiVerificationFlag, runAiVerification } =
+    useDesktopScheduleAiVerification({
+      selectedScheduleVersionId,
+      isAiVerificationModeActive,
+      aiVerificationFlaggedItemIds,
+      aiVerificationViolationDetailByItemId,
+      aiVerificationFailedWorkTypeIds,
+      aiVerificationStatus,
+      aiVerificationErrorMessage,
+      workingRows,
+      workingItems,
+      captureWorkingSnapshot,
+      pushLocalHistoryEntry,
+      syncLoadedSubWorkTypeColor,
+      showScheduleToast,
+      trackScheduleAction,
+    });
 
   const { addParentRow, addChildRow, toggleRowCollapse } = useDesktopScheduleEditing({
     workingRows,
@@ -815,7 +825,8 @@ function createDesktopScheduleViewModel() {
     isLocalHistorySyncInFlight, undoLocalHistory, redoLocalHistory, connectionCreationState, cancelConnectionCreation, completeConnectionCreation, activateMilestone, interactionCancelVersion, startMoveSession,
     draftMoveSession, endMoveSession, startResizeSession, draftResizeSession, endResizeSession, zoomScale, currentZoomIndex, maxZoomIndex,
     canZoomIn, canZoomOut, setZoomIndex, zoomIn, zoomOut, isAiVerificationModeActive, aiVerificationFlaggedItemIds, toggleAiVerificationMode,
-    toggleAiVerificationFlag, patchLoadedWorkActualDates, copySelectedItems, pasteCopiedItemsToCanvasTarget,
+    toggleAiVerificationFlag, runAiVerification, aiVerificationViolationDetailByItemId, aiVerificationFailedWorkTypeIds, aiVerificationStatus, aiVerificationErrorMessage,
+    patchLoadedWorkActualDates, copySelectedItems, pasteCopiedItemsToCanvasTarget,
   });
 }
 

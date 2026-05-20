@@ -86,6 +86,7 @@ const props = defineProps<{
   scheduleImportDialog: DesktopScheduleImportDialogState;
   isAiVerificationModeActive: boolean;
   aiVerificationFlaggedItemIds: string[];
+  aiVerificationViolationDetailByItemId?: Record<string, string>;
   viewportHeight?: number;
   scrollTop: number;
   scrollLeft: number;
@@ -1691,6 +1692,7 @@ onUnmounted(() => {
           :execution-progress-compare-leaving="isExecutionProgressCompareLeaving"
           :is-ai-verification-mode-active="isAiVerificationModeActive"
           :ai-verification-flagged-item-ids="aiVerificationFlaggedItemIds"
+          :ai-verification-violation-detail-by-item-id="aiVerificationViolationDetailByItemId"
           :bottom-spacer-height="createDivisionFooterHeight"
           @toggle-ai-verification-flag="emit('toggle-ai-verification-flag', $event)"
           :zoom-scale="zoomScale"

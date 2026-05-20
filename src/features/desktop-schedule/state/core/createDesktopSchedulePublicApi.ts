@@ -17,8 +17,9 @@ export function createDesktopSchedulePublicApi(deps: Record<string, any>) {
     chartScrollTop, chartScrollLeft, syncChartScroll, canUndoLocalHistory, canRedoLocalHistory, isLocalHistorySyncInFlight, undoLocalHistory, redoLocalHistory, connectionCreationState,
     cancelConnectionCreation, completeConnectionCreation, activateMilestone, interactionCancelVersion, startMoveSession, draftMoveSession, endMoveSession, startResizeSession,
     draftResizeSession, endResizeSession, zoomScale, currentZoomIndex, maxZoomIndex, canZoomIn, canZoomOut, setZoomIndex, zoomIn, zoomOut,
-    isAiVerificationModeActive, aiVerificationFlaggedItemIds, toggleAiVerificationMode, toggleAiVerificationFlag, patchLoadedWorkActualDates,
-    copySelectedItems, pasteCopiedItemsToCanvasTarget,
+    isAiVerificationModeActive, aiVerificationFlaggedItemIds, toggleAiVerificationMode, toggleAiVerificationFlag, runAiVerification,
+    aiVerificationViolationDetailByItemId, aiVerificationFailedWorkTypeIds, aiVerificationStatus, aiVerificationErrorMessage,
+    patchLoadedWorkActualDates, copySelectedItems, pasteCopiedItemsToCanvasTarget,
   } = deps;
 
   const load = reactive({
@@ -188,8 +189,13 @@ export function createDesktopSchedulePublicApi(deps: Record<string, any>) {
   const aiVerification = reactive({
     isActive: isAiVerificationModeActive,
     flaggedItemIds: aiVerificationFlaggedItemIds,
+    violationDetailByItemId: aiVerificationViolationDetailByItemId,
+    failedWorkTypeIds: aiVerificationFailedWorkTypeIds,
+    status: aiVerificationStatus,
+    errorMessage: aiVerificationErrorMessage,
     toggleMode: toggleAiVerificationMode,
     toggleFlag: toggleAiVerificationFlag,
+    run: runAiVerification,
   });
   
   const dailyReport = reactive({

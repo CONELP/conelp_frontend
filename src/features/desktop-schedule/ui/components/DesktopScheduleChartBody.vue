@@ -643,6 +643,24 @@
         />
       </template>
 
+      <template v-if="isAiVerificationModeActive">
+        <div
+          v-for="bubble in aiVerificationBubbles"
+          :key="`ai-bubble-${bubble.itemId}`"
+          class="schedule-chart-body__ai-bubble"
+          :style="{
+            left: `${bubble.left}px`,
+            top: `${bubble.top}px`,
+            maxWidth: `${bubble.maxWidth}px`,
+          }"
+          role="note"
+          aria-label="AI 검증 위반 내용"
+        >
+          <div class="schedule-chart-body__ai-bubble-arrow" aria-hidden="true" />
+          <div class="schedule-chart-body__ai-bubble-body">{{ bubble.detail }}</div>
+        </div>
+      </template>
+
       <div
         v-if="marqueeRectStyle"
         class="schedule-chart-body__marquee"
@@ -746,6 +764,7 @@ const props = defineProps<{
   executionProgressCompareLeaving: boolean;
   isAiVerificationModeActive: boolean;
   aiVerificationFlaggedItemIds: string[];
+  aiVerificationViolationDetailByItemId?: Record<string, string>;
   bottomSpacerHeight: number;
   zoomScale: number;
 }>();
@@ -837,6 +856,24 @@ const selectedCriticalPathIdSet = computed(() => new Set(props.selectedCriticalP
 const aiVerificationFlaggedItemIdSet = computed(
   () => new Set(props.aiVerificationFlaggedItemIds),
 );
+const aiVerificationBubbles = computed(() => {
+  if (!props.isAiVerificationModeActive) return [];
+  const detailByItemId = props.aiVerificationViolationDetailByItemId ?? {};
+  return props.shellLayout.bars
+    .filter(
+      (bar) =>
+        bar.kind === "item" &&
+        aiVerificationFlaggedItemIdSet.value.has(bar.itemId) &&
+        detailByItemId[bar.itemId],
+    )
+    .map((bar) => ({
+      itemId: bar.itemId,
+      detail: detailByItemId[bar.itemId]!,
+      left: bar.left + bar.width / 2,
+      top: bar.top + bar.height + 6,
+      maxWidth: Math.max(220, Math.min(360, bar.width + 160)),
+    }));
+});
 const chartSurfaceHeight = computed(() =>
   props.shellLayout.chartHeight + Math.max(0, props.bottomSpacerHeight),
 );

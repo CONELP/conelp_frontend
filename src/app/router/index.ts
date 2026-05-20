@@ -36,6 +36,8 @@ const HomepageSettingPage = () =>
   import("@/features/project-admin/homepage-setting/ui/HomepageSettingPage.vue");
 const HolidayManagementPage = () =>
   import("@/features/project-admin/holiday/ui/HolidayManagementPage.vue");
+const ScheduleValidationPage = () =>
+  import("@/features/project-admin/schedule-validation/ui/ScheduleValidationPage.vue");
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -211,6 +213,11 @@ export const router = createRouter({
           path: "project/homepage-setting",
           name: "system-admin-project-homepage-setting",
           component: HomepageSettingPage,
+        },
+        {
+          path: "project/schedule-validation",
+          name: "system-admin-project-schedule-validation",
+          component: ScheduleValidationPage,
         },
       ],
     },
