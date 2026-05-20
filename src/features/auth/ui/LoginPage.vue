@@ -7,7 +7,6 @@
 
       <div class="login-page__heading">
         <h1 id="login-title">로그인</h1>
-        <p>backend API 호출을 위해 계정으로 로그인하세요.</p>
       </div>
 
       <p v-if="authStore.isLoginBlocked" class="login-page__alert">
