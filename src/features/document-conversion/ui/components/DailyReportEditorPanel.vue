@@ -5,6 +5,7 @@ import chevronLeftIcon from "@fluentui/svg-icons/icons/chevron_left_20_regular.s
 import chevronRightIcon from "@fluentui/svg-icons/icons/chevron_right_20_regular.svg";
 import chevronDoubleLeftIcon from "@fluentui/svg-icons/icons/chevron_double_left_20_regular.svg";
 import chevronDoubleRightIcon from "@fluentui/svg-icons/icons/chevron_double_right_20_regular.svg";
+import rotateIcon from "@fluentui/svg-icons/icons/arrow_clockwise_24_regular.svg";
 
 import { actualWorkApi } from "@/features/document-conversion/api/actual-work.api";
 import type { ActualWorkResponse } from "@/features/document-conversion/api/actual-work-api.types";
@@ -23,6 +24,7 @@ import type { WorkTypeReferenceResponse } from "@/features/document-conversion/a
 import { useDesktopScheduleViewModel } from "@/features/desktop-schedule/state/useDesktopScheduleViewModel";
 import { analyticsClient } from "@/shared/analytics/analytics-stub";
 import WorkTypeTypeaheadInput from "@/shared/ui/WorkTypeTypeaheadInput.vue";
+import { nextRotationStep } from "@/shared/utils/rotate-image-file";
 
 const scheduleVm = useDesktopScheduleViewModel();
 const { dailyReport } = scheduleVm;
@@ -125,6 +127,7 @@ type DailyReportImageDraft = {
   id: string;
   src: string;
   description: string;
+  rotation: number;
 };
 
 type DailyReportImageDropPosition = "before" | "after";
@@ -1995,6 +1998,7 @@ async function handleDailyReportImageChange(
       id: createDailyReportId(),
       src: await readImageFileAsDataUrl(file),
       description: "",
+      rotation: 0,
     })),
   );
 
@@ -2017,6 +2021,14 @@ function openDailyReportImagePreview(image: DailyReportImageDraft) {
 
 function closeDailyReportImagePreview() {
   previewImage.value = null;
+}
+
+function rotateDailyReportImagePreview() {
+  if (!previewImage.value) {
+    return;
+  }
+
+  previewImage.value.rotation = nextRotationStep(previewImage.value.rotation);
 }
 
 function getImageDropPosition(event: DragEvent): DailyReportImageDropPosition {
@@ -3999,6 +4011,7 @@ onUnmounted(() => {
                     :src="image.src"
                     alt=""
                     draggable="false"
+                    :style="{ transform: `rotate(${image.rotation}deg)` }"
                   />
                 </figure>
                 <textarea
@@ -4156,6 +4169,7 @@ onUnmounted(() => {
                     :src="image.src"
                     alt=""
                     draggable="false"
+                    :style="{ transform: `rotate(${image.rotation}deg)` }"
                   />
                 </figure>
                 <textarea
@@ -5390,11 +5404,27 @@ onUnmounted(() => {
         >
           ×
         </button>
-        <img
-          class="daily-report-image-preview__image"
-          :src="previewImage.src"
-          alt=""
-        />
+        <div class="daily-report-image-preview__image-wrap">
+          <img
+            class="daily-report-image-preview__image"
+            :src="previewImage.src"
+            alt=""
+            :style="{ transform: `rotate(${previewImage.rotation}deg)` }"
+          />
+          <button
+            type="button"
+            class="daily-report-image-preview__rotate"
+            aria-label="사진 90도 회전"
+            @click="rotateDailyReportImagePreview"
+          >
+            <img
+              class="daily-report-image-preview__rotate-icon"
+              :src="rotateIcon"
+              alt=""
+              aria-hidden="true"
+            />
+          </button>
+        </div>
         <p
           v-if="previewImage.description"
           class="daily-report-image-preview__description"

@@ -125,16 +125,19 @@ export const uploadDocumentPresets: UploadDocumentPreset[] = [
         id: "material-registration-1",
         name: "IMG_2409_송장.jpg",
         previewType: "image",
+        rotation: 0,
       },
       {
         id: "material-registration-2",
         name: "IMG_2410_자재반입.jpg",
         previewType: "image",
+        rotation: 0,
       },
       {
         id: "material-registration-3",
         name: "IMG_2411_밀시트.jpg",
         previewType: "image",
+        rotation: 0,
       },
     ],
     feedbackItems: [
@@ -171,11 +174,13 @@ export const uploadDocumentPresets: UploadDocumentPreset[] = [
         id: "concrete-delivery-1",
         name: "IMG_2420_반입차량.jpg",
         previewType: "image",
+        rotation: 0,
       },
       {
         id: "concrete-delivery-2",
         name: "IMG_2421_출하증명서.jpg",
         previewType: "image",
+        rotation: 0,
       },
     ],
     feedbackItems: [
@@ -224,11 +229,13 @@ export const uploadDocumentPresets: UploadDocumentPreset[] = [
         id: "concrete-strength-1",
         name: "IMG_2430_시험성적서.jpg",
         previewType: "image",
+        rotation: 0,
       },
       {
         id: "concrete-strength-2",
         name: "IMG_2431_공시체.jpg",
         previewType: "image",
+        rotation: 0,
       },
     ],
     feedbackItems: [

@@ -1,6 +1,8 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 
+import { nextRotationStep } from "@/shared/utils/rotate-image-file";
+
 import type {
   CatAnalysisResponse,
   CreateCatDocumentRequest,
@@ -30,6 +32,7 @@ interface UploadedImageFileEntry {
   id: string;
   file: File;
   fileKey: string;
+  rotation: number;
 }
 
 interface MirDocumentSubmissionDraft {
@@ -125,10 +128,11 @@ export const useDocumentConversionDemoStore = defineStore(
         const fileKey = createUploadFileKey(file);
 
         if (!existingKeys.has(fileKey)) {
-          const entry = {
+          const entry: UploadedImageFileEntry = {
             id: createUploadFileId(file),
             file,
             fileKey,
+            rotation: 0,
           };
 
           uploadedImageFiles.value.push(entry);
@@ -166,6 +170,19 @@ export const useDocumentConversionDemoStore = defineStore(
 
       uploadMode.value =
         uploadedImageFiles.value.length > 0 ? "uploaded" : "empty";
+      clearMirResult();
+    }
+
+    function rotateUploadedImageFile(fileIdToRotate: string) {
+      const entry = uploadedImageFiles.value.find(
+        (item) => item.id === fileIdToRotate,
+      );
+
+      if (!entry) {
+        return;
+      }
+
+      entry.rotation = nextRotationStep(entry.rotation);
       clearMirResult();
     }
 
@@ -307,6 +324,7 @@ export const useDocumentConversionDemoStore = defineStore(
       clearSelectedDocument,
       addUploadedImageFiles,
       removeUploadedImageFile,
+      rotateUploadedImageFile,
       reorderUploadedImageFiles,
       setConcreteDeliveryUploadBatches,
       setConcreteStrengthUploadLots,

@@ -30,6 +30,7 @@ interface LinkedConcreteDeliveryDocumentOption {
 function createUploadPreviewFile(
   file: File,
   id: string,
+  rotation: number,
   thumbnail?: string,
 ): UploadSampleFile {
   return {
@@ -37,6 +38,7 @@ function createUploadPreviewFile(
     name: file.name,
     previewType: file.type.startsWith("image/") ? "image" : "file",
     thumbnail,
+    rotation,
   };
 }
 
@@ -245,6 +247,7 @@ export function useDocumentUploadDemoViewModel() {
       createUploadPreviewFile(
         entry.file,
         entry.id,
+        entry.rotation,
         previewUrlMap.value[entry.id],
       ),
     ),
@@ -720,6 +723,7 @@ export function useDocumentUploadDemoViewModel() {
     uploadFeedbackRoute: "/documents/upload/review",
     addUploadedImageFiles,
     removeUploadedImageFile: store.removeUploadedImageFile,
+    rotateUploadedImageFile: store.rotateUploadedImageFile,
     reorderUploadedImageFiles: store.reorderUploadedImageFiles,
     saveConcreteDeliveryUploadBatches,
     saveConcreteStrengthUploadLots,

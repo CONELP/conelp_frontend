@@ -1,6 +1,7 @@
 import { authApi } from "@/features/auth/services/auth-api";
 import { clearAccessToken, getAccessToken } from "@/shared/network/access-token";
 import { toApiUrl } from "@/shared/network/api-config";
+import { shouldSendProjectHeader } from "@/shared/network/project-header-policy";
 
 type ApiBody = BodyInit | Record<string, unknown> | unknown[] | null;
 
@@ -21,7 +22,7 @@ function resolveBody(body: ApiBody | undefined) {
   return JSON.stringify(body);
 }
 
-function buildHeaders(body: ApiBody | undefined, initHeaders?: HeadersInit) {
+function buildHeaders(path: string, body: ApiBody | undefined, initHeaders?: HeadersInit) {
   const headers = new Headers(initHeaders);
   const token = getAccessToken();
   const selectedProjectId = localStorage.getItem("selectedProjectId");
@@ -34,7 +35,8 @@ function buildHeaders(body: ApiBody | undefined, initHeaders?: HeadersInit) {
     selectedProjectId &&
     selectedProjectId !== "undefined" &&
     selectedProjectId !== "null" &&
-    !headers.has("X-Project-Id")
+    !headers.has("X-Project-Id") &&
+    shouldSendProjectHeader(path)
   ) {
     headers.set("X-Project-Id", selectedProjectId);
   }
@@ -90,7 +92,7 @@ async function rawApiFetch(path: string, options: ApiFetchOptions): Promise<Resp
     ...init,
     credentials: "include",
     body: resolveBody(body),
-    headers: buildHeaders(body, init.headers),
+    headers: buildHeaders(path, body, init.headers),
   });
 
   if ((response.status === 401 || response.status === 403) && retryOnUnauthorized) {

@@ -24,6 +24,7 @@ export interface UploadSampleFile {
   name: string;
   previewType: "image" | "file";
   thumbnail?: string;
+  rotation: number;
 }
 
 export type UploadFeedbackStatus = "matched" | "missing";

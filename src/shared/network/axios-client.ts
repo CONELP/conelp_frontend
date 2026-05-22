@@ -3,6 +3,7 @@ import axios, { type AxiosError, type AxiosInstance, type InternalAxiosRequestCo
 import { authApi } from "@/features/auth/services/auth-api";
 import { apiBaseUrl } from "@/shared/network/api-config";
 import { clearAccessToken, getAccessToken } from "@/shared/network/access-token";
+import { shouldSendProjectHeader } from "@/shared/network/project-header-policy";
 
 const SELECTED_PROJECT_ID_STORAGE_KEY = "selectedProjectId";
 
@@ -33,7 +34,7 @@ axiosClient.interceptors.request.use((config) => {
   }
 
   const projectId = readSelectedProjectId();
-  if (projectId && !config.headers.has("X-Project-Id")) {
+  if (projectId && !config.headers.has("X-Project-Id") && shouldSendProjectHeader(config.url)) {
     config.headers.set("X-Project-Id", projectId);
   }
 

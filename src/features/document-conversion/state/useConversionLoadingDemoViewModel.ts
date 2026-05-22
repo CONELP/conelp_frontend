@@ -13,6 +13,16 @@ import { documentCatalog } from "@/features/document-conversion/data/document-co
 import type { DocumentCatalogType } from "@/features/document-conversion/model/document-conversion-demo.types";
 import { useDocumentConversionDemoStore } from "@/features/document-conversion/state/useDocumentConversionDemoStore";
 import { analyticsClient } from "@/shared/analytics/analytics-stub";
+import { rotateImageFile } from "@/shared/utils/rotate-image-file";
+
+interface UploadedImageEntrySnapshot {
+  file: File;
+  rotation: number;
+}
+
+function applyEntryRotation(entry: UploadedImageEntrySnapshot): Promise<File> {
+  return rotateImageFile(entry.file, entry.rotation);
+}
 
 const LOADING_TEXT_STEP_DURATION_MS = 1500;
 const LOADING_TEXT_TOTAL_DURATION_MS = LOADING_TEXT_STEP_DURATION_MS * 3;
@@ -225,7 +235,7 @@ export function useConversionLoadingDemoViewModel() {
     return "";
   }
 
-  function createCatAnalysisUploadPayload() {
+  async function createCatAnalysisUploadPayload() {
     const fileEntryById = new Map(
       store.uploadedImageFiles.map((entry) => [entry.id, entry]),
     );
@@ -244,21 +254,32 @@ export function useConversionLoadingDemoViewModel() {
       const [deliveryNoteEntry, ...batchPhotoEntries] = store.uploadedImageFiles;
 
       return {
-        deliveryNote: deliveryNoteEntry ? [deliveryNoteEntry.file] : [],
+        deliveryNote: deliveryNoteEntry
+          ? [await applyEntryRotation(deliveryNoteEntry)]
+          : [],
         metadata: [{ batch: 1, count: batchPhotoEntries.length }],
-        batchPhotos: batchPhotoEntries.map((entry) => entry.file),
+        batchPhotos: await Promise.all(
+          batchPhotoEntries.map((entry) => applyEntryRotation(entry)),
+        ),
       };
     }
 
-    const deliveryNote = groupedBatches
-      .map((batch) => batch.entries[0]?.file)
-      .filter((file): file is File => Boolean(file));
+    const deliveryNoteEntries = groupedBatches
+      .map((batch) => batch.entries[0])
+      .filter((entry): entry is (typeof store.uploadedImageFiles)[number] =>
+        Boolean(entry),
+      );
+    const deliveryNote = await Promise.all(
+      deliveryNoteEntries.map((entry) => applyEntryRotation(entry)),
+    );
     const metadata = groupedBatches.map((batch, index) => ({
       batch: index + 1,
       count: Math.max(batch.entries.length - 1, 0),
     }));
-    const batchPhotos = groupedBatches.flatMap((batch) =>
-      batch.entries.slice(1).map((entry) => entry.file),
+    const batchPhotos = await Promise.all(
+      groupedBatches
+        .flatMap((batch) => batch.entries.slice(1))
+        .map((entry) => applyEntryRotation(entry)),
     );
 
     return {
@@ -333,10 +354,14 @@ export function useConversionLoadingDemoViewModel() {
     scheduleLoadingStepTransitions(MIR_ANALYSIS_STEP_TRANSITIONS);
 
     try {
+      const rotatedImages = await Promise.all(
+        store.uploadedImageFiles.map((entry) => applyEntryRotation(entry)),
+      );
+
       const result = await materialInspectionRequestApi.analyzeMirPhoto({
         application: store.mirUploadApplication,
         workTypeId: store.mirUploadWorkTypeId,
-        images: store.uploadedImageFiles.map((entry) => entry.file),
+        images: rotatedImages,
       });
 
       if (currentRunId !== loadingRunId) {
@@ -425,9 +450,9 @@ export function useConversionLoadingDemoViewModel() {
 
     scheduleLoadingStepTransitions(CAT_ANALYSIS_STEP_TRANSITIONS);
 
-    const uploadPayload = createCatAnalysisUploadPayload();
-
     try {
+      const uploadPayload = await createCatAnalysisUploadPayload();
+
       const result = await materialInspectionRequestApi.analyzeCatPhoto({
         application: store.mirUploadApplication,
         workTypeId: store.mirUploadWorkTypeId,

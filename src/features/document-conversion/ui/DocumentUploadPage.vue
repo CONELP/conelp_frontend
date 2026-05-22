@@ -329,6 +329,7 @@
                       :src="file.thumbnail"
                       :alt="file.name"
                       draggable="false"
+                      :style="{ transform: `rotate(${file.rotation}deg)` }"
                     />
                   </button>
 
@@ -463,6 +464,7 @@
                           :src="file.thumbnail"
                           :alt="file.name"
                           draggable="false"
+                          :style="{ transform: `rotate(${file.rotation}deg)` }"
                         />
                       </button>
 
@@ -589,6 +591,7 @@
                       :src="file.thumbnail"
                       :alt="file.name"
                       draggable="false"
+                      :style="{ transform: `rotate(${file.rotation}deg)` }"
                     />
                   </button>
 
@@ -654,11 +657,27 @@
           />
         </button>
 
-        <img
-          class="upload-preview-modal__image"
-          :src="selectedPreviewFile.thumbnail"
-          :alt="selectedPreviewFile.name"
-        />
+        <div class="upload-preview-modal__image-wrap">
+          <img
+            class="upload-preview-modal__image"
+            :src="selectedPreviewFile.thumbnail"
+            :alt="selectedPreviewFile.name"
+            :style="{ transform: `rotate(${selectedPreviewFile.rotation}deg)` }"
+          />
+          <button
+            class="upload-preview-modal__rotate"
+            type="button"
+            :aria-label="`${selectedPreviewFile.name} 90도 회전`"
+            @click="handleRotateUploadedFile(selectedPreviewFile.id)"
+          >
+            <img
+              class="upload-preview-modal__rotate-icon"
+              :src="rotateIcon"
+              alt=""
+              aria-hidden="true"
+            />
+          </button>
+        </div>
       </div>
     </Transition>
   </div>
@@ -672,6 +691,7 @@ import chevronDownIcon from "@fluentui/svg-icons/icons/chevron_down_20_regular.s
 import deleteIcon from "@fluentui/svg-icons/icons/delete_20_regular.svg";
 import documentIcon from "@fluentui/svg-icons/icons/document_20_regular.svg";
 import dismissIcon from "@fluentui/svg-icons/icons/dismiss_16_regular.svg";
+import rotateIcon from "@fluentui/svg-icons/icons/arrow_clockwise_24_regular.svg";
 import uploadIcon from "@fluentui/svg-icons/icons/add_24_regular.svg";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
@@ -713,6 +733,7 @@ const {
   backToSelectionRoute,
   addUploadedImageFiles,
   removeUploadedImageFile,
+  rotateUploadedImageFile,
   reorderUploadedImageFiles,
   saveConcreteDeliveryUploadBatches,
   saveConcreteStrengthUploadLots,
@@ -1596,6 +1617,22 @@ function handleRemoveUploadedFile(fileId: string) {
 
 function handleOpenImagePreview(file: UploadSampleFile) {
   selectedPreviewFile.value = file;
+}
+
+function handleRotateUploadedFile(fileId: string) {
+  rotateUploadedImageFile(fileId);
+
+  if (selectedPreviewFile.value?.id === fileId) {
+    const updated = uploadedFiles.value.find((file) => file.id === fileId);
+
+    if (updated) {
+      selectedPreviewFile.value = updated;
+    }
+  }
+
+  analyticsClient.trackAction("document", "rotate_upload_file", "success", {
+    document_type: selectedDocument.value.type,
+  });
 }
 
 function handleCloseImagePreview() {
