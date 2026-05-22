@@ -1662,7 +1662,7 @@
   height: 100%;
   object-fit: cover;
   transform-origin: center;
-  transition: transform 220ms ease;
+  transition: transform 440ms ease;
 }
 
 
@@ -1924,7 +1924,7 @@
   object-fit: contain;
   background: transparent;
   transform-origin: center;
-  transition: transform 220ms ease;
+  transition: transform 440ms ease;
 }
 
 .daily-report-image-preview__rotate {

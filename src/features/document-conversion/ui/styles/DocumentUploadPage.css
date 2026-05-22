@@ -820,7 +820,7 @@
   object-fit: cover;
   background: var(--surface-3);
   transform-origin: center;
-  transition: transform 220ms ease;
+  transition: transform 440ms ease;
 }
 
 .upload-dropzone__selected-indicator-icon {
@@ -854,6 +854,42 @@
   opacity: 0.72;
 }
 
+.upload-dropzone__selected-rotate {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 999px;
+  background: rgba(15, 18, 28, 0.46);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  opacity: 0.82;
+  transition: opacity 160ms ease, background 160ms ease, transform 160ms ease;
+  pointer-events: auto;
+}
+
+.upload-dropzone__selected-item:hover .upload-dropzone__selected-rotate,
+.upload-dropzone__selected-rotate:focus-visible {
+  opacity: 1;
+  background: rgba(15, 18, 28, 0.62);
+}
+
+.upload-dropzone__selected-rotate:active {
+  transform: translate(-50%, -50%) scale(0.94);
+}
+
+.upload-dropzone__selected-rotate-icon {
+  width: 1.2rem;
+  height: 1.2rem;
+  filter: invert(1) brightness(1.4);
+}
 
 .upload-preview-modal {
   position: fixed;
@@ -866,13 +902,6 @@
   background: rgba(12, 16, 24, 0.74);
 }
 
-.upload-preview-modal__image-wrap {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
 .upload-preview-modal__image {
   display: block;
   max-width: min(100%, 64rem);
@@ -881,45 +910,6 @@
   object-fit: contain;
   background: #fff;
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
-  transform-origin: center;
-  transition: transform 220ms ease;
-}
-
-.upload-preview-modal__rotate {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 3.2rem;
-  height: 3.2rem;
-  padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  border-radius: 999px;
-  background: rgba(15, 18, 28, 0.5);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
-  transform: translate(-50%, -50%);
-  cursor: pointer;
-  opacity: 0.85;
-  transition: opacity 160ms ease, background 160ms ease, transform 160ms ease;
-}
-
-.upload-preview-modal__rotate:hover,
-.upload-preview-modal__rotate:focus-visible {
-  opacity: 1;
-  background: rgba(15, 18, 28, 0.7);
-}
-
-.upload-preview-modal__rotate:active {
-  transform: translate(-50%, -50%) scale(0.94);
-}
-
-.upload-preview-modal__rotate-icon {
-  width: 1.5rem;
-  height: 1.5rem;
-  filter: invert(1) brightness(1.4);
 }
 
 .upload-preview-modal__close {

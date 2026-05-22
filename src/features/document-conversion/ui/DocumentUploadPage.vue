@@ -334,6 +334,20 @@
                   </button>
 
                   <button
+                    class="upload-dropzone__selected-rotate"
+                    type="button"
+                    :aria-label="`${file.name} 90도 회전`"
+                    @click.stop="handleRotateUploadedFile(file.id)"
+                  >
+                    <img
+                      class="upload-dropzone__selected-rotate-icon"
+                      :src="rotateIcon"
+                      alt=""
+                      aria-hidden="true"
+                    />
+                  </button>
+
+                  <button
                     class="upload-dropzone__selected-remove"
                     type="button"
                     :aria-label="`${file.name} 삭제`"
@@ -469,6 +483,20 @@
                       </button>
 
                       <button
+                        class="upload-dropzone__selected-rotate"
+                        type="button"
+                        :aria-label="`${file.name} 90도 회전`"
+                        @click.stop="handleRotateUploadedFile(file.id)"
+                      >
+                        <img
+                          class="upload-dropzone__selected-rotate-icon"
+                          :src="rotateIcon"
+                          alt=""
+                          aria-hidden="true"
+                        />
+                      </button>
+
+                      <button
                         class="upload-dropzone__selected-remove"
                         type="button"
                         :aria-label="`${file.name} 삭제`"
@@ -596,6 +624,20 @@
                   </button>
 
                   <button
+                    class="upload-dropzone__selected-rotate"
+                    type="button"
+                    :aria-label="`${file.name} 90도 회전`"
+                    @click.stop="handleRotateUploadedFile(file.id)"
+                  >
+                    <img
+                      class="upload-dropzone__selected-rotate-icon"
+                      :src="rotateIcon"
+                      alt=""
+                      aria-hidden="true"
+                    />
+                  </button>
+
+                  <button
                     class="upload-dropzone__selected-remove"
                     type="button"
                     :aria-label="`${file.name} 삭제`"
@@ -657,27 +699,12 @@
           />
         </button>
 
-        <div class="upload-preview-modal__image-wrap">
-          <img
-            class="upload-preview-modal__image"
-            :src="selectedPreviewFile.thumbnail"
-            :alt="selectedPreviewFile.name"
-            :style="{ transform: `rotate(${selectedPreviewFile.rotation}deg)` }"
-          />
-          <button
-            class="upload-preview-modal__rotate"
-            type="button"
-            :aria-label="`${selectedPreviewFile.name} 90도 회전`"
-            @click="handleRotateUploadedFile(selectedPreviewFile.id)"
-          >
-            <img
-              class="upload-preview-modal__rotate-icon"
-              :src="rotateIcon"
-              alt=""
-              aria-hidden="true"
-            />
-          </button>
-        </div>
+        <img
+          class="upload-preview-modal__image"
+          :src="selectedPreviewFile.thumbnail"
+          :alt="selectedPreviewFile.name"
+          :style="{ transform: `rotate(${selectedPreviewFile.rotation}deg)` }"
+        />
       </div>
     </Transition>
   </div>
