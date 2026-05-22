@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from "vue-router";
+import { createRouter, createWebHashHistory } from "vue-router";
 
 import { analyticsClient } from "@/shared/analytics/analytics-stub";
 import AiAgentChatPage from "@/features/ai-agent/ui/AiAgentChatPage.vue";
@@ -41,7 +41,7 @@ const ScheduleValidationPage = () =>
   import("@/features/project-admin/schedule-validation/ui/ScheduleValidationPage.vue");
 
 export const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHashHistory(),
   routes: [
     {
       path: "/",
