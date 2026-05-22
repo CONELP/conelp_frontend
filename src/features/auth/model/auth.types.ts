@@ -21,6 +21,26 @@ export interface LoginCredentials {
   encryptedPassword: string;
 }
 
+export interface SignupCredentials {
+  encryptedEmail: string;
+  encryptedPassword: string;
+  encryptedPasswordConfirm: string;
+  userName: string;
+  phoneNumber: string;
+  jobTitle?: string;
+  companyId?: string;
+}
+
+export interface SignupInput {
+  email: string;
+  password: string;
+  passwordConfirm: string;
+  userName: string;
+  phoneNumber: string;
+  jobTitle?: string;
+  companyId?: string;
+}
+
 export type FieldErrors = Record<string, string>;
 
 export interface ApiErrorBody {

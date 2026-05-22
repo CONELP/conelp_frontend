@@ -2,6 +2,8 @@ import type {
   ApiErrorBody,
   FieldErrors,
   LoginCredentials,
+  SignupCredentials,
+  SignupInput,
   TokenResponse,
   User,
 } from "@/features/auth/model/auth.types";
@@ -114,6 +116,21 @@ async function buildLoginBody(email: string, password: string): Promise<LoginCre
   };
 }
 
+async function buildSignupBody(input: SignupInput): Promise<SignupCredentials> {
+  const publicKeyPem = await authApi.getPublicKey();
+  const cryptoKey = await importPublicKey(publicKeyPem);
+
+  return {
+    encryptedEmail: await rsaEncrypt(cryptoKey, input.email),
+    encryptedPassword: await rsaEncrypt(cryptoKey, input.password),
+    encryptedPasswordConfirm: await rsaEncrypt(cryptoKey, input.passwordConfirm),
+    userName: input.userName,
+    phoneNumber: input.phoneNumber,
+    jobTitle: input.jobTitle,
+    companyId: input.companyId,
+  };
+}
+
 export const authApi = {
   async getPublicKey() {
     return authFetch<string>("/getPublicKey");
@@ -129,6 +146,14 @@ export const authApi = {
     setAccessToken(tokenData.accessToken);
 
     return authApi.me();
+  },
+
+  async signup(input: SignupInput) {
+    const body = await buildSignupBody(input);
+    return authFetch<TokenResponse>("/signup", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
   },
 
   async refresh() {

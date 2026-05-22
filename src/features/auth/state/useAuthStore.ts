@@ -2,7 +2,7 @@ import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 
 import { authApi, RateLimitError, ValidationError } from "@/features/auth/services/auth-api";
-import type { FieldErrors, User } from "@/features/auth/model/auth.types";
+import type { FieldErrors, SignupInput, User } from "@/features/auth/model/auth.types";
 import { analyticsClient } from "@/shared/analytics/analytics-stub";
 import { clearAccessToken } from "@/shared/network/access-token";
 
@@ -85,6 +85,26 @@ export const useAuthStore = defineStore("auth", () => {
     }
   }
 
+  async function signup(input: SignupInput) {
+    isLoading.value = true;
+    error.value = null;
+    fieldErrors.value = {};
+
+    try {
+      await authApi.signup(input);
+      analyticsClient.trackAction("auth", "signup", "success");
+    } catch (requestError) {
+      setRequestError(requestError, "회원가입에 실패했습니다.");
+      analyticsClient.trackAction("auth", "signup", "fail", {
+        error_kind:
+          requestError instanceof ValidationError ? "validation" : "unknown",
+      });
+      throw requestError;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   async function logout() {
     isLoading.value = true;
     let didRemoteLogoutFail = false;
@@ -144,6 +164,7 @@ export const useAuthStore = defineStore("auth", () => {
     isAuthenticated,
     isLoginBlocked,
     login,
+    signup,
     logout,
     initialize,
     clearError,
