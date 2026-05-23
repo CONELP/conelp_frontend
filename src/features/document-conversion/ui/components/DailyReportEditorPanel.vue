@@ -405,10 +405,7 @@ function appendDailyReportLaborRow(group: DailyReportLaborDisplayGroup) {
 }
 function removeDailyReportLaborRow(row: DailyReportLaborDraft) {
   if (row.laborTypeId !== null) {
-    pendingLaborTypeDeletions.value = [
-      ...pendingLaborTypeDeletions.value,
-      row.laborTypeId,
-    ];
+    return;
   }
   laborRows.value = laborRows.value.filter((entry) => entry.id !== row.id);
 }
@@ -440,7 +437,7 @@ const dailyReportLaborSummaryItems = computed(() => {
           ? `(${summary.details
               .map(
                 (detail) =>
-                  `${detail.label}${formatDailyReportQuantity(detail.quantity)}`,
+                  `${detail.label}:${formatDailyReportQuantity(detail.quantity)}`,
               )
               .join(",")})`
           : "";
@@ -555,7 +552,6 @@ const laborPendingGroups = ref<
 const laborOriginalsByLaborTypeId = ref<
   Map<number, { name: string; isVisible: boolean }>
 >(new Map());
-const pendingLaborTypeDeletions = ref<number[]>([]);
 const previewImage = ref<DailyReportImageDraft | null>(null);
 const previewOriginalSrc = ref<string>("");
 const activeDailyReportTab = ref<DailyReportEditorTabId>("todayWork");
@@ -3175,12 +3171,6 @@ function appendDailyReportMaterialSpecOption(
 }
 
 async function saveDailyReportAttendance() {
-  const deletions = [...pendingLaborTypeDeletions.value];
-  for (const laborTypeId of deletions) {
-    await dailyReportResourceApi.deleteLaborType(laborTypeId);
-  }
-  pendingLaborTypeDeletions.value = [];
-
   const unresolvedNewRows: string[] = [];
   for (const row of laborRows.value) {
     if (row.laborTypeId !== null) {
@@ -3635,11 +3625,13 @@ async function hydrateDailyReportResourcesFromServer() {
     const [
       laborTypes,
       attendanceResponses,
+      attendanceCumulative,
       equipmentResponses,
       materialDeliveries,
     ] = await Promise.all([
       dailyReportResourceApi.getLaborTypeList(),
       dailyReportResourceApi.getAttendanceListByDate(reportDates.value.today),
+      dailyReportResourceApi.getAttendanceCumulativeList(reportDates.value.today),
       dailyReportResourceApi.getEquipmentDeploymentListByDate(reportDates.value.today),
       dailyReportResourceApi.getMaterialDeliveryList(),
     ]);
@@ -3649,24 +3641,31 @@ async function hydrateDailyReportResourcesFromServer() {
     attendanceResponses.forEach((response) => {
       attendanceCountByLaborTypeId.set(response.laborTypeId, response.count);
     });
+    const cumulativeByLaborTypeId = new Map<number, number>();
+    attendanceCumulative.workTypes.forEach((workType) => {
+      workType.laborTypes.forEach((laborType) => {
+        cumulativeByLaborTypeId.set(laborType.laborTypeId, laborType.count);
+      });
+    });
     laborOriginalsByLaborTypeId.value = new Map(
       laborTypes.map((option) => [
         option.id,
         { name: option.name, isVisible: option.isVisible },
       ]),
     );
-    pendingLaborTypeDeletions.value = [];
-    laborRows.value = laborTypes.map((option) =>
-      createDailyReportLaborRow({
+    laborRows.value = laborTypes.map((option) => {
+      const todayCount = attendanceCountByLaborTypeId.get(option.id) ?? 0;
+      const cumulativeCount = cumulativeByLaborTypeId.get(option.id) ?? 0;
+      return createDailyReportLaborRow({
         includedInDocument: option.isVisible,
         laborTypeId: option.id,
         workTypeId: option.workTypeId,
         workType: option.workTypeName ?? "",
         subWorkType: option.name,
-        previousQuantity: 0,
-        todayQuantity: String(attendanceCountByLaborTypeId.get(option.id) ?? 0),
-      }),
-    );
+        previousQuantity: Math.max(0, cumulativeCount - todayCount),
+        todayQuantity: String(todayCount),
+      });
+    });
 
     equipmentRows.value = equipmentResponses.map((response) =>
       createDailyReportEquipmentRow({
@@ -4527,6 +4526,7 @@ onUnmounted(() => {
                       </td>
                       <td class="daily-report-resource-sheet__delete-cell">
                         <button
+                          v-if="row.laborTypeId === null"
                           type="button"
                           class="daily-report-resource-sheet__row-delete"
                           :aria-label="`${row.subWorkType || '인력'} 행 삭제`"

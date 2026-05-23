@@ -1,6 +1,7 @@
 import { apiFetch } from "@/shared/network/api-client";
 import type {
   DailyReportAttendanceByDateResponse,
+  DailyReportAttendanceCumulativeResponse,
   DailyReportAttendanceUpdateRequest,
   DailyReportEquipmentSpecCreateRequest,
   DailyReportEquipmentDeploymentUpdateRequest,
@@ -113,6 +114,17 @@ export const dailyReportResourceApi = {
     await ensureSelectedProjectId();
     return apiFetch<DailyReportAttendanceByDateResponse[]>(
       `/attendance/getAttendanceListByDate?date=${encodeURIComponent(date)}`,
+    );
+  },
+
+  async getAttendanceCumulativeList(endDate: string, startDate?: string) {
+    await ensureSelectedProjectId();
+    const params = new URLSearchParams({ endDate });
+    if (startDate) {
+      params.set("startDate", startDate);
+    }
+    return apiFetch<DailyReportAttendanceCumulativeResponse>(
+      `/attendance/getAttendanceCumulativeList?${params.toString()}`,
     );
   },
 

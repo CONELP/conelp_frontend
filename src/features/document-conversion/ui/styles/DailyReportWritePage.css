@@ -890,8 +890,13 @@
   color: #64748b;
   font-size: 0.82rem;
   font-weight: 800;
+  text-align: center;
   border-bottom: 1px solid rgba(20, 24, 33, 0.18);
   border-right: 1px solid rgba(20, 24, 33, 0.08);
+}
+
+.daily-report-resource-sheet__subheader-row .daily-report-resource-sheet__header-label {
+  text-align: center;
 }
 
 .daily-report-resource-sheet__subheader-row th:last-child {
@@ -946,23 +951,19 @@
   width: 1.5rem;
   height: 1.5rem;
   padding: 0;
-  border: 1px solid rgba(20, 24, 33, 0.14);
-  border-radius: 0.36rem;
-  background: #fff;
+  border: 0;
+  background: transparent;
   color: #b42318;
-  font-size: 1rem;
+  font-size: 1.1rem;
   font-weight: 700;
   line-height: 1;
   cursor: pointer;
-  transition:
-    background-color 140ms ease,
-    border-color 140ms ease;
+  transition: color 140ms ease;
 }
 
 .daily-report-resource-sheet__row-delete:hover,
 .daily-report-resource-sheet__row-delete:focus-visible {
-  background: #fef2f2;
-  border-color: rgba(180, 35, 24, 0.4);
+  color: #991b1b;
 }
 
 .daily-report-resource-sheet__table td.daily-report-resource-sheet__today-cell {

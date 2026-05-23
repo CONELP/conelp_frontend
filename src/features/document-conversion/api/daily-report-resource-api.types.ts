@@ -61,6 +61,24 @@ export interface DailyReportAttendanceUpdateRequest {
   }>;
 }
 
+export interface DailyReportAttendanceCumulativeLaborType {
+  laborTypeId: number;
+  laborTypeName: string | null;
+  count: number;
+}
+
+export interface DailyReportAttendanceCumulativeWorkType {
+  workTypeId: number | null;
+  workTypeName: string | null;
+  totalCount: number;
+  laborTypes: DailyReportAttendanceCumulativeLaborType[];
+}
+
+export interface DailyReportAttendanceCumulativeResponse {
+  grandTotalCount: number;
+  workTypes: DailyReportAttendanceCumulativeWorkType[];
+}
+
 export interface DailyReportEquipmentDeploymentResponse {
   equipmentSpecId: number | null;
   equipmentSpecName: string | null;
