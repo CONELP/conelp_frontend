@@ -576,6 +576,34 @@
   gap: 0.56rem;
 }
 
+.daily-report-resource-table__worktype-add {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 0.4rem;
+}
+
+.daily-report-resource-table__worktype-add-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 2rem;
+  padding: 0 0.86rem;
+  border: 1px dashed rgba(20, 24, 33, 0.24);
+  border-radius: 0.5rem;
+  background: #fff;
+  color: #1e1888;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+.daily-report-resource-table__worktype-add-button:hover {
+  background: #eef2ff;
+  border-color: #1e1888;
+}
+
 .daily-report-resource-table__title {
   min-width: 0;
   overflow: hidden;
@@ -815,33 +843,26 @@
   padding: 0.24rem 0.6rem;
 }
 
-.daily-report-resource-sheet__group-title-input {
-  box-sizing: border-box;
+.daily-report-resource-sheet__group-title-pending {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   width: 60%;
-  min-width: 6rem;
-  max-width: 18rem;
-  height: 1.8rem;
-  padding: 0 0.5rem;
-  border: 1px solid rgba(20, 24, 33, 0.18);
-  border-radius: 0.4rem;
-  background: #fff;
-  color: #111827;
-  font: inherit;
-  font-size: 0.88rem;
-  font-weight: 700;
-  text-align: center;
+  min-width: 8rem;
+  max-width: 22rem;
+  vertical-align: middle;
 }
 
-.daily-report-resource-sheet__group-title-input:focus {
-  outline: 0;
-  border-color: #1e1888;
-  box-shadow: 0 0 0 2px rgba(30, 24, 136, 0.16);
+.daily-report-resource-sheet__group-title-pending > * {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.daily-report-resource-sheet__group-title-pending > button {
+  flex: 0 0 auto;
 }
 
 .daily-report-resource-sheet__group-title-remove {
-  position: absolute;
-  top: 50%;
-  right: 0.6rem;
   display: inline-flex;
   width: 1.4rem;
   height: 1.4rem;
@@ -855,7 +876,6 @@
   cursor: pointer;
   font-size: 1.1rem;
   line-height: 1;
-  transform: translateY(-50%);
   transition: background-color 140ms ease, color 140ms ease;
 }
 
@@ -907,6 +927,42 @@
 
 .daily-report-resource-sheet__table td.daily-report-resource-sheet__number--total {
   text-align: center;
+}
+
+.daily-report-resource-sheet__table td.daily-report-resource-sheet__number--total-right {
+  text-align: right;
+  padding-right: 0.62rem;
+}
+
+.daily-report-resource-sheet__delete-cell {
+  padding: 0.24rem 0.22rem;
+  text-align: center;
+}
+
+.daily-report-resource-sheet__row-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 1px solid rgba(20, 24, 33, 0.14);
+  border-radius: 0.36rem;
+  background: #fff;
+  color: #b42318;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease;
+}
+
+.daily-report-resource-sheet__row-delete:hover,
+.daily-report-resource-sheet__row-delete:focus-visible {
+  background: #fef2f2;
+  border-color: rgba(180, 35, 24, 0.4);
 }
 
 .daily-report-resource-sheet__table td.daily-report-resource-sheet__today-cell {

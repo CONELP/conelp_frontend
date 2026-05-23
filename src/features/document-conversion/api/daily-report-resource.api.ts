@@ -10,6 +10,7 @@ import type {
   DailyReportEquipmentTypeResponse,
   DailyReportLaborTypeCreateRequest,
   DailyReportLaborTypeResponse,
+  DailyReportLaborTypeUpdateRequest,
   DailyReportMaterialDeliveryResponse,
   DailyReportMaterialDeliveryUpdateRequest,
   DailyReportMaterialQuantityByDateResponse,
@@ -64,6 +65,22 @@ export const dailyReportResourceApi = {
       method: "POST",
       body: toApiBody(body),
     });
+  },
+
+  async updateLaborType(body: DailyReportLaborTypeUpdateRequest) {
+    await ensureSelectedProjectId();
+    return apiFetch<void>("/reference/updateLaborType", {
+      method: "POST",
+      body: toApiBody(body),
+    });
+  },
+
+  async deleteLaborType(laborTypeId: number) {
+    await ensureSelectedProjectId();
+    return apiFetch<void>(
+      `/reference/deleteLaborType/${encodeURIComponent(String(laborTypeId))}`,
+      { method: "DELETE" },
+    );
   },
 
   async getEquipmentSpecList() {

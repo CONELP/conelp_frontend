@@ -91,6 +91,7 @@ const DAILY_REPORT_RESOURCE_COLUMNS = {
     { key: "subWorkType", label: "직종" },
     { key: "todayQuantity", label: "금일" },
     { key: "totalQuantity", label: "누계" },
+    { key: "delete", label: "" },
   ],
   material: [
     { key: "includedInDocument", label: "표시" },
@@ -112,11 +113,11 @@ const DAILY_REPORT_RESOURCE_COLUMNS = {
   ],
 } satisfies Record<DailyReportResourceKind, readonly DailyReportResourceColumnConfig[]>;
 const DAILY_REPORT_RESOURCE_DEFAULT_COLUMN_WIDTHS = {
-  labor: [44, 124, 82, 88],
+  labor: [44, 124, 82, 64, 36],
   material: [44, 124, 112, 112, 72, 82, 88],
   equipment: [44, 124, 112, 112, 72, 82, 88],
 } satisfies Record<DailyReportResourceKind, number[]>;
-const DAILY_REPORT_LABOR_COLUMN_RATIOS = [8, 46, 22, 24] as const;
+const DAILY_REPORT_LABOR_COLUMN_RATIOS = [8, 42, 22, 18, 10] as const;
 const DAILY_REPORT_PANEL_ANALYTICS_FEATURE = "daily_report_panel";
 
 const DAILY_REPORT_LABOR_SUMMARY_WORK_TYPE_ALIASES: Record<string, string> = {
@@ -265,11 +266,6 @@ type DailyReportEquipmentAddDraft = Pick<
   | "todayQuantity"
 >;
 
-type DailyReportLaborAddDraft = Pick<
-  DailyReportLaborDraft,
-  "includedInDocument" | "workTypeId" | "workType" | "subWorkType" | "todayQuantity"
->;
-
 type DailyReportResourceAddFormState = Record<DailyReportResourceKind, boolean>;
 type DailyReportResourceColumnWidthState = Record<DailyReportResourceKind, number[]>;
 
@@ -327,12 +323,21 @@ const laborRowGroups = computed<DailyReportLaborGroup[]>(() => {
 
   return groups;
 });
-type DailyReportLaborDisplayGroup = DailyReportLaborGroup & { isPending: boolean };
+type DailyReportLaborDisplayGroup = DailyReportLaborGroup & {
+  isPending: boolean;
+  workTypeId: number | null;
+};
 const laborDisplayGroups = computed<DailyReportLaborDisplayGroup[]>(() => {
-  const actual = laborRowGroups.value.map<DailyReportLaborDisplayGroup>((group) => ({
-    ...group,
-    isPending: false,
-  }));
+  const actual = laborRowGroups.value.map<DailyReportLaborDisplayGroup>((group) => {
+    const workTypeIdFromRow =
+      group.rows.find((row) => row.workTypeId !== null)?.workTypeId ?? null;
+    const workTypeIdFromKnown = findKnownDailyReportWorkTypeId(group.workType) ?? null;
+    return {
+      ...group,
+      isPending: false,
+      workTypeId: workTypeIdFromRow ?? workTypeIdFromKnown,
+    };
+  });
   const actualNames = new Set(
     actual
       .map((group) => group.workType.trim())
@@ -345,6 +350,7 @@ const laborDisplayGroups = computed<DailyReportLaborDisplayGroup[]>(() => {
       workType: entry.workType,
       rows: [],
       isPending: true,
+      workTypeId: entry.workTypeId,
     }));
   return [...actual, ...pending];
 });
@@ -352,35 +358,59 @@ function addLaborPendingGroup() {
   const key = `pending-${createDailyReportId()}`;
   laborPendingGroups.value = [
     ...laborPendingGroups.value,
-    { key, workType: "" },
+    { key, workType: "", workTypeId: null },
   ];
-  laborAddActiveGroupKey.value = null;
 }
 function updateLaborPendingGroupName(key: string, name: string) {
   laborPendingGroups.value = laborPendingGroups.value.map((entry) =>
-    entry.key === key ? { ...entry, workType: name } : entry,
+    entry.key === key ? { ...entry, workType: name, workTypeId: null } : entry,
+  );
+}
+function selectLaborPendingGroupWorkType(
+  key: string,
+  selection: { id: number; name: string },
+) {
+  laborPendingGroups.value = laborPendingGroups.value.map((entry) =>
+    entry.key === key
+      ? { ...entry, workType: selection.name, workTypeId: selection.id }
+      : entry,
   );
 }
 function removeLaborPendingGroup(key: string) {
   laborPendingGroups.value = laborPendingGroups.value.filter(
     (entry) => entry.key !== key,
   );
-  if (laborAddActiveGroupKey.value === key) {
-    laborAddActiveGroupKey.value = null;
+}
+function appendDailyReportLaborRow(group: DailyReportLaborDisplayGroup) {
+  if (group.workTypeId === null) {
+    return;
+  }
+  laborRows.value = [
+    ...laborRows.value,
+    createDailyReportLaborRow({
+      includedInDocument: true,
+      laborTypeId: null,
+      workTypeId: group.workTypeId,
+      workType: group.workType,
+      subWorkType: "",
+      previousQuantity: 0,
+      todayQuantity: "",
+    }),
+  ];
+  if (group.isPending) {
+    laborPendingGroups.value = laborPendingGroups.value.filter(
+      (entry) => entry.key !== group.key,
+    );
   }
 }
-function openLaborGroupAddRow(group: DailyReportLaborDisplayGroup) {
-  laborAddDraft.value = createDailyReportLaborAddDraft();
-  laborAddDraft.value.workType = group.workType;
-  laborAddDraft.value.workTypeId =
-    findKnownDailyReportWorkTypeId(group.workType) ?? null;
-  laborAddActiveGroupKey.value = group.key;
-  resourceAddFormsOpen.value.labor = true;
-}
-function closeLaborGroupAddRow() {
-  laborAddActiveGroupKey.value = null;
-  resourceAddFormsOpen.value.labor = false;
-  laborAddDraft.value = createDailyReportLaborAddDraft();
+function removeDailyReportLaborRow(row: DailyReportLaborDraft) {
+  if (row.laborTypeId !== null) {
+    pendingLaborTypeDeletions.value = [
+      ...pendingLaborTypeDeletions.value,
+      row.laborTypeId,
+    ];
+  }
+  laborRows.value = laborRows.value.filter((entry) => entry.id !== row.id);
 }
 const dailyReportLaborSummaryItems = computed(() => {
   return laborRowGroups.value
@@ -519,9 +549,13 @@ const materialAddDraft = ref<DailyReportMaterialAddDraft>(
 const equipmentAddDraft = ref<DailyReportEquipmentAddDraft>(
   createDailyReportEquipmentAddDraft(),
 );
-const laborAddDraft = ref<DailyReportLaborAddDraft>(createDailyReportLaborAddDraft());
-const laborPendingGroups = ref<{ key: string; workType: string }[]>([]);
-const laborAddActiveGroupKey = ref<string | null>(null);
+const laborPendingGroups = ref<
+  { key: string; workType: string; workTypeId: number | null }[]
+>([]);
+const laborOriginalsByLaborTypeId = ref<
+  Map<number, { name: string; isVisible: boolean }>
+>(new Map());
+const pendingLaborTypeDeletions = ref<number[]>([]);
 const previewImage = ref<DailyReportImageDraft | null>(null);
 const previewOriginalSrc = ref<string>("");
 const activeDailyReportTab = ref<DailyReportEditorTabId>("todayWork");
@@ -686,16 +720,6 @@ function createDailyReportEquipmentAddDraft(): DailyReportEquipmentAddDraft {
     type: "",
     specification: "",
     unit: "",
-    todayQuantity: "",
-  };
-}
-
-function createDailyReportLaborAddDraft(): DailyReportLaborAddDraft {
-  return {
-    includedInDocument: true,
-    workTypeId: null,
-    workType: "",
-    subWorkType: "",
     todayQuantity: "",
   };
 }
@@ -2792,8 +2816,6 @@ function resetDailyReportResourceAddDraft(kind: DailyReportResourceKind) {
     equipmentAddDraft.value = createDailyReportEquipmentAddDraft();
     return;
   }
-
-  laborAddDraft.value = createDailyReportLaborAddDraft();
 }
 
 function cancelDailyReportResourceAdd(kind: DailyReportResourceKind) {
@@ -2824,10 +2846,7 @@ function canAddDailyReportResource(kind: DailyReportResourceKind) {
     ]);
   }
 
-  return hasEveryDailyReportResourceField([
-    laborAddDraft.value.workType,
-    laborAddDraft.value.subWorkType,
-  ]);
+  return true;
 }
 
 function addDailyReportMaterialResource() {
@@ -2915,57 +2934,6 @@ function addDailyReportEquipmentResource() {
   });
   resetDailyReportResourceAddDraft("equipment");
   closeDailyReportResourceAddForm("equipment");
-}
-
-function addDailyReportLaborResource() {
-  if (!canAddDailyReportResource("labor")) {
-    trackDailyReportPanelAction("add_resource_row", "fail", {
-      kind: "labor",
-      reason: "validation",
-    });
-    return;
-  }
-
-  const laborType = findDailyReportLaborType(
-    laborAddDraft.value.workType,
-    laborAddDraft.value.subWorkType,
-  );
-  const workTypeId =
-    laborType?.workTypeId ??
-    laborAddDraft.value.workTypeId ??
-    findKnownDailyReportWorkTypeId(laborAddDraft.value.workType);
-  const quantity = normalizeDailyReportQuantityInput(
-    laborAddDraft.value.todayQuantity,
-  );
-
-  laborRows.value = [
-    ...laborRows.value,
-    createDailyReportLaborRow({
-      includedInDocument: laborAddDraft.value.includedInDocument,
-      laborTypeId: laborType?.id ?? null,
-      workTypeId,
-      workType: laborAddDraft.value.workType.trim(),
-      subWorkType: laborAddDraft.value.subWorkType.trim(),
-      previousQuantity: 0,
-      todayQuantity: quantity,
-    }),
-  ];
-  trackDailyReportPanelAction("add_resource_row", "success", {
-    kind: "labor",
-    included_in_document: laborAddDraft.value.includedInDocument,
-    has_quantity: Boolean(quantity),
-    quantity_gt_zero: parseDailyReportQuantity(quantity) > 0,
-    resolved_labor_type: laborType !== null,
-  });
-  const addedWorkType = laborAddDraft.value.workType.trim();
-  if (addedWorkType.length > 0) {
-    laborPendingGroups.value = laborPendingGroups.value.filter(
-      (entry) => entry.workType.trim() !== addedWorkType,
-    );
-  }
-  laborAddActiveGroupKey.value = null;
-  resetDailyReportResourceAddDraft("labor");
-  closeDailyReportResourceAddForm("labor");
 }
 
 function waitForDailyReportTaskSync(task: DailyReportTaskDraft) {
@@ -3207,26 +3175,82 @@ function appendDailyReportMaterialSpecOption(
 }
 
 async function saveDailyReportAttendance() {
-  const entryMap = new Map<number, number>();
-  const unresolvedRows: string[] = [];
+  const deletions = [...pendingLaborTypeDeletions.value];
+  for (const laborTypeId of deletions) {
+    await dailyReportResourceApi.deleteLaborType(laborTypeId);
+  }
+  pendingLaborTypeDeletions.value = [];
 
+  const unresolvedNewRows: string[] = [];
   for (const row of laborRows.value) {
-    const count = Math.max(0, Math.round(parseDailyReportQuantity(row.todayQuantity)));
-    const hasInput = row.todayQuantity.trim().length > 0 || count > 0;
-    const laborTypeId = await resolveDailyReportLaborTypeId(row, hasInput);
-
-    if (laborTypeId === null) {
-      if (hasInput) {
-        unresolvedRows.push(`${row.workType} / ${row.subWorkType}`);
-      }
+    if (row.laborTypeId !== null) {
       continue;
     }
-
-    entryMap.set(laborTypeId, (entryMap.get(laborTypeId) ?? 0) + count);
+    const name = row.subWorkType.trim();
+    if (!name) {
+      continue;
+    }
+    if (row.workTypeId === null) {
+      unresolvedNewRows.push(name);
+      continue;
+    }
+    const created = await dailyReportResourceApi.createLaborType({
+      name,
+      workTypeId: row.workTypeId,
+      isVisible: row.includedInDocument,
+    });
+    row.laborTypeId = created.id;
+    row.workTypeId = created.workTypeId ?? row.workTypeId;
+    row.workType = created.workTypeName ?? row.workType;
+    row.subWorkType = created.name;
+    laborTypeOptions.value = [...laborTypeOptions.value, created];
+    laborOriginalsByLaborTypeId.value.set(created.id, {
+      name: created.name,
+      isVisible: created.isVisible,
+    });
   }
 
-  if (unresolvedRows.length > 0) {
-    throw new Error(`인력 항목의 직종을 찾지 못했습니다: ${unresolvedRows.join(", ")}`);
+  if (unresolvedNewRows.length > 0) {
+    throw new Error(
+      `인력 항목의 공종을 선택해 주세요: ${unresolvedNewRows.join(", ")}`,
+    );
+  }
+
+  for (const row of laborRows.value) {
+    if (row.laborTypeId === null) {
+      continue;
+    }
+    const original = laborOriginalsByLaborTypeId.value.get(row.laborTypeId);
+    if (!original) {
+      continue;
+    }
+    const trimmedName = row.subWorkType.trim();
+    const nameChanged = trimmedName.length > 0 && trimmedName !== original.name;
+    const isVisibleChanged = row.includedInDocument !== original.isVisible;
+    if (!nameChanged && !isVisibleChanged) {
+      continue;
+    }
+    await dailyReportResourceApi.updateLaborType({
+      id: row.laborTypeId,
+      ...(nameChanged ? { name: trimmedName } : {}),
+      ...(isVisibleChanged ? { isVisible: row.includedInDocument } : {}),
+    });
+    laborOriginalsByLaborTypeId.value.set(row.laborTypeId, {
+      name: nameChanged ? trimmedName : original.name,
+      isVisible: isVisibleChanged ? row.includedInDocument : original.isVisible,
+    });
+  }
+
+  const entryMap = new Map<number, number>();
+  for (const row of laborRows.value) {
+    if (row.laborTypeId === null) {
+      continue;
+    }
+    const count = Math.max(
+      0,
+      Math.round(parseDailyReportQuantity(row.todayQuantity)),
+    );
+    entryMap.set(row.laborTypeId, (entryMap.get(row.laborTypeId) ?? 0) + count);
   }
 
   const entries = Array.from(entryMap.entries()).map(([laborTypeId, count]) => ({
@@ -3608,28 +3632,39 @@ async function hydrateDailyReportActualWorksFromServer() {
 async function hydrateDailyReportResourcesFromServer() {
   try {
     const inclusionState = captureDailyReportResourceInclusionState();
-    const [attendanceResponses, equipmentResponses, materialDeliveries] =
-      await Promise.all([
-        dailyReportResourceApi.getAttendanceListByDate(reportDates.value.today),
-        dailyReportResourceApi.getEquipmentDeploymentListByDate(reportDates.value.today),
-        dailyReportResourceApi.getMaterialDeliveryList(),
-      ]);
+    const [
+      laborTypes,
+      attendanceResponses,
+      equipmentResponses,
+      materialDeliveries,
+    ] = await Promise.all([
+      dailyReportResourceApi.getLaborTypeList(),
+      dailyReportResourceApi.getAttendanceListByDate(reportDates.value.today),
+      dailyReportResourceApi.getEquipmentDeploymentListByDate(reportDates.value.today),
+      dailyReportResourceApi.getMaterialDeliveryList(),
+    ]);
 
-    laborRows.value = attendanceResponses.map((response) =>
+    laborTypeOptions.value = laborTypes;
+    const attendanceCountByLaborTypeId = new Map<number, number>();
+    attendanceResponses.forEach((response) => {
+      attendanceCountByLaborTypeId.set(response.laborTypeId, response.count);
+    });
+    laborOriginalsByLaborTypeId.value = new Map(
+      laborTypes.map((option) => [
+        option.id,
+        { name: option.name, isVisible: option.isVisible },
+      ]),
+    );
+    pendingLaborTypeDeletions.value = [];
+    laborRows.value = laborTypes.map((option) =>
       createDailyReportLaborRow({
-        includedInDocument:
-          inclusionState.labor.get(
-            createDailyReportResourceInclusionKey([
-              response.laborTypeId,
-              response.laborTypeName,
-            ]),
-          ) ?? true,
-        laborTypeId: response.laborTypeId,
-        workTypeId: response.workTypeId,
-        workType: response.workTypeName ?? "",
-        subWorkType: response.laborTypeName ?? "",
+        includedInDocument: option.isVisible,
+        laborTypeId: option.id,
+        workTypeId: option.workTypeId,
+        workType: option.workTypeName ?? "",
+        subWorkType: option.name,
         previousQuantity: 0,
-        todayQuantity: String(response.count),
+        todayQuantity: String(attendanceCountByLaborTypeId.get(option.id) ?? 0),
       }),
     );
 
@@ -4310,30 +4345,35 @@ onUnmounted(() => {
                       scope="colgroup"
                       class="daily-report-resource-sheet__group-title"
                     >
-                      <input
+                      <div
                         v-if="group.isPending"
-                        :value="group.workType"
-                        class="daily-report-resource-sheet__group-title-input"
-                        type="text"
-                        placeholder="공종 입력"
-                        aria-label="새 공종 이름"
-                        @input="
-                          updateLaborPendingGroupName(
-                            group.key,
-                            ($event.target as HTMLInputElement).value,
-                          )
-                        "
-                      />
-                      <span v-else>{{ group.workType }}</span>
-                      <button
-                        v-if="group.isPending"
-                        type="button"
-                        class="daily-report-resource-sheet__group-title-remove"
-                        aria-label="공종 삭제"
-                        @click="removeLaborPendingGroup(group.key)"
+                        class="daily-report-resource-sheet__group-title-pending"
                       >
-                        ×
-                      </button>
+                        <WorkTypeTypeaheadInput
+                          :model-value="group.workType"
+                          variant="sheet"
+                          placeholder="공종 입력"
+                          aria-label="새 공종 이름"
+                          :selected-id="group.workTypeId"
+                          :load-suggestions="loadWorkTypeSuggestions"
+                          :option-id-prefix="`daily-report-labor-pending-work-type-${group.key}`"
+                          @update:model-value="
+                            updateLaborPendingGroupName(group.key, $event)
+                          "
+                          @select="
+                            selectLaborPendingGroupWorkType(group.key, $event)
+                          "
+                        />
+                        <button
+                          type="button"
+                          class="daily-report-resource-sheet__group-title-remove"
+                          aria-label="공종 삭제"
+                          @click="removeLaborPendingGroup(group.key)"
+                        >
+                          ×
+                        </button>
+                      </div>
+                      <span v-else>{{ group.workType }}</span>
                     </th>
                     <th
                       class="daily-report-resource-sheet__filler-header"
@@ -4408,7 +4448,7 @@ onUnmounted(() => {
                           @input="updateDailyReportResourceEditQuantity"
                         />
                       </td>
-                      <td class="daily-report-resource-sheet__add-actions-cell">
+                      <td class="daily-report-resource-sheet__add-actions-cell" colspan="2">
                         <div class="daily-report-resource-sheet__add-actions">
                           <button
                             type="button"
@@ -4455,7 +4495,15 @@ onUnmounted(() => {
                           <span aria-hidden="true"></span>
                         </label>
                       </td>
-                      <td>{{ row.subWorkType }}</td>
+                      <td class="daily-report-resource-sheet__add-input-cell">
+                        <input
+                          v-model="row.subWorkType"
+                          class="daily-report-resource-sheet__add-text-input"
+                          type="text"
+                          aria-label="인력 직종"
+                          placeholder="직종"
+                        />
+                      </td>
                       <td class="daily-report-resource-sheet__today-cell">
                         <input
                           v-model="row.todayQuantity"
@@ -4474,8 +4522,18 @@ onUnmounted(() => {
                           "
                         />
                       </td>
-                      <td class="daily-report-resource-sheet__number daily-report-resource-sheet__number--total">
+                      <td class="daily-report-resource-sheet__number daily-report-resource-sheet__number--total daily-report-resource-sheet__number--total-right">
                         {{ formatDailyReportQuantity(getDailyReportCumulativeQuantity(row)) }}
+                      </td>
+                      <td class="daily-report-resource-sheet__delete-cell">
+                        <button
+                          type="button"
+                          class="daily-report-resource-sheet__row-delete"
+                          :aria-label="`${row.subWorkType || '인력'} 행 삭제`"
+                          @click="removeDailyReportLaborRow(row)"
+                        >
+                          ×
+                        </button>
                       </td>
                       <td
                         class="daily-report-resource-sheet__filler-cell"
@@ -4484,86 +4542,6 @@ onUnmounted(() => {
                     </template>
                   </tr>
                   <tr
-                    v-if="laborAddActiveGroupKey === group.key"
-                    class="daily-report-resource-sheet__add-input-row"
-                  >
-                    <td class="daily-report-resource-sheet__include-cell">
-                      <label class="daily-report-resource-sheet__include-toggle">
-                        <input
-                          v-model="laborAddDraft.includedInDocument"
-                          type="checkbox"
-                          aria-label="추가할 인력 문서 포함"
-                          @change="
-                            handleDailyReportResourceInclusionChange(
-                              'labor',
-                              $event,
-                              'add_form',
-                            )
-                          "
-                        />
-                        <span aria-hidden="true"></span>
-                      </label>
-                    </td>
-                    <td class="daily-report-resource-sheet__add-input-cell">
-                      <input
-                        v-model="laborAddDraft.subWorkType"
-                        class="daily-report-resource-sheet__add-text-input"
-                        type="text"
-                        aria-label="추가할 인력 직종"
-                        placeholder="직종"
-                        @blur="
-                          trackDailyReportResourceFieldCommit(
-                            'labor',
-                            'sub_work_type',
-                            laborAddDraft.subWorkType,
-                          )
-                        "
-                      />
-                    </td>
-                    <td class="daily-report-resource-sheet__today-cell">
-                      <input
-                        v-model="laborAddDraft.todayQuantity"
-                        class="daily-report-resource-sheet__today-input"
-                        inputmode="decimal"
-                        type="text"
-                        aria-label="추가할 인력 금일 수량"
-                        placeholder="0"
-                        @input="updateDailyReportAddTodayQuantity(laborAddDraft, $event)"
-                        @change="
-                          trackDailyReportResourceQuantityCommit(
-                            'labor',
-                            laborAddDraft,
-                            'add_form',
-                          )
-                        "
-                      />
-                    </td>
-                    <td class="daily-report-resource-sheet__add-actions-cell">
-                      <div class="daily-report-resource-sheet__add-actions">
-                        <button
-                          type="button"
-                          class="daily-report-resource-sheet__add-action-button"
-                          @click="closeLaborGroupAddRow"
-                        >
-                          취소
-                        </button>
-                        <button
-                          type="button"
-                          class="daily-report-resource-sheet__add-action-button daily-report-resource-sheet__add-action-button--primary"
-                          :disabled="!canAddDailyReportResource('labor')"
-                          @click="addDailyReportLaborResource"
-                        >
-                          추가
-                        </button>
-                      </div>
-                    </td>
-                    <td
-                      class="daily-report-resource-sheet__filler-cell"
-                      aria-hidden="true"
-                    ></td>
-                  </tr>
-                  <tr
-                    v-else
                     class="daily-report-resource-sheet__add-button-row daily-report-resource-sheet__add-button-row--sub"
                   >
                     <td
@@ -4573,8 +4551,8 @@ onUnmounted(() => {
                       <button
                         type="button"
                         class="daily-report-resource-sheet__add-button"
-                        :disabled="group.isPending && group.workType.trim().length === 0"
-                        @click="openLaborGroupAddRow(group)"
+                        :disabled="group.workTypeId === null"
+                        @click="appendDailyReportLaborRow(group)"
                       >
                         + 직종 추가
                       </button>
@@ -4585,22 +4563,18 @@ onUnmounted(() => {
                     ></td>
                   </tr>
                 </template>
-                <tr class="daily-report-resource-sheet__add-button-row">
-                  <td
-                    class="daily-report-resource-sheet__add-button-cell"
-                    :colspan="DAILY_REPORT_RESOURCE_COLUMNS.labor.length + 1"
-                  >
-                    <button
-                      type="button"
-                      class="daily-report-resource-sheet__add-button"
-                      @click="addLaborPendingGroup"
-                    >
-                      + 공종 추가
-                    </button>
-                  </td>
-                </tr>
               </tbody>
             </table>
+          </div>
+
+          <div class="daily-report-resource-table__worktype-add">
+            <button
+              type="button"
+              class="daily-report-resource-table__worktype-add-button"
+              @click="addLaborPendingGroup"
+            >
+              + 공종 추가
+            </button>
           </div>
         </div>
       </section>

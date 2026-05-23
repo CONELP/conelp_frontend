@@ -12,6 +12,13 @@ export interface DailyReportLaborTypeCreateRequest {
   isVisible?: boolean;
 }
 
+export interface DailyReportLaborTypeUpdateRequest {
+  id: number;
+  name?: string;
+  isVisible?: boolean;
+  ids?: number[];
+}
+
 export interface DailyReportEquipmentSpecResponse {
   id: number;
   name: string;
