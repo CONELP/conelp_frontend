@@ -2,7 +2,7 @@ export interface ActPhotoResponse {
   id: number;
   date: string;
   url: string;
-  thumbnailUrl: string;
+  thumbnail: string | null;
   description: string | null;
 }
 

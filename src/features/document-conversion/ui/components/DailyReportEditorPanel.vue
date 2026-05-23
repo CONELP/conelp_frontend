@@ -80,21 +80,21 @@ const DAILY_REPORT_EDITOR_TABS: DailyReportEditorTab[] = [
 
 const HOMEPAGE_IMPORT_MIN_DURATION_MS = 2500;
 const DAILY_REPORT_RESOURCE_COLUMN_WIDTH_STORAGE_KEY =
-  "conelp.dailyReport.resourceColumnWidths.v3";
+  "conelp.dailyReport.resourceColumnWidths.v4";
 const DAILY_REPORT_RESOURCE_COLUMN_MIN_WIDTH = 32;
 const DAILY_REPORT_RESOURCE_COLUMN_MAX_WIDTH = 320;
 const DAILY_REPORT_RESOURCE_CONTEXT_MENU_WIDTH = 148;
 const DAILY_REPORT_RESOURCE_CONTEXT_MENU_HEIGHT = 86;
 const DAILY_REPORT_RESOURCE_COLUMNS = {
   labor: [
-    { key: "includedInDocument", label: "문서 포함" },
+    { key: "includedInDocument", label: "표시" },
     { key: "workType", label: "공종" },
     { key: "subWorkType", label: "직종" },
     { key: "todayQuantity", label: "금일" },
     { key: "totalQuantity", label: "누계" },
   ],
   material: [
-    { key: "includedInDocument", label: "문서 포함" },
+    { key: "includedInDocument", label: "표시" },
     { key: "workType", label: "공종" },
     { key: "type", label: "타입" },
     { key: "specification", label: "규격" },
@@ -103,7 +103,7 @@ const DAILY_REPORT_RESOURCE_COLUMNS = {
     { key: "totalQuantity", label: "누계" },
   ],
   equipment: [
-    { key: "includedInDocument", label: "문서 포함" },
+    { key: "includedInDocument", label: "표시" },
     { key: "process", label: "공종" },
     { key: "type", label: "타입" },
     { key: "specification", label: "규격" },
@@ -113,9 +113,9 @@ const DAILY_REPORT_RESOURCE_COLUMNS = {
   ],
 } satisfies Record<DailyReportResourceKind, readonly DailyReportResourceColumnConfig[]>;
 const DAILY_REPORT_RESOURCE_DEFAULT_COLUMN_WIDTHS = {
-  labor: [82, 124, 124, 82, 88],
-  material: [82, 124, 112, 112, 72, 82, 88],
-  equipment: [82, 124, 112, 112, 72, 82, 88],
+  labor: [44, 124, 124, 82, 88],
+  material: [44, 124, 112, 112, 72, 82, 88],
+  equipment: [44, 124, 112, 112, 72, 82, 88],
 } satisfies Record<DailyReportResourceKind, number[]>;
 const DAILY_REPORT_PANEL_ANALYTICS_FEATURE = "daily_report_panel";
 
@@ -129,6 +129,7 @@ type DailyReportImageDraft = {
   id: string;
   photoId: number | null;
   src: string;
+  originalKey: string;
   description: string;
   rotation: number;
 };
@@ -465,6 +466,7 @@ const equipmentAddDraft = ref<DailyReportEquipmentAddDraft>(
 );
 const laborAddDraft = ref<DailyReportLaborAddDraft>(createDailyReportLaborAddDraft());
 const previewImage = ref<DailyReportImageDraft | null>(null);
+const previewOriginalSrc = ref<string>("");
 const activeDailyReportTab = ref<DailyReportEditorTabId>("todayWork");
 const homepageImportStatus = ref<"idle" | "loading" | "error">("idle");
 const taskSyncRequestIds = new Map<string, number>();
@@ -1966,7 +1968,10 @@ function toDailyReportImageFromActPhotoResponse(
   return {
     id: createDailyReportId(),
     photoId: response.id,
-    src: response.url,
+    src: response.thumbnail
+      ? `data:image/jpeg;base64,${response.thumbnail}`
+      : "",
+    originalKey: response.url,
     description: response.description ?? "",
     rotation: 0,
   };
@@ -2035,12 +2040,38 @@ async function syncDailyReportImageDescription(image: DailyReportImageDraft) {
   }
 }
 
-function openDailyReportImagePreview(image: DailyReportImageDraft) {
+function revokePreviewOriginalSrc() {
+  if (previewOriginalSrc.value) {
+    URL.revokeObjectURL(previewOriginalSrc.value);
+    previewOriginalSrc.value = "";
+  }
+}
+
+async function openDailyReportImagePreview(image: DailyReportImageDraft) {
+  revokePreviewOriginalSrc();
   previewImage.value = image;
+
+  if (!image.originalKey) {
+    return;
+  }
+
+  try {
+    const blob = await actPhotoApi.downloadOriginalByKey(image.originalKey);
+
+    if (previewImage.value?.id !== image.id) {
+      return;
+    }
+
+    revokePreviewOriginalSrc();
+    previewOriginalSrc.value = URL.createObjectURL(blob);
+  } catch (error) {
+    console.error("download original act photo failed", error);
+  }
 }
 
 function closeDailyReportImagePreview() {
   previewImage.value = null;
+  revokePreviewOriginalSrc();
 }
 
 function rotateDailyReportImagePreview() {
@@ -3627,12 +3658,8 @@ async function hydrateDailyReportResourcesFromServer() {
 
 async function hydrateDailyReportActPhotosFromServer() {
   try {
-    const [todayResponses, tomorrowResponses] = await Promise.all([
-      actPhotoApi.listByDate(reportDates.value.today),
-      actPhotoApi.listByDate(reportDates.value.tomorrow),
-    ]);
+    const todayResponses = await actPhotoApi.listByDate(reportDates.value.today);
     todayImages.value = todayResponses.map(toDailyReportImageFromActPhotoResponse);
-    tomorrowImages.value = tomorrowResponses.map(toDailyReportImageFromActPhotoResponse);
   } catch (error) {
     console.error("hydrate act photos failed", error);
   }
@@ -3662,6 +3689,7 @@ onUnmounted(() => {
     handleDailyReportResourceDocumentMouseDown,
   );
   document.removeEventListener("keydown", handleDailyReportResourceDocumentKeydown);
+  revokePreviewOriginalSrc();
 });
 </script>
 
@@ -4093,15 +4121,6 @@ onUnmounted(() => {
         aria-labelledby="daily-report-tab-tomorrowWork"
       >
       <section class="daily-report-write-editor">
-        <input
-          ref="tomorrowImageInputRef"
-          class="daily-report-write-editor__file-input"
-          type="file"
-          accept="image/*"
-          multiple
-          @change="handleDailyReportImageChange('tomorrow', $event)"
-        />
-
         <div class="daily-report-write-work-cell">
           <div class="daily-report-write-work-cell__header">
             <span class="daily-report-write-work-cell__title">내일작업</span>
@@ -4176,70 +4195,6 @@ onUnmounted(() => {
             </button>
           </div>
 
-          <div class="daily-report-write-attachments">
-            <TransitionGroup
-              v-if="tomorrowImages.length > 0"
-              name="daily-report-image-list"
-              tag="div"
-              class="daily-report-write-image-list"
-            >
-              <article
-                v-for="image in tomorrowImages"
-                :key="image.id"
-                class="daily-report-write-image-card"
-                :class="getImageCardDragClass('tomorrow', image.id)"
-                draggable="true"
-                @dragstart="handleImageDragStart('tomorrow', image.id, $event)"
-                @dragover="handleImageDragOver('tomorrow', image.id, $event)"
-                @dragleave="imageDragOverState = null"
-                @drop="handleImageDrop('tomorrow', image.id, $event)"
-                @dragend="endImageDrag"
-              >
-                <figure
-                  class="daily-report-write-image-card__preview"
-                  @click="openDailyReportImagePreview(image)"
-                >
-                  <img
-                    class="daily-report-write-image-card__image"
-                    :src="image.src"
-                    alt=""
-                    draggable="false"
-                    :style="{ transform: `rotate(${image.rotation}deg)` }"
-                  />
-                </figure>
-                <textarea
-                  v-model="image.description"
-                  class="daily-report-write-image-card__description"
-                  rows="2"
-                  placeholder="설명을 적어주세요."
-                  @blur="syncDailyReportImageDescription(image)"
-                />
-                <button
-                  type="button"
-                  class="daily-report-write-image-card__remove"
-                  aria-label="이미지 삭제"
-                  @click.stop="removeDailyReportImage('tomorrow', image.id)"
-                >
-                  ×
-                </button>
-              </article>
-            </TransitionGroup>
-
-            <button
-              type="button"
-              class="daily-report-write-attachments__add"
-              @click="openImagePicker('tomorrow')"
-            >
-              <span class="daily-report-write-attachments__add-box" aria-hidden="true">
-                <img
-                  class="daily-report-write-attachments__add-icon"
-                  :src="imageIcon"
-                  alt=""
-                />
-              </span>
-              <span>이미지 추가</span>
-            </button>
-          </div>
         </div>
       </section>
       </div>
@@ -5443,7 +5398,7 @@ onUnmounted(() => {
         <div class="daily-report-image-preview__image-wrap">
           <img
             class="daily-report-image-preview__image"
-            :src="previewImage.src"
+            :src="previewOriginalSrc || previewImage.src"
             alt=""
             :style="{ transform: `rotate(${previewImage.rotation}deg)` }"
           />

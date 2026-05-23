@@ -1,4 +1,4 @@
-import { apiFetch } from "@/shared/network/api-client";
+import { apiFetch, apiFetchAttachment } from "@/shared/network/api-client";
 import type {
   ActPhotoCreateRequest,
   ActPhotoResponse,
@@ -73,5 +73,15 @@ export const actPhotoApi = {
     return apiFetch<void>(`/actPhoto/deleteActPhoto/${photoId}`, {
       method: "DELETE",
     });
+  },
+
+  // GET /api/file/downloadFile?key=<gs://...>
+  async downloadOriginalByKey(key: string) {
+    await ensureSelectedProjectId();
+    const attachment = await apiFetchAttachment(
+      `/file/downloadFile?key=${encodeURIComponent(key)}`,
+      { method: "GET" },
+    );
+    return attachment.blob;
   },
 };
