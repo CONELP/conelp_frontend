@@ -7,6 +7,8 @@ import chevronDoubleLeftIcon from "@fluentui/svg-icons/icons/chevron_double_left
 import chevronDoubleRightIcon from "@fluentui/svg-icons/icons/chevron_double_right_20_regular.svg";
 import rotateIcon from "@fluentui/svg-icons/icons/arrow_clockwise_24_regular.svg";
 
+import { actPhotoApi } from "@/features/document-conversion/api/act-photo.api";
+import type { ActPhotoResponse } from "@/features/document-conversion/api/act-photo-api.types";
 import { actualWorkApi } from "@/features/document-conversion/api/actual-work.api";
 import type { ActualWorkResponse } from "@/features/document-conversion/api/actual-work-api.types";
 import { dailyReportResourceApi } from "@/features/document-conversion/api/daily-report-resource.api";
@@ -125,6 +127,7 @@ const DAILY_REPORT_LABOR_SUMMARY_WORK_TYPE_ALIASES: Record<string, string> = {
 
 type DailyReportImageDraft = {
   id: string;
+  photoId: number | null;
   src: string;
   description: string;
   rotation: number;
@@ -1953,27 +1956,20 @@ async function resolveDailyReportWorkContentWorkTypeId(
   return workType.workTypeId;
 }
 
-function readImageFileAsDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-
-    reader.addEventListener("load", () => {
-      if (typeof reader.result === "string") {
-        resolve(reader.result);
-        return;
-      }
-
-      reject(new Error("이미지 파일을 읽지 못했습니다."));
-    });
-    reader.addEventListener("error", () => {
-      reject(reader.error ?? new Error("이미지 파일을 읽지 못했습니다."));
-    });
-    reader.readAsDataURL(file);
-  });
-}
-
 function openImagePicker(section: DailyReportWorkSection) {
   getImageInputRef(section)?.click();
+}
+
+function toDailyReportImageFromActPhotoResponse(
+  response: ActPhotoResponse,
+): DailyReportImageDraft {
+  return {
+    id: createDailyReportId(),
+    photoId: response.id,
+    src: response.url,
+    description: response.description ?? "",
+    rotation: 0,
+  };
 }
 
 async function handleDailyReportImageChange(
@@ -1993,26 +1989,50 @@ async function handleDailyReportImageChange(
     return;
   }
 
-  const nextImages = await Promise.all(
-    files.map(async (file) => ({
-      id: createDailyReportId(),
-      src: await readImageFileAsDataUrl(file),
-      description: "",
-      rotation: 0,
-    })),
-  );
-
-  setImageDrafts(section, [...getImageDrafts(section), ...nextImages]);
+  try {
+    const responses = await actPhotoApi.create({
+      date: getSectionDate(section),
+      photos: files,
+      descriptions: files.map(() => ""),
+    });
+    const nextImages = responses.map(toDailyReportImageFromActPhotoResponse);
+    setImageDrafts(section, [...getImageDrafts(section), ...nextImages]);
+  } catch (error) {
+    console.error("create act photo failed", error);
+  }
 }
 
-function removeDailyReportImage(
+async function removeDailyReportImage(
   section: DailyReportWorkSection,
   imageId: string,
 ) {
-  setImageDrafts(
-    section,
-    getImageDrafts(section).filter((image) => image.id !== imageId),
-  );
+  const images = getImageDrafts(section);
+  const target = images.find((image) => image.id === imageId);
+
+  if (target?.photoId != null) {
+    try {
+      await actPhotoApi.delete(target.photoId);
+    } catch (error) {
+      console.error("delete act photo failed", error);
+      return;
+    }
+  }
+
+  setImageDrafts(section, images.filter((image) => image.id !== imageId));
+}
+
+async function syncDailyReportImageDescription(image: DailyReportImageDraft) {
+  if (image.photoId == null) {
+    return;
+  }
+
+  try {
+    await actPhotoApi.update(image.photoId, {
+      description: image.description.trim() ? image.description : null,
+    });
+  } catch (error) {
+    console.error("update act photo description failed", error);
+  }
 }
 
 function openDailyReportImagePreview(image: DailyReportImageDraft) {
@@ -3605,10 +3625,24 @@ async function hydrateDailyReportResourcesFromServer() {
   }
 }
 
+async function hydrateDailyReportActPhotosFromServer() {
+  try {
+    const [todayResponses, tomorrowResponses] = await Promise.all([
+      actPhotoApi.listByDate(reportDates.value.today),
+      actPhotoApi.listByDate(reportDates.value.tomorrow),
+    ]);
+    todayImages.value = todayResponses.map(toDailyReportImageFromActPhotoResponse);
+    tomorrowImages.value = tomorrowResponses.map(toDailyReportImageFromActPhotoResponse);
+  } catch (error) {
+    console.error("hydrate act photos failed", error);
+  }
+}
+
 async function hydrateDailyReportFromServer() {
   await Promise.all([
     hydrateDailyReportActualWorksFromServer(),
     hydrateDailyReportResourcesFromServer(),
+    hydrateDailyReportActPhotosFromServer(),
   ]);
 }
 
@@ -4019,6 +4053,7 @@ onUnmounted(() => {
                   class="daily-report-write-image-card__description"
                   rows="2"
                   placeholder="설명을 적어주세요."
+                  @blur="syncDailyReportImageDescription(image)"
                 />
                 <button
                   type="button"
@@ -4177,6 +4212,7 @@ onUnmounted(() => {
                   class="daily-report-write-image-card__description"
                   rows="2"
                   placeholder="설명을 적어주세요."
+                  @blur="syncDailyReportImageDescription(image)"
                 />
                 <button
                   type="button"
