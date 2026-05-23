@@ -34,6 +34,7 @@ import type {
   DesktopScheduleWorkPeriodQuery,
   DesktopScheduleWorkResponse,
   DesktopScheduleWorkTypeCreateRequest,
+  DesktopScheduleWorkTypeHierarchyResponse,
   DesktopScheduleWorkTypeId,
   DesktopScheduleWorkTypeResponse,
   DesktopScheduleWorkUpdateRequest,
@@ -578,66 +579,63 @@ export const desktopScheduleApi = {
     );
   },
 
+  // Guide: GET /api/reference/getWorkTypeHierarchy
+  getWorkTypeHierarchy(scheduleVersionId?: DesktopScheduleVersionId) {
+    return apiFetch<DesktopScheduleWorkTypeHierarchyResponse>(
+      `/reference/getWorkTypeHierarchy${buildQuery({ scheduleVersionId })}`,
+    );
+  },
+
   async getReferenceHierarchy(
     scheduleVersionId?: DesktopScheduleVersionId,
   ): Promise<DesktopScheduleReferenceHierarchyItem[]> {
-    const divisions = await desktopScheduleApi.getDivisionList(scheduleVersionId);
-    const workTypeGroups = await Promise.all(
-      divisions.map(async (division) => ({
-        division,
-        workTypes: await desktopScheduleApi.getWorkTypeList(division.id, scheduleVersionId),
-      })),
-    );
+    const { divisions } = await desktopScheduleApi.getWorkTypeHierarchy(scheduleVersionId);
 
-    const hierarchyGroups = await Promise.all(
-      workTypeGroups.flatMap((divisionGroup) =>
-        divisionGroup.workTypes.map(async (workType) => ({
-          division: divisionGroup.division,
-          workType,
-          subWorkTypes: await desktopScheduleApi.getSubWorkTypeList(workType.id, scheduleVersionId),
-        })),
-      ),
-    );
+    const hierarchyItems: DesktopScheduleReferenceHierarchyItem[] = [];
 
-    const hierarchyItems = hierarchyGroups.flatMap((group) => {
-      if (group.subWorkTypes.length === 0) {
-        return [
-          {
-            divisionId: group.division.id,
-            divisionName: group.division.name,
-            workTypeId: group.workType.id,
-            workTypeName: group.workType.name,
+    for (const division of divisions) {
+      if (division.workTypes.length === 0) {
+        hierarchyItems.push({
+          divisionId: division.id,
+          divisionName: division.name,
+          workTypeId: 0,
+          workTypeName: "",
+          subWorkTypeId: 0,
+          subWorkTypeName: "",
+          subWorkTypeColor: null,
+        });
+        continue;
+      }
+
+      for (const workType of division.workTypes) {
+        if (workType.subWorkTypes.length === 0) {
+          hierarchyItems.push({
+            divisionId: division.id,
+            divisionName: division.name,
+            workTypeId: workType.id,
+            workTypeName: workType.name,
             subWorkTypeId: 0,
             subWorkTypeName: "",
             subWorkTypeColor: null,
-          },
-        ];
+          });
+          continue;
+        }
+
+        for (const subWorkType of workType.subWorkTypes) {
+          hierarchyItems.push({
+            divisionId: division.id,
+            divisionName: division.name,
+            workTypeId: workType.id,
+            workTypeName: workType.name,
+            subWorkTypeId: subWorkType.id,
+            subWorkTypeName: subWorkType.name,
+            subWorkTypeColor: subWorkType.color ?? null,
+          });
+        }
       }
+    }
 
-      return group.subWorkTypes.map((subWorkType) => ({
-        divisionId: group.division.id,
-        divisionName: group.division.name,
-        workTypeId: group.workType.id,
-        workTypeName: group.workType.name,
-        subWorkTypeId: subWorkType.id,
-        subWorkTypeName: subWorkType.name,
-        subWorkTypeColor: subWorkType.color ?? null,
-      }));
-    });
-    const divisionIdsWithRows = new Set(hierarchyItems.map((item) => item.divisionId));
-    const divisionOnlyItems = divisions
-      .filter((division) => !divisionIdsWithRows.has(division.id))
-      .map((division) => ({
-        divisionId: division.id,
-        divisionName: division.name,
-        workTypeId: 0,
-        workTypeName: "",
-        subWorkTypeId: 0,
-        subWorkTypeName: "",
-        subWorkTypeColor: null,
-      }));
-
-    return [...hierarchyItems, ...divisionOnlyItems];
+    return hierarchyItems;
   },
 
   async loadCurrentProjectSchedule(

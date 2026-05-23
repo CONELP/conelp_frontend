@@ -80,7 +80,7 @@ const DAILY_REPORT_EDITOR_TABS: DailyReportEditorTab[] = [
 
 const HOMEPAGE_IMPORT_MIN_DURATION_MS = 2500;
 const DAILY_REPORT_RESOURCE_COLUMN_WIDTH_STORAGE_KEY =
-  "conelp.dailyReport.resourceColumnWidths.v4";
+  "conelp.dailyReport.resourceColumnWidths.v5";
 const DAILY_REPORT_RESOURCE_COLUMN_MIN_WIDTH = 32;
 const DAILY_REPORT_RESOURCE_COLUMN_MAX_WIDTH = 320;
 const DAILY_REPORT_RESOURCE_CONTEXT_MENU_WIDTH = 148;
@@ -88,7 +88,6 @@ const DAILY_REPORT_RESOURCE_CONTEXT_MENU_HEIGHT = 86;
 const DAILY_REPORT_RESOURCE_COLUMNS = {
   labor: [
     { key: "includedInDocument", label: "표시" },
-    { key: "workType", label: "공종" },
     { key: "subWorkType", label: "직종" },
     { key: "todayQuantity", label: "금일" },
     { key: "totalQuantity", label: "누계" },
@@ -113,10 +112,11 @@ const DAILY_REPORT_RESOURCE_COLUMNS = {
   ],
 } satisfies Record<DailyReportResourceKind, readonly DailyReportResourceColumnConfig[]>;
 const DAILY_REPORT_RESOURCE_DEFAULT_COLUMN_WIDTHS = {
-  labor: [44, 124, 124, 82, 88],
+  labor: [44, 124, 82, 88],
   material: [44, 124, 112, 112, 72, 82, 88],
   equipment: [44, 124, 112, 112, 72, 82, 88],
 } satisfies Record<DailyReportResourceKind, number[]>;
+const DAILY_REPORT_LABOR_COLUMN_RATIOS = [8, 46, 22, 24] as const;
 const DAILY_REPORT_PANEL_ANALYTICS_FEATURE = "daily_report_panel";
 
 const DAILY_REPORT_LABOR_SUMMARY_WORK_TYPE_ALIASES: Record<string, string> = {
@@ -327,6 +327,61 @@ const laborRowGroups = computed<DailyReportLaborGroup[]>(() => {
 
   return groups;
 });
+type DailyReportLaborDisplayGroup = DailyReportLaborGroup & { isPending: boolean };
+const laborDisplayGroups = computed<DailyReportLaborDisplayGroup[]>(() => {
+  const actual = laborRowGroups.value.map<DailyReportLaborDisplayGroup>((group) => ({
+    ...group,
+    isPending: false,
+  }));
+  const actualNames = new Set(
+    actual
+      .map((group) => group.workType.trim())
+      .filter((name) => name.length > 0),
+  );
+  const pending = laborPendingGroups.value
+    .filter((entry) => !actualNames.has(entry.workType.trim()))
+    .map<DailyReportLaborDisplayGroup>((entry) => ({
+      key: entry.key,
+      workType: entry.workType,
+      rows: [],
+      isPending: true,
+    }));
+  return [...actual, ...pending];
+});
+function addLaborPendingGroup() {
+  const key = `pending-${createDailyReportId()}`;
+  laborPendingGroups.value = [
+    ...laborPendingGroups.value,
+    { key, workType: "" },
+  ];
+  laborAddActiveGroupKey.value = null;
+}
+function updateLaborPendingGroupName(key: string, name: string) {
+  laborPendingGroups.value = laborPendingGroups.value.map((entry) =>
+    entry.key === key ? { ...entry, workType: name } : entry,
+  );
+}
+function removeLaborPendingGroup(key: string) {
+  laborPendingGroups.value = laborPendingGroups.value.filter(
+    (entry) => entry.key !== key,
+  );
+  if (laborAddActiveGroupKey.value === key) {
+    laborAddActiveGroupKey.value = null;
+  }
+}
+function openLaborGroupAddRow(group: DailyReportLaborDisplayGroup) {
+  laborAddDraft.value = createDailyReportLaborAddDraft();
+  laborAddDraft.value.workType = group.workType;
+  laborAddDraft.value.workTypeId =
+    findKnownDailyReportWorkTypeId(group.workType) ?? null;
+  laborAddActiveGroupKey.value = group.key;
+  resourceAddFormsOpen.value.labor = true;
+}
+function closeLaborGroupAddRow() {
+  laborAddActiveGroupKey.value = null;
+  resourceAddFormsOpen.value.labor = false;
+  laborAddDraft.value = createDailyReportLaborAddDraft();
+}
 const dailyReportLaborSummaryItems = computed(() => {
   return laborRowGroups.value
     .map((group) => {
@@ -465,6 +520,8 @@ const equipmentAddDraft = ref<DailyReportEquipmentAddDraft>(
   createDailyReportEquipmentAddDraft(),
 );
 const laborAddDraft = ref<DailyReportLaborAddDraft>(createDailyReportLaborAddDraft());
+const laborPendingGroups = ref<{ key: string; workType: string }[]>([]);
+const laborAddActiveGroupKey = ref<string | null>(null);
 const previewImage = ref<DailyReportImageDraft | null>(null);
 const previewOriginalSrc = ref<string>("");
 const activeDailyReportTab = ref<DailyReportEditorTabId>("todayWork");
@@ -832,12 +889,6 @@ function isDailyReportResourceEditingRow(
   const editState = dailyReportResourceEditState.value;
 
   return editState?.kind === kind && editState.rowId === rowId;
-}
-
-function isDailyReportLaborGroupInInlineEdit(group: DailyReportLaborGroup) {
-  return group.rows.some((row) =>
-    isDailyReportResourceEditingRow("labor", row.id),
-  );
 }
 
 function startDailyReportResourceContextRowEdit() {
@@ -1261,6 +1312,14 @@ function getDailyReportResourceTableWidth(kind: DailyReportResourceKind) {
 }
 
 function getDailyReportResourceTableStyle(kind: DailyReportResourceKind) {
+  if (kind === "labor") {
+    return {
+      width: "100%",
+      minWidth: "0",
+      tableLayout: "fixed" as const,
+    };
+  }
+
   const tableWidth = getDailyReportResourceTableWidth(kind);
 
   return {
@@ -1273,6 +1332,12 @@ function getDailyReportResourceColumnStyle(
   kind: DailyReportResourceKind,
   columnIndex: number,
 ) {
+  if (kind === "labor") {
+    return {
+      width: `${DAILY_REPORT_LABOR_COLUMN_RATIOS[columnIndex] ?? 0}%`,
+    };
+  }
+
   return {
     width: `${getDailyReportResourceColumnWidths(kind)[columnIndex]}px`,
   };
@@ -2892,6 +2957,13 @@ function addDailyReportLaborResource() {
     quantity_gt_zero: parseDailyReportQuantity(quantity) > 0,
     resolved_labor_type: laborType !== null,
   });
+  const addedWorkType = laborAddDraft.value.workType.trim();
+  if (addedWorkType.length > 0) {
+    laborPendingGroups.value = laborPendingGroups.value.filter(
+      (entry) => entry.workType.trim() !== addedWorkType,
+    );
+  }
+  laborAddActiveGroupKey.value = null;
   resetDailyReportResourceAddDraft("labor");
   closeDailyReportResourceAddForm("labor");
 }
@@ -4222,51 +4294,69 @@ onUnmounted(() => {
                   :key="column.key"
                   :style="getDailyReportResourceColumnStyle('labor', columnIndex)"
                 />
-                <col class="daily-report-resource-sheet__filler-col" />
+                <col
+                  class="daily-report-resource-sheet__filler-col"
+                  style="width: 0"
+                />
               </colgroup>
-              <thead>
-                <tr>
-                  <th
-                    v-for="(column, columnIndex) in DAILY_REPORT_RESOURCE_COLUMNS.labor"
-                    :key="column.key"
-                    scope="col"
-                  >
-                    <span class="daily-report-resource-sheet__header-label">
-                      {{ column.label }}
-                    </span>
-                    <button
-                      type="button"
-                      class="daily-report-resource-sheet__resize-handle"
-                      :aria-label="`${column.label} 컬럼 너비 조절`"
-                      @pointerdown="
-                        startDailyReportResourceColumnResize(
-                          'labor',
-                          columnIndex,
-                          $event,
-                        )
-                      "
-                      @keydown="
-                        handleDailyReportResourceColumnResizeKeydown(
-                          'labor',
-                          columnIndex,
-                          $event,
-                        )
-                      "
-                    />
-                  </th>
-                  <th
-                    class="daily-report-resource-sheet__filler-header"
-                    aria-hidden="true"
-                  ></th>
-                </tr>
-              </thead>
               <tbody>
                 <template
-                  v-for="group in laborRowGroups"
+                  v-for="group in laborDisplayGroups"
                   :key="group.key"
                 >
+                  <tr class="daily-report-resource-sheet__group-title-row">
+                    <th
+                      :colspan="DAILY_REPORT_RESOURCE_COLUMNS.labor.length"
+                      scope="colgroup"
+                      class="daily-report-resource-sheet__group-title"
+                    >
+                      <input
+                        v-if="group.isPending"
+                        :value="group.workType"
+                        class="daily-report-resource-sheet__group-title-input"
+                        type="text"
+                        placeholder="공종 입력"
+                        aria-label="새 공종 이름"
+                        @input="
+                          updateLaborPendingGroupName(
+                            group.key,
+                            ($event.target as HTMLInputElement).value,
+                          )
+                        "
+                      />
+                      <span v-else>{{ group.workType }}</span>
+                      <button
+                        v-if="group.isPending"
+                        type="button"
+                        class="daily-report-resource-sheet__group-title-remove"
+                        aria-label="공종 삭제"
+                        @click="removeLaborPendingGroup(group.key)"
+                      >
+                        ×
+                      </button>
+                    </th>
+                    <th
+                      class="daily-report-resource-sheet__filler-header"
+                      aria-hidden="true"
+                    ></th>
+                  </tr>
+                  <tr class="daily-report-resource-sheet__subheader-row">
+                    <th
+                      v-for="column in DAILY_REPORT_RESOURCE_COLUMNS.labor"
+                      :key="column.key"
+                      scope="col"
+                    >
+                      <span class="daily-report-resource-sheet__header-label">
+                        {{ column.label }}
+                      </span>
+                    </th>
+                    <th
+                      class="daily-report-resource-sheet__filler-header"
+                      aria-hidden="true"
+                    ></th>
+                  </tr>
                   <tr
-                    v-for="(row, rowIndex) in group.rows"
+                    v-for="row in group.rows"
                     :key="row.id"
                     :class="{
                       'daily-report-resource-sheet__row--excluded':
@@ -4297,19 +4387,6 @@ onUnmounted(() => {
                           />
                           <span aria-hidden="true"></span>
                         </label>
-                      </td>
-                      <td class="daily-report-resource-sheet__add-input-cell">
-                        <WorkTypeTypeaheadInput
-                          :model-value="dailyReportResourceEditState.draft.workType"
-                          variant="sheet"
-                          placeholder="공종"
-                          aria-label="수정할 인력 공종"
-                          :selected-id="dailyReportResourceEditState.draft.workTypeId"
-                          :load-suggestions="loadWorkTypeSuggestions"
-                          :option-id-prefix="`daily-report-labor-edit-work-type-${row.id}`"
-                          @update:model-value="updateDailyReportResourceEditWorkType"
-                          @select="selectDailyReportResourceEditWorkType"
-                        />
                       </td>
                       <td class="daily-report-resource-sheet__add-input-cell">
                         <input
@@ -4363,34 +4440,20 @@ onUnmounted(() => {
                     <template v-else>
                       <td class="daily-report-resource-sheet__include-cell">
                         <label class="daily-report-resource-sheet__include-toggle">
-	                          <input
-	                            v-model="row.includedInDocument"
-	                            type="checkbox"
-	                            :aria-label="`${row.workType} ${row.subWorkType} 문서 포함`"
-	                            @change="
-	                              handleDailyReportResourceInclusionChange(
-	                                'labor',
-	                                $event,
-	                                'existing_row',
-	                              )
-	                            "
-	                          />
+                          <input
+                            v-model="row.includedInDocument"
+                            type="checkbox"
+                            :aria-label="`${row.workType} ${row.subWorkType} 문서 포함`"
+                            @change="
+                              handleDailyReportResourceInclusionChange(
+                                'labor',
+                                $event,
+                                'existing_row',
+                              )
+                            "
+                          />
                           <span aria-hidden="true"></span>
                         </label>
-                      </td>
-                      <td
-                        v-if="
-                          isDailyReportLaborGroupInInlineEdit(group) ||
-                          rowIndex === 0
-                        "
-                        class="daily-report-resource-sheet__group-cell"
-                        :rowspan="
-                          isDailyReportLaborGroupInInlineEdit(group)
-                            ? 1
-                            : group.rows.length
-                        "
-                      >
-                        {{ row.workType }}
                       </td>
                       <td>{{ row.subWorkType }}</td>
                       <td class="daily-report-resource-sheet__today-cell">
@@ -4400,16 +4463,16 @@ onUnmounted(() => {
                           inputmode="decimal"
                           type="text"
                           aria-label="인력 금일 수량"
-	                          placeholder="0"
-	                          @input="updateDailyReportTodayQuantity(row, $event)"
-	                          @change="
-	                            trackDailyReportResourceQuantityCommit(
-	                              'labor',
-	                              row,
-	                              'existing_row',
-	                            )
-	                          "
-	                        />
+                          placeholder="0"
+                          @input="updateDailyReportTodayQuantity(row, $event)"
+                          @change="
+                            trackDailyReportResourceQuantityCommit(
+                              'labor',
+                              row,
+                              'existing_row',
+                            )
+                          "
+                        />
                       </td>
                       <td class="daily-report-resource-sheet__number daily-report-resource-sheet__number--total">
                         {{ formatDailyReportQuantity(getDailyReportCumulativeQuantity(row)) }}
@@ -4420,108 +4483,109 @@ onUnmounted(() => {
                       ></td>
                     </template>
                   </tr>
-                </template>
-                <tr
-                  v-if="resourceAddFormsOpen.labor"
-                  class="daily-report-resource-sheet__add-input-row"
-                >
-                  <td class="daily-report-resource-sheet__include-cell">
-                    <label class="daily-report-resource-sheet__include-toggle">
+                  <tr
+                    v-if="laborAddActiveGroupKey === group.key"
+                    class="daily-report-resource-sheet__add-input-row"
+                  >
+                    <td class="daily-report-resource-sheet__include-cell">
+                      <label class="daily-report-resource-sheet__include-toggle">
+                        <input
+                          v-model="laborAddDraft.includedInDocument"
+                          type="checkbox"
+                          aria-label="추가할 인력 문서 포함"
+                          @change="
+                            handleDailyReportResourceInclusionChange(
+                              'labor',
+                              $event,
+                              'add_form',
+                            )
+                          "
+                        />
+                        <span aria-hidden="true"></span>
+                      </label>
+                    </td>
+                    <td class="daily-report-resource-sheet__add-input-cell">
                       <input
-	                        v-model="laborAddDraft.includedInDocument"
-	                        type="checkbox"
-	                        aria-label="추가할 인력 문서 포함"
-	                        @change="
-	                          handleDailyReportResourceInclusionChange(
-	                            'labor',
-	                            $event,
-	                            'add_form',
-	                          )
-	                        "
-	                      />
-                      <span aria-hidden="true"></span>
-                    </label>
-                  </td>
-                  <td class="daily-report-resource-sheet__add-input-cell">
-                    <WorkTypeTypeaheadInput
-                      :model-value="laborAddDraft.workType"
-                      variant="sheet"
-                      placeholder="공종"
-                      aria-label="추가할 인력 공종"
-                      :load-suggestions="loadWorkTypeSuggestions"
-                      option-id-prefix="daily-report-labor-add-work-type"
-                      @update:model-value="
-                        laborAddDraft.workType = $event;
-                        laborAddDraft.workTypeId = null;
-                      "
-                      @select="
-                        laborAddDraft.workType = $event.name;
-                        laborAddDraft.workTypeId = $event.id;
-                      "
-                    />
-                  </td>
-                  <td class="daily-report-resource-sheet__add-input-cell">
-                    <input
-	                      v-model="laborAddDraft.subWorkType"
-	                      class="daily-report-resource-sheet__add-text-input"
-	                      type="text"
-		                      aria-label="추가할 인력 직종"
-		                      placeholder="직종"
-	                      @blur="
-	                        trackDailyReportResourceFieldCommit(
-	                          'labor',
-	                          'sub_work_type',
-	                          laborAddDraft.subWorkType,
-	                        )
-	                      "
-	                    />
-                  </td>
-                  <td class="daily-report-resource-sheet__today-cell">
-                    <input
-                      v-model="laborAddDraft.todayQuantity"
-                      class="daily-report-resource-sheet__today-input"
-                      inputmode="decimal"
-                      type="text"
-                      aria-label="추가할 인력 금일 수량"
-	                      placeholder="0"
-	                      @input="updateDailyReportAddTodayQuantity(laborAddDraft, $event)"
-	                      @change="
-	                        trackDailyReportResourceQuantityCommit(
-	                          'labor',
-	                          laborAddDraft,
-	                          'add_form',
-	                        )
-	                      "
-	                    />
-                  </td>
-                  <td class="daily-report-resource-sheet__add-actions-cell">
-                    <div class="daily-report-resource-sheet__add-actions">
+                        v-model="laborAddDraft.subWorkType"
+                        class="daily-report-resource-sheet__add-text-input"
+                        type="text"
+                        aria-label="추가할 인력 직종"
+                        placeholder="직종"
+                        @blur="
+                          trackDailyReportResourceFieldCommit(
+                            'labor',
+                            'sub_work_type',
+                            laborAddDraft.subWorkType,
+                          )
+                        "
+                      />
+                    </td>
+                    <td class="daily-report-resource-sheet__today-cell">
+                      <input
+                        v-model="laborAddDraft.todayQuantity"
+                        class="daily-report-resource-sheet__today-input"
+                        inputmode="decimal"
+                        type="text"
+                        aria-label="추가할 인력 금일 수량"
+                        placeholder="0"
+                        @input="updateDailyReportAddTodayQuantity(laborAddDraft, $event)"
+                        @change="
+                          trackDailyReportResourceQuantityCommit(
+                            'labor',
+                            laborAddDraft,
+                            'add_form',
+                          )
+                        "
+                      />
+                    </td>
+                    <td class="daily-report-resource-sheet__add-actions-cell">
+                      <div class="daily-report-resource-sheet__add-actions">
+                        <button
+                          type="button"
+                          class="daily-report-resource-sheet__add-action-button"
+                          @click="closeLaborGroupAddRow"
+                        >
+                          취소
+                        </button>
+                        <button
+                          type="button"
+                          class="daily-report-resource-sheet__add-action-button daily-report-resource-sheet__add-action-button--primary"
+                          :disabled="!canAddDailyReportResource('labor')"
+                          @click="addDailyReportLaborResource"
+                        >
+                          추가
+                        </button>
+                      </div>
+                    </td>
+                    <td
+                      class="daily-report-resource-sheet__filler-cell"
+                      aria-hidden="true"
+                    ></td>
+                  </tr>
+                  <tr
+                    v-else
+                    class="daily-report-resource-sheet__add-button-row daily-report-resource-sheet__add-button-row--sub"
+                  >
+                    <td
+                      class="daily-report-resource-sheet__add-button-cell"
+                      :colspan="DAILY_REPORT_RESOURCE_COLUMNS.labor.length"
+                    >
                       <button
                         type="button"
-                        class="daily-report-resource-sheet__add-action-button"
-                        @click="cancelDailyReportResourceAdd('labor')"
+                        class="daily-report-resource-sheet__add-button"
+                        :disabled="group.isPending && group.workType.trim().length === 0"
+                        @click="openLaborGroupAddRow(group)"
                       >
-                        취소
+                        + 직종 추가
                       </button>
-                      <button
-                        type="button"
-                        class="daily-report-resource-sheet__add-action-button daily-report-resource-sheet__add-action-button--primary"
-                        :disabled="!canAddDailyReportResource('labor')"
-                        @click="addDailyReportLaborResource"
-                      >
-                        추가
-                      </button>
-                    </div>
-                  </td>
-                  <td
-                    class="daily-report-resource-sheet__filler-cell"
-                    aria-hidden="true"
-                  ></td>
-                </tr>
-                <tr
-                  v-else
-                  class="daily-report-resource-sheet__add-button-row"
-                >
+                    </td>
+                    <td
+                      class="daily-report-resource-sheet__filler-cell"
+                      aria-hidden="true"
+                    ></td>
+                  </tr>
+                </template>
+                <tr class="daily-report-resource-sheet__add-button-row">
                   <td
                     class="daily-report-resource-sheet__add-button-cell"
                     :colspan="DAILY_REPORT_RESOURCE_COLUMNS.labor.length + 1"
@@ -4529,9 +4593,9 @@ onUnmounted(() => {
                     <button
                       type="button"
                       class="daily-report-resource-sheet__add-button"
-                      @click="toggleDailyReportResourceAddForm('labor')"
+                      @click="addLaborPendingGroup"
                     >
-                      + 추가하기
+                      + 공종 추가
                     </button>
                   </td>
                 </tr>

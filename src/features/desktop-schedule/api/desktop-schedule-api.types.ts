@@ -79,6 +79,32 @@ export interface DesktopScheduleReferenceHierarchyItem {
   subWorkTypeColor: string | null;
 }
 
+export interface DesktopScheduleWorkTypeHierarchySubWorkTypeNode {
+  id: DesktopScheduleSubWorkTypeId;
+  name: string;
+  sortIndex: number | null;
+  color: string | null;
+}
+
+export interface DesktopScheduleWorkTypeHierarchyWorkTypeNode {
+  id: DesktopScheduleWorkTypeId;
+  name: string;
+  sortIndex: number | null;
+  subWorkTypes: DesktopScheduleWorkTypeHierarchySubWorkTypeNode[];
+}
+
+export interface DesktopScheduleWorkTypeHierarchyDivisionNode {
+  id: DesktopScheduleDivisionId;
+  name: string;
+  sortIndex: number | null;
+  workTypes: DesktopScheduleWorkTypeHierarchyWorkTypeNode[];
+}
+
+export interface DesktopScheduleWorkTypeHierarchyResponse {
+  scheduleVersionId: DesktopScheduleVersionId | null;
+  divisions: DesktopScheduleWorkTypeHierarchyDivisionNode[];
+}
+
 export interface DesktopScheduleDivisionCreateRequest {
   scheduleVersionId: DesktopScheduleVersionId;
   name: string;
