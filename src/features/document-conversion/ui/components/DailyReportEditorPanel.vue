@@ -95,12 +95,12 @@ const DAILY_REPORT_RESOURCE_COLUMNS = {
   ],
   material: [
     { key: "includedInDocument", label: "표시" },
-    { key: "workType", label: "공종" },
     { key: "type", label: "타입" },
     { key: "specification", label: "규격" },
     { key: "unit", label: "단위" },
     { key: "todayQuantity", label: "금일" },
     { key: "totalQuantity", label: "누계" },
+    { key: "delete", label: "" },
   ],
   equipment: [
     { key: "includedInDocument", label: "표시" },
@@ -114,10 +114,11 @@ const DAILY_REPORT_RESOURCE_COLUMNS = {
 } satisfies Record<DailyReportResourceKind, readonly DailyReportResourceColumnConfig[]>;
 const DAILY_REPORT_RESOURCE_DEFAULT_COLUMN_WIDTHS = {
   labor: [44, 124, 82, 64, 36],
-  material: [44, 124, 112, 112, 72, 82, 88],
+  material: [44, 124, 112, 72, 82, 64, 36],
   equipment: [44, 124, 112, 112, 72, 82, 88],
 } satisfies Record<DailyReportResourceKind, number[]>;
 const DAILY_REPORT_LABOR_COLUMN_RATIOS = [8, 42, 22, 18, 10] as const;
+const DAILY_REPORT_MATERIAL_COLUMN_RATIOS = [8, 20, 20, 8, 14, 14, 8] as const;
 const DAILY_REPORT_PANEL_ANALYTICS_FEATURE = "daily_report_panel";
 
 const DAILY_REPORT_LABOR_SUMMARY_WORK_TYPE_ALIASES: Record<string, string> = {
@@ -243,17 +244,6 @@ type DailyReportLaborGroup = {
   workType: string;
   rows: DailyReportLaborDraft[];
 };
-
-type DailyReportMaterialAddDraft = Pick<
-  DailyReportMaterialDraft,
-  | "includedInDocument"
-  | "workTypeId"
-  | "workType"
-  | "type"
-  | "specification"
-  | "unit"
-  | "todayQuantity"
->;
 
 type DailyReportEquipmentAddDraft = Pick<
   DailyReportEquipmentDraft,
@@ -409,6 +399,121 @@ function removeDailyReportLaborRow(row: DailyReportLaborDraft) {
   }
   laborRows.value = laborRows.value.filter((entry) => entry.id !== row.id);
 }
+
+type DailyReportMaterialGroup = {
+  key: string;
+  workType: string;
+  rows: DailyReportMaterialDraft[];
+};
+type DailyReportMaterialDisplayGroup = DailyReportMaterialGroup & {
+  isPending: boolean;
+  workTypeId: number | null;
+};
+const materialRowGroups = computed<DailyReportMaterialGroup[]>(() => {
+  const groups: DailyReportMaterialGroup[] = [];
+  const groupByWorkType = new Map<string, DailyReportMaterialGroup>();
+  materialRows.value.forEach((row) => {
+    const groupKey = row.workType.trim() || row.id;
+    let group = groupByWorkType.get(groupKey);
+    if (!group) {
+      group = { key: groupKey, workType: row.workType, rows: [] };
+      groupByWorkType.set(groupKey, group);
+      groups.push(group);
+    }
+    group.rows.push(row);
+  });
+  return groups;
+});
+const materialDisplayGroups = computed<DailyReportMaterialDisplayGroup[]>(() => {
+  const actual = materialRowGroups.value.map<DailyReportMaterialDisplayGroup>(
+    (group) => {
+      const workTypeIdFromRow =
+        group.rows.find((row) => row.workTypeId !== null)?.workTypeId ?? null;
+      const workTypeIdFromKnown =
+        findKnownDailyReportWorkTypeId(group.workType) ?? null;
+      return {
+        ...group,
+        isPending: false,
+        workTypeId: workTypeIdFromRow ?? workTypeIdFromKnown,
+      };
+    },
+  );
+  const actualNames = new Set(
+    actual
+      .map((group) => group.workType.trim())
+      .filter((name) => name.length > 0),
+  );
+  const pending = materialPendingGroups.value
+    .filter((entry) => !actualNames.has(entry.workType.trim()))
+    .map<DailyReportMaterialDisplayGroup>((entry) => ({
+      key: entry.key,
+      workType: entry.workType,
+      rows: [],
+      isPending: true,
+      workTypeId: entry.workTypeId,
+    }));
+  return [...actual, ...pending];
+});
+function addMaterialPendingGroup() {
+  const key = `pending-${createDailyReportId()}`;
+  materialPendingGroups.value = [
+    ...materialPendingGroups.value,
+    { key, workType: "", workTypeId: null },
+  ];
+}
+function updateMaterialPendingGroupName(key: string, name: string) {
+  materialPendingGroups.value = materialPendingGroups.value.map((entry) =>
+    entry.key === key ? { ...entry, workType: name, workTypeId: null } : entry,
+  );
+}
+function selectMaterialPendingGroupWorkType(
+  key: string,
+  selection: { id: number; name: string },
+) {
+  materialPendingGroups.value = materialPendingGroups.value.map((entry) =>
+    entry.key === key
+      ? { ...entry, workType: selection.name, workTypeId: selection.id }
+      : entry,
+  );
+}
+function removeMaterialPendingGroup(key: string) {
+  materialPendingGroups.value = materialPendingGroups.value.filter(
+    (entry) => entry.key !== key,
+  );
+}
+function appendDailyReportMaterialRow(group: DailyReportMaterialDisplayGroup) {
+  if (group.workTypeId === null) {
+    return;
+  }
+  materialRows.value = [
+    ...materialRows.value,
+    createDailyReportMaterialRow({
+      includedInDocument: true,
+      materialDeliveryId: null,
+      deliveryLineId: null,
+      materialSpecId: null,
+      materialTypeId: null,
+      workTypeId: group.workTypeId,
+      workType: group.workType,
+      type: "",
+      specification: "",
+      unit: "",
+      previousQuantity: 0,
+      todayQuantity: "",
+    }),
+  ];
+  if (group.isPending) {
+    materialPendingGroups.value = materialPendingGroups.value.filter(
+      (entry) => entry.key !== group.key,
+    );
+  }
+}
+function removeDailyReportMaterialRow(row: DailyReportMaterialDraft) {
+  if (row.materialDeliveryId !== null) {
+    return;
+  }
+  materialRows.value = materialRows.value.filter((entry) => entry.id !== row.id);
+}
 const dailyReportLaborSummaryItems = computed(() => {
   return laborRowGroups.value
     .map((group) => {
@@ -540,13 +645,13 @@ const resourceAddFormsOpen = ref<DailyReportResourceAddFormState>({
   material: false,
   equipment: false,
 });
-const materialAddDraft = ref<DailyReportMaterialAddDraft>(
-  createDailyReportMaterialAddDraft(),
-);
 const equipmentAddDraft = ref<DailyReportEquipmentAddDraft>(
   createDailyReportEquipmentAddDraft(),
 );
 const laborPendingGroups = ref<
+  { key: string; workType: string; workTypeId: number | null }[]
+>([]);
+const materialPendingGroups = ref<
   { key: string; workType: string; workTypeId: number | null }[]
 >([]);
 const laborOriginalsByLaborTypeId = ref<
@@ -693,18 +798,6 @@ function createDailyReportLaborRow(
     laborTypeId: input.laborTypeId ?? null,
     workTypeId: input.workTypeId ?? null,
     todayQuantity: input.todayQuantity ?? "",
-  };
-}
-
-function createDailyReportMaterialAddDraft(): DailyReportMaterialAddDraft {
-  return {
-    includedInDocument: true,
-    workTypeId: null,
-    workType: "",
-    type: "",
-    specification: "",
-    unit: "",
-    todayQuantity: "",
   };
 }
 
@@ -1332,7 +1425,7 @@ function getDailyReportResourceTableWidth(kind: DailyReportResourceKind) {
 }
 
 function getDailyReportResourceTableStyle(kind: DailyReportResourceKind) {
-  if (kind === "labor") {
+  if (kind === "labor" || kind === "material") {
     return {
       width: "100%",
       minWidth: "0",
@@ -1355,6 +1448,17 @@ function getDailyReportResourceColumnStyle(
   if (kind === "labor") {
     return {
       width: `${DAILY_REPORT_LABOR_COLUMN_RATIOS[columnIndex] ?? 0}%`,
+    };
+  }
+
+  if (kind === "material") {
+    const ratioSum = DAILY_REPORT_MATERIAL_COLUMN_RATIOS.reduce(
+      (sum, value) => sum + value,
+      0,
+    );
+    const ratio = DAILY_REPORT_MATERIAL_COLUMN_RATIOS[columnIndex] ?? 0;
+    return {
+      width: `${(ratio / ratioSum) * 100}%`,
     };
   }
 
@@ -2803,11 +2907,6 @@ function closeDailyReportResourceAddForm(kind: DailyReportResourceKind) {
 }
 
 function resetDailyReportResourceAddDraft(kind: DailyReportResourceKind) {
-  if (kind === "material") {
-    materialAddDraft.value = createDailyReportMaterialAddDraft();
-    return;
-  }
-
   if (kind === "equipment") {
     equipmentAddDraft.value = createDailyReportEquipmentAddDraft();
     return;
@@ -2824,15 +2923,6 @@ function hasEveryDailyReportResourceField(values: string[]) {
 }
 
 function canAddDailyReportResource(kind: DailyReportResourceKind) {
-  if (kind === "material") {
-    return hasEveryDailyReportResourceField([
-      materialAddDraft.value.workType,
-      materialAddDraft.value.type,
-      materialAddDraft.value.specification,
-      materialAddDraft.value.unit,
-    ]);
-  }
-
   if (kind === "equipment") {
     return hasEveryDailyReportResourceField([
       equipmentAddDraft.value.process,
@@ -2843,46 +2933,6 @@ function canAddDailyReportResource(kind: DailyReportResourceKind) {
   }
 
   return true;
-}
-
-function addDailyReportMaterialResource() {
-  if (!canAddDailyReportResource("material")) {
-    trackDailyReportPanelAction("add_resource_row", "fail", {
-      kind: "material",
-      reason: "validation",
-    });
-    return;
-  }
-
-  const quantity = normalizeDailyReportQuantityInput(
-    materialAddDraft.value.todayQuantity,
-  );
-  materialRows.value = [
-    ...materialRows.value,
-    createDailyReportMaterialRow({
-      includedInDocument: materialAddDraft.value.includedInDocument,
-      materialDeliveryId: null,
-      deliveryLineId: null,
-      materialSpecId: null,
-      materialTypeId: null,
-      workTypeId: materialAddDraft.value.workTypeId,
-      workType: materialAddDraft.value.workType.trim(),
-      type: materialAddDraft.value.type.trim(),
-      specification: materialAddDraft.value.specification.trim(),
-      unit: materialAddDraft.value.unit.trim(),
-      previousQuantity: 0,
-      todayQuantity: quantity,
-    }),
-  ];
-  trackDailyReportPanelAction("add_resource_row", "success", {
-    kind: "material",
-    included_in_document: materialAddDraft.value.includedInDocument,
-    has_quantity: Boolean(quantity),
-    quantity_gt_zero: parseDailyReportQuantity(quantity) > 0,
-    resolved_work_type: materialAddDraft.value.workTypeId !== null,
-  });
-  resetDailyReportResourceAddDraft("material");
-  closeDailyReportResourceAddForm("material");
 }
 
 function addDailyReportEquipmentResource() {
@@ -4604,178 +4654,119 @@ onUnmounted(() => {
                 />
                 <col class="daily-report-resource-sheet__filler-col" />
               </colgroup>
-              <thead>
-                <tr>
-                  <th
-                    v-for="(column, columnIndex) in DAILY_REPORT_RESOURCE_COLUMNS.material"
-                    :key="column.key"
-                    scope="col"
-                  >
-                    <span class="daily-report-resource-sheet__header-label">
-                      {{ column.label }}
-                    </span>
-                    <button
-                      type="button"
-                      class="daily-report-resource-sheet__resize-handle"
-                      :aria-label="`${column.label} 컬럼 너비 조절`"
-                      @pointerdown="
-                        startDailyReportResourceColumnResize(
-                          'material',
-                          columnIndex,
-                          $event,
-                        )
-                      "
-                      @keydown="
-                        handleDailyReportResourceColumnResizeKeydown(
-                          'material',
-                          columnIndex,
-                          $event,
-                        )
-                      "
-                    />
-                  </th>
-                  <th
-                    class="daily-report-resource-sheet__filler-header"
-                    aria-hidden="true"
-                  ></th>
-                </tr>
-              </thead>
               <tbody>
-                <tr
-                  v-for="row in materialRows"
-                  :key="row.id"
-                  :class="{
-                    'daily-report-resource-sheet__row--excluded':
-                      !row.includedInDocument,
-                    'daily-report-resource-sheet__row--menu-open':
-                      isDailyReportResourceContextRow('material', row.id),
-                    'daily-report-resource-sheet__row--editing':
-                      isDailyReportResourceEditingRow('material', row.id),
-                  }"
-                  @contextmenu="
-                    openDailyReportResourceRowMenu('material', row, $event)
-                  "
+                <template
+                  v-for="group in materialDisplayGroups"
+                  :key="group.key"
                 >
-                  <template
-                    v-if="
-                      isDailyReportResourceEditingRow('material', row.id) &&
-                      dailyReportResourceEditState
-                    "
+                  <tr class="daily-report-resource-sheet__group-title-row">
+                    <th
+                      :colspan="DAILY_REPORT_RESOURCE_COLUMNS.material.length"
+                      scope="colgroup"
+                      class="daily-report-resource-sheet__group-title"
+                    >
+                      <div
+                        v-if="group.isPending"
+                        class="daily-report-resource-sheet__group-title-pending"
+                      >
+                        <WorkTypeTypeaheadInput
+                          :model-value="group.workType"
+                          variant="sheet"
+                          placeholder="공종 입력"
+                          aria-label="새 공종 이름"
+                          :selected-id="group.workTypeId"
+                          :load-suggestions="loadWorkTypeSuggestions"
+                          :option-id-prefix="`daily-report-material-pending-work-type-${group.key}`"
+                          @update:model-value="
+                            updateMaterialPendingGroupName(group.key, $event)
+                          "
+                          @select="
+                            selectMaterialPendingGroupWorkType(group.key, $event)
+                          "
+                        />
+                        <button
+                          type="button"
+                          class="daily-report-resource-sheet__group-title-remove"
+                          aria-label="공종 삭제"
+                          @click="removeMaterialPendingGroup(group.key)"
+                        >
+                          ×
+                        </button>
+                      </div>
+                      <span v-else>{{ group.workType }}</span>
+                    </th>
+                    <th
+                      class="daily-report-resource-sheet__filler-header"
+                      aria-hidden="true"
+                    ></th>
+                  </tr>
+                  <tr class="daily-report-resource-sheet__subheader-row">
+                    <th
+                      v-for="column in DAILY_REPORT_RESOURCE_COLUMNS.material"
+                      :key="column.key"
+                      scope="col"
+                    >
+                      <span class="daily-report-resource-sheet__header-label">
+                        {{ column.label }}
+                      </span>
+                    </th>
+                    <th
+                      class="daily-report-resource-sheet__filler-header"
+                      aria-hidden="true"
+                    ></th>
+                  </tr>
+                  <tr
+                    v-for="row in group.rows"
+                    :key="row.id"
+                    :class="{
+                      'daily-report-resource-sheet__row--excluded':
+                        !row.includedInDocument,
+                    }"
                   >
                     <td class="daily-report-resource-sheet__include-cell">
                       <label class="daily-report-resource-sheet__include-toggle">
                         <input
-                          v-model="
-                            dailyReportResourceEditState.draft.includedInDocument
-                          "
+                          v-model="row.includedInDocument"
                           type="checkbox"
-                          aria-label="수정할 자재 문서 포함"
+                          :aria-label="`${row.workType} ${row.type} ${row.specification} 문서 포함`"
+                          @change="
+                            handleDailyReportResourceInclusionChange(
+                              'material',
+                              $event,
+                              'existing_row',
+                            )
+                          "
                         />
                         <span aria-hidden="true"></span>
                       </label>
                     </td>
                     <td class="daily-report-resource-sheet__add-input-cell">
-                      <WorkTypeTypeaheadInput
-                        :model-value="dailyReportResourceEditState.draft.workType"
-                        variant="sheet"
-                        placeholder="공종"
-                        aria-label="수정할 자재 공종"
-                        :selected-id="dailyReportResourceEditState.draft.workTypeId"
-                        :load-suggestions="loadWorkTypeSuggestions"
-                        :option-id-prefix="`daily-report-material-edit-work-type-${row.id}`"
-                        @update:model-value="updateDailyReportResourceEditWorkType"
-                        @select="selectDailyReportResourceEditWorkType"
-                      />
-                    </td>
-                    <td class="daily-report-resource-sheet__add-input-cell">
                       <input
-                        v-model="dailyReportResourceEditState.draft.type"
+                        v-model="row.type"
                         class="daily-report-resource-sheet__add-text-input"
                         type="text"
-                        aria-label="수정할 자재 타입"
+                        aria-label="자재 타입"
                         placeholder="타입"
                       />
                     </td>
                     <td class="daily-report-resource-sheet__add-input-cell">
                       <input
-                        v-model="dailyReportResourceEditState.draft.specification"
+                        v-model="row.specification"
                         class="daily-report-resource-sheet__add-text-input"
                         type="text"
-                        aria-label="수정할 자재 규격"
+                        aria-label="자재 규격"
                         placeholder="규격"
                       />
                     </td>
                     <td class="daily-report-resource-sheet__add-input-cell">
                       <input
-                        v-model="dailyReportResourceEditState.draft.unit"
+                        v-model="row.unit"
                         class="daily-report-resource-sheet__add-text-input"
                         type="text"
-                        aria-label="수정할 자재 단위"
+                        aria-label="자재 단위"
                         placeholder="단위"
                       />
                     </td>
-                    <td class="daily-report-resource-sheet__today-cell">
-                      <input
-                        v-model="dailyReportResourceEditState.draft.todayQuantity"
-                        class="daily-report-resource-sheet__today-input"
-                        inputmode="decimal"
-                        type="text"
-                        aria-label="수정할 자재 금일 수량"
-                        placeholder="0"
-                        @input="updateDailyReportResourceEditQuantity"
-                      />
-                    </td>
-                    <td class="daily-report-resource-sheet__add-actions-cell">
-                      <div class="daily-report-resource-sheet__add-actions">
-                        <button
-                          type="button"
-                          class="daily-report-resource-sheet__add-action-button"
-                          @click="cancelDailyReportResourceRowEdit"
-                        >
-                          취소
-                        </button>
-                        <button
-                          type="button"
-                          class="daily-report-resource-sheet__add-action-button daily-report-resource-sheet__add-action-button--primary"
-                          :disabled="
-                            isDailyReportSaving ||
-                            !canSaveDailyReportResourceEdit(
-                              dailyReportResourceEditState,
-                            )
-                          "
-                          @click="saveDailyReportResourceRowEdit"
-                        >
-                          저장
-                        </button>
-                      </div>
-                    </td>
-                    <td
-                      class="daily-report-resource-sheet__filler-cell"
-                      aria-hidden="true"
-                    ></td>
-                  </template>
-                  <template v-else>
-                    <td class="daily-report-resource-sheet__include-cell">
-                      <label class="daily-report-resource-sheet__include-toggle">
-	                        <input
-	                          v-model="row.includedInDocument"
-	                          type="checkbox"
-	                          :aria-label="`${row.workType} ${row.type} ${row.specification} 문서 포함`"
-	                          @change="
-	                            handleDailyReportResourceInclusionChange(
-	                              'material',
-	                              $event,
-	                              'existing_row',
-	                            )
-	                          "
-	                        />
-                        <span aria-hidden="true"></span>
-                      </label>
-                    </td>
-                    <td>{{ row.workType }}</td>
-                    <td>{{ row.type }}</td>
-                    <td>{{ row.specification }}</td>
-                    <td>{{ row.unit }}</td>
                     <td class="daily-report-resource-sheet__today-cell">
                       <input
                         v-model="row.todayQuantity"
@@ -4783,176 +4774,70 @@ onUnmounted(() => {
                         inputmode="decimal"
                         type="text"
                         aria-label="자재 금일 수량"
-	                      placeholder="0"
-	                      @input="updateDailyReportTodayQuantity(row, $event)"
-	                      @change="
-	                        trackDailyReportResourceQuantityCommit(
-	                          'material',
-	                          row,
-	                          'existing_row',
-	                        )
-	                      "
-	                    />
+                        placeholder="0"
+                        @input="updateDailyReportTodayQuantity(row, $event)"
+                        @change="
+                          trackDailyReportResourceQuantityCommit(
+                            'material',
+                            row,
+                            'existing_row',
+                          )
+                        "
+                      />
                     </td>
-                    <td class="daily-report-resource-sheet__number daily-report-resource-sheet__number--total">
+                    <td class="daily-report-resource-sheet__number daily-report-resource-sheet__number--total daily-report-resource-sheet__number--total-right">
                       {{ formatDailyReportQuantity(getDailyReportCumulativeQuantity(row)) }}
+                    </td>
+                    <td class="daily-report-resource-sheet__delete-cell">
+                      <button
+                        v-if="row.materialDeliveryId === null"
+                        type="button"
+                        class="daily-report-resource-sheet__row-delete"
+                        :aria-label="`${row.type || '자재'} 행 삭제`"
+                        @click="removeDailyReportMaterialRow(row)"
+                      >
+                        ×
+                      </button>
                     </td>
                     <td
                       class="daily-report-resource-sheet__filler-cell"
                       aria-hidden="true"
                     ></td>
-                  </template>
-                </tr>
-                <tr
-                  v-if="resourceAddFormsOpen.material"
-                  class="daily-report-resource-sheet__add-input-row"
-                >
-                  <td class="daily-report-resource-sheet__include-cell">
-                    <label class="daily-report-resource-sheet__include-toggle">
-                      <input
-	                        v-model="materialAddDraft.includedInDocument"
-	                        type="checkbox"
-	                        aria-label="추가할 자재 문서 포함"
-	                        @change="
-	                          handleDailyReportResourceInclusionChange(
-	                            'material',
-	                            $event,
-	                            'add_form',
-	                          )
-	                        "
-	                      />
-                      <span aria-hidden="true"></span>
-                    </label>
-                  </td>
-                  <td class="daily-report-resource-sheet__add-input-cell">
-                    <WorkTypeTypeaheadInput
-                      :model-value="materialAddDraft.workType"
-                      variant="sheet"
-                      placeholder="공종"
-                      aria-label="추가할 자재 공종"
-                      :load-suggestions="loadWorkTypeSuggestions"
-                      option-id-prefix="daily-report-material-add-work-type"
-                      @update:model-value="
-                        materialAddDraft.workType = $event;
-                        materialAddDraft.workTypeId = null;
-                      "
-                      @select="
-                        materialAddDraft.workType = $event.name;
-                        materialAddDraft.workTypeId = $event.id;
-                      "
-                    />
-                  </td>
-                  <td class="daily-report-resource-sheet__add-input-cell">
-                    <input
-                      v-model="materialAddDraft.type"
-                      class="daily-report-resource-sheet__add-text-input"
-                      type="text"
-	                      aria-label="추가할 자재 타입"
-	                      placeholder="타입"
-	                      @blur="
-	                        trackDailyReportResourceFieldCommit(
-	                          'material',
-	                          'material_type',
-	                          materialAddDraft.type,
-	                        )
-	                      "
-	                    />
-                  </td>
-                  <td class="daily-report-resource-sheet__add-input-cell">
-                    <input
-                      v-model="materialAddDraft.specification"
-                      class="daily-report-resource-sheet__add-text-input"
-                      type="text"
-	                      aria-label="추가할 자재 규격"
-	                      placeholder="규격"
-	                      @blur="
-	                        trackDailyReportResourceFieldCommit(
-	                          'material',
-	                          'material_spec',
-	                          materialAddDraft.specification,
-	                        )
-	                      "
-	                    />
-                  </td>
-                  <td class="daily-report-resource-sheet__add-input-cell">
-                    <input
-                      v-model="materialAddDraft.unit"
-                      class="daily-report-resource-sheet__add-text-input"
-                      type="text"
-	                      aria-label="추가할 자재 단위"
-	                      placeholder="단위"
-	                      @blur="
-	                        trackDailyReportResourceFieldCommit(
-	                          'material',
-	                          'unit',
-	                          materialAddDraft.unit,
-	                        )
-	                      "
-	                    />
-                  </td>
-                  <td class="daily-report-resource-sheet__today-cell">
-                    <input
-                      v-model="materialAddDraft.todayQuantity"
-                      class="daily-report-resource-sheet__today-input"
-                      inputmode="decimal"
-                      type="text"
-                      aria-label="추가할 자재 금일 수량"
-                      placeholder="0"
-	                      @input="
-	                        updateDailyReportAddTodayQuantity(materialAddDraft, $event)
-	                      "
-	                      @change="
-	                        trackDailyReportResourceQuantityCommit(
-	                          'material',
-	                          materialAddDraft,
-	                          'add_form',
-	                        )
-	                      "
-	                    />
-                  </td>
-                  <td class="daily-report-resource-sheet__add-actions-cell">
-                    <div class="daily-report-resource-sheet__add-actions">
-                      <button
-                        type="button"
-                        class="daily-report-resource-sheet__add-action-button"
-                        @click="cancelDailyReportResourceAdd('material')"
-                      >
-                        취소
-                      </button>
-                      <button
-                        type="button"
-                        class="daily-report-resource-sheet__add-action-button daily-report-resource-sheet__add-action-button--primary"
-                        :disabled="!canAddDailyReportResource('material')"
-                        @click="addDailyReportMaterialResource"
-                      >
-                        추가
-                      </button>
-                    </div>
-                  </td>
-                  <td
-                    class="daily-report-resource-sheet__filler-cell"
-                    aria-hidden="true"
-                  ></td>
-                </tr>
-                <tr
-                  v-else
-                  class="daily-report-resource-sheet__add-button-row"
-                >
-                  <td
-                    class="daily-report-resource-sheet__add-button-cell"
-                    :colspan="DAILY_REPORT_RESOURCE_COLUMNS.material.length + 1"
+                  </tr>
+                  <tr
+                    class="daily-report-resource-sheet__add-button-row daily-report-resource-sheet__add-button-row--sub"
                   >
-                    <button
-                      type="button"
-                      class="daily-report-resource-sheet__add-button"
-                      @click="toggleDailyReportResourceAddForm('material')"
+                    <td
+                      class="daily-report-resource-sheet__add-button-cell"
+                      :colspan="DAILY_REPORT_RESOURCE_COLUMNS.material.length"
                     >
-                      + 추가하기
-                    </button>
-                  </td>
-                </tr>
+                      <button
+                        type="button"
+                        class="daily-report-resource-sheet__add-button"
+                        :disabled="group.workTypeId === null"
+                        @click="appendDailyReportMaterialRow(group)"
+                      >
+                        + 자재 추가
+                      </button>
+                    </td>
+                    <td
+                      class="daily-report-resource-sheet__filler-cell"
+                      aria-hidden="true"
+                    ></td>
+                  </tr>
+                </template>
               </tbody>
             </table>
+          </div>
+
+          <div class="daily-report-resource-table__worktype-add">
+            <button
+              type="button"
+              class="daily-report-resource-table__worktype-add-button"
+              @click="addMaterialPendingGroup"
+            >
+              + 공종 추가
+            </button>
           </div>
         </div>
       </section>
