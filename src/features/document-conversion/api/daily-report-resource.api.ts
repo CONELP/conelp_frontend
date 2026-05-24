@@ -1,4 +1,5 @@
 import { apiFetch } from "@/shared/network/api-client";
+import type { DocumentJobResponse } from "@/features/document-conversion/api/material-inspection-request-api.types";
 import type {
   DailyReportAttendanceByDateGroupedResponse,
   DailyReportAttendanceByDateResponse,
@@ -321,5 +322,28 @@ export const dailyReportResourceApi = {
     return apiFetch<DailyReportMaterialDeliveryByDateGroup[]>(
       `/materialDelivery/getMaterialDeliveryListByDate?${params.toString()}`,
     );
+  },
+
+  async createDailyReport(date: string) {
+    await ensureSelectedProjectId();
+    return apiFetch<DocumentJobResponse>(
+      `/dailyReport/createDailyReport?date=${encodeURIComponent(date)}`,
+      {
+        method: "POST",
+      },
+    );
+  },
+
+  async getDrGuidePrompt() {
+    await ensureSelectedProjectId();
+    return apiFetch<{ prompt: string }>("/dailyReport/getDrGuidePrompt");
+  },
+
+  async updateDrGuidePrompt(prompt: string | null) {
+    await ensureSelectedProjectId();
+    return apiFetch<{ prompt: string }>("/dailyReport/updateDrGuidePrompt", {
+      method: "PUT",
+      body: { prompt } as unknown as Record<string, unknown>,
+    });
   },
 };

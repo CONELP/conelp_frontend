@@ -1,10 +1,10 @@
 import { ref } from "vue";
 
+import { dailyReportResourceApi } from "@/features/document-conversion/api/daily-report-resource.api";
 import {
   docConfigApi,
   type DocConfigDocType,
   type DocConfigResponse,
-  type ExcelCellRefDocType,
   type ScriptPromptDocType,
   type TemplateDocType,
   type TemplateRefDocType,
@@ -12,8 +12,6 @@ import {
 import { analyticsClient } from "@/shared/analytics/analytics-stub";
 
 type Prompts = Record<DocConfigDocType, string>;
-type CellRefs = Record<ExcelCellRefDocType, string>;
-type CellRefFlags = Record<ExcelCellRefDocType, boolean>;
 type ScriptPrompts = Record<ScriptPromptDocType, string>;
 type ScriptPromptFlags = Record<ScriptPromptDocType, boolean>;
 type TemplateUrls = Record<TemplateDocType, string | null>;
@@ -25,14 +23,6 @@ function emptyPrompts(): Prompts {
   return { MIR: "", CAT: "", CCST: "" };
 }
 
-function emptyCellRefs(): CellRefs {
-  return { DR: "" };
-}
-
-function emptyCellRefFlags(): CellRefFlags {
-  return { DR: false };
-}
-
 function emptyScriptPrompts(): ScriptPrompts {
   return { MIR: "", CAT: "", CCST: "" };
 }
@@ -42,28 +32,19 @@ function emptyScriptPromptFlags(): ScriptPromptFlags {
 }
 
 function emptyTemplateUrls(): TemplateUrls {
-  return { MIR: null, CAT: null };
+  return { MIR: null, CAT: null, DR: null };
 }
 
 function emptyTemplateFlags(): TemplateFlags {
-  return { MIR: false, CAT: false };
+  return { MIR: false, CAT: false, DR: false };
 }
 
 function emptyTemplateRefUrls(): TemplateRefUrls {
-  return { MIR: null, CAT: null, CCST: null };
+  return { MIR: null, CAT: null, CCST: null, DR: null };
 }
 
 function emptyTemplateRefFlags(): TemplateRefFlags {
-  return { MIR: false, CAT: false, CCST: false };
-}
-
-function prettify(json: string | null | undefined): string {
-  if (!json) return "";
-  try {
-    return JSON.stringify(JSON.parse(json), null, 2);
-  } catch {
-    return json;
-  }
+  return { MIR: false, CAT: false, CCST: false, DR: false };
 }
 
 export function useDocumentSetting() {
@@ -73,26 +54,23 @@ export function useDocumentSetting() {
     CAT: false,
     CCST: false,
   });
-  const isSavingCellRef = ref<CellRefFlags>(emptyCellRefFlags());
-  const isGeneratingCellRef = ref<CellRefFlags>(emptyCellRefFlags());
   const isSavingScriptPrompt = ref<ScriptPromptFlags>(emptyScriptPromptFlags());
   const isUploadingTemplate = ref<TemplateFlags>(emptyTemplateFlags());
   const isUploadingTemplateRef = ref<TemplateRefFlags>(emptyTemplateRefFlags());
   const exists = ref(false);
   const prompts = ref<Prompts>(emptyPrompts());
-  const cellRefs = ref<CellRefs>(emptyCellRefs());
   const scriptPrompts = ref<ScriptPrompts>(emptyScriptPrompts());
   const templateUrls = ref<TemplateUrls>(emptyTemplateUrls());
   const templateRefUrls = ref<TemplateRefUrls>(emptyTemplateRefUrls());
+  const drGuidePrompt = ref("");
+  const isLoadingDrGuidePrompt = ref(false);
+  const isSavingDrGuidePrompt = ref(false);
 
   function applyResponse(res: DocConfigResponse) {
     prompts.value = {
       MIR: res.mirDocNoPrompt ?? "",
       CAT: res.catDocNoPrompt ?? "",
       CCST: res.ccstDocNoPrompt ?? "",
-    };
-    cellRefs.value = {
-      DR: prettify(res.drExcelCellRef),
     };
     scriptPrompts.value = {
       MIR: res.mirScriptPrompt ?? "",
@@ -102,18 +80,19 @@ export function useDocumentSetting() {
     templateUrls.value = {
       MIR: res.mirTemplateUrl,
       CAT: res.catTemplateUrl,
+      DR: res.drTemplateUrl,
     };
     templateRefUrls.value = {
       MIR: res.mirTemplateRefUrl,
       CAT: res.catTemplateRefUrl,
       CCST: res.ccstTemplateRefUrl,
+      DR: res.drTemplateRefUrl,
     };
   }
 
   function resetState() {
     exists.value = false;
     prompts.value = emptyPrompts();
-    cellRefs.value = emptyCellRefs();
     scriptPrompts.value = emptyScriptPrompts();
     templateUrls.value = emptyTemplateUrls();
     templateRefUrls.value = emptyTemplateRefUrls();
@@ -131,6 +110,49 @@ export function useDocumentSetting() {
       console.error("문서 설정 로드 실패:", error);
     } finally {
       isLoading.value = false;
+    }
+
+    await loadDrGuidePrompt();
+  }
+
+  async function loadDrGuidePrompt() {
+    isLoadingDrGuidePrompt.value = true;
+    try {
+      const res = await dailyReportResourceApi.getDrGuidePrompt();
+      drGuidePrompt.value = res.prompt ?? "";
+    } catch (error: unknown) {
+      drGuidePrompt.value = "";
+      console.error("DR 가이드 프롬프트 로드 실패:", error);
+    } finally {
+      isLoadingDrGuidePrompt.value = false;
+    }
+  }
+
+  async function saveDrGuidePrompt(projectId: string) {
+    isSavingDrGuidePrompt.value = true;
+    try {
+      await ensureExists(projectId);
+      const trimmed = drGuidePrompt.value.trim();
+      const res = await dailyReportResourceApi.updateDrGuidePrompt(
+        trimmed.length > 0 ? trimmed : null,
+      );
+      drGuidePrompt.value = res.prompt ?? "";
+      analyticsClient.trackAction(
+        "admin_document_setting",
+        "save_dr_guide_prompt",
+        "success",
+      );
+      alert("DR 가이드 프롬프트가 저장되었습니다.");
+    } catch (error: unknown) {
+      console.error("DR 가이드 프롬프트 저장 실패:", error);
+      analyticsClient.trackAction(
+        "admin_document_setting",
+        "save_dr_guide_prompt",
+        "fail",
+      );
+      alert((error as Error).message);
+    } finally {
+      isSavingDrGuidePrompt.value = false;
     }
   }
 
@@ -166,74 +188,6 @@ export function useDocumentSetting() {
       alert((error as Error).message);
     } finally {
       isSaving.value[docType] = false;
-    }
-  }
-
-  async function saveCellRef(projectId: string, docType: ExcelCellRefDocType) {
-    const raw = cellRefs.value[docType].trim();
-    if (!raw) {
-      alert("셀 좌표 JSON을 입력해주세요.");
-      return;
-    }
-    let minified: string;
-    try {
-      minified = JSON.stringify(JSON.parse(raw));
-    } catch {
-      alert("유효하지 않은 JSON 형식입니다.");
-      return;
-    }
-    isSavingCellRef.value[docType] = true;
-    try {
-      await ensureExists(projectId);
-      const res = await docConfigApi.updateExcelCellRef(projectId, {
-        docType,
-        json: minified,
-      });
-      applyResponse(res);
-      analyticsClient.trackAction(
-        "admin_document_setting",
-        `save_${docType.toLowerCase()}_cell_ref`,
-        "success",
-      );
-      alert("셀 좌표가 저장되었습니다.");
-    } catch (error: unknown) {
-      console.error("셀 좌표 저장 실패:", error);
-      analyticsClient.trackAction(
-        "admin_document_setting",
-        `save_${docType.toLowerCase()}_cell_ref`,
-        "fail",
-      );
-      alert((error as Error).message);
-    } finally {
-      isSavingCellRef.value[docType] = false;
-    }
-  }
-
-  async function generateCellRef(projectId: string, docType: ExcelCellRefDocType) {
-    isGeneratingCellRef.value[docType] = true;
-    try {
-      const res = await docConfigApi.generateExcelCellRef(projectId, docType);
-      cellRefs.value[docType] = prettify(res.json);
-      analyticsClient.trackAction(
-        "admin_document_setting",
-        `generate_${docType.toLowerCase()}_cell_ref`,
-        "success",
-      );
-      alert(
-        res.converged
-          ? `셀 좌표가 생성되었습니다. (iterations: ${res.iterations})`
-          : `셀 좌표 생성이 수렴하지 않았습니다. 결과를 검토 후 수정·저장해주세요. (iterations: ${res.iterations})`,
-      );
-    } catch (error: unknown) {
-      console.error("셀 좌표 생성 실패:", error);
-      analyticsClient.trackAction(
-        "admin_document_setting",
-        `generate_${docType.toLowerCase()}_cell_ref`,
-        "fail",
-      );
-      alert((error as Error).message);
-    } finally {
-      isGeneratingCellRef.value[docType] = false;
     }
   }
 
@@ -323,24 +277,24 @@ export function useDocumentSetting() {
   return {
     isLoading,
     isSaving,
-    isSavingCellRef,
-    isGeneratingCellRef,
     isSavingScriptPrompt,
     isUploadingTemplate,
     isUploadingTemplateRef,
+    isLoadingDrGuidePrompt,
+    isSavingDrGuidePrompt,
     exists,
     prompts,
-    cellRefs,
     scriptPrompts,
     templateUrls,
     templateRefUrls,
+    drGuidePrompt,
     load,
     save,
-    saveCellRef,
-    generateCellRef,
     saveScriptPrompt,
     uploadTemplate,
     uploadTemplateRef,
+    loadDrGuidePrompt,
+    saveDrGuidePrompt,
   };
 }
 

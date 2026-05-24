@@ -23,6 +23,7 @@ import type {
 } from "@/features/document-conversion/api/daily-report-resource-api.types";
 import { materialInspectionRequestApi } from "@/features/document-conversion/api/material-inspection-request.api";
 import type { WorkTypeReferenceResponse } from "@/features/document-conversion/api/material-inspection-request-api.types";
+import { useBackgroundDocumentJobsStore } from "@/features/document-conversion/state/useBackgroundDocumentJobsStore";
 import { useDesktopScheduleViewModel } from "@/features/desktop-schedule/state/useDesktopScheduleViewModel";
 import { analyticsClient } from "@/shared/analytics/analytics-stub";
 import WorkTypeTypeaheadInput from "@/shared/ui/WorkTypeTypeaheadInput.vue";
@@ -30,6 +31,7 @@ import { nextRotationStep } from "@/shared/utils/rotate-image-file";
 
 const scheduleVm = useDesktopScheduleViewModel();
 const { dailyReport } = scheduleVm;
+const backgroundDocumentJobs = useBackgroundDocumentJobsStore();
 const emit = defineEmits<{
   "report-date-change": [
     payload: {
@@ -292,6 +294,7 @@ const materialSpecOptionsByTypeId = ref(
 );
 const isDailyReportSaving = ref(false);
 const dailyReportSaveMessage = ref("");
+const isDailyReportDocumentGenerating = ref(false);
 const laborRowGroups = computed<DailyReportLaborGroup[]>(() => {
   const groups: DailyReportLaborGroup[] = [];
   const groupByWorkType = new Map<string, DailyReportLaborGroup>();
@@ -4158,6 +4161,41 @@ async function saveDailyReportMaterial() {
   await dailyReportResourceApi.updateMaterialDeliveryList(requestBody);
 }
 
+async function handleCreateDailyReportDocument() {
+  if (isDailyReportDocumentGenerating.value) {
+    return;
+  }
+
+  const date = reportDates.value.today;
+  isDailyReportDocumentGenerating.value = true;
+  dailyReportSaveMessage.value = "";
+
+  trackDailyReportPanelAction("create_dr_document", "attempt", { date });
+
+  try {
+    await backgroundDocumentJobs.enqueueJob(
+      {
+        documentTypeLabel: "공사일보",
+        photoSummary: date,
+      },
+      async () => {
+        await dailyReportResourceApi.createDailyReport(date);
+      },
+    );
+    trackDailyReportPanelAction("create_dr_document", "success", { date });
+  } catch (error) {
+    console.error("create daily report document failed", error);
+    dailyReportSaveMessage.value =
+      error instanceof Error ? error.message : "공사일보 생성에 실패했어요.";
+    trackDailyReportPanelAction("create_dr_document", "fail", {
+      date,
+      error_kind: error instanceof Error ? "api" : "unknown",
+    });
+  } finally {
+    isDailyReportDocumentGenerating.value = false;
+  }
+}
+
 async function handleDailyReportSave() {
   if (isDailyReportSaving.value) {
     return;
@@ -5849,6 +5887,14 @@ onUnmounted(() => {
         @click="handleDailyReportSave"
       >
         {{ isDailyReportSaving ? "저장 중" : "저장하기" }}
+      </button>
+      <button
+        type="button"
+        class="daily-report-write-save-button daily-report-write-generate-button"
+        :disabled="isDailyReportDocumentGenerating"
+        @click="handleCreateDailyReportDocument"
+      >
+        {{ isDailyReportDocumentGenerating ? "생성 중" : "공사일보 생성" }}
       </button>
       <p
         v-if="dailyReportSaveMessage"

@@ -117,9 +117,12 @@ import documentsIcon from "@fluentui/svg-icons/icons/chevron_right_20_regular.sv
 import documentIcon from "@fluentui/svg-icons/icons/document_20_regular.svg";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
+import { dailyReportResourceApi } from "@/features/document-conversion/api/daily-report-resource.api";
+import { useBackgroundDocumentJobsStore } from "@/features/document-conversion/state/useBackgroundDocumentJobsStore";
 import { useGeneratedDocumentsDemoViewModel } from "@/features/document-conversion/state/useGeneratedDocumentsDemoViewModel";
 import DocumentTypeCard from "@/features/document-conversion/ui/components/DocumentTypeCard.vue";
 import { useDocumentConversionDemoViewModel } from "@/features/document-conversion/state/useDocumentConversionDemoViewModel";
+import { formatLocalDate } from "@/features/desktop-schedule/services/desktop-schedule-date.service";
 import { analyticsClient } from "@/shared/analytics/analytics-stub";
 
 const {
@@ -135,9 +138,33 @@ const {
   isGeneratedDocumentsLoading,
   generatedDocumentsErrorMessage,
 } = useGeneratedDocumentsDemoViewModel();
+const backgroundDocumentJobs = useBackgroundDocumentJobsStore();
 const router = useRouter();
 
 clearSelectedDocument();
+
+async function triggerDailyReportCreation() {
+  const date = formatLocalDate(new Date());
+  analyticsClient.trackAction("document", "create_dr_document", "attempt", { date });
+
+  try {
+    await backgroundDocumentJobs.enqueueJob(
+      {
+        documentTypeLabel: "공사일보",
+        photoSummary: date,
+      },
+      async () => {
+        await dailyReportResourceApi.createDailyReport(date);
+      },
+    );
+    analyticsClient.trackAction("document", "create_dr_document", "success", { date });
+  } catch (error) {
+    analyticsClient.trackAction("document", "create_dr_document", "fail", {
+      date,
+      error_kind: error instanceof Error ? "api" : "unknown",
+    });
+  }
+}
 
 function handleSelectDocument(type: string) {
   if (!isDocumentCatalogType(type)) {
@@ -145,6 +172,15 @@ function handleSelectDocument(type: string) {
   }
 
   selectDocument(type);
+
+  if (type === "daily_report_write") {
+    analyticsClient.trackAction("document", "select_type", "success", {
+      document_type: type,
+    });
+    void triggerDailyReportCreation();
+    return;
+  }
+
   const nextRoute = resolveNextRoute(type);
 
   if (nextRoute === "/documents") {

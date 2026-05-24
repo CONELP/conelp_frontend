@@ -6,7 +6,6 @@ export { docConfigApi } from "@/features/project-admin/_shared/services/doc-conf
 export type {
   DocConfigDocType,
   DocConfigResponse,
-  ExcelCellRefDocType,
   ScriptPromptDocType,
   TemplateDocType,
   TemplateRefDocType,

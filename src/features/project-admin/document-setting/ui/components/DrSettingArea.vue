@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ref } from "vue";
+
 import AdminButton from "@/shared/ui/admin/Button.vue";
 import AdminLabel from "@/shared/ui/admin/Label.vue";
 import type { UseDocumentSettingReturn } from "@/features/project-admin/document-setting/state/useDocumentSetting";
@@ -8,20 +10,12 @@ const props = defineProps<{
   state: UseDocumentSettingReturn;
 }>();
 
-const cellRefPlaceholder = `{
-  "fixed": { ... },
-  "lines": { ... },
-  "lineConcat": { ... },
-  "photos": {
-    "0": {
-      "types": ["DELIVERY_NOTE", "MILL_SHEET"],
-      "rotatable": true,
-      "cells": ["0!B3", "0!B15"],
-      "descriptionOffset": { "row": 3, "col": 0 },
-      "overflow": "INSERT_ROWS"
-    }
-  }
-}`;
+const guidePromptPlaceholder = `예) 28일 강도가 비어 있으면 비고 칸에 "측정 예정" 으로 채운다.
+- DR 양식변경 / 내용입력 LLM 호출 system prompt 에 매번 주입되는 자유 텍스트 지침.
+- 비워두면 기본 동작.`;
+
+const templateFileInput = ref<HTMLInputElement | null>(null);
+const templateRefFileInput = ref<HTMLInputElement | null>(null);
 
 function requireProject(): string | null {
   if (!props.selectedProjectId) {
@@ -31,16 +25,42 @@ function requireProject(): string | null {
   return props.selectedProjectId;
 }
 
-function onGenerate() {
+async function onTemplateFileChange(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
   const pid = requireProject();
-  if (!pid) return;
-  void props.state.generateCellRef(pid, "DR");
+  if (!pid) {
+    input.value = "";
+    return;
+  }
+  try {
+    await props.state.uploadTemplate(pid, "DR", file);
+  } finally {
+    input.value = "";
+  }
 }
 
-function onSave() {
+async function onTemplateRefFileChange(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  const pid = requireProject();
+  if (!pid) {
+    input.value = "";
+    return;
+  }
+  try {
+    await props.state.uploadTemplateRef(pid, "DR", file);
+  } finally {
+    input.value = "";
+  }
+}
+
+function onSaveGuidePrompt() {
   const pid = requireProject();
   if (!pid) return;
-  void props.state.saveCellRef(pid, "DR");
+  void props.state.saveDrGuidePrompt(pid);
 }
 </script>
 
@@ -56,40 +76,110 @@ function onSave() {
     </div>
 
     <section class="dr-area__section">
-      <AdminLabel>DR 엑셀 셀 좌표 (JSON)</AdminLabel>
+      <AdminLabel>DR 엑셀 템플릿 (실제 출력용)</AdminLabel>
+      <p class="dr-area__hint">· DR 문서 생성 결과물의 base 가 되는 실제 출력용 xlsx.</p>
+      <div class="dr-area__row">
+        <span class="dr-area__status">
+          {{ state.templateUrls.value.DR ? "템플릿 등록됨" : "템플릿 없음" }}
+        </span>
+        <input
+          ref="templateFileInput"
+          type="file"
+          accept=".xlsx,.xls"
+          class="dr-area__file"
+          @change="onTemplateFileChange"
+        />
+        <AdminButton
+          variant="outline"
+          size="sm"
+          :disabled="state.isUploadingTemplate.value.DR"
+          @click="templateFileInput?.click()"
+        >
+          {{
+            state.isUploadingTemplate.value.DR
+              ? "업로드 중..."
+              : state.templateUrls.value.DR
+              ? "템플릿 변경"
+              : "템플릿 등록"
+          }}
+        </AdminButton>
+      </div>
+    </section>
+
+    <section class="dr-area__section">
+      <AdminLabel>DR 참조용 템플릿 (LLM 가이드용)</AdminLabel>
       <div class="dr-area__hint">
-        <p>· 작업일보 템플릿의 셀 매핑 JSON.</p>
+        <p>· placeholder 만 남긴 xlsx. LLM 양식변경·내용입력 directive 생성의 base.</p>
+        <p>· 실제 출력용 템플릿과 셀 위치 / 시트 구조가 동일해야 합니다.</p>
         <p>
-          · <strong>자동 생성</strong>은 LLM이 템플릿을 분석해 재생성 후 즉시 DB에 저장합니다.
-        </p>
-        <p>
-          · 수동 편집 후에는 <strong>셀 좌표 저장</strong>으로 반영. 스키마 위반 시 서버가 400을
-          반환합니다.
+          · 미등록 상태에서 문서 생성 호출 시
+          <code>TEMPLATE_NOT_CONFIGURED</code> 로 실패합니다.
         </p>
       </div>
+      <div class="dr-area__row">
+        <span class="dr-area__status">
+          {{
+            state.templateRefUrls.value.DR
+              ? "참조 템플릿 등록됨"
+              : "참조 템플릿 없음"
+          }}
+        </span>
+        <input
+          ref="templateRefFileInput"
+          type="file"
+          accept=".xlsx,.xls"
+          class="dr-area__file"
+          @change="onTemplateRefFileChange"
+        />
+        <AdminButton
+          variant="outline"
+          size="sm"
+          :disabled="state.isUploadingTemplateRef.value.DR"
+          @click="templateRefFileInput?.click()"
+        >
+          {{
+            state.isUploadingTemplateRef.value.DR
+              ? "업로드 중..."
+              : state.templateRefUrls.value.DR
+              ? "참조 템플릿 변경"
+              : "참조 템플릿 등록"
+          }}
+        </AdminButton>
+      </div>
+    </section>
+
+    <section class="dr-area__section">
+      <AdminLabel>DR 가이드 프롬프트</AdminLabel>
+      <div class="dr-area__hint">
+        <p>
+          · DR 문서 생성 시 양식변경 / 내용입력 LLM 호출 system prompt 에 매번 함께 전달되는 자유 텍스트 지침입니다.
+        </p>
+        <p>· 양식의 특수 규칙(셀 누적 위치, 행 복제, 페이지 분할 등)을 작성하세요.</p>
+        <p>· 비워두면 기본 동작으로 생성됩니다.</p>
+      </div>
       <textarea
-        v-model="state.cellRefs.value.DR"
-        :placeholder="cellRefPlaceholder"
-        :disabled="state.isSavingCellRef.value.DR || state.isGeneratingCellRef.value.DR"
-        rows="18"
+        v-model="state.drGuidePrompt.value"
+        :placeholder="guidePromptPlaceholder"
+        :disabled="
+          state.isLoadingDrGuidePrompt.value || state.isSavingDrGuidePrompt.value
+        "
+        rows="14"
         class="dr-area__textarea"
       />
       <div class="dr-area__actions">
         <AdminButton
-          variant="outline"
-          :disabled="state.isGeneratingCellRef.value.DR || state.isSavingCellRef.value.DR"
-          @click="onGenerate"
+          :disabled="
+            state.isLoadingDrGuidePrompt.value || state.isSavingDrGuidePrompt.value
+          "
+          @click="onSaveGuidePrompt"
         >
-          {{ state.isGeneratingCellRef.value.DR ? "생성 중..." : "자동 생성" }}
-        </AdminButton>
-        <AdminButton
-          :disabled="state.isSavingCellRef.value.DR || state.isGeneratingCellRef.value.DR"
-          @click="onSave"
-        >
-          {{ state.isSavingCellRef.value.DR ? "저장 중..." : "셀 좌표 저장" }}
+          {{
+            state.isSavingDrGuidePrompt.value ? "저장 중..." : "가이드 프롬프트 저장"
+          }}
         </AdminButton>
       </div>
     </section>
+
   </div>
 </template>
 
@@ -115,7 +205,8 @@ function onSave() {
   font-size: 12px;
   color: var(--ink-muted);
 }
-.dr-area__note code {
+.dr-area__note code,
+.dr-area__hint code {
   font-family: ui-monospace, monospace;
   font-size: 11px;
   padding: 0 4px;
@@ -136,6 +227,19 @@ function onSave() {
 }
 .dr-area__hint p {
   margin: 0;
+}
+.dr-area__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+.dr-area__status {
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.dr-area__file {
+  display: none;
 }
 .dr-area__textarea {
   width: 100%;

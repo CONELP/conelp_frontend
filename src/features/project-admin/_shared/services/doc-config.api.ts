@@ -2,15 +2,15 @@ import { axiosClient } from "@/shared/network/axios-client";
 
 export type DocConfigDocType = "MIR" | "CAT" | "CCST";
 export type UploadDocType = "MIR" | "CAT" | "DR";
-export type ExcelCellRefDocType = "DR";
 export type ScriptPromptDocType = "MIR" | "CAT" | "CCST";
-export type TemplateDocType = "MIR" | "CAT";
-export type TemplateRefDocType = "MIR" | "CAT" | "CCST";
+export type TemplateDocType = "MIR" | "CAT" | "DR";
+export type TemplateRefDocType = "MIR" | "CAT" | "CCST" | "DR";
 
 export interface DocConfigResponse {
   id: number;
   projectId: string;
   drTemplateUrl: string | null;
+  drTemplateRefUrl: string | null;
   mirTemplateUrl: string | null;
   catTemplateUrl: string | null;
   mirTemplateRefUrl: string | null;
@@ -19,7 +19,6 @@ export interface DocConfigResponse {
   mirDocNoPrompt: string | null;
   catDocNoPrompt: string | null;
   ccstDocNoPrompt: string | null;
-  drExcelCellRef: string | null;
   mirScriptPrompt: string | null;
   catScriptPrompt: string | null;
   ccstScriptPrompt: string | null;
@@ -96,37 +95,6 @@ export const docConfigApi = {
         headers: { "Content-Type": "multipart/form-data" },
         timeout: 60000,
       },
-    );
-    return data;
-  },
-
-  async generateExcelCellRef(
-    projectId: string,
-    docType: ExcelCellRefDocType,
-  ): Promise<{
-    docType: ExcelCellRefDocType;
-    json: string;
-    iterations: number;
-    converged: boolean;
-    sampleUsed: boolean;
-  }> {
-    const { data } = await axiosClient.post<{
-      docType: ExcelCellRefDocType;
-      json: string;
-      iterations: number;
-      converged: boolean;
-      sampleUsed: boolean;
-    }>(`/docConfig/generateExcelCellRef/${projectId}`, { docType }, { timeout: 120000 });
-    return data;
-  },
-
-  async updateExcelCellRef(
-    projectId: string,
-    body: { docType: ExcelCellRefDocType; json: string },
-  ): Promise<DocConfigResponse> {
-    const { data } = await axiosClient.put<DocConfigResponse>(
-      `/docConfig/updateExcelCellRef/${projectId}`,
-      body,
     );
     return data;
   },
