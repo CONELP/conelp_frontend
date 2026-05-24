@@ -1331,7 +1331,6 @@ function applyDailyReportResourceEditDraft(
     if (typeChanged) {
       row.materialDeliveryId = null;
       row.deliveryLineId = null;
-      row.materialTypeId = null;
       row.materialSpecId = null;
     } else if (specificationChanged) {
       row.deliveryLineId = null;
@@ -1351,7 +1350,7 @@ function applyDailyReportResourceEditDraft(
       normalizeDailyReportMatchText(draft.type) ||
     normalizeDailyReportMatchText(row.specification) !==
       normalizeDailyReportMatchText(draft.specification);
-  const equipmentSpec = equipmentIdentityChanged
+  const matchedEquipmentSpec = equipmentIdentityChanged
     ? findDailyReportEquipmentSpec(draft.type, draft.specification)
     : null;
 
@@ -1364,8 +1363,12 @@ function applyDailyReportResourceEditDraft(
   row.todayQuantity = normalizedQuantity;
 
   if (equipmentIdentityChanged) {
-    row.equipmentSpecId = equipmentSpec?.id ?? null;
-    row.equipmentTypeId = equipmentSpec?.equipmentTypeId ?? null;
+    if (matchedEquipmentSpec) {
+      row.equipmentSpecId = matchedEquipmentSpec.id;
+      row.equipmentTypeId = matchedEquipmentSpec.equipmentTypeId;
+    } else {
+      row.equipmentSpecId = null;
+    }
   }
 
   return true;
@@ -3726,7 +3729,11 @@ async function applyEquipmentReferenceCrudFromRows() {
   const typeNameUpdates = new Map<number, { name: string }>();
   for (const row of equipmentRows.value) {
     if (row.equipmentTypeId === null) continue;
-    typeNameUpdates.set(row.equipmentTypeId, { name: row.type.trim() });
+    const original = equipmentTypeOriginalsByTypeId.value.get(row.equipmentTypeId);
+    if (!original) continue;
+    const name = row.type.trim();
+    if (!name || name === original.name) continue;
+    typeNameUpdates.set(row.equipmentTypeId, { name });
   }
   for (const [typeId, { name }] of typeNameUpdates) {
     const original = equipmentTypeOriginalsByTypeId.value.get(typeId);
@@ -4069,10 +4076,14 @@ async function applyMaterialReferenceCrudFromRows() {
   const typeNameUpdates = new Map<number, { name: string; unit: string }>();
   for (const row of materialRows.value) {
     if (row.materialTypeId === null) continue;
-    typeNameUpdates.set(row.materialTypeId, {
-      name: row.type.trim(),
-      unit: row.unit.trim(),
-    });
+    const original = materialTypeOriginalsByTypeId.value.get(row.materialTypeId);
+    if (!original) continue;
+    const name = row.type.trim();
+    const unit = row.unit.trim();
+    const nameChanged = name.length > 0 && name !== original.name;
+    const unitChanged = unit !== original.unit;
+    if (!nameChanged && !unitChanged) continue;
+    typeNameUpdates.set(row.materialTypeId, { name, unit });
   }
   for (const [typeId, { name, unit }] of typeNameUpdates) {
     const original = materialTypeOriginalsByTypeId.value.get(typeId);
@@ -4960,7 +4971,6 @@ onUnmounted(() => {
 	                          $event,
 	                        )
 	                      "
-	                      @blur="handleTaskBlur(workType, getPrimaryDailyReportTask(workType))"
 	                    />
                   </div>
                 </div>
@@ -5110,7 +5120,6 @@ onUnmounted(() => {
 	                          $event,
 	                        )
 	                      "
-	                      @blur="handleTaskBlur(workType, getPrimaryDailyReportTask(workType))"
 	                    />
                   </div>
                 </div>
