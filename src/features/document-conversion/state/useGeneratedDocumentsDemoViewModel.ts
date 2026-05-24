@@ -1,8 +1,25 @@
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 
 import { materialInspectionRequestApi } from "@/features/document-conversion/api/material-inspection-request.api";
 import type { DocumentJobResponse } from "@/features/document-conversion/api/material-inspection-request-api.types";
 import type { DocumentCatalogType } from "@/features/document-conversion/model/document-conversion-demo.types";
+import { useBackgroundDocumentJobsStore } from "@/features/document-conversion/state/useBackgroundDocumentJobsStore";
+
+export type GeneratedDocumentStatus =
+  | "PENDING"
+  | "RUNNING"
+  | "SUCCEEDED"
+  | "FAILED"
+  | "APPROVED"
+  | "UNKNOWN";
+
+export type GeneratedDocumentStatusTone =
+  | "pending"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "approved"
+  | "unknown";
 
 export interface GeneratedDocumentListItem {
   id: string;
@@ -14,6 +31,10 @@ export interface GeneratedDocumentListItem {
   resultUrl: string | null;
   pdfUrl: string | null;
   downloadFileName: string;
+  status: GeneratedDocumentStatus;
+  statusLabel: string;
+  statusTone: GeneratedDocumentStatusTone;
+  isDownloadable: boolean;
 }
 
 interface GeneratedDocumentDateGroup {
@@ -23,7 +44,26 @@ interface GeneratedDocumentDateGroup {
 }
 
 const KOREAN_WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"] as const;
-const SUCCESS_STATUS = "SUCCEEDED";
+const STATUS_LABEL: Record<GeneratedDocumentStatus, string> = {
+  PENDING: "대기중",
+  RUNNING: "생성중",
+  SUCCEEDED: "생성됨",
+  FAILED: "생성실패",
+  APPROVED: "승인됨",
+  UNKNOWN: "알 수 없음",
+};
+const STATUS_TONE: Record<GeneratedDocumentStatus, GeneratedDocumentStatusTone> = {
+  PENDING: "pending",
+  RUNNING: "running",
+  SUCCEEDED: "succeeded",
+  FAILED: "failed",
+  APPROVED: "approved",
+  UNKNOWN: "unknown",
+};
+const DOWNLOADABLE_STATUSES: ReadonlyArray<GeneratedDocumentStatus> = [
+  "SUCCEEDED",
+  "APPROVED",
+];
 const DOCUMENT_LABEL_BY_TYPE: Record<string, string> = {
   DR: "일일 작업일보",
   MIR: "자재 반입 검수요청",
@@ -130,6 +170,21 @@ function resolveGeneratedDocumentCatalogType(document: DocumentJobResponse) {
   return DOCUMENT_CATALOG_TYPE_BY_JOB_TYPE[document.docType] ?? null;
 }
 
+function resolveGeneratedDocumentStatus(
+  document: DocumentJobResponse,
+): GeneratedDocumentStatus {
+  switch (document.status) {
+    case "PENDING":
+    case "RUNNING":
+    case "SUCCEEDED":
+    case "FAILED":
+    case "APPROVED":
+      return document.status;
+    default:
+      return "UNKNOWN";
+  }
+}
+
 function toGeneratedDocumentListItem(
   document: DocumentJobResponse,
 ): GeneratedDocumentListItem {
@@ -141,6 +196,7 @@ function toGeneratedDocumentListItem(
   const documentName = removeWhitespace(title);
   const docNo = removeWhitespace(document.docNo ?? String(document.id));
   const sourceUrl = document.resultUrl ?? document.pdfUrl;
+  const status = resolveGeneratedDocumentStatus(document);
 
   return {
     id: String(document.id),
@@ -152,6 +208,10 @@ function toGeneratedDocumentListItem(
     resultUrl: document.resultUrl,
     pdfUrl: document.pdfUrl,
     downloadFileName: `${documentName}_${docNo}${resolveGeneratedDocumentFileExtension(sourceUrl)}`,
+    status,
+    statusLabel: STATUS_LABEL[status],
+    statusTone: STATUS_TONE[status],
+    isDownloadable: DOWNLOADABLE_STATUSES.includes(status),
   };
 }
 
@@ -213,9 +273,7 @@ export function useGeneratedDocumentsDemoViewModel() {
       const documents = await materialInspectionRequestApi.getDocumentJobList();
 
       generatedDocumentItems.value = sortGeneratedDocuments(
-        documents
-          .filter((document) => document.status === SUCCESS_STATUS)
-          .map(toGeneratedDocumentListItem),
+        documents.map(toGeneratedDocumentListItem),
       );
     } catch (error) {
       generatedDocumentsErrorMessage.value =
@@ -227,6 +285,15 @@ export function useGeneratedDocumentsDemoViewModel() {
       isGeneratedDocumentsLoading.value = false;
     }
   }
+
+  const backgroundJobs = useBackgroundDocumentJobsStore();
+
+  watch(
+    () => backgroundJobs.completionSignal,
+    () => {
+      void refreshGeneratedDocuments();
+    },
+  );
 
   onMounted(() => {
     void refreshGeneratedDocuments();

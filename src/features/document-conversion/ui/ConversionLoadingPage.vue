@@ -22,15 +22,11 @@
         <h1 class="loading-intro__title">
           <template v-if="selectedDocument.type === 'material_registration'">
             <span class="loading-intro__title-line">자재 반입 검수요청서를</span>
-            <span class="loading-intro__title-line">
-              {{ isDocumentCreateLoading ? "생성중입니다." : "분석중입니다." }}
-            </span>
+            <span class="loading-intro__title-line">분석중입니다.</span>
           </template>
           <template v-else-if="selectedDocument.type === 'concrete_delivery_csi'">
             <span class="loading-intro__title-line">콘크리트 반입시험 문서를</span>
-            <span class="loading-intro__title-line">
-              {{ isDocumentCreateLoading ? "생성중입니다." : "분석중입니다." }}
-            </span>
+            <span class="loading-intro__title-line">분석중입니다.</span>
           </template>
           <template v-else>
             <span class="loading-intro__title-line">{{
@@ -76,7 +72,7 @@ import backIcon from "@fluentui/svg-icons/icons/chevron_left_24_regular.svg";
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
 import { useConversionLoadingDemoViewModel } from "@/features/document-conversion/state/useConversionLoadingDemoViewModel";
 
-const { selectedDocument, loadingBackRoute, loadingDescription, isDocumentCreateLoading } =
+const { selectedDocument, loadingBackRoute, loadingDescription } =
   useConversionLoadingDemoViewModel();
 </script>
 <style scoped src="./styles/ConversionLoadingPage.css"></style>

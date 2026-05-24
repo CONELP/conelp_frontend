@@ -199,10 +199,75 @@
   line-height: 1.35;
 }
 
-.selection-panel__generated-copy span {
+.selection-panel__generated-copy > span {
   color: var(--ink-muted);
   font-size: 0.8rem;
   line-height: 1.45;
+}
+
+.selection-panel__generated-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.42rem;
+  min-width: 0;
+}
+
+.selection-panel__generated-head strong {
+  color: var(--ink);
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.selection-panel__generated-status {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  padding: 0.08rem 0.42rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid currentColor;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+  background: transparent;
+}
+
+.selection-panel__generated-status--pending {
+  color: #a05a00;
+  background: #fff4e0;
+  border-color: #f0c890;
+}
+
+.selection-panel__generated-status--running {
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-color: var(--primary-outline);
+}
+
+.selection-panel__generated-status--succeeded {
+  color: #1f7a3a;
+  background: #e6f5ec;
+  border-color: #a8d8ba;
+}
+
+.selection-panel__generated-status--approved {
+  color: #105b8a;
+  background: #e3f0fa;
+  border-color: #9ec7e3;
+}
+
+.selection-panel__generated-status--failed {
+  color: #a8201f;
+  background: #fde9e9;
+  border-color: #e6a8a8;
+}
+
+.selection-panel__generated-status--unknown {
+  color: var(--ink-muted);
+  background: var(--surface-3);
+  border-color: var(--outline-soft);
 }
 
 .selection-panel__empty {

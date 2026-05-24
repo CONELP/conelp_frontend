@@ -73,7 +73,15 @@
                   </span>
 
                   <span class="selection-panel__generated-copy">
-                    <strong>{{ document.title }}</strong>
+                    <span class="selection-panel__generated-head">
+                      <strong>{{ document.title }}</strong>
+                      <span
+                        class="selection-panel__generated-status"
+                        :class="`selection-panel__generated-status--${document.statusTone}`"
+                      >
+                        {{ document.statusLabel }}
+                      </span>
+                    </span>
                     <span>{{ document.subtitle }}</span>
                   </span>
                 </article>

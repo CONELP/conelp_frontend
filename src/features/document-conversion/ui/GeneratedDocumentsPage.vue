@@ -54,7 +54,15 @@
                   </span>
 
                   <span class="generated-row__file-body">
-                    <span class="generated-row__file-name">{{ document.title }}</span>
+                    <span class="generated-row__file-head">
+                      <span class="generated-row__file-name">{{ document.title }}</span>
+                      <span
+                        class="generated-row__status"
+                        :class="`generated-row__status--${document.statusTone}`"
+                      >
+                        {{ document.statusLabel }}
+                      </span>
+                    </span>
                     <span class="generated-row__meta">
                       {{ document.subtitle }}
                     </span>
@@ -65,7 +73,7 @@
                   class="generated-row__download"
                   type="button"
                   aria-label="생성된 문서 다운로드"
-                  :disabled="downloadingDocumentId === document.id"
+                  :disabled="!document.isDownloadable || downloadingDocumentId === document.id"
                   @click="handleDownloadGeneratedDocument(document)"
                 >
                   <img
