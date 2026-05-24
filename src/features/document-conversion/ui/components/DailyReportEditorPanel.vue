@@ -80,7 +80,7 @@ const DAILY_REPORT_EDITOR_TABS: DailyReportEditorTab[] = [
 
 const HOMEPAGE_IMPORT_MIN_DURATION_MS = 2500;
 const DAILY_REPORT_RESOURCE_COLUMN_WIDTH_STORAGE_KEY =
-  "conelp.dailyReport.resourceColumnWidths.v5";
+  "conelp.dailyReport.resourceColumnWidths.v7";
 const DAILY_REPORT_RESOURCE_COLUMN_MIN_WIDTH = 32;
 const DAILY_REPORT_RESOURCE_COLUMN_MAX_WIDTH = 320;
 const DAILY_REPORT_RESOURCE_CONTEXT_MENU_WIDTH = 148;
@@ -114,11 +114,11 @@ const DAILY_REPORT_RESOURCE_COLUMNS = {
 } satisfies Record<DailyReportResourceKind, readonly DailyReportResourceColumnConfig[]>;
 const DAILY_REPORT_RESOURCE_DEFAULT_COLUMN_WIDTHS = {
   labor: [44, 124, 82, 64, 36],
-  material: [44, 124, 112, 72, 82, 64, 36],
+  material: [44, 140, 140, 88, 96, 96, 36],
   equipment: [44, 124, 112, 112, 72, 82, 88],
 } satisfies Record<DailyReportResourceKind, number[]>;
 const DAILY_REPORT_LABOR_COLUMN_RATIOS = [8, 42, 22, 18, 10] as const;
-const DAILY_REPORT_MATERIAL_COLUMN_RATIOS = [8, 20, 20, 8, 14, 14, 8] as const;
+const DAILY_REPORT_MATERIAL_COLUMN_RATIOS = [8, 20, 20, 10, 14, 14, 8] as const;
 const DAILY_REPORT_PANEL_ANALYTICS_FEATURE = "daily_report_panel";
 
 const DAILY_REPORT_LABOR_SUMMARY_WORK_TYPE_ALIASES: Record<string, string> = {
@@ -220,6 +220,7 @@ type DailyReportMaterialDraft = DailyReportQuantityDraft & {
   type: string;
   specification: string;
   unit: string;
+  isExisting: boolean;
 };
 
 type DailyReportEquipmentDraft = DailyReportQuantityDraft & {
@@ -509,7 +510,7 @@ function appendDailyReportMaterialRow(group: DailyReportMaterialDisplayGroup) {
   }
 }
 function removeDailyReportMaterialRow(row: DailyReportMaterialDraft) {
-  if (row.materialDeliveryId !== null) {
+  if (row.materialSpecId !== null) {
     return;
   }
   materialRows.value = materialRows.value.filter((entry) => entry.id !== row.id);
@@ -654,6 +655,14 @@ const laborPendingGroups = ref<
 const materialPendingGroups = ref<
   { key: string; workType: string; workTypeId: number | null }[]
 >([]);
+const materialTypeOriginalsByTypeId = ref<
+  Map<number, { name: string; unit: string }>
+>(new Map());
+const materialSpecOriginalsBySpecId = ref<
+  Map<number, { name: string; isVisible: boolean; materialTypeId: number }>
+>(new Map());
+const deletedMaterialSpecIds = ref<Set<number>>(new Set());
+const deletedMaterialTypeIds = ref<Set<number>>(new Set());
 const laborOriginalsByLaborTypeId = ref<
   Map<number, { name: string; isVisible: boolean }>
 >(new Map());
@@ -729,6 +738,7 @@ function createDailyReportMaterialRow(
     | "materialSpecId"
     | "materialTypeId"
     | "workTypeId"
+    | "isExisting"
   > & {
     includedInDocument?: boolean;
     materialDeliveryId?: number | null;
@@ -737,6 +747,7 @@ function createDailyReportMaterialRow(
     materialTypeId?: number | null;
     workTypeId?: number | null;
     todayQuantity?: string;
+    isExisting?: boolean;
   },
 ): DailyReportMaterialDraft {
   return {
@@ -749,6 +760,7 @@ function createDailyReportMaterialRow(
     materialTypeId: input.materialTypeId ?? null,
     workTypeId: input.workTypeId ?? null,
     todayQuantity: input.todayQuantity ?? "",
+    isExisting: input.isExisting ?? false,
   };
 }
 
@@ -1217,6 +1229,20 @@ async function saveDailyReportResourceKind(kind: DailyReportResourceKind) {
   await saveDailyReportEquipment();
 }
 
+async function hydrateDailyReportResourceKind(kind: DailyReportResourceKind) {
+  if (kind === "labor") {
+    await hydrateDailyReportLaborFromServer();
+    return;
+  }
+
+  if (kind === "material") {
+    await hydrateDailyReportMaterialFromServer();
+    return;
+  }
+
+  await hydrateDailyReportEquipmentFromServer();
+}
+
 async function persistDailyReportResourceKind(
   kind: DailyReportResourceKind,
   action: "edit_resource_row" | "delete_resource_row",
@@ -1232,7 +1258,7 @@ async function persistDailyReportResourceKind(
     await saveDailyReportResourceKind(kind);
     dailyReportSaveMessage.value = `${getDailyReportResourceKindLabel(kind)} 항목을 저장했어요.`;
     trackDailyReportPanelAction(action, "success", { kind });
-    await hydrateDailyReportResourcesFromServer();
+    await hydrateDailyReportResourceKind(kind);
     return true;
   } catch (error) {
     console.error(`${action} failed`, error);
@@ -2451,6 +2477,16 @@ function formatDailyReportQuantity(value: number) {
   });
 }
 
+function formatDailyReportMaterialQuantity(value: number) {
+  if (!Number.isFinite(value)) {
+    return "0";
+  }
+
+  return value.toLocaleString("ko-KR", {
+    maximumFractionDigits: 3,
+  });
+}
+
 function cleanDailyReportReferenceName(value: string | null | undefined) {
   return (value ?? "").trim().replace(/[.,;:，。；：]+$/g, "").trim();
 }
@@ -2588,8 +2624,7 @@ async function ensureDailyReportEquipmentTypesLoaded() {
   if (equipmentTypeOptions.value.length > 0) {
     return;
   }
-
-  equipmentTypeOptions.value = await dailyReportResourceApi.getEquipmentTypeList();
+  await loadDailyReportResourceReferences();
 }
 
 function findDailyReportEquipmentType(typeName: string) {
@@ -2610,21 +2645,15 @@ async function ensureDailyReportMaterialTypesLoaded() {
   if (materialTypeOptions.value.length > 0) {
     return;
   }
-
-  materialTypeOptions.value = await dailyReportResourceApi.getMaterialTypeList();
+  await loadDailyReportResourceReferences();
 }
 
 async function ensureDailyReportMaterialSpecsLoaded(materialTypeId: number) {
   if (materialSpecOptionsByTypeId.value.has(materialTypeId)) {
     return materialSpecOptionsByTypeId.value.get(materialTypeId)!;
   }
-
-  const specs = await dailyReportResourceApi.getMaterialSpecList(materialTypeId);
-  const nextSpecsByTypeId = new Map(materialSpecOptionsByTypeId.value);
-  nextSpecsByTypeId.set(materialTypeId, specs);
-  materialSpecOptionsByTypeId.value = nextSpecsByTypeId;
-
-  return specs;
+  await loadDailyReportResourceReferences();
+  return materialSpecOptionsByTypeId.value.get(materialTypeId) ?? [];
 }
 
 function findDailyReportMaterialType(typeName: string) {
@@ -2639,6 +2668,21 @@ function findDailyReportMaterialType(typeName: string) {
   );
 
   return exactMatches.length === 1 ? exactMatches[0]! : null;
+}
+
+function findDailyReportMaterialTypeInWorkType(
+  typeName: string,
+  workTypeId: number,
+) {
+  const normalizedTypeName = normalizeDailyReportMatchText(typeName);
+  if (!normalizedTypeName) return null;
+  return (
+    materialTypeOptions.value.find(
+      (option) =>
+        option.workTypeId === workTypeId &&
+        normalizeDailyReportMatchText(option.name) === normalizedTypeName,
+    ) ?? null
+  );
 }
 
 async function findDailyReportMaterialSpec(
@@ -2773,17 +2817,60 @@ async function resolveDailyReportResourceWorkTypeId(
 
 async function loadDailyReportResourceReferences() {
   try {
-    const [laborTypes, equipmentSpecs, equipmentTypes, materialTypes] = await Promise.all([
+    const [laborTypes, materialHierarchy, equipmentHierarchy] = await Promise.all([
       dailyReportResourceApi.getLaborTypeList(),
-      dailyReportResourceApi.getEquipmentSpecList(),
-      dailyReportResourceApi.getEquipmentTypeList(),
-      dailyReportResourceApi.getMaterialTypeList(),
+      dailyReportResourceApi.getMaterialTypeHierarchy(),
+      dailyReportResourceApi.getEquipmentTypeHierarchy(),
     ]);
 
     laborTypeOptions.value = laborTypes;
-    equipmentSpecOptions.value = equipmentSpecs;
-    equipmentTypeOptions.value = equipmentTypes;
+
+    const materialTypes: DailyReportMaterialTypeResponse[] = [];
+    const materialSpecsByTypeId = new Map<number, DailyReportMaterialSpecResponse[]>();
+    materialHierarchy.forEach((group) => {
+      group.materialTypes.forEach((materialType) => {
+        materialTypes.push({
+          id: materialType.id,
+          name: materialType.name,
+          unit: materialType.unit,
+          workTypeId: group.workTypeId,
+          workTypeName: group.workTypeName,
+        });
+        materialSpecsByTypeId.set(
+          materialType.id,
+          materialType.materialSpecs.map((spec) => ({
+            id: spec.id,
+            name: spec.name,
+            materialTypeId: materialType.id,
+            isVisible: spec.isVisible,
+          })),
+        );
+      });
+    });
     materialTypeOptions.value = materialTypes;
+    materialSpecOptionsByTypeId.value = materialSpecsByTypeId;
+
+    const equipmentTypes: DailyReportEquipmentTypeResponse[] = [];
+    const equipmentSpecs: DailyReportEquipmentSpecResponse[] = [];
+    equipmentHierarchy.forEach((group) => {
+      group.equipmentTypes.forEach((equipmentType) => {
+        equipmentTypes.push({
+          id: equipmentType.id,
+          name: equipmentType.name,
+        });
+        equipmentType.equipmentSpecs.forEach((spec) => {
+          equipmentSpecs.push({
+            id: spec.id,
+            name: spec.name,
+            equipmentTypeId: equipmentType.id,
+            equipmentTypeName: equipmentType.name,
+            isVisible: spec.isVisible,
+          });
+        });
+      });
+    });
+    equipmentTypeOptions.value = equipmentTypes;
+    equipmentSpecOptions.value = equipmentSpecs;
   } catch (error) {
     console.error("daily report resource references failed", error);
   }
@@ -3125,89 +3212,39 @@ async function resolveDailyReportLaborTypeId(
   return createdLaborType.id;
 }
 
-async function resolveDailyReportEquipmentTypeId(
-  row: DailyReportEquipmentDraft,
-  shouldCreateMissing = false,
-) {
+function resolveDailyReportEquipmentTypeIdLocal(row: DailyReportEquipmentDraft) {
   if (row.equipmentTypeId !== null) {
     return row.equipmentTypeId;
   }
-
-  await ensureDailyReportEquipmentTypesLoaded();
   const equipmentType = findDailyReportEquipmentType(row.type);
-
   if (equipmentType) {
     row.equipmentTypeId = equipmentType.id;
     row.type = equipmentType.name;
     return equipmentType.id;
   }
-
-  if (!shouldCreateMissing) {
-    return null;
-  }
-
-  const equipmentTypeName = cleanDailyReportReferenceName(row.type);
-
-  if (!equipmentTypeName) {
-    return null;
-  }
-
-  const createdEquipmentType = await dailyReportResourceApi.createEquipmentType({
-    name: equipmentTypeName,
-  });
-
-  equipmentTypeOptions.value = [...equipmentTypeOptions.value, createdEquipmentType];
-  row.equipmentTypeId = createdEquipmentType.id;
-  row.type = createdEquipmentType.name;
-
-  return createdEquipmentType.id;
+  return null;
 }
 
-async function resolveDailyReportMaterialTypeId(
-  row: DailyReportMaterialDraft,
-  shouldCreateMissing = false,
-) {
+function findOrAssignDailyReportMaterialType(row: DailyReportMaterialDraft) {
   if (row.materialTypeId !== null) {
     return row.materialTypeId;
   }
-
-  await ensureDailyReportMaterialTypesLoaded();
-  const materialType = findDailyReportMaterialType(row.type);
+  const workTypeId = row.workTypeId;
+  const materialType =
+    workTypeId !== null
+      ? findDailyReportMaterialTypeInWorkType(row.type, workTypeId)
+      : findDailyReportMaterialType(row.type);
 
   if (materialType) {
     row.materialTypeId = materialType.id;
-
+    row.workTypeId = materialType.workTypeId ?? row.workTypeId;
+    row.workType = materialType.workTypeName ?? row.workType;
     if (!row.unit.trim()) {
       row.unit = materialType.unit ?? "";
     }
-
     return materialType.id;
   }
-
-  if (!shouldCreateMissing) {
-    return null;
-  }
-
-  const materialTypeName = cleanDailyReportReferenceName(row.type);
-
-  if (!materialTypeName) {
-    return null;
-  }
-
-  const createdMaterialType = await dailyReportResourceApi.createMaterialType({
-    name: materialTypeName,
-    unit: cleanDailyReportReferenceName(row.unit) || undefined,
-  });
-
-  materialTypeOptions.value = [...materialTypeOptions.value, createdMaterialType];
-  row.materialTypeId = createdMaterialType.id;
-  row.type = createdMaterialType.name;
-
-  if (!row.unit.trim()) {
-    row.unit = createdMaterialType.unit ?? "";
-  }
-
-  return createdMaterialType.id;
+  return null;
 }
 
 function appendDailyReportMaterialSpecOption(
@@ -3321,22 +3358,48 @@ async function resolveDailyReportEquipmentRowIds(
   }
 
   if (equipmentSpecId === null && shouldCreateMissing) {
-    const equipmentTypeId = await resolveDailyReportEquipmentTypeId(row, true);
+    await ensureDailyReportEquipmentTypesLoaded();
+    const equipmentTypeId = resolveDailyReportEquipmentTypeIdLocal(row);
     const equipmentSpecName = cleanDailyReportReferenceName(row.specification);
+    const equipmentTypeName = cleanDailyReportReferenceName(row.type);
 
-    if (equipmentTypeId !== null && equipmentSpecName) {
-      const createdEquipmentSpec = await dailyReportResourceApi.createEquipmentSpec({
-        name: equipmentSpecName,
-        equipmentTypeId,
-        isVisible: true,
-      });
+    if (equipmentSpecName) {
+      let createdEquipmentSpec: DailyReportEquipmentSpecResponse | null = null;
+      if (equipmentTypeId !== null) {
+        createdEquipmentSpec = await dailyReportResourceApi.createEquipmentSpec({
+          name: equipmentSpecName,
+          equipmentTypeId,
+          isVisible: true,
+        });
+      } else if (equipmentTypeName && workTypeId !== null) {
+        createdEquipmentSpec = await dailyReportResourceApi.createEquipmentSpec({
+          name: equipmentSpecName,
+          newEquipmentType: {
+            name: equipmentTypeName,
+            workTypeId,
+          },
+          isVisible: true,
+        });
+        equipmentTypeOptions.value = [
+          ...equipmentTypeOptions.value,
+          {
+            id: createdEquipmentSpec.equipmentTypeId,
+            name: createdEquipmentSpec.equipmentTypeName ?? equipmentTypeName,
+          },
+        ];
+      }
 
-      equipmentSpecOptions.value = [...equipmentSpecOptions.value, createdEquipmentSpec];
-      row.equipmentSpecId = createdEquipmentSpec.id;
-      row.equipmentTypeId = createdEquipmentSpec.equipmentTypeId;
-      row.type = createdEquipmentSpec.equipmentTypeName || row.type;
-      row.specification = createdEquipmentSpec.name;
-      equipmentSpecId = createdEquipmentSpec.id;
+      if (createdEquipmentSpec) {
+        equipmentSpecOptions.value = [
+          ...equipmentSpecOptions.value,
+          createdEquipmentSpec,
+        ];
+        row.equipmentSpecId = createdEquipmentSpec.id;
+        row.equipmentTypeId = createdEquipmentSpec.equipmentTypeId;
+        row.type = createdEquipmentSpec.equipmentTypeName || row.type;
+        row.specification = createdEquipmentSpec.name;
+        equipmentSpecId = createdEquipmentSpec.id;
+      }
     }
   }
 
@@ -3393,7 +3456,8 @@ async function resolveDailyReportMaterialRowIds(
   let workTypeId = row.workTypeId;
 
   if (materialTypeId === null) {
-    materialTypeId = await resolveDailyReportMaterialTypeId(row, shouldCreateMissing);
+    await ensureDailyReportMaterialTypesLoaded();
+    materialTypeId = findOrAssignDailyReportMaterialType(row);
   }
 
   if (materialTypeId !== null && materialSpecId === null) {
@@ -3408,20 +3472,70 @@ async function resolveDailyReportMaterialRowIds(
     }
   }
 
-  if (materialTypeId !== null && materialSpecId === null && shouldCreateMissing) {
+  if (materialSpecId === null && shouldCreateMissing) {
     const materialSpecName = cleanDailyReportReferenceName(row.specification);
 
     if (materialSpecName) {
-      const createdMaterialSpec = await dailyReportResourceApi.createMaterialSpec({
-        name: materialSpecName,
-        materialTypeId,
-        isVisible: true,
-      });
-
-      appendDailyReportMaterialSpecOption(materialTypeId, createdMaterialSpec);
-      row.materialSpecId = createdMaterialSpec.id;
-      row.specification = createdMaterialSpec.name;
-      materialSpecId = createdMaterialSpec.id;
+      if (materialTypeId !== null) {
+        const createdMaterialSpec = await dailyReportResourceApi.createMaterialSpec({
+          name: materialSpecName,
+          materialTypeId,
+          isVisible: row.includedInDocument,
+        });
+        appendDailyReportMaterialSpecOption(materialTypeId, createdMaterialSpec);
+        materialSpecOriginalsBySpecId.value.set(createdMaterialSpec.id, {
+          name: createdMaterialSpec.name,
+          isVisible: createdMaterialSpec.isVisible,
+          materialTypeId,
+        });
+        row.materialSpecId = createdMaterialSpec.id;
+        row.specification = createdMaterialSpec.name;
+        materialSpecId = createdMaterialSpec.id;
+      } else {
+        const materialTypeName = cleanDailyReportReferenceName(row.type);
+        if (materialTypeName && workTypeId !== null) {
+          const unitInput = cleanDailyReportReferenceName(row.unit) || undefined;
+          const createdMaterialSpec = await dailyReportResourceApi.createMaterialSpec({
+            name: materialSpecName,
+            newMaterialType: {
+              name: materialTypeName,
+              unit: unitInput,
+              workTypeId,
+            },
+            isVisible: row.includedInDocument,
+          });
+          const newTypeRecord: DailyReportMaterialTypeResponse = {
+            id: createdMaterialSpec.materialTypeId,
+            name: materialTypeName,
+            unit: unitInput ?? null,
+            workTypeId,
+            workTypeName:
+              row.workType || getDailyReportKnownWorkTypeName(workTypeId),
+          };
+          materialTypeOptions.value = [
+            ...materialTypeOptions.value,
+            newTypeRecord,
+          ];
+          materialTypeOriginalsByTypeId.value.set(newTypeRecord.id, {
+            name: newTypeRecord.name,
+            unit: newTypeRecord.unit ?? "",
+          });
+          appendDailyReportMaterialSpecOption(
+            createdMaterialSpec.materialTypeId,
+            createdMaterialSpec,
+          );
+          materialSpecOriginalsBySpecId.value.set(createdMaterialSpec.id, {
+            name: createdMaterialSpec.name,
+            isVisible: createdMaterialSpec.isVisible,
+            materialTypeId: createdMaterialSpec.materialTypeId,
+          });
+          row.materialTypeId = createdMaterialSpec.materialTypeId;
+          row.materialSpecId = createdMaterialSpec.id;
+          row.specification = createdMaterialSpec.name;
+          materialTypeId = createdMaterialSpec.materialTypeId;
+          materialSpecId = createdMaterialSpec.id;
+        }
+      }
     }
   }
 
@@ -3466,14 +3580,6 @@ function toDailyReportMaterialDeliveryRequestItem(
 
 function getDailyReportMaterialDeliveryGroupKey(date: string, materialTypeId: number) {
   return `${date}:${materialTypeId}`;
-}
-
-function getDailyReportMaterialLineQuantityKey(
-  workTypeId: number | null,
-  materialTypeId: number,
-  materialSpecId: number,
-) {
-  return `${workTypeId ?? "unknown"}:${materialTypeId}:${materialSpecId}`;
 }
 
 async function buildCurrentDateMaterialDeliveryRequests(
@@ -3566,7 +3672,107 @@ async function buildCurrentDateMaterialDeliveryRequests(
   }));
 }
 
+async function applyMaterialReferenceCrudFromRows() {
+  for (const specId of deletedMaterialSpecIds.value) {
+    if (!materialSpecOriginalsBySpecId.value.has(specId)) {
+      continue;
+    }
+    try {
+      await dailyReportResourceApi.deleteMaterialSpec(specId);
+      const orig = materialSpecOriginalsBySpecId.value.get(specId);
+      materialSpecOriginalsBySpecId.value.delete(specId);
+      if (orig) {
+        const typeId = orig.materialTypeId;
+        const nextSpecsByTypeId = new Map(materialSpecOptionsByTypeId.value);
+        const specs = nextSpecsByTypeId.get(typeId) ?? [];
+        nextSpecsByTypeId.set(
+          typeId,
+          specs.filter((spec) => spec.id !== specId),
+        );
+        materialSpecOptionsByTypeId.value = nextSpecsByTypeId;
+      }
+    } catch (error) {
+      console.error(`deleteMaterialSpec ${specId} failed`, error);
+      throw error;
+    }
+  }
+  deletedMaterialSpecIds.value = new Set();
+
+  for (const typeId of deletedMaterialTypeIds.value) {
+    if (!materialTypeOriginalsByTypeId.value.has(typeId)) {
+      continue;
+    }
+    try {
+      await dailyReportResourceApi.deleteMaterialType(typeId);
+      materialTypeOriginalsByTypeId.value.delete(typeId);
+      materialTypeOptions.value = materialTypeOptions.value.filter(
+        (option) => option.id !== typeId,
+      );
+    } catch (error) {
+      console.error(`deleteMaterialType ${typeId} failed`, error);
+      throw error;
+    }
+  }
+  deletedMaterialTypeIds.value = new Set();
+
+  const typeNameUpdates = new Map<number, { name: string; unit: string }>();
+  for (const row of materialRows.value) {
+    if (row.materialTypeId === null) continue;
+    typeNameUpdates.set(row.materialTypeId, {
+      name: row.type.trim(),
+      unit: row.unit.trim(),
+    });
+  }
+  for (const [typeId, { name, unit }] of typeNameUpdates) {
+    const original = materialTypeOriginalsByTypeId.value.get(typeId);
+    if (!original) continue;
+    const nameChanged = name.length > 0 && name !== original.name;
+    const unitChanged = unit !== original.unit;
+    if (!nameChanged && !unitChanged) continue;
+    await dailyReportResourceApi.updateMaterialType({
+      id: typeId,
+      ...(nameChanged ? { name } : {}),
+      ...(unitChanged ? { unit } : {}),
+    });
+    materialTypeOriginalsByTypeId.value.set(typeId, {
+      name: nameChanged ? name : original.name,
+      unit: unitChanged ? unit : original.unit,
+    });
+    materialTypeOptions.value = materialTypeOptions.value.map((option) =>
+      option.id === typeId
+        ? {
+            ...option,
+            name: nameChanged ? name : option.name,
+            unit: unitChanged ? unit : option.unit,
+          }
+        : option,
+    );
+  }
+
+  for (const row of materialRows.value) {
+    if (row.materialSpecId === null) continue;
+    const original = materialSpecOriginalsBySpecId.value.get(row.materialSpecId);
+    if (!original) continue;
+    const trimmedName = row.specification.trim();
+    const nameChanged = trimmedName.length > 0 && trimmedName !== original.name;
+    const isVisibleChanged = row.includedInDocument !== original.isVisible;
+    if (!nameChanged && !isVisibleChanged) continue;
+    await dailyReportResourceApi.updateMaterialSpec({
+      id: row.materialSpecId,
+      ...(nameChanged ? { name: trimmedName } : {}),
+      ...(isVisibleChanged ? { isVisible: row.includedInDocument } : {}),
+    });
+    materialSpecOriginalsBySpecId.value.set(row.materialSpecId, {
+      name: nameChanged ? trimmedName : original.name,
+      isVisible: isVisibleChanged ? row.includedInDocument : original.isVisible,
+      materialTypeId: original.materialTypeId,
+    });
+  }
+}
+
 async function saveDailyReportMaterial() {
+  await applyMaterialReferenceCrudFromRows();
+
   const currentDeliveries = await dailyReportResourceApi.getMaterialDeliveryList();
   const selectedDate = reportDates.value.today;
 
@@ -3599,21 +3805,50 @@ async function handleDailyReportSave() {
   dailyReportSaveMessage.value = "";
   isDailyReportSaving.value = true;
 
+  const tab = activeDailyReportTab.value;
+
   try {
-    await saveDailyReportWorkSection("today");
-    await saveDailyReportWorkSection("tomorrow");
-    await saveDailyReportAttendance();
-    await saveDailyReportMaterial();
-    await saveDailyReportEquipment();
-    dailyReportSaveMessage.value = "작업내용, 인력, 자재, 장비를 저장했어요.";
-    trackDailyReportPanelAction("save_panel", "success", {
-      today_work_type_count: todayWorkTypes.value.length,
-      tomorrow_work_type_count: tomorrowWorkTypes.value.length,
-      labor_row_count: laborRows.value.length,
-      material_row_count: materialRows.value.length,
-      equipment_row_count: equipmentRows.value.length,
-    });
-    await hydrateDailyReportFromServer();
+    if (tab === "labor" || tab === "material" || tab === "equipment") {
+      await saveDailyReportResourceKind(tab);
+      await hydrateDailyReportResourceKind(tab);
+      const label = getDailyReportResourceKindLabel(tab);
+      dailyReportSaveMessage.value = `${label} 항목을 저장했어요.`;
+      trackDailyReportPanelAction("save_panel", "success", {
+        kind: tab,
+        labor_row_count: laborRows.value.length,
+        material_row_count: materialRows.value.length,
+        equipment_row_count: equipmentRows.value.length,
+      });
+    } else if (tab === "todayWork" || tab === "tomorrowWork") {
+      const section: DailyReportWorkSection =
+        tab === "todayWork" ? "today" : "tomorrow";
+      await saveDailyReportWorkSection(section);
+      await hydrateDailyReportActualWorksFromServer();
+      dailyReportSaveMessage.value =
+        section === "today"
+          ? "오늘 작업내용을 저장했어요."
+          : "내일 작업내용을 저장했어요.";
+      trackDailyReportPanelAction("save_panel", "success", {
+        section,
+        today_work_type_count: todayWorkTypes.value.length,
+        tomorrow_work_type_count: tomorrowWorkTypes.value.length,
+      });
+    } else {
+      await saveDailyReportWorkSection("today");
+      await saveDailyReportWorkSection("tomorrow");
+      await saveDailyReportAttendance();
+      await saveDailyReportMaterial();
+      await saveDailyReportEquipment();
+      dailyReportSaveMessage.value = "작업내용, 인력, 자재, 장비를 저장했어요.";
+      trackDailyReportPanelAction("save_panel", "success", {
+        today_work_type_count: todayWorkTypes.value.length,
+        tomorrow_work_type_count: tomorrowWorkTypes.value.length,
+        labor_row_count: laborRows.value.length,
+        material_row_count: materialRows.value.length,
+        equipment_row_count: equipmentRows.value.length,
+      });
+      await hydrateDailyReportFromServer();
+    }
   } catch (error) {
     console.error("daily report save failed", error);
     dailyReportSaveMessage.value =
@@ -3669,33 +3904,22 @@ async function hydrateDailyReportActualWorksFromServer() {
   }
 }
 
-async function hydrateDailyReportResourcesFromServer() {
+async function hydrateDailyReportLaborFromServer() {
   try {
-    const inclusionState = captureDailyReportResourceInclusionState();
-    const [
-      laborTypes,
-      attendanceResponses,
-      attendanceCumulative,
-      equipmentResponses,
-      materialDeliveries,
-    ] = await Promise.all([
+    const [laborTypes, attendanceResponses] = await Promise.all([
       dailyReportResourceApi.getLaborTypeList(),
       dailyReportResourceApi.getAttendanceListByDate(reportDates.value.today),
-      dailyReportResourceApi.getAttendanceCumulativeList(reportDates.value.today),
-      dailyReportResourceApi.getEquipmentDeploymentListByDate(reportDates.value.today),
-      dailyReportResourceApi.getMaterialDeliveryList(),
     ]);
 
     laborTypeOptions.value = laborTypes;
-    const attendanceCountByLaborTypeId = new Map<number, number>();
+    const endDateCountByLaborTypeId = new Map<number, number>();
+    const accumulativeCountByLaborTypeId = new Map<number, number>();
     attendanceResponses.forEach((response) => {
-      attendanceCountByLaborTypeId.set(response.laborTypeId, response.count);
-    });
-    const cumulativeByLaborTypeId = new Map<number, number>();
-    attendanceCumulative.workTypes.forEach((workType) => {
-      workType.laborTypes.forEach((laborType) => {
-        cumulativeByLaborTypeId.set(laborType.laborTypeId, laborType.count);
-      });
+      endDateCountByLaborTypeId.set(response.laborTypeId, response.endDateCount);
+      accumulativeCountByLaborTypeId.set(
+        response.laborTypeId,
+        response.accumulativeCount,
+      );
     });
     laborOriginalsByLaborTypeId.value = new Map(
       laborTypes.map((option) => [
@@ -3704,8 +3928,8 @@ async function hydrateDailyReportResourcesFromServer() {
       ]),
     );
     laborRows.value = laborTypes.map((option) => {
-      const todayCount = attendanceCountByLaborTypeId.get(option.id) ?? 0;
-      const cumulativeCount = cumulativeByLaborTypeId.get(option.id) ?? 0;
+      const todayCount = endDateCountByLaborTypeId.get(option.id) ?? 0;
+      const cumulativeCount = accumulativeCountByLaborTypeId.get(option.id) ?? 0;
       return createDailyReportLaborRow({
         includedInDocument: option.isVisible,
         laborTypeId: option.id,
@@ -3716,6 +3940,40 @@ async function hydrateDailyReportResourcesFromServer() {
         todayQuantity: String(todayCount),
       });
     });
+  } catch (error) {
+    console.error("hydrate daily report labor failed", error);
+  }
+}
+
+async function hydrateDailyReportEquipmentFromServer() {
+  try {
+    const inclusionState = captureDailyReportResourceInclusionState();
+    const [equipmentResponses, equipmentHierarchy] = await Promise.all([
+      dailyReportResourceApi.getEquipmentDeploymentListByDate(reportDates.value.today),
+      dailyReportResourceApi.getEquipmentTypeHierarchy(),
+    ]);
+
+    const equipmentTypes: DailyReportEquipmentTypeResponse[] = [];
+    const equipmentSpecs: DailyReportEquipmentSpecResponse[] = [];
+    equipmentHierarchy.forEach((group) => {
+      group.equipmentTypes.forEach((equipmentType) => {
+        equipmentTypes.push({
+          id: equipmentType.id,
+          name: equipmentType.name,
+        });
+        equipmentType.equipmentSpecs.forEach((spec) => {
+          equipmentSpecs.push({
+            id: spec.id,
+            name: spec.name,
+            equipmentTypeId: equipmentType.id,
+            equipmentTypeName: equipmentType.name,
+            isVisible: spec.isVisible,
+          });
+        });
+      });
+    });
+    equipmentTypeOptions.value = equipmentTypes;
+    equipmentSpecOptions.value = equipmentSpecs;
 
     equipmentRows.value = equipmentResponses.map((response) =>
       createDailyReportEquipmentRow({
@@ -3738,78 +3996,131 @@ async function hydrateDailyReportResourcesFromServer() {
         todayQuantity: String(response.count),
       }),
     );
+  } catch (error) {
+    console.error("hydrate daily report equipment failed", error);
+  }
+}
 
-    const selectedDate = reportDates.value.today;
-    const previousQuantityByLineKey = new Map<string, number>();
+async function hydrateDailyReportMaterialFromServer() {
+  try {
+    const inclusionState = captureDailyReportResourceInclusionState();
+    const [materialHierarchy, materialDeliveryGroups] = await Promise.all([
+      dailyReportResourceApi.getMaterialTypeHierarchy(),
+      dailyReportResourceApi.getMaterialDeliveryListByDate(reportDates.value.today),
+    ]);
 
-    materialDeliveries
-      .filter((delivery) => delivery.date < selectedDate)
-      .forEach((delivery) => {
-        delivery.lines.forEach((line) => {
-          const key = getDailyReportMaterialLineQuantityKey(
-            delivery.workTypeId,
-            delivery.materialTypeId,
-            line.materialSpecId,
+    const materialTypes: DailyReportMaterialTypeResponse[] = [];
+    const materialSpecsByTypeId = new Map<number, DailyReportMaterialSpecResponse[]>();
+    materialHierarchy.forEach((group) => {
+      group.materialTypes.forEach((materialType) => {
+        materialTypes.push({
+          id: materialType.id,
+          name: materialType.name,
+          unit: materialType.unit,
+          workTypeId: group.workTypeId,
+          workTypeName: group.workTypeName,
+        });
+        materialSpecsByTypeId.set(
+          materialType.id,
+          materialType.materialSpecs.map((spec) => ({
+            id: spec.id,
+            name: spec.name,
+            materialTypeId: materialType.id,
+            isVisible: spec.isVisible,
+          })),
+        );
+      });
+    });
+
+    materialTypeOptions.value = materialTypes;
+    materialTypeOriginalsByTypeId.value = new Map(
+      materialTypes.map((type) => [
+        type.id,
+        { name: type.name, unit: type.unit ?? "" },
+      ]),
+    );
+    deletedMaterialSpecIds.value = new Set();
+    deletedMaterialTypeIds.value = new Set();
+
+    const todayQtyBySpecId = new Map<number, number>();
+    const accumulativeQtyBySpecId = new Map<number, number>();
+    materialDeliveryGroups.forEach((group) => {
+      group.materialTypes.forEach((materialType) => {
+        materialType.materialSpecs.forEach((spec) => {
+          todayQtyBySpecId.set(
+            spec.materialSpecId,
+            parseDailyReportQuantity(spec.endDateQuantity ?? 0),
           );
-          previousQuantityByLineKey.set(
-            key,
-            (previousQuantityByLineKey.get(key) ?? 0) +
-              parseDailyReportQuantity(line.quantity ?? 0),
+          accumulativeQtyBySpecId.set(
+            spec.materialSpecId,
+            parseDailyReportQuantity(spec.accumulativeQuantity ?? 0),
           );
         });
       });
+    });
 
-    materialRows.value = materialDeliveries
-      .filter((delivery) => delivery.date === selectedDate)
-      .flatMap((delivery) =>
-        delivery.lines.map((line) =>
-          createDailyReportMaterialRow({
-            includedInDocument:
-              inclusionState.material.get(
-                createDailyReportResourceInclusionKey([
-                  delivery.materialDeliveryId,
-                  line.materialSpecId,
-                ]),
-              ) ??
-              inclusionState.material.get(
-                createDailyReportResourceInclusionKey([
-                  line.materialSpecId,
-                  delivery.workTypeId,
-                  delivery.materialTypeId,
-                  getDailyReportKnownWorkTypeName(delivery.workTypeId),
-                  delivery.materialTypeName,
-                  line.materialSpecName,
-                  delivery.unit,
-                ]),
-              ) ??
-              true,
-            materialDeliveryId: delivery.materialDeliveryId,
-            deliveryLineId: line.deliveryLineId,
-            materialSpecId: line.materialSpecId,
-            materialTypeId: delivery.materialTypeId,
-            workTypeId: delivery.workTypeId,
-            workType: getDailyReportKnownWorkTypeName(delivery.workTypeId),
-            type: delivery.materialTypeName ?? "",
-            specification: line.materialSpecName ?? "",
-            unit: delivery.unit ?? "",
-            previousQuantity:
-              previousQuantityByLineKey.get(
-                getDailyReportMaterialLineQuantityKey(
-                  delivery.workTypeId,
-                  delivery.materialTypeId,
-                  line.materialSpecId,
-                ),
-              ) ?? 0,
-            todayQuantity:
-              line.quantity === null || line.quantity === undefined
-                ? ""
-                : String(line.quantity),
-          }),
-        ),
-      );
+    const specOriginals = new Map<
+      number,
+      { name: string; isVisible: boolean; materialTypeId: number }
+    >();
+    materialSpecsByTypeId.forEach((specs, typeId) => {
+      specs.forEach((spec) => {
+        specOriginals.set(spec.id, {
+          name: spec.name,
+          isVisible: spec.isVisible,
+          materialTypeId: typeId,
+        });
+      });
+    });
+    materialSpecOptionsByTypeId.value = materialSpecsByTypeId;
+    materialSpecOriginalsBySpecId.value = specOriginals;
+
+    materialRows.value = materialTypes.flatMap((materialType) => {
+      const specs = materialSpecsByTypeId.get(materialType.id) ?? [];
+      return specs.map((spec) => {
+        const todayQty = todayQtyBySpecId.get(spec.id) ?? 0;
+        const cumulativeQty = accumulativeQtyBySpecId.get(spec.id) ?? 0;
+        return createDailyReportMaterialRow({
+          includedInDocument:
+            inclusionState.material.get(
+              createDailyReportResourceInclusionKey([
+                spec.id,
+                materialType.workTypeId,
+                materialType.id,
+                materialType.workTypeName,
+                materialType.name,
+                spec.name,
+                materialType.unit,
+              ]),
+            ) ?? spec.isVisible,
+          materialDeliveryId: null,
+          deliveryLineId: null,
+          materialSpecId: spec.id,
+          materialTypeId: materialType.id,
+          workTypeId: materialType.workTypeId,
+          workType:
+            materialType.workTypeName ??
+            getDailyReportKnownWorkTypeName(materialType.workTypeId),
+          type: materialType.name,
+          specification: spec.name,
+          unit: materialType.unit ?? "",
+          previousQuantity: Math.max(0, cumulativeQty - todayQty),
+          todayQuantity: todayQty > 0 ? String(todayQty) : "",
+          isExisting: true,
+        });
+      });
+    });
   } catch (error) {
-    console.error("hydrate daily report resources failed", error);
+    console.error("hydrate daily report material failed", error);
   }
+}
+
+async function hydrateDailyReportResourcesFromServer() {
+  await Promise.all([
+    hydrateDailyReportLaborFromServer(),
+    hydrateDailyReportEquipmentFromServer(),
+    hydrateDailyReportMaterialFromServer(),
+  ]);
 }
 
 async function hydrateDailyReportActPhotosFromServer() {
@@ -4786,11 +5097,11 @@ onUnmounted(() => {
                       />
                     </td>
                     <td class="daily-report-resource-sheet__number daily-report-resource-sheet__number--total daily-report-resource-sheet__number--total-right">
-                      {{ formatDailyReportQuantity(getDailyReportCumulativeQuantity(row)) }}
+                      {{ formatDailyReportMaterialQuantity(getDailyReportCumulativeQuantity(row)) }}
                     </td>
                     <td class="daily-report-resource-sheet__delete-cell">
                       <button
-                        v-if="row.materialDeliveryId === null"
+                        v-if="row.materialSpecId === null"
                         type="button"
                         class="daily-report-resource-sheet__row-delete"
                         :aria-label="`${row.type || '자재'} 행 삭제`"

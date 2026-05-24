@@ -1,24 +1,28 @@
 import { apiFetch } from "@/shared/network/api-client";
 import type {
+  DailyReportAttendanceByDateGroupedResponse,
   DailyReportAttendanceByDateResponse,
-  DailyReportAttendanceCumulativeResponse,
   DailyReportAttendanceUpdateRequest,
   DailyReportEquipmentSpecCreateRequest,
   DailyReportEquipmentDeploymentUpdateRequest,
   DailyReportEquipmentDeploymentResponse,
   DailyReportEquipmentSpecResponse,
-  DailyReportEquipmentTypeCreateRequest,
   DailyReportEquipmentTypeResponse,
   DailyReportLaborTypeCreateRequest,
+  DailyReportLaborTypeGroupedResponse,
   DailyReportLaborTypeResponse,
   DailyReportLaborTypeUpdateRequest,
+  DailyReportEquipmentHierarchyGroup,
+  DailyReportMaterialHierarchyGroup,
+  DailyReportMaterialDeliveryByDateGroup,
   DailyReportMaterialDeliveryResponse,
   DailyReportMaterialDeliveryUpdateRequest,
   DailyReportMaterialQuantityByDateResponse,
   DailyReportMaterialSpecCreateRequest,
   DailyReportMaterialSpecResponse,
-  DailyReportMaterialTypeCreateRequest,
+  DailyReportMaterialSpecUpdateRequest,
   DailyReportMaterialTypeResponse,
+  DailyReportMaterialTypeUpdateRequest,
 } from "@/features/document-conversion/api/daily-report-resource-api.types";
 
 const SELECTED_PROJECT_ID_STORAGE_KEY = "selectedProjectId";
@@ -54,10 +58,50 @@ function toApiBody<TRequest extends object>(body: TRequest): Record<string, unkn
   return body as unknown as Record<string, unknown>;
 }
 
+function flattenLaborTypeGroups(
+  groups: DailyReportLaborTypeGroupedResponse[],
+): DailyReportLaborTypeResponse[] {
+  return groups.flatMap((group) =>
+    group.laborTypes.map((laborType) => ({
+      id: laborType.id,
+      name: laborType.name,
+      workTypeId: group.workTypeId,
+      workTypeName: group.workTypeName,
+      isVisible: laborType.isVisible,
+    })),
+  );
+}
+
+function flattenAttendanceByDateGroups(
+  groups: DailyReportAttendanceByDateGroupedResponse[],
+): DailyReportAttendanceByDateResponse[] {
+  return groups.flatMap((group) =>
+    group.laborTypes.map((laborType) => ({
+      laborTypeId: laborType.laborTypeId,
+      laborTypeName: laborType.laborTypeName,
+      workTypeId: group.workTypeId,
+      workTypeName: group.workTypeName,
+      endDateCount: laborType.endDateCount,
+      accumulativeCount: laborType.accumulativeCount,
+    })),
+  );
+}
+
 export const dailyReportResourceApi = {
   async getLaborTypeList() {
     await ensureSelectedProjectId();
-    return apiFetch<DailyReportLaborTypeResponse[]>("/reference/getLaborTypeList");
+    const groups = await apiFetch<DailyReportLaborTypeGroupedResponse[]>(
+      "/reference/getLaborTypeList",
+    );
+    return flattenLaborTypeGroups(groups);
+  },
+
+  async getLaborTypeListByDate(date: string) {
+    await ensureSelectedProjectId();
+    const groups = await apiFetch<DailyReportLaborTypeGroupedResponse[]>(
+      `/attendance/getLaborTypeListByDate?date=${encodeURIComponent(date)}`,
+    );
+    return flattenLaborTypeGroups(groups);
   },
 
   async createLaborType(body: DailyReportLaborTypeCreateRequest) {
@@ -94,14 +138,6 @@ export const dailyReportResourceApi = {
     return apiFetch<DailyReportEquipmentTypeResponse[]>("/reference/getEquipmentTypeList");
   },
 
-  async createEquipmentType(body: DailyReportEquipmentTypeCreateRequest) {
-    await ensureSelectedProjectId();
-    return apiFetch<DailyReportEquipmentTypeResponse>("/reference/createEquipmentType", {
-      method: "POST",
-      body: toApiBody(body),
-    });
-  },
-
   async createEquipmentSpec(body: DailyReportEquipmentSpecCreateRequest) {
     await ensureSelectedProjectId();
     return apiFetch<DailyReportEquipmentSpecResponse>("/reference/createEquipmentSpec", {
@@ -110,22 +146,16 @@ export const dailyReportResourceApi = {
     });
   },
 
-  async getAttendanceListByDate(date: string) {
-    await ensureSelectedProjectId();
-    return apiFetch<DailyReportAttendanceByDateResponse[]>(
-      `/attendance/getAttendanceListByDate?date=${encodeURIComponent(date)}`,
-    );
-  },
-
-  async getAttendanceCumulativeList(endDate: string, startDate?: string) {
+  async getAttendanceListByDate(endDate: string, startDate?: string) {
     await ensureSelectedProjectId();
     const params = new URLSearchParams({ endDate });
     if (startDate) {
       params.set("startDate", startDate);
     }
-    return apiFetch<DailyReportAttendanceCumulativeResponse>(
-      `/attendance/getAttendanceCumulativeList?${params.toString()}`,
+    const groups = await apiFetch<DailyReportAttendanceByDateGroupedResponse[]>(
+      `/attendance/getAttendanceListByDate?${params.toString()}`,
     );
+    return flattenAttendanceByDateGroups(groups);
   },
 
   async updateAttendance(body: DailyReportAttendanceUpdateRequest) {
@@ -183,12 +213,20 @@ export const dailyReportResourceApi = {
     );
   },
 
-  async createMaterialType(body: DailyReportMaterialTypeCreateRequest) {
+  async updateMaterialType(body: DailyReportMaterialTypeUpdateRequest) {
     await ensureSelectedProjectId();
-    return apiFetch<DailyReportMaterialTypeResponse>("/reference/createMaterialType", {
+    return apiFetch<void>("/reference/updateMaterialType", {
       method: "POST",
       body: toApiBody(body),
     });
+  },
+
+  async deleteMaterialType(materialTypeId: number) {
+    await ensureSelectedProjectId();
+    return apiFetch<void>(
+      `/reference/deleteMaterialType/${encodeURIComponent(String(materialTypeId))}`,
+      { method: "DELETE" },
+    );
   },
 
   async getMaterialSpecList(materialTypeId: number) {
@@ -204,5 +242,46 @@ export const dailyReportResourceApi = {
       method: "POST",
       body: toApiBody(body),
     });
+  },
+
+  async updateMaterialSpec(body: DailyReportMaterialSpecUpdateRequest) {
+    await ensureSelectedProjectId();
+    return apiFetch<void>("/reference/updateMaterialSpec", {
+      method: "POST",
+      body: toApiBody(body),
+    });
+  },
+
+  async deleteMaterialSpec(materialSpecId: number) {
+    await ensureSelectedProjectId();
+    return apiFetch<void>(
+      `/reference/deleteMaterialSpec/${encodeURIComponent(String(materialSpecId))}`,
+      { method: "DELETE" },
+    );
+  },
+
+  async getMaterialTypeHierarchy() {
+    await ensureSelectedProjectId();
+    return apiFetch<DailyReportMaterialHierarchyGroup[]>(
+      "/reference/getMaterialTypeHierarchy",
+    );
+  },
+
+  async getEquipmentTypeHierarchy() {
+    await ensureSelectedProjectId();
+    return apiFetch<DailyReportEquipmentHierarchyGroup[]>(
+      "/reference/getEquipmentTypeHierarchy",
+    );
+  },
+
+  async getMaterialDeliveryListByDate(endDate: string, startDate?: string) {
+    await ensureSelectedProjectId();
+    const params = new URLSearchParams({ endDate });
+    if (startDate) {
+      params.set("startDate", startDate);
+    }
+    return apiFetch<DailyReportMaterialDeliveryByDateGroup[]>(
+      `/materialDelivery/getMaterialDeliveryListByDate?${params.toString()}`,
+    );
   },
 };

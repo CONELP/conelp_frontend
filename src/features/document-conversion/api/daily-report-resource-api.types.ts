@@ -6,6 +6,18 @@ export interface DailyReportLaborTypeResponse {
   isVisible: boolean;
 }
 
+export interface DailyReportLaborTypeGroupItem {
+  id: number;
+  name: string;
+  isVisible: boolean;
+}
+
+export interface DailyReportLaborTypeGroupedResponse {
+  workTypeId: number | null;
+  workTypeName: string | null;
+  laborTypes: DailyReportLaborTypeGroupItem[];
+}
+
 export interface DailyReportLaborTypeCreateRequest {
   name: string;
   workTypeId: number;
@@ -32,13 +44,13 @@ export interface DailyReportEquipmentTypeResponse {
   name: string;
 }
 
-export interface DailyReportEquipmentTypeCreateRequest {
-  name: string;
-}
-
 export interface DailyReportEquipmentSpecCreateRequest {
   name: string;
-  equipmentTypeId: number;
+  equipmentTypeId?: number;
+  newEquipmentType?: {
+    name: string;
+    workTypeId: number;
+  };
   isVisible?: boolean;
 }
 
@@ -47,10 +59,21 @@ export interface DailyReportAttendanceByDateResponse {
   laborTypeName: string | null;
   workTypeId: number | null;
   workTypeName: string | null;
-  companyId: string | null;
-  companyName: string | null;
-  companyDisplayName: string | null;
-  count: number;
+  endDateCount: number;
+  accumulativeCount: number;
+}
+
+export interface DailyReportAttendanceByDateGroupItem {
+  laborTypeId: number;
+  laborTypeName: string | null;
+  endDateCount: number;
+  accumulativeCount: number;
+}
+
+export interface DailyReportAttendanceByDateGroupedResponse {
+  workTypeId: number | null;
+  workTypeName: string | null;
+  laborTypes: DailyReportAttendanceByDateGroupItem[];
 }
 
 export interface DailyReportAttendanceUpdateRequest {
@@ -59,24 +82,6 @@ export interface DailyReportAttendanceUpdateRequest {
     laborTypeId: number;
     count: number;
   }>;
-}
-
-export interface DailyReportAttendanceCumulativeLaborType {
-  laborTypeId: number;
-  laborTypeName: string | null;
-  count: number;
-}
-
-export interface DailyReportAttendanceCumulativeWorkType {
-  workTypeId: number | null;
-  workTypeName: string | null;
-  totalCount: number;
-  laborTypes: DailyReportAttendanceCumulativeLaborType[];
-}
-
-export interface DailyReportAttendanceCumulativeResponse {
-  grandTotalCount: number;
-  workTypes: DailyReportAttendanceCumulativeWorkType[];
 }
 
 export interface DailyReportEquipmentDeploymentResponse {
@@ -113,11 +118,15 @@ export interface DailyReportMaterialTypeResponse {
   id: number;
   name: string;
   unit: string | null;
+  workTypeId: number | null;
+  workTypeName: string | null;
 }
 
-export interface DailyReportMaterialTypeCreateRequest {
-  name: string;
+export interface DailyReportMaterialTypeUpdateRequest {
+  id?: number;
+  name?: string;
   unit?: string;
+  ids?: number[];
 }
 
 export interface DailyReportMaterialSpecResponse {
@@ -129,8 +138,78 @@ export interface DailyReportMaterialSpecResponse {
 
 export interface DailyReportMaterialSpecCreateRequest {
   name: string;
-  materialTypeId: number;
+  materialTypeId?: number;
+  newMaterialType?: {
+    name: string;
+    unit?: string;
+    workTypeId: number;
+  };
   isVisible?: boolean;
+}
+
+export interface DailyReportMaterialSpecUpdateRequest {
+  id?: number;
+  name?: string;
+  isVisible?: boolean;
+  parentId?: number;
+  ids?: number[];
+}
+
+export interface DailyReportMaterialHierarchySpec {
+  id: number;
+  name: string;
+  isVisible: boolean;
+}
+
+export interface DailyReportMaterialHierarchyType {
+  id: number;
+  name: string;
+  unit: string | null;
+  materialSpecs: DailyReportMaterialHierarchySpec[];
+}
+
+export interface DailyReportMaterialHierarchyGroup {
+  workTypeId: number;
+  workTypeName: string | null;
+  materialTypes: DailyReportMaterialHierarchyType[];
+}
+
+export interface DailyReportEquipmentHierarchySpec {
+  id: number;
+  name: string;
+  isVisible: boolean;
+}
+
+export interface DailyReportEquipmentHierarchyType {
+  id: number;
+  name: string;
+  equipmentSpecs: DailyReportEquipmentHierarchySpec[];
+}
+
+export interface DailyReportEquipmentHierarchyGroup {
+  workTypeId: number;
+  workTypeName: string | null;
+  equipmentTypes: DailyReportEquipmentHierarchyType[];
+}
+
+export interface DailyReportMaterialDeliveryByDateSpec {
+  materialSpecId: number;
+  materialSpecName: string | null;
+  endDateQuantity: string | number | null;
+  accumulativeQuantity: string | number | null;
+}
+
+export interface DailyReportMaterialDeliveryByDateType {
+  materialTypeId: number;
+  materialTypeName: string | null;
+  unit: string | null;
+  materialSpecs: DailyReportMaterialDeliveryByDateSpec[];
+}
+
+export interface DailyReportMaterialDeliveryByDateGroup {
+  workTypeId: number | null;
+  workTypeName: string | null;
+  materialTypes: DailyReportMaterialDeliveryByDateType[];
 }
 
 export interface DailyReportMaterialDeliveryLineResponse {

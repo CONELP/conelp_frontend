@@ -41,6 +41,18 @@ export interface LaborTypeResponse {
   isVisible: boolean;
 }
 
+export interface LaborTypeGroupItem {
+  id: number;
+  name: string;
+  isVisible: boolean;
+}
+
+export interface LaborTypeGroupedResponse {
+  workTypeId: number | null;
+  workTypeName: string | null;
+  laborTypes: LaborTypeGroupItem[];
+}
+
 // 장비 마스터 타입
 export interface EquipmentTypeResponse {
   id: number;
@@ -350,8 +362,18 @@ export const referenceApi = {
   // ========== 직종 (LaborType) ==========
 
   async getLaborTypeList(): Promise<LaborTypeResponse[]> {
-    const { data } = await axiosClient.get<LaborTypeResponse[]>("/reference/getLaborTypeList");
-    return data;
+    const { data } = await axiosClient.get<LaborTypeGroupedResponse[]>(
+      "/reference/getLaborTypeList",
+    );
+    return data.flatMap((group) =>
+      group.laborTypes.map((laborType) => ({
+        id: laborType.id,
+        name: laborType.name,
+        workTypeId: group.workTypeId,
+        workTypeName: group.workTypeName,
+        isVisible: laborType.isVisible,
+      })),
+    );
   },
 
   async getLaborTypeListByWorkType(workTypeId: number): Promise<LaborTypeResponse[]> {
