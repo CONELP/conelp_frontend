@@ -1,0 +1,1 @@
+import{q as n,p as r}from"./index-B9njK9s_.js";const o="selectedProjectId";function u(){if(typeof localStorage>"u")return null;const e=localStorage.getItem(o);return!e||e==="undefined"||e==="null"?null:e}function c(){const e=r(null);function t(){e.value=u()}return n(t),{selectedProjectId:e,refresh:t}}export{c as u};
