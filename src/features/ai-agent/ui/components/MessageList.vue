@@ -27,6 +27,7 @@
         :message="item.message"
         :current-user-id="currentUserId"
         :participant-names-by-id="participantNamesById"
+        @approval-action="(command, messageId) => emit('approvalAction', command, messageId)"
       />
     </template>
 
@@ -101,6 +102,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   loadOlder: [];
+  approvalAction: [command: string, messageId: number];
 }>();
 
 const scrollEl = ref<HTMLDivElement | null>(null);

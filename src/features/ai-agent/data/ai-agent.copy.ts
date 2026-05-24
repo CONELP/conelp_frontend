@@ -22,6 +22,17 @@ export const aiAgentCopy = {
     sending: "전송 중…",
     attach: "파일 첨부",
     removeFile: "파일 제거",
+    dropHint: "여기에 파일을 놓아 첨부하세요",
+  },
+  approval: {
+    title: "위험한 명령 실행 승인 요청",
+    reasonLabel: "사유",
+    command: "명령",
+    approveOnce: "이번만 승인",
+    approveSession: "세션 동안 승인",
+    approveAlways: "항상 승인",
+    deny: "거절",
+    helper: "버튼을 누르면 동일한 응답이 채팅으로 전송됩니다.",
   },
   attachments: {
     stale: "다시 받을 수 없는 첨부파일",

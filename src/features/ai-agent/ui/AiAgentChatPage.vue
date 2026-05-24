@@ -27,6 +27,7 @@
         :is-loading-older="isLoadingOlder"
         :is-loading-thread="isLoadingThread"
         @load-older="loadOlder"
+        @approval-action="handleApprovalAction"
       />
 
       <ChatComposer
@@ -127,6 +128,11 @@ async function handleSend(
   mentions: MessageMention[],
 ) {
   await send(text, files, mentions);
+}
+
+async function handleApprovalAction(command: string) {
+  if (isAwaitingEcho.value || !isConnected.value) return;
+  await send(command, [], []);
 }
 
 function handleValidationError(message: string) {

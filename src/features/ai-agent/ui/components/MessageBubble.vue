@@ -21,7 +21,64 @@
     </span>
 
     <div class="message-bubble__body">
-      <p v-if="message.text" class="message-bubble__text">
+      <div
+        v-if="approvalRequest"
+        class="message-bubble__approval"
+        role="group"
+        :aria-label="approvalCopy.title"
+      >
+        <header class="message-bubble__approval-header">
+          <span class="message-bubble__approval-icon" aria-hidden="true">⚠️</span>
+          <span class="message-bubble__approval-title">
+            {{ approvalCopy.title }}
+          </span>
+        </header>
+
+        <div v-if="approvalRequest.command" class="message-bubble__approval-section">
+          <span class="message-bubble__approval-label">{{ approvalCopy.command }}</span>
+          <pre class="message-bubble__approval-code"><code>{{ approvalRequest.command }}</code></pre>
+        </div>
+
+        <div v-if="approvalRequest.reason" class="message-bubble__approval-section">
+          <span class="message-bubble__approval-label">{{ approvalCopy.reasonLabel }}</span>
+          <p class="message-bubble__approval-reason">{{ approvalRequest.reason }}</p>
+        </div>
+
+        <div class="message-bubble__approval-actions">
+          <button
+            class="message-bubble__approval-btn message-bubble__approval-btn--primary"
+            type="button"
+            @click="emitApproval('/approve')"
+          >
+            {{ approvalCopy.approveOnce }}
+          </button>
+          <button
+            class="message-bubble__approval-btn"
+            type="button"
+            @click="emitApproval('/approve session')"
+          >
+            {{ approvalCopy.approveSession }}
+          </button>
+          <button
+            class="message-bubble__approval-btn"
+            type="button"
+            @click="emitApproval('/approve always')"
+          >
+            {{ approvalCopy.approveAlways }}
+          </button>
+          <button
+            class="message-bubble__approval-btn message-bubble__approval-btn--danger"
+            type="button"
+            @click="emitApproval('/deny')"
+          >
+            {{ approvalCopy.deny }}
+          </button>
+        </div>
+
+        <p class="message-bubble__approval-helper">{{ approvalCopy.helper }}</p>
+      </div>
+
+      <p v-else-if="message.text" class="message-bubble__text">
         <template v-for="(part, idx) in textParts" :key="idx">
           <span
             v-if="part.kind === 'mention'"
@@ -127,6 +184,7 @@ import {
   formatBubbleTime,
   formatFileSize,
   isImageAttachment,
+  parseApprovalRequest,
 } from "@/features/ai-agent/services/ai-agent.service";
 import { useAiAgentStore } from "@/features/ai-agent/state/useAiAgentStore";
 import type {
@@ -138,6 +196,10 @@ const props = defineProps<{
   message: Message;
   currentUserId: string | null;
   participantNamesById?: Map<string, string>;
+}>();
+
+const emit = defineEmits<{
+  approvalAction: [command: string, messageId: number];
 }>();
 
 const BOT_DISPLAY_NAME = "Hermes";
@@ -152,6 +214,16 @@ interface TextPart {
 
 const store = useAiAgentStore();
 const attachmentsCopy = aiAgentCopy.attachments;
+const approvalCopy = aiAgentCopy.approval;
+
+const approvalRequest = computed(() => {
+  if (props.message.senderType !== "BOT") return null;
+  return parseApprovalRequest(props.message.text);
+});
+
+function emitApproval(command: string) {
+  emit("approvalAction", command, props.message.id);
+}
 
 const lazyPreviewUrls = reactive(new Map<string, string>());
 const downloadingIds = reactive(new Set<string>());

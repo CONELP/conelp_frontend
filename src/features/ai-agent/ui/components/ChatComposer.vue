@@ -1,5 +1,22 @@
 <template>
-  <form class="chat-composer" @submit.prevent="handleSubmit">
+  <form
+    class="chat-composer"
+    :class="{ 'chat-composer--dragging': isDragActive }"
+    @submit.prevent="handleSubmit"
+    @dragenter.prevent="handleDragEnter"
+    @dragover.prevent="handleDragOver"
+    @dragleave.prevent="handleDragLeave"
+    @drop.prevent="handleDrop"
+  >
+    <div
+      v-if="isDragActive"
+      class="chat-composer__drop-overlay"
+      aria-hidden="true"
+    >
+      <span class="chat-composer__drop-icon">📎</span>
+      <span class="chat-composer__drop-hint">{{ copy.dropHint }}</span>
+    </div>
+
     <ul v-if="pendingFiles.length > 0" class="chat-composer__files" aria-label="첨부 파일">
       <li
         v-for="(file, index) in pendingFiles"
@@ -146,6 +163,9 @@ const isMentionOpen = ref(false);
 const mentionAnchor = ref<number>(-1);
 const mentionQuery = ref<string>("");
 const activeMentionIndex = ref(0);
+
+const dragDepth = ref(0);
+const isDragActive = computed(() => !props.disabled && dragDepth.value > 0);
 
 const canSend = computed(
   () =>
@@ -345,6 +365,41 @@ function appendFiles(files: File[]) {
 
 function removeFile(index: number) {
   pendingFiles.value = pendingFiles.value.filter((_, i) => i !== index);
+}
+
+function hasFiles(event: DragEvent): boolean {
+  const types = event.dataTransfer?.types;
+  if (!types) return false;
+  for (let i = 0; i < types.length; i++) {
+    if (types[i] === "Files") return true;
+  }
+  return false;
+}
+
+function handleDragEnter(event: DragEvent) {
+  if (props.disabled || !hasFiles(event)) return;
+  dragDepth.value += 1;
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+}
+
+function handleDragOver(event: DragEvent) {
+  if (props.disabled || !hasFiles(event)) return;
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+}
+
+function handleDragLeave(event: DragEvent) {
+  if (props.disabled || !hasFiles(event)) return;
+  dragDepth.value = Math.max(0, dragDepth.value - 1);
+}
+
+function handleDrop(event: DragEvent) {
+  dragDepth.value = 0;
+  if (props.disabled) return;
+  const dropped = event.dataTransfer?.files
+    ? Array.from(event.dataTransfer.files)
+    : [];
+  if (dropped.length === 0) return;
+  appendFiles(dropped);
 }
 
 function initialOf(name: string): string {

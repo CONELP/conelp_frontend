@@ -182,3 +182,27 @@ export function previewMessageText(message: Message | undefined): string {
   if (single.length <= 60) return single;
   return `${single.slice(0, 60)}…`;
 }
+
+export interface ApprovalRequest {
+  command: string;
+  reason: string | null;
+}
+
+const APPROVAL_HEADER_RE = /Dangerous command requires approval/i;
+const APPROVAL_FOOTER_RE = /Reply\s+`?\/approve`?/i;
+const APPROVAL_FENCE_RE = /```[a-zA-Z0-9_-]*\s*\n?([\s\S]*?)```/;
+const APPROVAL_REASON_RE = /Reason:\s*([\s\S]+?)(?:\n\s*\n|\n+Reply\b|$)/i;
+
+export function parseApprovalRequest(text: string): ApprovalRequest | null {
+  if (!text) return null;
+  if (!APPROVAL_HEADER_RE.test(text) || !APPROVAL_FOOTER_RE.test(text)) {
+    return null;
+  }
+  const fence = text.match(APPROVAL_FENCE_RE);
+  const command = fence ? fence[1].replace(/\s+$/u, "") : "";
+  const reason = text.match(APPROVAL_REASON_RE);
+  return {
+    command,
+    reason: reason ? reason[1].trim() : null,
+  };
+}
