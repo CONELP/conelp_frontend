@@ -42,6 +42,14 @@ export interface DailyReportEquipmentSpecResponse {
 export interface DailyReportEquipmentTypeResponse {
   id: number;
   name: string;
+  workTypeId?: number | null;
+  workTypeName?: string | null;
+}
+
+export interface DailyReportEquipmentTypeUpdateRequest {
+  id?: number;
+  name?: string;
+  ids?: number[];
 }
 
 export interface DailyReportEquipmentSpecCreateRequest {
@@ -52,6 +60,14 @@ export interface DailyReportEquipmentSpecCreateRequest {
     workTypeId: number;
   };
   isVisible?: boolean;
+}
+
+export interface DailyReportEquipmentSpecUpdateRequest {
+  id?: number;
+  name?: string;
+  isVisible?: boolean;
+  parentId?: number;
+  ids?: number[];
 }
 
 export interface DailyReportAttendanceByDateResponse {
@@ -84,17 +100,23 @@ export interface DailyReportAttendanceUpdateRequest {
   }>;
 }
 
-export interface DailyReportEquipmentDeploymentResponse {
-  equipmentSpecId: number | null;
+export interface DailyReportEquipmentDeploymentByDateSpec {
+  equipmentSpecId: number;
   equipmentSpecName: string | null;
-  equipmentTypeId: number | null;
+  endDateCount: number;
+  accumulativeCount: number;
+}
+
+export interface DailyReportEquipmentDeploymentByDateType {
+  equipmentTypeId: number;
   equipmentTypeName: string | null;
-  count: number;
-  workTypeId: number | null;
+  equipmentSpecs: DailyReportEquipmentDeploymentByDateSpec[];
+}
+
+export interface DailyReportEquipmentDeploymentByDateGroup {
+  workTypeId: number;
   workTypeName: string | null;
-  companyId: string | null;
-  companyName: string | null;
-  companyDisplayName: string | null;
+  equipmentTypes: DailyReportEquipmentDeploymentByDateType[];
 }
 
 export interface DailyReportEquipmentDeploymentUpdateRequest {
@@ -133,6 +155,7 @@ export interface DailyReportMaterialSpecResponse {
   id: number;
   name: string;
   materialTypeId: number;
+  materialTypeName: string | null;
   isVisible: boolean;
 }
 

@@ -3,11 +3,13 @@ import type {
   DailyReportAttendanceByDateGroupedResponse,
   DailyReportAttendanceByDateResponse,
   DailyReportAttendanceUpdateRequest,
-  DailyReportEquipmentSpecCreateRequest,
+  DailyReportEquipmentDeploymentByDateGroup,
   DailyReportEquipmentDeploymentUpdateRequest,
-  DailyReportEquipmentDeploymentResponse,
+  DailyReportEquipmentSpecCreateRequest,
   DailyReportEquipmentSpecResponse,
+  DailyReportEquipmentSpecUpdateRequest,
   DailyReportEquipmentTypeResponse,
+  DailyReportEquipmentTypeUpdateRequest,
   DailyReportLaborTypeCreateRequest,
   DailyReportLaborTypeGroupedResponse,
   DailyReportLaborTypeResponse,
@@ -146,6 +148,38 @@ export const dailyReportResourceApi = {
     });
   },
 
+  async updateEquipmentType(body: DailyReportEquipmentTypeUpdateRequest) {
+    await ensureSelectedProjectId();
+    return apiFetch<void>("/reference/updateEquipmentType", {
+      method: "POST",
+      body: toApiBody(body),
+    });
+  },
+
+  async deleteEquipmentType(equipmentTypeId: number) {
+    await ensureSelectedProjectId();
+    return apiFetch<void>(
+      `/reference/deleteEquipmentType/${encodeURIComponent(String(equipmentTypeId))}`,
+      { method: "DELETE" },
+    );
+  },
+
+  async updateEquipmentSpec(body: DailyReportEquipmentSpecUpdateRequest) {
+    await ensureSelectedProjectId();
+    return apiFetch<void>("/reference/updateEquipmentSpec", {
+      method: "POST",
+      body: toApiBody(body),
+    });
+  },
+
+  async deleteEquipmentSpec(equipmentSpecId: number) {
+    await ensureSelectedProjectId();
+    return apiFetch<void>(
+      `/reference/deleteEquipmentSpec/${encodeURIComponent(String(equipmentSpecId))}`,
+      { method: "DELETE" },
+    );
+  },
+
   async getAttendanceListByDate(endDate: string, startDate?: string) {
     await ensureSelectedProjectId();
     const params = new URLSearchParams({ endDate });
@@ -166,10 +200,14 @@ export const dailyReportResourceApi = {
     });
   },
 
-  async getEquipmentDeploymentListByDate(date: string) {
+  async getEquipmentDeploymentListByDate(endDate: string, startDate?: string) {
     await ensureSelectedProjectId();
-    return apiFetch<DailyReportEquipmentDeploymentResponse[]>(
-      `/equipment/getEquipmentDeploymentListByDate?date=${encodeURIComponent(date)}`,
+    const params = new URLSearchParams({ endDate });
+    if (startDate) {
+      params.set("startDate", startDate);
+    }
+    return apiFetch<DailyReportEquipmentDeploymentByDateGroup[]>(
+      `/equipment/getEquipmentDeploymentListByDate?${params.toString()}`,
     );
   },
 

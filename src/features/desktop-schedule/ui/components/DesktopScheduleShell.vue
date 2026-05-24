@@ -246,7 +246,7 @@ const pastMainMenuRootRef = ref<HTMLElement | null>(null);
 const pastMainMenuRef = ref<HTMLElement | null>(null);
 const isPastMainMenuOpen = ref(false);
 const pastMainMenuPosition = ref({ x: 0, y: 0 });
-const isExecutionProgressCompareEnabled = ref(false);
+const isExecutionProgressCompareEnabled = ref(true);
 const isExecutionProgressCompareLeaving = ref(false);
 let executionProgressCompareExitTimer: ReturnType<typeof setTimeout> | null = null;
 
