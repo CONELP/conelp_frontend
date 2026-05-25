@@ -4210,7 +4210,7 @@ async function saveDailyReportMaterial() {
   await dailyReportResourceApi.updateMaterialDeliveryList(requestBody);
 }
 
-async function handleCreateDailyReportDocument() {
+function handleCreateDailyReportDocument() {
   if (isDailyReportDocumentGenerating.value) {
     return;
   }
@@ -4222,16 +4222,27 @@ async function handleCreateDailyReportDocument() {
   trackDailyReportPanelAction("create_dr_document", "attempt", { date });
 
   try {
-    await backgroundDocumentJobs.enqueueJob(
+    void backgroundDocumentJobs.enqueueJob(
       {
+        documentType: "daily_report_write",
         documentTypeLabel: "공사일보",
-        photoSummary: date,
+        summary: `${date} 공사일보를 생성하고 있어요.`,
+        resultRoute: "/documents/generated",
       },
       async () => {
-        await dailyReportResourceApi.createDailyReport(date);
+        try {
+          await dailyReportResourceApi.createDailyReport(date);
+          trackDailyReportPanelAction("create_dr_document", "success", { date });
+        } catch (error) {
+          trackDailyReportPanelAction("create_dr_document", "fail", {
+            date,
+            error_kind: error instanceof Error ? "api" : "unknown",
+          });
+
+          throw error;
+        }
       },
     );
-    trackDailyReportPanelAction("create_dr_document", "success", { date });
   } catch (error) {
     console.error("create daily report document failed", error);
     dailyReportSaveMessage.value =

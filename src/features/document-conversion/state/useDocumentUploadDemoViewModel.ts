@@ -185,7 +185,11 @@ export function useDocumentUploadDemoViewModel() {
   const isWorkTypeSuggestionListOpen = ref(false);
   const highlightedWorkTypeSuggestionIndex = ref(-1);
   const workTypeSuggestionQuery = ref("");
-  const selectedLinkedConcreteDeliveryDocumentId = ref("");
+  const selectedLinkedConcreteDeliveryDocumentId = ref(
+    store.selectedConcreteDeliveryCatDocId === null
+      ? ""
+      : String(store.selectedConcreteDeliveryCatDocId),
+  );
   let guideInspectionTimer: ReturnType<typeof setTimeout> | null = null;
   let workTypeSuggestionCloseTimer: ReturnType<typeof setTimeout> | null = null;
   let workTypeSuggestionRequestId = 0;
@@ -339,7 +343,10 @@ export function useDocumentUploadDemoViewModel() {
     );
 
     if (isConcreteStrengthTest.value) {
-      return hasRequiredWorkContext;
+      return Boolean(
+        hasRequiredWorkContext &&
+          selectedLinkedConcreteDeliveryDocumentId.value,
+      );
     }
 
     if (!requiresWorkContext.value) {
@@ -613,6 +620,10 @@ export function useDocumentUploadDemoViewModel() {
 
   function selectLinkedConcreteDeliveryDocument(documentId: string) {
     selectedLinkedConcreteDeliveryDocumentId.value = documentId;
+    const catDocId = Number(documentId);
+    store.setSelectedConcreteDeliveryCatDocId(
+      Number.isFinite(catDocId) ? catDocId : null,
+    );
   }
 
   watch(
@@ -668,11 +679,16 @@ export function useDocumentUploadDemoViewModel() {
         !documentIds.includes(selectedLinkedConcreteDeliveryDocumentId.value)
       ) {
         selectedLinkedConcreteDeliveryDocumentId.value = documentIds[0];
+        const catDocId = Number(documentIds[0]);
+        store.setSelectedConcreteDeliveryCatDocId(
+          Number.isFinite(catDocId) ? catDocId : null,
+        );
         return;
       }
 
       if (documentIds.length === 0) {
         selectedLinkedConcreteDeliveryDocumentId.value = "";
+        store.setSelectedConcreteDeliveryCatDocId(null);
       }
     },
     { immediate: true },

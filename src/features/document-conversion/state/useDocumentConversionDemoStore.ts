@@ -65,6 +65,7 @@ export const useDocumentConversionDemoStore = defineStore(
     const mirUploadApplication = ref("");
     const mirUploadWorkTypeName = ref("");
     const mirUploadWorkTypeId = ref<number | null>(null);
+    const selectedConcreteDeliveryCatDocId = ref<number | null>(null);
     const mirAnalysisResult = ref<MirAnalysisResponse | null>(null);
     const mirCreateResult = ref<CreateMirDocumentResponse | null>(null);
     const catAnalysisResult = ref<CatAnalysisResponse | null>(null);
@@ -96,6 +97,7 @@ export const useDocumentConversionDemoStore = defineStore(
     function clearUploadGrouping() {
       concreteDeliveryUploadBatches.value = [];
       concreteStrengthUploadLots.value = [];
+      selectedConcreteDeliveryCatDocId.value = null;
     }
 
     function selectDocument(type: DocumentCatalogType) {
@@ -226,6 +228,13 @@ export const useDocumentConversionDemoStore = defineStore(
       }));
     }
 
+    function setSelectedConcreteDeliveryCatDocId(catDocId: number | null) {
+      selectedConcreteDeliveryCatDocId.value =
+        typeof catDocId === "number" && Number.isFinite(catDocId)
+          ? catDocId
+          : null;
+    }
+
     function clearUpload() {
       uploadMode.value = "empty";
       uploadedImageFiles.value = [];
@@ -311,6 +320,7 @@ export const useDocumentConversionDemoStore = defineStore(
       mirUploadApplication,
       mirUploadWorkTypeName,
       mirUploadWorkTypeId,
+      selectedConcreteDeliveryCatDocId,
       mirAnalysisResult,
       mirCreateResult,
       catAnalysisResult,
@@ -328,6 +338,7 @@ export const useDocumentConversionDemoStore = defineStore(
       reorderUploadedImageFiles,
       setConcreteDeliveryUploadBatches,
       setConcreteStrengthUploadLots,
+      setSelectedConcreteDeliveryCatDocId,
       clearUpload,
       resetUploadAfterFailure,
       setMirUploadApplication,

@@ -211,6 +211,79 @@ export interface CreateCatDocumentResponse {
   createdAt?: string | null;
 }
 
+export type CcstPhotoType = "D7" | "D7_BOARD" | "D28" | "D28_BOARD";
+
+export interface CcstAnalysisPhoto {
+  photoKey: string;
+  mimeType: "image/jpeg" | string;
+  data: string;
+  type: CcstPhotoType;
+  description: string;
+}
+
+export interface CcstAnalysisLine {
+  lineKey: string;
+  lot: number;
+  setNo: number;
+  ageDays: 7 | 28 | number;
+  comp1: string | number | null;
+  comp2: string | number | null;
+  comp3: string | number | null;
+  testDate: string | null;
+  photos: CcstAnalysisPhoto[];
+}
+
+export interface CcstAnalysisResponse {
+  catDocId: number;
+  lines: CcstAnalysisLine[];
+}
+
+export interface AnalyzeCcstPhotoMetadata {
+  lot: number;
+  ageDays: 7 | 28;
+  count: number;
+}
+
+export interface AnalyzeCcstPhotoRequest {
+  catDocId: number;
+  metadata: AnalyzeCcstPhotoMetadata[];
+  lotPhotos: File[];
+}
+
+export interface CreateCcstDocumentLineRequest {
+  lot: number;
+  setNo: number;
+  ageDays: number;
+  comp1: string | null;
+  comp2: string | null;
+  comp3: string | null;
+  testDate: string | null;
+  photos: Array<{
+    photoKey: string;
+    type: CcstPhotoType;
+    description: string;
+  }>;
+}
+
+export interface CreateCcstDocumentRequest {
+  lines: CreateCcstDocumentLineRequest[];
+}
+
+export interface CreateCcstDocumentResponse {
+  materialDeliveryId: number;
+  jobId: number;
+  projectId?: string;
+  docType: "CCST" | string;
+  docNo: string;
+  status: string;
+  resultUrl: string | null;
+  pdfUrl: string | null;
+  ccstLineIds: number[];
+  startedAt?: string | null;
+  completedAt?: string | null;
+  createdAt?: string | null;
+}
+
 export interface CatLinePhotoResponse {
   photoId: number;
   type: CatPhotoType | string;

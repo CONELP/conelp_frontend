@@ -1,11 +1,15 @@
 import { apiFetch, apiFetchAttachment } from "@/shared/network/api-client";
 import type {
   AnalyzeCatPhotoRequest,
+  AnalyzeCcstPhotoRequest,
   AnalyzeMirPhotoRequest,
   CatAnalysisResponse,
   CatLineResponse,
   CreateCatDocumentRequest,
   CreateCatDocumentResponse,
+  CcstAnalysisResponse,
+  CreateCcstDocumentRequest,
+  CreateCcstDocumentResponse,
   CreateMirDocumentRequest,
   CreateMirDocumentResponse,
   DocumentJobResponse,
@@ -150,6 +154,35 @@ export const materialInspectionRequestApi = {
       method: "POST",
       body: toApiBody(request),
     });
+  },
+
+  async analyzeCcstPhoto(request: AnalyzeCcstPhotoRequest) {
+    await ensureSelectedProjectId();
+
+    const formData = new FormData();
+
+    formData.append("catDocId", String(request.catDocId));
+    appendJsonPart(formData, "metadata", request.metadata);
+    request.lotPhotos.forEach((image) => {
+      formData.append("lotPhotos", image);
+    });
+
+    return apiFetch<CcstAnalysisResponse>("/ccst/analyzeCcstPhoto", {
+      method: "POST",
+      body: formData,
+    });
+  },
+
+  async createCcstDocument(catDocId: number, request: CreateCcstDocumentRequest) {
+    await ensureSelectedProjectId();
+
+    return apiFetch<CreateCcstDocumentResponse>(
+      `/ccst/createCcstDocument/${encodeURIComponent(String(catDocId))}`,
+      {
+        method: "POST",
+        body: toApiBody(request),
+      },
+    );
   },
 
   async getCatLineList(materialDeliveryId: number) {
