@@ -767,6 +767,7 @@ const props = defineProps<{
   aiVerificationViolationDetailByItemId?: Record<string, string>;
   bottomSpacerHeight: number;
   zoomScale: number;
+  dragSelectionDisabled?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -1018,6 +1019,10 @@ const hoveredTimelineDay = computed(() =>
 );
 const todayTimelineDay = computed(() => props.timeline.days.find((day) => day.isToday) ?? null);
 const cellSelectionRangeStyle = computed(() => {
+  if (props.dragSelectionDisabled) {
+    return null;
+  }
+
   if (!cellSelectionAnchor.value || !cellSelectionFocus.value) {
     return null;
   }
@@ -1851,6 +1856,10 @@ function handlePanePointerDown(event: PointerEvent) {
 
   if (isSpacePressed.value) {
     startPanSession(event);
+    return;
+  }
+
+  if (props.dragSelectionDisabled || event.pointerType === "touch") {
     return;
   }
 

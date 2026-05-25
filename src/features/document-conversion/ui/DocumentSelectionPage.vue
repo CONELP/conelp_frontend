@@ -64,14 +64,6 @@
                   :key="document.id"
                   class="selection-panel__generated-item"
                 >
-                  <span class="selection-panel__generated-icon-wrap" aria-hidden="true">
-                    <img
-                      class="selection-panel__generated-icon"
-                      :src="documentIcon"
-                      alt=""
-                    />
-                  </span>
-
                   <span class="selection-panel__generated-copy">
                     <span class="selection-panel__generated-head">
                       <strong>{{ document.title }}</strong>
@@ -131,7 +123,6 @@ import { ref } from "vue";
 import { RouterLink, useRouter } from "vue-router";
 import downloadIcon from "@fluentui/svg-icons/icons/arrow_download_20_regular.svg";
 import documentsIcon from "@fluentui/svg-icons/icons/chevron_right_20_regular.svg";
-import documentIcon from "@fluentui/svg-icons/icons/document_20_regular.svg";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
 import { materialInspectionRequestApi } from "@/features/document-conversion/api/material-inspection-request.api";

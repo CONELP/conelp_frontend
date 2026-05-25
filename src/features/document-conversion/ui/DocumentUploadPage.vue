@@ -9,6 +9,9 @@
       class="upload-page"
       :class="{
         'upload-page--single-card': requiresUpload,
+        'upload-page--material-registration': isMaterialInspectionRequest,
+        'upload-page--concrete-delivery': isConcreteDeliveryTest,
+        'upload-page--concrete-strength': isConcreteStrengthTest,
       }"
     >
       <section class="upload-shell upload-topbar">

@@ -215,6 +215,36 @@
   }
 }
 
+@media (max-width: 767px) {
+  .feedback-frame {
+    display: flex;
+    flex-direction: column;
+    padding: 0.55rem;
+    background: var(--canvas);
+  }
+
+  .feedback-page {
+    flex: 1 1 auto;
+    min-height: calc(100svh - 1.1rem);
+    padding-block: 0;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 0.72rem;
+    background: #fff;
+  }
+
+  .feedback-topbar {
+    display: none;
+  }
+
+  .feedback-intro {
+    padding: var(--page-inline) 0 0;
+  }
+
+  .feedback-footer {
+    padding-top: 0;
+  }
+}
+
 @media (min-width: 768px) {
   .feedback-page {
     --page-inline: 1.6rem;

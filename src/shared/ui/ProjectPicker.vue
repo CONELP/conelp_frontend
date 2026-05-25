@@ -3,6 +3,7 @@
     <button
       class="project-picker__button"
       type="button"
+      :aria-label="projectPickerLabel"
       :aria-expanded="isMenuOpen"
       :aria-haspopup="hasOptions ? 'listbox' : undefined"
       :aria-busy="isLoading || isSwitching"
@@ -29,6 +30,7 @@
       <div
         v-if="isMenuOpen && hasOptions"
         class="project-picker__menu"
+        :style="menuStyle"
         role="listbox"
         aria-label="프로젝트 선택"
       >
@@ -85,8 +87,12 @@ const { projects, currentProjectId, isLoading, hasOptions } = storeToRefs(projec
 
 const isMenuOpen = ref(false);
 const isSwitching = ref(false);
+const menuStyle = ref<Record<string, string>>({});
 const containerRef = ref<HTMLElement | null>(null);
 let switchReloadTimer: ReturnType<typeof setTimeout> | null = null;
+
+const MOBILE_MENU_QUERY = "(max-width: 1023px)";
+const MOBILE_MENU_MARGIN = 12;
 
 const isButtonDisabled = computed(
   () => isSwitching.value || (isLoading.value && !hasOptions.value),
@@ -102,14 +108,21 @@ const currentLabel = computed(() => {
   const match = projects.value.find((project) => project.id === currentProjectId.value);
   return match?.projectName ?? "프로젝트 선택";
 });
+const projectPickerLabel = computed(() => `현장 선택: ${currentLabel.value}`);
 
 function toggleMenu() {
   if (isButtonDisabled.value || !hasOptions.value) return;
+
+  if (!isMenuOpen.value) {
+    updateMenuPosition();
+  }
+
   isMenuOpen.value = !isMenuOpen.value;
 }
 
 function closeMenu() {
   isMenuOpen.value = false;
+  menuStyle.value = {};
 }
 
 function selectProject(projectId: string) {
@@ -145,11 +158,55 @@ function handleDocumentKeydown(event: KeyboardEvent) {
   }
 }
 
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function updateMenuPosition() {
+  if (typeof window === "undefined" || !containerRef.value) {
+    menuStyle.value = {};
+    return;
+  }
+
+  if (!window.matchMedia(MOBILE_MENU_QUERY).matches) {
+    menuStyle.value = {};
+    return;
+  }
+
+  const rect = containerRef.value.getBoundingClientRect();
+  const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+  const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+  const maxWidth = Math.max(0, viewportWidth - MOBILE_MENU_MARGIN * 2);
+  const width = Math.min(rect.width, maxWidth);
+  const left = clamp(
+    rect.left,
+    MOBILE_MENU_MARGIN,
+    viewportWidth - MOBILE_MENU_MARGIN - width,
+  );
+  const top = rect.bottom + 6;
+  const maxHeight = Math.max(160, viewportHeight - top - MOBILE_MENU_MARGIN);
+
+  menuStyle.value = {
+    "--project-picker-menu-left": `${left}px`,
+    "--project-picker-menu-top": `${top}px`,
+    "--project-picker-menu-width": `${width}px`,
+    "--project-picker-menu-max-height": `${maxHeight}px`,
+  };
+}
+
+function handleViewportChange() {
+  if (!isMenuOpen.value) return;
+  updateMenuPosition();
+}
+
 onMounted(() => {
   void projectPickerStore.loadProjects();
   if (typeof window !== "undefined") {
     document.addEventListener("pointerdown", handleDocumentPointerDown);
     document.addEventListener("keydown", handleDocumentKeydown);
+    window.addEventListener("resize", handleViewportChange);
+    window.addEventListener("scroll", handleViewportChange, true);
+    window.visualViewport?.addEventListener("resize", handleViewportChange);
   }
 });
 
@@ -161,6 +218,9 @@ onUnmounted(() => {
   if (typeof window !== "undefined") {
     document.removeEventListener("pointerdown", handleDocumentPointerDown);
     document.removeEventListener("keydown", handleDocumentKeydown);
+    window.removeEventListener("resize", handleViewportChange);
+    window.removeEventListener("scroll", handleViewportChange, true);
+    window.visualViewport?.removeEventListener("resize", handleViewportChange);
   }
 });
 </script>
@@ -344,6 +404,19 @@ onUnmounted(() => {
 .project-picker__loading-transition-leave-to {
   opacity: 0;
   transform: translateY(-0.35rem);
+}
+
+@media (max-width: 1023px) {
+  .project-picker__menu {
+    position: fixed;
+    top: var(--project-picker-menu-top, 0.75rem);
+    left: var(--project-picker-menu-left, 0.75rem);
+    right: auto;
+    width: var(--project-picker-menu-width, calc(100vw - 1.5rem));
+    max-width: calc(100vw - 1.5rem);
+    max-height: min(16rem, var(--project-picker-menu-max-height, 16rem));
+    box-sizing: border-box;
+  }
 }
 
 @keyframes project-picker-loading-sweep {

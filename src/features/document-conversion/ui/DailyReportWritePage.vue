@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 
+import dismissIcon from "@fluentui/svg-icons/icons/dismiss_20_regular.svg";
 import imageIcon from "@fluentui/svg-icons/icons/image_20_regular.svg";
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
 import { actualWorkApi } from "@/features/document-conversion/api/actual-work.api";
@@ -22,6 +23,9 @@ const DAILY_REPORT_MIN_SCHEDULE_WIDTH = 520;
 const DAILY_REPORT_MIN_PANEL_WIDTH = 304;
 const DAILY_REPORT_SPLITTER_WIDTH = 10;
 const DAILY_REPORT_DRAFT_STORAGE_KEY = "conelp.dailyReportWrite.draft.v1";
+const COMPACT_SCHEDULE_VIEW_MEDIA_QUERY = "(max-width: 1023px)";
+const COMPACT_SCHEDULE_ROW_PANEL_WIDTH = 144;
+const COMPACT_SCHEDULE_WORK_TYPE_COLUMN_WIDTH = 58;
 
 type LayoutResizeState = {
   pointerId: number;
@@ -127,6 +131,14 @@ function readStoredScheduleRatio() {
   return Number.isFinite(parsedValue)
     ? clampNumber(parsedValue, 0.35, 0.82)
     : DAILY_REPORT_DEFAULT_SCHEDULE_RATIO;
+}
+
+function getInitialCompactScheduleView() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return window.matchMedia(COMPACT_SCHEDULE_VIEW_MEDIA_QUERY).matches;
 }
 
 function createDailyReportImageId() {
@@ -347,6 +359,9 @@ const shellViewportHeight = ref(640);
 const chartViewportWidth = ref(0);
 const layoutContentWidth = ref(0);
 const scheduleColumnRatio = ref(readStoredScheduleRatio());
+const isCompactScheduleView = ref(getInitialCompactScheduleView());
+const isCompactScheduleLeftPanelOpen = ref(true);
+const isDailyReportEditorPanelOpen = ref(!getInitialCompactScheduleView());
 const layoutResizeState = ref<LayoutResizeState | null>(null);
 const workTypeDragState = ref<DailyReportWorkTypeDragState | null>(null);
 const workTypeDragOverState = ref<DailyReportWorkTypeDragOverState | null>(null);
@@ -369,6 +384,7 @@ const shouldApplyInitialTimelineScroll = ref(
 );
 const isBaselineScheduleLoadInFlight = ref(false);
 let resizeObserver: ResizeObserver | null = null;
+let compactScheduleViewMediaQuery: MediaQueryList | null = null;
 
 const isScheduleRefreshing = computed(
   () =>
@@ -378,6 +394,25 @@ const isScheduleRefreshing = computed(
 const baselineScheduleVersionId = computed(
   () => resolveCurrentMainScheduleVersionId(version.versions as ScheduleVersionSummary[]),
 );
+const showDailyReportEditor = computed(
+  () => !isCompactScheduleView.value || isDailyReportEditorPanelOpen.value,
+);
+const isScheduleLeftPanelOpen = computed(
+  () => !isCompactScheduleView.value || isCompactScheduleLeftPanelOpen.value,
+);
+const effectiveRowPanelWidth = computed(() =>
+  isCompactScheduleView.value
+    ? isCompactScheduleLeftPanelOpen.value
+      ? COMPACT_SCHEDULE_ROW_PANEL_WIDTH
+      : 0
+    : layout.rowPanelWidth,
+);
+const effectiveWorkTypeColumnWidth = computed(() =>
+  isCompactScheduleView.value
+    ? COMPACT_SCHEDULE_WORK_TYPE_COLUMN_WIDTH
+    : layout.workTypeColumnWidth,
+);
+const showCompactPanelToggles = computed(() => isCompactScheduleView.value);
 const effectiveScheduleColumnRatio = computed(() =>
   clampScheduleRatio(scheduleColumnRatio.value, layoutContentWidth.value),
 );
@@ -438,7 +473,7 @@ function syncShellViewport() {
 
   shellViewportHeight.value = Math.max(shellHostRef.value.clientHeight - verticalPadding, 320);
   chartViewportWidth.value = Math.max(
-    shellHostRef.value.clientWidth - horizontalPadding - layout.rowPanelWidth,
+    shellHostRef.value.clientWidth - horizontalPadding - effectiveRowPanelWidth.value,
     0,
   );
 }
@@ -510,11 +545,19 @@ function startLayoutResize(event: PointerEvent) {
 }
 
 function handleRowPanelWidthChange(width: number) {
+  if (isCompactScheduleView.value) {
+    return;
+  }
+
   layout.setRowPanelWidth(width);
   syncShellViewport();
 }
 
 function handleWorkTypeColumnWidthChange(width: number) {
+  if (isCompactScheduleView.value) {
+    return;
+  }
+
   layout.setWorkTypeColumnWidth(width);
 }
 
@@ -533,6 +576,49 @@ function handleZoomChange(zoomIndex: number) {
 function handleScheduleReload() {
   shouldApplyInitialTimelineScroll.value = true;
   void loadBaselineSchedule();
+}
+
+function handleToggleCompactScheduleLeftPanel() {
+  if (!isCompactScheduleView.value) {
+    return;
+  }
+
+  isCompactScheduleLeftPanelOpen.value = !isCompactScheduleLeftPanelOpen.value;
+  requestAnimationFrame(syncShellViewport);
+  analyticsClient.trackAction("daily_report_write", "toggle_mobile_left_panel", "success", {
+    active: isCompactScheduleLeftPanelOpen.value,
+  });
+}
+
+function handleToggleDailyReportEditorPanel() {
+  if (!isCompactScheduleView.value) {
+    return;
+  }
+
+  isDailyReportEditorPanelOpen.value = !isDailyReportEditorPanelOpen.value;
+  requestAnimationFrame(syncShellViewport);
+  analyticsClient.trackAction("daily_report_write", "toggle_mobile_editor_panel", "success", {
+    active: isDailyReportEditorPanelOpen.value,
+  });
+}
+
+function setCompactScheduleViewState(nextIsCompactScheduleView: boolean) {
+  const wasCompactScheduleView = isCompactScheduleView.value;
+
+  isCompactScheduleView.value = nextIsCompactScheduleView;
+
+  if (nextIsCompactScheduleView && !wasCompactScheduleView) {
+    isDailyReportEditorPanelOpen.value = false;
+  }
+}
+
+function syncCompactScheduleViewState(mediaQuery: MediaQueryList | null) {
+  setCompactScheduleViewState(mediaQuery?.matches ?? false);
+}
+
+function handleCompactScheduleViewMediaChange(event: MediaQueryListEvent) {
+  setCompactScheduleViewState(event.matches);
+  requestAnimationFrame(syncDailyReportLayout);
 }
 
 function getImageInputRef(section: DailyReportWorkSection) {
@@ -1326,6 +1412,15 @@ async function loadBaselineSchedule() {
 }
 
 onMounted(() => {
+  compactScheduleViewMediaQuery = window.matchMedia(
+    COMPACT_SCHEDULE_VIEW_MEDIA_QUERY,
+  );
+  syncCompactScheduleViewState(compactScheduleViewMediaQuery);
+  compactScheduleViewMediaQuery.addEventListener(
+    "change",
+    handleCompactScheduleViewMediaChange,
+  );
+
   if (shellHostRef.value || layoutRef.value) {
     resizeObserver = new ResizeObserver(() => {
       syncDailyReportLayout();
@@ -1349,6 +1444,11 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  compactScheduleViewMediaQuery?.removeEventListener(
+    "change",
+    handleCompactScheduleViewMediaChange,
+  );
+  compactScheduleViewMediaQuery = null;
   window.removeEventListener("pointermove", handleLayoutResizeMove, true);
   window.removeEventListener("pointerup", endLayoutResize, true);
   window.removeEventListener("pointercancel", endLayoutResize, true);
@@ -1387,6 +1487,8 @@ watch(
       load.status,
       layout.timeline,
       chartViewportWidth.value,
+      showDailyReportEditor.value,
+      isCompactScheduleView.value,
     ] as const,
   async ([nextScheduleLoadStatus, nextTimeline, nextChartViewportWidth]) => {
     if (
@@ -1406,6 +1508,21 @@ watch(
       ),
     });
     shouldApplyInitialTimelineScroll.value = false;
+  },
+  { immediate: true },
+);
+
+watch(
+  () =>
+    [
+      showDailyReportEditor.value,
+      effectiveRowPanelWidth.value,
+      effectiveWorkTypeColumnWidth.value,
+      isCompactScheduleView.value,
+    ] as const,
+  async () => {
+    await nextTick();
+    syncDailyReportLayout();
   },
   { immediate: true },
 );
@@ -1431,7 +1548,12 @@ watch(
     <section
       ref="layoutRef"
       class="daily-report-write-layout"
-      :class="{ 'daily-report-write-layout--resizing': layoutResizeState }"
+      :class="{
+        'daily-report-write-layout--resizing': layoutResizeState,
+        'daily-report-write-layout--compact': isCompactScheduleView,
+        'daily-report-write-layout--editor-open': showDailyReportEditor,
+        'daily-report-write-layout--editor-closed': !showDailyReportEditor,
+      }"
       :style="layoutStyle"
     >
       <section
@@ -1476,7 +1598,15 @@ watch(
             :shell-layout="layout.shell"
             :read-only="true"
             reference-only
-            :left-panel-open="true"
+            :compact-view="isCompactScheduleView"
+            :panel-open="showDailyReportEditor"
+            :show-panel-toggle="showCompactPanelToggles"
+            panel-toggle-open-label="작성 패널 숨기기"
+            panel-toggle-closed-label="작성 패널 보기"
+            :left-panel-open="isScheduleLeftPanelOpen"
+            :show-left-panel-toggle="showCompactPanelToggles"
+            left-panel-toggle-open-label="왼쪽 패널 숨기기"
+            left-panel-toggle-closed-label="왼쪽 패널 보기"
             :show-execution-progress-compare-toggle="true"
             :schedule-versions="version.versions"
             :selected-schedule-version-id="version.selectedId"
@@ -1501,8 +1631,8 @@ watch(
             :selected-work-connection-ids="selection.state.workConnectionIds"
             :selected-milestone-ids="selection.state.milestoneIds"
             :connection-creation-state="connection.creationState"
-            :row-panel-width="layout.rowPanelWidth"
-            :work-type-column-width="layout.workTypeColumnWidth"
+            :row-panel-width="effectiveRowPanelWidth"
+            :work-type-column-width="effectiveWorkTypeColumnWidth"
             :editing-division-id="rename.divisionId"
             :editing-work-type-id="rename.workTypeId"
             :editing-sub-work-type-id="rename.subWorkTypeId"
@@ -1519,6 +1649,8 @@ watch(
             @scroll-sync="scroll.syncChart"
             @row-panel-width-change="handleRowPanelWidthChange"
             @work-type-column-width-change="handleWorkTypeColumnWidthChange"
+            @toggle-panel="handleToggleDailyReportEditorPanel"
+            @toggle-left-panel="handleToggleCompactScheduleLeftPanel"
             @readonly-edit-attempt="access.notifyReadOnlyAction"
             @clear-selection="selection.clear"
             @select-bars="selection.selectBars"
@@ -1608,7 +1740,42 @@ watch(
         <span class="daily-report-write-splitter__line" aria-hidden="true" />
       </button>
 
-      <DailyReportEditorPanel />
+      <Transition name="daily-report-write-editor-backdrop">
+        <button
+          v-if="isCompactScheduleView && showDailyReportEditor"
+          type="button"
+          class="daily-report-write-editor-backdrop"
+          aria-label="작성 패널 닫기"
+          @click="handleToggleDailyReportEditorPanel"
+        />
+      </Transition>
+
+      <Transition name="daily-report-write-editor-panel">
+        <section
+          v-show="showDailyReportEditor"
+          class="daily-report-write-editor-panel-host"
+          aria-label="오늘 작업일보 작성"
+        >
+          <header class="daily-report-write-editor-mobile-header">
+            <strong>오늘 작업일보 작성</strong>
+            <button
+              type="button"
+              class="daily-report-write-editor-mobile-close"
+              aria-label="작성 패널 닫기"
+              @click="handleToggleDailyReportEditorPanel"
+            >
+              <img
+                class="daily-report-write-editor-mobile-close__icon"
+                :src="dismissIcon"
+                alt=""
+                aria-hidden="true"
+              />
+            </button>
+          </header>
+
+          <DailyReportEditorPanel class="daily-report-write-editor-panel" />
+        </section>
+      </Transition>
 
       <aside
         v-if="false"

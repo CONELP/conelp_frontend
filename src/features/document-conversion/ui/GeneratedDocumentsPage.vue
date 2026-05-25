@@ -45,14 +45,6 @@
             >
               <div class="generated-row__content">
                 <span class="generated-row__file">
-                  <span class="generated-row__file-icon-frame" aria-hidden="true">
-                    <img
-                      class="generated-row__file-icon"
-                      :src="documentIcon"
-                      alt=""
-                    />
-                  </span>
-
                   <span class="generated-row__file-body">
                     <span class="generated-row__file-head">
                       <span class="generated-row__file-name">{{ document.title }}</span>
@@ -102,7 +94,6 @@ import { ref } from "vue";
 import { RouterLink } from "vue-router";
 import downloadIcon from "@fluentui/svg-icons/icons/arrow_download_20_regular.svg";
 import backIcon from "@fluentui/svg-icons/icons/chevron_left_24_regular.svg";
-import documentIcon from "@fluentui/svg-icons/icons/document_20_regular.svg";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
 import { materialInspectionRequestApi } from "@/features/document-conversion/api/material-inspection-request.api";

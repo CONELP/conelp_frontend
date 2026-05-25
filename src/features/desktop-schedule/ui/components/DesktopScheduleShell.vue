@@ -1749,6 +1749,7 @@ onUnmounted(() => {
           :ai-verification-flagged-item-ids="aiVerificationFlaggedItemIds"
           :ai-verification-violation-detail-by-item-id="aiVerificationViolationDetailByItemId"
           :bottom-spacer-height="createDivisionFooterHeight"
+          :drag-selection-disabled="compactView"
           @toggle-ai-verification-flag="emit('toggle-ai-verification-flag', $event)"
           :zoom-scale="zoomScale"
           @scroll-change="handleChartScroll"

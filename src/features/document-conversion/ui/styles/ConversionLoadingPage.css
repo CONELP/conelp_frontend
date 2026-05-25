@@ -255,6 +255,32 @@
   }
 }
 
+@media (max-width: 767px) {
+  .loading-frame {
+    display: flex;
+    flex-direction: column;
+    padding: 0.55rem;
+    background: var(--canvas);
+  }
+
+  .loading-page {
+    flex: 1 1 auto;
+    min-height: calc(100svh - 1.1rem);
+    padding-block: 0;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 0.72rem;
+    background: #fff;
+  }
+
+  .loading-topbar {
+    display: none;
+  }
+
+  .loading-intro {
+    padding: var(--page-inline) 0 0;
+  }
+}
+
 @keyframes glow-flow-a {
   0%,
   100% {

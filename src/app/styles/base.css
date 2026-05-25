@@ -12,6 +12,10 @@ body,
   min-height: 100%;
 }
 
+html {
+  background: #fff;
+}
+
 body {
   margin: 0;
   background: var(--canvas);
@@ -26,6 +30,14 @@ input,
 textarea,
 select {
   font: inherit;
+}
+
+@media (max-width: 1023px) {
+  input,
+  textarea,
+  select {
+    font-size: max(16px, 1rem) !important;
+  }
 }
 
 button {
