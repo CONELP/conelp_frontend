@@ -320,6 +320,9 @@ const showWorkflowControls = computed(() => !props.referenceOnly);
 const showExecutionProgressCompareControl = computed(
   () => props.readOnly && (showWorkflowControls.value || props.showExecutionProgressCompareToggle),
 );
+const effectiveExecutionProgressCompareVisible = computed(
+  () => showExecutionProgressCompareControl.value && isExecutionProgressCompareEnabled.value,
+);
 const createDivisionFooterHeight = computed(() =>
   !props.readOnly && showWorkflowControls.value ? CREATE_DIVISION_FOOTER_HEIGHT : 0,
 );
@@ -886,6 +889,10 @@ function handleZoomSliderInput(event: Event) {
 }
 
 function toggleExecutionProgressCompare() {
+  if (!showExecutionProgressCompareControl.value) {
+    return;
+  }
+
   if (isExecutionProgressCompareEnabled.value) {
     isExecutionProgressCompareEnabled.value = false;
     isExecutionProgressCompareLeaving.value = true;
@@ -909,6 +916,26 @@ function toggleExecutionProgressCompare() {
   isExecutionProgressCompareLeaving.value = false;
   isExecutionProgressCompareEnabled.value = true;
 }
+
+function disableExecutionProgressCompare() {
+  isExecutionProgressCompareEnabled.value = false;
+  isExecutionProgressCompareLeaving.value = false;
+
+  if (executionProgressCompareExitTimer) {
+    clearTimeout(executionProgressCompareExitTimer);
+    executionProgressCompareExitTimer = null;
+  }
+}
+
+watch(
+  () => props.readOnly,
+  (readOnly) => {
+    if (!readOnly) {
+      disableExecutionProgressCompare();
+    }
+  },
+  { immediate: true },
+);
 
 function removeRowPanelResizeListeners() {
   document.removeEventListener(
@@ -1021,7 +1048,7 @@ onUnmounted(() => {
     :class="{
       'schedule-shell--resizing': rowPanelResizeState,
       'schedule-shell--readonly': readOnly,
-      'schedule-shell--execution-progress': isExecutionProgressCompareEnabled,
+      'schedule-shell--execution-progress': effectiveExecutionProgressCompareVisible,
       'schedule-shell--compact': compactView,
       'schedule-shell--left-panel-collapsed': !isLeftPanelOpen,
     }"
@@ -1743,7 +1770,7 @@ onUnmounted(() => {
           :editing-item-id="editingItemId"
           :editing-milestone-id="editingMilestoneId"
           :schedule-version-review="scheduleVersionReview"
-          :execution-progress-compare-visible="isExecutionProgressCompareEnabled"
+          :execution-progress-compare-visible="effectiveExecutionProgressCompareVisible"
           :execution-progress-compare-leaving="isExecutionProgressCompareLeaving"
           :is-ai-verification-mode-active="isAiVerificationModeActive"
           :ai-verification-flagged-item-ids="aiVerificationFlaggedItemIds"
