@@ -20,21 +20,77 @@
 
         <button
           class="desktop-app-header__mobile-toggle"
+          :class="{
+            'desktop-app-header__mobile-toggle--job-active': activeJobCount > 0,
+            'desktop-app-header__mobile-toggle--job-failed': unreadFailedCount > 0,
+            'desktop-app-header__mobile-toggle--pulse': isMobileJobPulsing,
+          }"
           type="button"
           :aria-expanded="isMobileMenuOpen"
           :aria-label="isMobileMenuOpen ? '메뉴 닫기' : '메뉴 열기'"
           @click="toggleMobileMenu"
         >
+          <span
+            v-if="isMobileJobPulsing"
+            :key="mobileJobRippleRunId"
+            class="desktop-app-header__mobile-toggle-ripples"
+            aria-hidden="true"
+          >
+            <span class="desktop-app-header__mobile-toggle-ripple" />
+            <span
+              class="desktop-app-header__mobile-toggle-ripple desktop-app-header__mobile-toggle-ripple--two"
+            />
+            <span
+              class="desktop-app-header__mobile-toggle-ripple desktop-app-header__mobile-toggle-ripple--three"
+              @animationend="handleMobileJobRippleAnimationEnd"
+            />
+          </span>
           <img
             class="desktop-app-header__mobile-toggle-icon"
             :src="mobileMenuIcon"
             alt=""
             aria-hidden="true"
           />
+          <span
+            v-if="activeJobCount > 0"
+            class="desktop-app-header__mobile-toggle-count"
+            aria-label="진행 중인 문서 작업 수"
+          >
+            {{ activeJobCount }}
+          </span>
+          <span
+            v-else-if="unreadFailedCount > 0"
+            class="desktop-app-header__mobile-toggle-dot desktop-app-header__mobile-toggle-dot--error"
+            aria-hidden="true"
+          />
+          <span
+            v-else-if="unreadCompletedCount > 0"
+            class="desktop-app-header__mobile-toggle-dot desktop-app-header__mobile-toggle-dot--success"
+            aria-hidden="true"
+          />
         </button>
+      </div>
 
-        <div class="desktop-app-header__controls">
-          <ProjectPicker class="desktop-app-header__project-picker" />
+      <nav class="desktop-app-header__nav" aria-label="주요 메뉴">
+        <RouterLink
+          v-for="item in navItems"
+          :key="item.id"
+          class="desktop-app-header__nav-link"
+          :class="{ 'desktop-app-header__nav-link--active': isActive(item.id) }"
+          :to="item.to"
+          @click="closeMobileMenu"
+        >
+          {{ item.label }}
+        </RouterLink>
+      </nav>
+
+      <div class="desktop-app-header__mobile-divider" aria-hidden="true" />
+
+      <div class="desktop-app-header__controls">
+        <ProjectPicker class="desktop-app-header__project-picker" />
+
+        <div class="desktop-app-header__actions">
+          <BackgroundDocumentJobCenter />
 
           <div ref="settingsRef" class="desktop-app-header__settings-wrap">
             <button
@@ -81,32 +137,38 @@
           </div>
         </div>
       </div>
-
-      <nav class="desktop-app-header__nav" aria-label="주요 메뉴">
-        <RouterLink
-          v-for="item in navItems"
-          :key="item.id"
-          class="desktop-app-header__nav-link"
-          :class="{ 'desktop-app-header__nav-link--active': isActive(item.id) }"
-          :to="item.to"
-          @click="closeMobileMenu"
-        >
-          {{ item.label }}
-        </RouterLink>
-      </nav>
     </div>
   </header>
+  <div
+    class="desktop-app-header__spacer"
+    :style="headerSpacerStyle"
+    aria-hidden="true"
+  />
 </template>
 
 <script setup lang="ts">
 import dismissIcon from "@fluentui/svg-icons/icons/dismiss_20_regular.svg";
 import navigationIcon from "@fluentui/svg-icons/icons/navigation_20_regular.svg";
 import settingsIcon from "@fluentui/svg-icons/icons/settings_20_regular.svg";
-import { computed, onMounted, onUnmounted, ref, useAttrs } from "vue";
+import {
+  computed,
+  nextTick,
+  onMounted,
+  onUnmounted,
+  ref,
+  useAttrs,
+  watch,
+} from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 
 import { useAuthStore } from "@/features/auth/state/useAuthStore";
+import BackgroundDocumentJobCenter from "@/features/document-conversion/ui/components/BackgroundDocumentJobCenter.vue";
+import { useBackgroundDocumentJobsStore } from "@/features/document-conversion/state/useBackgroundDocumentJobsStore";
 import ProjectPicker from "@/shared/ui/ProjectPicker.vue";
+
+defineOptions({
+  inheritAttrs: false,
+});
 
 type DesktopHeaderSection = "dashboard" | "schedule" | "documents" | "ai-agent";
 
@@ -114,17 +176,29 @@ const route = useRoute();
 const router = useRouter();
 const attrs = useAttrs();
 const authStore = useAuthStore();
+const backgroundJobsStore = useBackgroundDocumentJobsStore();
 
 const isMenuOpen = ref(false);
 const isMobileMenuOpen = ref(false);
 const isLoggingOut = ref(false);
+const isMobileJobPulsing = ref(false);
+const mobileJobRippleRunId = ref(0);
+const headerHeight = ref(0);
 const headerRef = ref<HTMLElement | null>(null);
 const settingsRef = ref<HTMLElement | null>(null);
+let headerResizeObserver: ResizeObserver | null = null;
+let isHeaderUnmounted = false;
 
 const userLabel = computed(() => authStore.user?.userName ?? "");
 const mobileMenuIcon = computed(() =>
   isMobileMenuOpen.value ? dismissIcon : navigationIcon,
 );
+const activeJobCount = computed(() => backgroundJobsStore.activeJobs.length);
+const unreadCompletedCount = computed(() => backgroundJobsStore.unreadCompletedCount);
+const unreadFailedCount = computed(() => backgroundJobsStore.unreadFailedCount);
+const headerSpacerStyle = computed<Record<string, string>>(() => ({
+  "--desktop-app-header-spacer-height": `${headerHeight.value}px`,
+}));
 
 function toggleMenu() {
   isMenuOpen.value = !isMenuOpen.value;
@@ -177,16 +251,59 @@ function handleDocumentKeydown(event: KeyboardEvent) {
   }
 }
 
+function updateHeaderHeight() {
+  if (!headerRef.value) return;
+  headerHeight.value = Math.ceil(headerRef.value.getBoundingClientRect().height);
+}
+
+async function startMobileJobRippleSequence() {
+  isMobileJobPulsing.value = false;
+  await nextTick();
+
+  if (isHeaderUnmounted) return;
+
+  mobileJobRippleRunId.value += 1;
+  isMobileJobPulsing.value = true;
+}
+
+function handleMobileJobRippleAnimationEnd() {
+  isMobileJobPulsing.value = false;
+}
+
+watch(
+  activeJobCount,
+  (count, previousCount) => {
+    const previous = previousCount ?? 0;
+
+    if (count > previous) {
+      void startMobileJobRippleSequence();
+    }
+  },
+  { immediate: true },
+);
+
 onMounted(() => {
   if (typeof window === "undefined") return;
   document.addEventListener("pointerdown", handleDocumentPointerDown);
   document.addEventListener("keydown", handleDocumentKeydown);
+  window.addEventListener("resize", updateHeaderHeight);
+
+  updateHeaderHeight();
+  if (typeof ResizeObserver !== "undefined" && headerRef.value) {
+    headerResizeObserver = new ResizeObserver(updateHeaderHeight);
+    headerResizeObserver.observe(headerRef.value);
+  }
 });
 
 onUnmounted(() => {
+  isHeaderUnmounted = true;
+
   if (typeof window === "undefined") return;
   document.removeEventListener("pointerdown", handleDocumentPointerDown);
   document.removeEventListener("keydown", handleDocumentKeydown);
+  window.removeEventListener("resize", updateHeaderHeight);
+  headerResizeObserver?.disconnect();
+  headerResizeObserver = null;
 });
 
 const navItems: Array<{ id: DesktopHeaderSection; label: string; to: string }> = [

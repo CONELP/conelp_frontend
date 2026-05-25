@@ -1,9 +1,19 @@
 .desktop-app-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
   background: #fff;
   border-bottom: 1px solid var(--outline-soft);
 }
 
+.desktop-app-header__spacer {
+  display: none;
+}
+
 .desktop-app-header__shell {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
   width: min(100%, 76rem);
   margin: 0 auto;
   padding-inline: 1rem;
@@ -17,6 +27,7 @@
 }
 
 .desktop-app-header__top {
+  grid-column: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -37,6 +48,8 @@
 }
 
 .desktop-app-header__controls {
+  grid-column: 2;
+  justify-self: end;
   display: flex;
   align-items: center;
   gap: 0.58rem;
@@ -69,6 +82,13 @@
 .desktop-app-header__project-picker :deep(.project-picker__caret) {
   width: 0.86rem;
   height: 0.86rem;
+}
+
+.desktop-app-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.58rem;
+  flex: 0 0 auto;
 }
 
 .desktop-app-header__mobile-toggle {
@@ -176,11 +196,16 @@
 }
 
 .desktop-app-header__nav {
+  grid-column: 1 / -1;
   display: flex;
   align-items: center;
   gap: 1.5rem;
   padding: 0.78rem 0 0.82rem;
   border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.desktop-app-header__mobile-divider {
+  display: none;
 }
 
 .desktop-app-header__nav-link {
@@ -221,35 +246,52 @@
 
 @media (max-width: 1023px) {
   .desktop-app-header {
-    position: relative;
-    z-index: 100;
+    position: fixed;
+    right: 0;
+    left: 0;
+    padding-top: env(safe-area-inset-top, 0);
+  }
+
+  .desktop-app-header__spacer {
+    display: block;
+    height: var(--desktop-app-header-spacer-height, 0);
+    flex: 0 0 var(--desktop-app-header-spacer-height, 0);
   }
 
   .desktop-app-header__shell {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
     width: 100%;
     padding-inline: 0.75rem;
   }
 
   .desktop-app-header__top {
-    flex-wrap: wrap;
-    gap: 0.65rem;
-    padding: 0.72rem 0;
+    width: 100%;
+    flex-wrap: nowrap;
+    gap: 0.36rem;
+    padding: 0.42rem 0;
   }
 
   .desktop-app-header__brand {
+    order: 1;
     flex: 0 0 auto;
     min-width: 0;
   }
 
   .desktop-app-header__logo {
-    width: 5.4rem;
+    width: 5.05rem;
   }
 
   .desktop-app-header__mobile-toggle {
+    order: 3;
+    position: relative;
+    overflow: visible;
+    isolation: isolate;
     display: inline-flex;
-    width: 2.25rem;
-    height: 2.25rem;
-    flex: 0 0 2.25rem;
+    width: 2rem;
+    height: 2rem;
+    flex: 0 0 2rem;
     align-items: center;
     justify-content: center;
     padding: 0;
@@ -272,9 +314,83 @@
   }
 
   .desktop-app-header__mobile-toggle-icon {
+    position: relative;
+    z-index: 1;
     width: 1.18rem;
     height: 1.18rem;
     opacity: 0.76;
+  }
+
+  .desktop-app-header__mobile-toggle--pulse {
+    animation: desktop-app-header-mobile-job-button 900ms ease 1;
+  }
+
+  .desktop-app-header__mobile-toggle-ripples,
+  .desktop-app-header__mobile-toggle-ripple {
+    position: absolute;
+    border-radius: 999px;
+    pointer-events: none;
+  }
+
+  .desktop-app-header__mobile-toggle-ripples {
+    top: -0.22rem;
+    right: -0.24rem;
+    z-index: 0;
+    width: 1rem;
+    height: 1rem;
+  }
+
+  .desktop-app-header__mobile-toggle-ripple {
+    inset: -0.55rem;
+    border: 2px solid rgba(33, 115, 70, 0.36);
+    opacity: 0;
+    animation: desktop-app-header-mobile-job-ripple 1000ms ease-out 1;
+  }
+
+  .desktop-app-header__mobile-toggle-ripple--two {
+    animation-delay: 180ms;
+  }
+
+  .desktop-app-header__mobile-toggle-ripple--three {
+    animation-delay: 360ms;
+  }
+
+  .desktop-app-header__mobile-toggle-count {
+    position: absolute;
+    z-index: 2;
+    top: -0.22rem;
+    right: -0.24rem;
+    min-width: 1rem;
+    height: 1rem;
+    padding: 0 0.26rem;
+    border: 2px solid #fff;
+    border-radius: 999px;
+    background: #217346;
+    color: #fff;
+    font-size: 0.62rem;
+    font-weight: 760;
+    line-height: 0.86rem;
+    text-align: center;
+    box-sizing: border-box;
+  }
+
+  .desktop-app-header__mobile-toggle-dot {
+    position: absolute;
+    z-index: 2;
+    top: 0.05rem;
+    right: 0.05rem;
+    width: 0.48rem;
+    height: 0.48rem;
+    border: 2px solid #fff;
+    border-radius: 999px;
+  }
+
+  .desktop-app-header__mobile-toggle-dot--success {
+    background: #217346;
+  }
+
+  .desktop-app-header__mobile-toggle-dot--error {
+    background: #b32d2d;
   }
 
   .desktop-app-header__project-picker {
@@ -294,7 +410,7 @@
   }
 
   .desktop-app-header__controls {
-    order: 4;
+    order: 5;
     display: flex;
     width: 100%;
     min-width: 0;
@@ -304,30 +420,33 @@
     gap: 0.55rem;
     overflow: hidden;
     padding: 0;
-    border-top: 0 solid transparent;
-    border-bottom: 0 solid transparent;
     opacity: 0;
     pointer-events: none;
-    transform: translateY(-0.24rem);
     visibility: hidden;
-    transition: max-height 220ms ease, padding 220ms ease, border-width 220ms ease,
-      border-color 220ms ease, opacity 180ms ease, transform 220ms ease,
-      visibility 0s linear 220ms;
+    transition: max-height 220ms ease, padding 220ms ease,
+      opacity 180ms ease, visibility 0s linear 220ms;
   }
 
   .desktop-app-header--mobile-menu-open .desktop-app-header__controls {
     max-height: 4.25rem;
     overflow: visible;
-    padding: 0.68rem 0;
-    border-top-width: 1px;
-    border-bottom-width: 1px;
-    border-top-color: rgba(0, 0, 0, 0.08);
-    border-bottom-color: rgba(0, 0, 0, 0.08);
+    padding: 0.68rem 0 0.72rem;
     opacity: 1;
     pointer-events: auto;
-    transform: translateY(0);
     visibility: visible;
     transition-delay: 0s;
+  }
+
+  .desktop-app-header__actions {
+    margin-left: auto;
+    justify-content: flex-end;
+    gap: 0.5rem;
+  }
+
+  .desktop-app-header__settings,
+  .desktop-app-header :deep(.background-job-center__button) {
+    width: 2rem;
+    height: 2rem;
   }
 
   .desktop-app-header__settings-wrap {
@@ -340,6 +459,7 @@
   }
 
   .desktop-app-header__nav {
+    order: 3;
     display: flex;
     flex-direction: column;
     align-items: stretch;
@@ -358,7 +478,7 @@
 
   .desktop-app-header--mobile-menu-open .desktop-app-header__nav {
     max-height: 14rem;
-    padding: 0.58rem 0 0.72rem;
+    padding: 0.58rem 0 0.62rem;
     opacity: 1;
     pointer-events: auto;
     transform: translateY(0);
@@ -389,8 +509,64 @@
   }
 
   .desktop-app-header__nav {
-    order: 5;
     width: 100%;
+  }
+
+  .desktop-app-header__mobile-divider {
+    order: 4;
+    display: block;
+    width: 100%;
+    height: 1px;
+    max-height: 0;
+    background: rgba(0, 0, 0, 0.08);
+    opacity: 0;
+    transition: max-height 180ms ease, opacity 180ms ease;
+  }
+
+  .desktop-app-header--mobile-menu-open .desktop-app-header__mobile-divider {
+    max-height: 1px;
+    opacity: 1;
+  }
+}
+
+@keyframes desktop-app-header-mobile-job-button {
+  0% {
+    transform: scale(1);
+  }
+
+  30% {
+    transform: scale(1.06);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes desktop-app-header-mobile-job-ripple {
+  0% {
+    opacity: 0.5;
+    transform: scale(0.62);
+  }
+
+  70% {
+    opacity: 0.16;
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(2.85);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desktop-app-header__mobile-toggle--pulse,
+  .desktop-app-header__mobile-toggle-ripple {
+    animation: none;
+  }
+
+  .desktop-app-header__mobile-toggle-ripples {
+    display: none;
   }
 }
 

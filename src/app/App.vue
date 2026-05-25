@@ -1,6 +1,5 @@
 <template>
   <RouterView />
-  <BackgroundDocumentJobDialog />
   <BackgroundDocumentJobToast />
 </template>
 
@@ -11,7 +10,6 @@ import { RouterView } from "vue-router";
 import { useAuthStore } from "@/features/auth/state/useAuthStore";
 import { aiAgentWsClient } from "@/features/ai-agent/services/ai-agent-ws-client";
 import { useAiAgentStore } from "@/features/ai-agent/state/useAiAgentStore";
-import BackgroundDocumentJobDialog from "@/features/document-conversion/ui/components/BackgroundDocumentJobDialog.vue";
 import BackgroundDocumentJobToast from "@/features/document-conversion/ui/components/BackgroundDocumentJobToast.vue";
 
 const authStore = useAuthStore();
