@@ -122,6 +122,7 @@ const props = defineProps<{
   showLeftPanelToggle?: boolean;
   leftPanelToggleOpenLabel?: string;
   leftPanelToggleClosedLabel?: string;
+  showExecutionProgressCompareToggle?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -316,6 +317,9 @@ const mainScheduleVersion = computed<ScheduleVersionOption | null>(() => {
   });
 });
 const showWorkflowControls = computed(() => !props.referenceOnly);
+const showExecutionProgressCompareControl = computed(
+  () => props.readOnly && (showWorkflowControls.value || props.showExecutionProgressCompareToggle),
+);
 const createDivisionFooterHeight = computed(() =>
   !props.readOnly && showWorkflowControls.value ? CREATE_DIVISION_FOOTER_HEIGHT : 0,
 );
@@ -1328,7 +1332,7 @@ onUnmounted(() => {
       </button>
 
       <button
-        v-if="showWorkflowControls && readOnly"
+        v-if="showExecutionProgressCompareControl"
         type="button"
         class="schedule-shell__compare-toggle"
         :class="{

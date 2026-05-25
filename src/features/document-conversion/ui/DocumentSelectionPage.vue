@@ -84,6 +84,21 @@
                     </span>
                     <span>{{ document.subtitle }}</span>
                   </span>
+
+                  <button
+                    class="selection-panel__generated-download"
+                    type="button"
+                    aria-label="생성된 문서 다운로드"
+                    :disabled="!document.isDownloadable || downloadingDocumentId === document.id"
+                    @click="handleDownloadGeneratedDocument(document)"
+                  >
+                    <img
+                      class="selection-panel__generated-download-icon"
+                      :src="downloadIcon"
+                      alt=""
+                      aria-hidden="true"
+                    />
+                  </button>
                 </article>
               </template>
 
@@ -112,17 +127,18 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from "vue";
 import { RouterLink, useRouter } from "vue-router";
+import downloadIcon from "@fluentui/svg-icons/icons/arrow_download_20_regular.svg";
 import documentsIcon from "@fluentui/svg-icons/icons/chevron_right_20_regular.svg";
 import documentIcon from "@fluentui/svg-icons/icons/document_20_regular.svg";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
-import { dailyReportResourceApi } from "@/features/document-conversion/api/daily-report-resource.api";
-import { useBackgroundDocumentJobsStore } from "@/features/document-conversion/state/useBackgroundDocumentJobsStore";
+import { materialInspectionRequestApi } from "@/features/document-conversion/api/material-inspection-request.api";
 import { useGeneratedDocumentsDemoViewModel } from "@/features/document-conversion/state/useGeneratedDocumentsDemoViewModel";
+import type { GeneratedDocumentListItem } from "@/features/document-conversion/state/useGeneratedDocumentsDemoViewModel";
 import DocumentTypeCard from "@/features/document-conversion/ui/components/DocumentTypeCard.vue";
 import { useDocumentConversionDemoViewModel } from "@/features/document-conversion/state/useDocumentConversionDemoViewModel";
-import { formatLocalDate } from "@/features/desktop-schedule/services/desktop-schedule-date.service";
 import { analyticsClient } from "@/shared/analytics/analytics-stub";
 
 const {
@@ -138,31 +154,93 @@ const {
   isGeneratedDocumentsLoading,
   generatedDocumentsErrorMessage,
 } = useGeneratedDocumentsDemoViewModel();
-const backgroundDocumentJobs = useBackgroundDocumentJobsStore();
 const router = useRouter();
+const downloadingDocumentId = ref<string | null>(null);
 
 clearSelectedDocument();
 
-async function triggerDailyReportCreation() {
-  const date = formatLocalDate(new Date());
-  analyticsClient.trackAction("document", "create_dr_document", "attempt", { date });
+function isStorageObjectKey(value: string) {
+  return value.startsWith("gs://") || !/^https?:\/\//i.test(value);
+}
+
+async function fetchExternalGeneratedDocument(value: string) {
+  const response = await fetch(value, {
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    throw new Error("다운로드 요청 실패");
+  }
+
+  return response.blob();
+}
+
+async function downloadGeneratedDocumentAttachment(
+  generatedDocument: GeneratedDocumentListItem,
+) {
+  const sourceUrl = generatedDocument.resultUrl ?? generatedDocument.pdfUrl;
+
+  if (sourceUrl) {
+    if (isStorageObjectKey(sourceUrl)) {
+      return materialInspectionRequestApi.downloadDocumentFileAttachment(sourceUrl);
+    }
+
+    return {
+      blob: await fetchExternalGeneratedDocument(sourceUrl),
+      filename: "",
+    };
+  }
+
+  return materialInspectionRequestApi.downloadDocumentJobAttachment(generatedDocument.jobId);
+}
+
+function saveGeneratedDocumentBlob(
+  generatedDocument: GeneratedDocumentListItem,
+  blob: Blob,
+  filename = "",
+) {
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = objectUrl;
+  link.download = filename || generatedDocument.downloadFileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(objectUrl);
+}
+
+async function handleDownloadGeneratedDocument(
+  generatedDocument: GeneratedDocumentListItem,
+) {
+  if (downloadingDocumentId.value === generatedDocument.id) {
+    return;
+  }
+
+  downloadingDocumentId.value = generatedDocument.id;
 
   try {
-    await backgroundDocumentJobs.enqueueJob(
-      {
-        documentTypeLabel: "공사일보",
-        photoSummary: date,
-      },
-      async () => {
-        await dailyReportResourceApi.createDailyReport(date);
-      },
+    const attachment = await downloadGeneratedDocumentAttachment(generatedDocument);
+
+    saveGeneratedDocumentBlob(
+      generatedDocument,
+      attachment.blob,
+      attachment.filename,
     );
-    analyticsClient.trackAction("document", "create_dr_document", "success", { date });
-  } catch (error) {
-    analyticsClient.trackAction("document", "create_dr_document", "fail", {
-      date,
-      error_kind: error instanceof Error ? "api" : "unknown",
+    analyticsClient.trackAction("document", "download_generated", "success", {
+      document_type: generatedDocument.documentType ?? "unknown",
+      has_result_url: Boolean(generatedDocument.resultUrl ?? generatedDocument.pdfUrl),
+      source: "documents_sidebar",
     });
+  } catch {
+    window.alert("문서 다운로드에 실패했습니다.");
+    analyticsClient.trackAction("document", "download_generated", "fail", {
+      document_type: generatedDocument.documentType ?? "unknown",
+      has_result_url: Boolean(generatedDocument.resultUrl ?? generatedDocument.pdfUrl),
+      source: "documents_sidebar",
+    });
+  } finally {
+    downloadingDocumentId.value = null;
   }
 }
 
@@ -172,15 +250,6 @@ function handleSelectDocument(type: string) {
   }
 
   selectDocument(type);
-
-  if (type === "daily_report_write") {
-    analyticsClient.trackAction("document", "select_type", "success", {
-      document_type: type,
-    });
-    void triggerDailyReportCreation();
-    return;
-  }
-
   const nextRoute = resolveNextRoute(type);
 
   if (nextRoute === "/documents") {

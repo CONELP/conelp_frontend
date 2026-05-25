@@ -91,8 +91,29 @@ type DailyReportDraft = {
   tomorrowImages: DailyReportImageDraft[];
 };
 
+type ScheduleVersionSummary = {
+  id: number;
+  isMain: boolean;
+  setMainAt?: string | null;
+};
+
 function clampNumber(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+function resolveCurrentMainScheduleVersionId(versions: ScheduleVersionSummary[]) {
+  const mainVersions = versions.filter((scheduleVersion) => scheduleVersion.isMain);
+
+  if (mainVersions.length === 0) {
+    return null;
+  }
+
+  return mainVersions.reduce((latest, candidate) => {
+    const latestSetMainAt = latest.setMainAt ?? "";
+    const candidateSetMainAt = candidate.setMainAt ?? "";
+
+    return candidateSetMainAt > latestSetMainAt ? candidate : latest;
+  }).id;
 }
 
 function readStoredScheduleRatio() {
@@ -355,7 +376,7 @@ const isScheduleRefreshing = computed(
     version.selectedId !== null,
 );
 const baselineScheduleVersionId = computed(
-  () => version.versions.find((version: any) => version.isMain)?.id ?? null,
+  () => resolveCurrentMainScheduleVersionId(version.versions as ScheduleVersionSummary[]),
 );
 const effectiveScheduleColumnRatio = computed(() =>
   clampScheduleRatio(scheduleColumnRatio.value, layoutContentWidth.value),
@@ -1455,6 +1476,8 @@ watch(
             :shell-layout="layout.shell"
             :read-only="true"
             reference-only
+            :left-panel-open="true"
+            :show-execution-progress-compare-toggle="true"
             :schedule-versions="version.versions"
             :selected-schedule-version-id="version.selectedId"
             version-name="기준 공정표"

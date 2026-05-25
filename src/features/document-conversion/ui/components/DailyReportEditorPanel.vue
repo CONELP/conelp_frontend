@@ -20,6 +20,7 @@ import type {
   DailyReportMaterialDeliveryUpdateRequest,
   DailyReportMaterialSpecResponse,
   DailyReportMaterialTypeResponse,
+  DailyReportWeatherByDateResponse,
 } from "@/features/document-conversion/api/daily-report-resource-api.types";
 import { materialInspectionRequestApi } from "@/features/document-conversion/api/material-inspection-request.api";
 import type { WorkTypeReferenceResponse } from "@/features/document-conversion/api/material-inspection-request-api.types";
@@ -80,7 +81,6 @@ const DAILY_REPORT_EDITOR_TABS: DailyReportEditorTab[] = [
   { id: "equipment", label: "장비" },
 ];
 
-const HOMEPAGE_IMPORT_MIN_DURATION_MS = 2500;
 const DAILY_REPORT_RESOURCE_COLUMN_WIDTH_STORAGE_KEY =
   "conelp.dailyReport.resourceColumnWidths.v8";
 const DAILY_REPORT_RESOURCE_COLUMN_MIN_WIDTH = 32;
@@ -295,6 +295,10 @@ const materialSpecOptionsByTypeId = ref(
 const isDailyReportSaving = ref(false);
 const dailyReportSaveMessage = ref("");
 const isDailyReportDocumentGenerating = ref(false);
+const dailyReportWeather = ref<DailyReportWeatherByDateResponse | null>(null);
+const isDailyReportWeatherLoading = ref(false);
+const dailyReportWeatherErrorMessage = ref("");
+let dailyReportWeatherRequestId = 0;
 const laborRowGroups = computed<DailyReportLaborGroup[]>(() => {
   const groups: DailyReportLaborGroup[] = [];
   const groupByWorkType = new Map<string, DailyReportLaborGroup>();
@@ -842,7 +846,6 @@ const laborOriginalsByLaborTypeId = ref<
 const previewImage = ref<DailyReportImageDraft | null>(null);
 const previewOriginalSrc = ref<string>("");
 const activeDailyReportTab = ref<DailyReportEditorTabId>("todayWork");
-const homepageImportStatus = ref<"idle" | "loading" | "error">("idle");
 const taskSyncRequestIds = new Map<string, number>();
 const pendingTaskDeletes = new Set<string>();
 
@@ -1435,7 +1438,6 @@ async function persistDailyReportResourceKind(
 
   try {
     await saveDailyReportResourceKind(kind);
-    dailyReportSaveMessage.value = `${getDailyReportResourceKindLabel(kind)} 항목을 저장했어요.`;
     trackDailyReportPanelAction(action, "success", { kind });
     await hydrateDailyReportResourceKind(kind);
     return true;
@@ -1871,6 +1873,77 @@ const selectedReportDateLabel = computed(() => {
   return `${date.getFullYear()}.${pad2(date.getMonth() + 1)}.${pad2(date.getDate())} (${weekday})`;
 });
 
+function formatDailyReportTemperature(value: number | null | undefined) {
+  return typeof value === "number" && Number.isFinite(value) ? `${value}°C` : "";
+}
+
+const dailyReportWeatherText = computed(() => {
+  if (isDailyReportWeatherLoading.value) {
+    return "불러오는 중";
+  }
+
+  if (dailyReportWeatherErrorMessage.value) {
+    return "날씨 정보 없음";
+  }
+
+  return dailyReportWeather.value?.weather?.trim() || "날씨 정보 없음";
+});
+
+const dailyReportWeatherTemperatureText = computed(() => {
+  const weather = dailyReportWeather.value;
+
+  if (!weather || isDailyReportWeatherLoading.value || dailyReportWeatherErrorMessage.value) {
+    return "";
+  }
+
+  const minTemperature = formatDailyReportTemperature(weather.minTemperature);
+  const maxTemperature = formatDailyReportTemperature(weather.maxTemperature);
+
+  if (minTemperature && maxTemperature) {
+    return `최저 ${minTemperature} / 최고 ${maxTemperature}`;
+  }
+
+  if (minTemperature) {
+    return `최저 ${minTemperature}`;
+  }
+
+  if (maxTemperature) {
+    return `최고 ${maxTemperature}`;
+  }
+
+  return "";
+});
+
+async function loadDailyReportWeather() {
+  const requestId = dailyReportWeatherRequestId + 1;
+  dailyReportWeatherRequestId = requestId;
+  isDailyReportWeatherLoading.value = true;
+  dailyReportWeatherErrorMessage.value = "";
+
+  try {
+    const weather = await dailyReportResourceApi.getWeatherByDate(selectedReportDate.value);
+
+    if (dailyReportWeatherRequestId !== requestId) {
+      return;
+    }
+
+    dailyReportWeather.value = weather;
+  } catch (error) {
+    if (dailyReportWeatherRequestId !== requestId) {
+      return;
+    }
+
+    console.error("load daily report weather failed", error);
+    dailyReportWeather.value = null;
+    dailyReportWeatherErrorMessage.value =
+      error instanceof Error ? error.message : "날씨 정보를 불러오지 못했습니다.";
+  } finally {
+    if (dailyReportWeatherRequestId === requestId) {
+      isDailyReportWeatherLoading.value = false;
+    }
+  }
+}
+
 function shiftReportDate(delta: number, unit: "day" | "month") {
   const previousDate = selectedReportDate.value;
   const nextDate =
@@ -1950,6 +2023,7 @@ watch(selectedReportDate, () => {
   closeDailyReportResourceContextMenu();
   cancelDailyReportResourceRowEdit();
   void hydrateDailyReportFromServer();
+  void loadDailyReportWeather();
 });
 
 function getSectionDate(section: DailyReportWorkSection) {
@@ -2609,31 +2683,6 @@ function getImageCardDragClass(section: DailyReportWorkSection, imageId: string)
       imageDragOverState.value.imageId === imageId &&
       imageDragOverState.value.position === "after",
   };
-}
-
-function waitForHomepageImportFeedback() {
-  return new Promise<void>((resolve) => {
-    window.setTimeout(resolve, HOMEPAGE_IMPORT_MIN_DURATION_MS);
-  });
-}
-
-async function handleHomepageDataImport() {
-  if (homepageImportStatus.value === "loading") {
-    return;
-  }
-
-  homepageImportStatus.value = "loading";
-
-  try {
-    await Promise.all([
-      hydrateDailyReportFromServer(),
-      waitForHomepageImportFeedback(),
-    ]);
-    homepageImportStatus.value = "idle";
-  } catch (error) {
-    console.error("homepage daily report import failed", error);
-    homepageImportStatus.value = "error";
-  }
 }
 
 function normalizeDailyReportQuantityInput(value: string) {
@@ -4201,7 +4250,6 @@ async function handleDailyReportSave() {
     return;
   }
 
-  homepageImportStatus.value = "idle";
   dailyReportSaveMessage.value = "";
   isDailyReportSaving.value = true;
 
@@ -4211,8 +4259,6 @@ async function handleDailyReportSave() {
     if (tab === "labor" || tab === "material" || tab === "equipment") {
       await saveDailyReportResourceKind(tab);
       await hydrateDailyReportResourceKind(tab);
-      const label = getDailyReportResourceKindLabel(tab);
-      dailyReportSaveMessage.value = `${label} 항목을 저장했어요.`;
       trackDailyReportPanelAction("save_panel", "success", {
         kind: tab,
         labor_row_count: laborRows.value.length,
@@ -4224,10 +4270,6 @@ async function handleDailyReportSave() {
         tab === "todayWork" ? "today" : "tomorrow";
       await saveDailyReportWorkSection(section);
       await hydrateDailyReportActualWorksFromServer();
-      dailyReportSaveMessage.value =
-        section === "today"
-          ? "오늘 작업내용을 저장했어요."
-          : "내일 작업내용을 저장했어요.";
       trackDailyReportPanelAction("save_panel", "success", {
         section,
         today_work_type_count: todayWorkTypes.value.length,
@@ -4239,7 +4281,6 @@ async function handleDailyReportSave() {
       await saveDailyReportAttendance();
       await saveDailyReportMaterial();
       await saveDailyReportEquipment();
-      dailyReportSaveMessage.value = "작업내용, 인력, 자재, 장비를 저장했어요.";
       trackDailyReportPanelAction("save_panel", "success", {
         today_work_type_count: todayWorkTypes.value.length,
         tomorrow_work_type_count: tomorrowWorkTypes.value.length,
@@ -4597,6 +4638,7 @@ async function hydrateDailyReportFromServer() {
 onMounted(() => {
   void loadDailyReportResourceReferences();
   void hydrateDailyReportFromServer();
+  void loadDailyReportWeather();
   document.addEventListener("mousedown", handleReportDateOutsideClick);
   document.addEventListener("mousedown", handleDailyReportResourceDocumentMouseDown);
   document.addEventListener("keydown", handleDailyReportResourceDocumentKeydown);
@@ -4802,6 +4844,29 @@ onUnmounted(() => {
       >
         <section
           class="daily-report-summary-card"
+          aria-label="날씨"
+          aria-live="polite"
+        >
+          <header class="daily-report-summary-card__header">
+            <span class="daily-report-summary-card__title">날씨</span>
+          </header>
+          <div class="daily-report-summary-card__body">
+            <ul class="daily-report-summary__task-list">
+              <li class="daily-report-summary__task">
+                {{ dailyReportWeatherText }}
+              </li>
+              <li
+                v-if="dailyReportWeatherTemperatureText"
+                class="daily-report-summary__task"
+              >
+                {{ dailyReportWeatherTemperatureText }}
+              </li>
+            </ul>
+          </div>
+        </section>
+
+        <section
+          class="daily-report-summary-card"
           aria-label="오늘 작업 요약"
           aria-live="polite"
         >
@@ -4956,6 +5021,14 @@ onUnmounted(() => {
         <div class="daily-report-write-work-cell">
           <div class="daily-report-write-work-cell__header">
             <span class="daily-report-write-work-cell__title">오늘작업</span>
+            <button
+              type="button"
+              class="daily-report-write-save-button"
+              :disabled="isDailyReportSaving"
+              @click="handleDailyReportSave"
+            >
+              {{ isDailyReportSaving ? "저장 중" : "저장하기" }}
+            </button>
           </div>
 
           <div class="daily-report-worktype-list">
@@ -5105,6 +5178,14 @@ onUnmounted(() => {
         <div class="daily-report-write-work-cell">
           <div class="daily-report-write-work-cell__header">
             <span class="daily-report-write-work-cell__title">내일작업</span>
+            <button
+              type="button"
+              class="daily-report-write-save-button"
+              :disabled="isDailyReportSaving"
+              @click="handleDailyReportSave"
+            >
+              {{ isDailyReportSaving ? "저장 중" : "저장하기" }}
+            </button>
           </div>
 
           <div class="daily-report-worktype-list">
@@ -5189,6 +5270,14 @@ onUnmounted(() => {
         <div class="daily-report-resource-table daily-report-resource-table--labor">
           <div class="daily-report-resource-table__header">
             <h2 class="daily-report-resource-table__title">인력투입</h2>
+            <button
+              type="button"
+              class="daily-report-write-save-button"
+              :disabled="isDailyReportSaving"
+              @click="handleDailyReportSave"
+            >
+              {{ isDailyReportSaving ? "저장 중" : "저장하기" }}
+            </button>
           </div>
 
           <div class="daily-report-resource-sheet" role="region" aria-label="인력 투입현황 표">
@@ -5209,9 +5298,16 @@ onUnmounted(() => {
               </colgroup>
               <tbody>
                 <template
-                  v-for="group in laborDisplayGroups"
+                  v-for="(group, groupIndex) in laborDisplayGroups"
                   :key="group.key"
                 >
+                  <tr
+                    v-if="groupIndex > 0"
+                    class="daily-report-resource-sheet__group-gap-row"
+                    aria-hidden="true"
+                  >
+                    <td :colspan="DAILY_REPORT_RESOURCE_COLUMNS.labor.length + 1"></td>
+                  </tr>
                   <tr class="daily-report-resource-sheet__group-title-row">
                     <th
                       :colspan="DAILY_REPORT_RESOURCE_COLUMNS.labor.length"
@@ -5463,6 +5559,14 @@ onUnmounted(() => {
         <div class="daily-report-resource-table daily-report-resource-table--material">
           <div class="daily-report-resource-table__header">
             <h2 class="daily-report-resource-table__title">자재투입</h2>
+            <button
+              type="button"
+              class="daily-report-write-save-button"
+              :disabled="isDailyReportSaving"
+              @click="handleDailyReportSave"
+            >
+              {{ isDailyReportSaving ? "저장 중" : "저장하기" }}
+            </button>
           </div>
 
           <div class="daily-report-resource-sheet" role="region" aria-label="주요자재 투입현황 표">
@@ -5480,9 +5584,16 @@ onUnmounted(() => {
               </colgroup>
               <tbody>
                 <template
-                  v-for="group in materialDisplayGroups"
+                  v-for="(group, groupIndex) in materialDisplayGroups"
                   :key="group.key"
                 >
+                  <tr
+                    v-if="groupIndex > 0"
+                    class="daily-report-resource-sheet__group-gap-row"
+                    aria-hidden="true"
+                  >
+                    <td :colspan="DAILY_REPORT_RESOURCE_COLUMNS.material.length + 1"></td>
+                  </tr>
                   <tr class="daily-report-resource-sheet__group-title-row">
                     <th
                       :colspan="DAILY_REPORT_RESOURCE_COLUMNS.material.length"
@@ -5676,6 +5787,14 @@ onUnmounted(() => {
         <div class="daily-report-resource-table daily-report-resource-table--equipment">
           <div class="daily-report-resource-table__header">
             <h2 class="daily-report-resource-table__title">장비투입</h2>
+            <button
+              type="button"
+              class="daily-report-write-save-button"
+              :disabled="isDailyReportSaving"
+              @click="handleDailyReportSave"
+            >
+              {{ isDailyReportSaving ? "저장 중" : "저장하기" }}
+            </button>
           </div>
 
           <div class="daily-report-resource-sheet" role="region" aria-label="장비 투입현황 표">
@@ -5693,9 +5812,16 @@ onUnmounted(() => {
               </colgroup>
               <tbody>
                 <template
-                  v-for="group in equipmentDisplayGroups"
+                  v-for="(group, groupIndex) in equipmentDisplayGroups"
                   :key="group.key"
                 >
+                  <tr
+                    v-if="groupIndex > 0"
+                    class="daily-report-resource-sheet__group-gap-row"
+                    aria-hidden="true"
+                  >
+                    <td :colspan="DAILY_REPORT_RESOURCE_COLUMNS.equipment.length + 1"></td>
+                  </tr>
                   <tr class="daily-report-resource-sheet__group-title-row">
                     <th
                       :colspan="DAILY_REPORT_RESOURCE_COLUMNS.equipment.length"
@@ -5874,22 +6000,6 @@ onUnmounted(() => {
     <footer class="daily-report-write-save-bar">
       <button
         type="button"
-        class="daily-report-write-import-button"
-        :disabled="homepageImportStatus === 'loading'"
-        @click="handleHomepageDataImport"
-      >
-        {{ homepageImportStatus === "loading" ? "홈페이지 자료 불러오는 중" : "홈페이지 자료 불러오기" }}
-      </button>
-      <button
-        type="button"
-        class="daily-report-write-save-button"
-        :disabled="isDailyReportSaving"
-        @click="handleDailyReportSave"
-      >
-        {{ isDailyReportSaving ? "저장 중" : "저장하기" }}
-      </button>
-      <button
-        type="button"
         class="daily-report-write-save-button daily-report-write-generate-button"
         :disabled="isDailyReportDocumentGenerating"
         @click="handleCreateDailyReportDocument"
@@ -5904,23 +6014,6 @@ onUnmounted(() => {
         {{ dailyReportSaveMessage }}
       </p>
     </footer>
-
-    <Transition name="daily-report-homepage-import-overlay">
-      <div
-        v-if="homepageImportStatus === 'loading'"
-        class="daily-report-homepage-import-overlay"
-        role="status"
-        aria-live="polite"
-      >
-        <div class="daily-report-homepage-import-overlay__card">
-          <span
-            class="daily-report-homepage-import-overlay__indicator"
-            aria-hidden="true"
-          />
-          <span>홈페이지 자료를 가져오고 있어요.</span>
-        </div>
-      </div>
-    </Transition>
   </aside>
 
   <Transition name="daily-report-resource-floating">

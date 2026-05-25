@@ -856,21 +856,21 @@
 
 .upload-dropzone__selected-rotate {
   position: absolute;
-  top: 50%;
-  left: 50%;
+  right: 0.42rem;
+  bottom: 0.42rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.6rem;
-  height: 2.6rem;
+  width: 1.86rem;
+  height: 1.86rem;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.78);
   border-radius: 999px;
-  background: rgba(15, 18, 28, 0.46);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
-  transform: translate(-50%, -50%);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
+  transform-origin: center;
   cursor: pointer;
-  opacity: 0.82;
+  opacity: 0.92;
   transition: opacity 160ms ease, background 160ms ease, transform 160ms ease;
   pointer-events: auto;
 }
@@ -878,17 +878,17 @@
 .upload-dropzone__selected-item:hover .upload-dropzone__selected-rotate,
 .upload-dropzone__selected-rotate:focus-visible {
   opacity: 1;
-  background: rgba(15, 18, 28, 0.62);
+  background: #fff;
 }
 
 .upload-dropzone__selected-rotate:active {
-  transform: translate(-50%, -50%) scale(0.94);
+  transform: scale(0.94);
 }
 
 .upload-dropzone__selected-rotate-icon {
-  width: 1.2rem;
-  height: 1.2rem;
-  filter: invert(1) brightness(1.4);
+  width: 0.86rem;
+  height: 0.86rem;
+  opacity: 0.72;
 }
 
 .upload-preview-modal {

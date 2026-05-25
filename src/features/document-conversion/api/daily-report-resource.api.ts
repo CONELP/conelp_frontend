@@ -26,6 +26,7 @@ import type {
   DailyReportMaterialSpecUpdateRequest,
   DailyReportMaterialTypeResponse,
   DailyReportMaterialTypeUpdateRequest,
+  DailyReportWeatherByDateResponse,
 } from "@/features/document-conversion/api/daily-report-resource-api.types";
 
 const SELECTED_PROJECT_ID_STORAGE_KEY = "selectedProjectId";
@@ -321,6 +322,13 @@ export const dailyReportResourceApi = {
     }
     return apiFetch<DailyReportMaterialDeliveryByDateGroup[]>(
       `/materialDelivery/getMaterialDeliveryListByDate?${params.toString()}`,
+    );
+  },
+
+  async getWeatherByDate(date: string) {
+    await ensureSelectedProjectId();
+    return apiFetch<DailyReportWeatherByDateResponse>(
+      `/project/getWeatherByDate?date=${encodeURIComponent(date)}`,
     );
   },
 

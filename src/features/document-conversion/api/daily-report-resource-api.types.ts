@@ -267,3 +267,9 @@ export interface DailyReportMaterialDeliveryUpdateRequestItem {
 
 export type DailyReportMaterialDeliveryUpdateRequest =
   DailyReportMaterialDeliveryUpdateRequestItem[];
+
+export interface DailyReportWeatherByDateResponse {
+  weather: string | null;
+  minTemperature: number | null;
+  maxTemperature: number | null;
+}
