@@ -158,14 +158,6 @@ export const dailyReportResourceApi = {
     });
   },
 
-  async deleteEquipmentType(equipmentTypeId: number) {
-    await ensureSelectedProjectId();
-    return apiFetch<void>(
-      `/reference/deleteEquipmentType/${encodeURIComponent(String(equipmentTypeId))}`,
-      { method: "DELETE" },
-    );
-  },
-
   async updateEquipmentSpec(body: DailyReportEquipmentSpecUpdateRequest) {
     await ensureSelectedProjectId();
     return apiFetch<void>("/reference/updateEquipmentSpec", {
@@ -174,10 +166,14 @@ export const dailyReportResourceApi = {
     });
   },
 
-  async deleteEquipmentSpec(equipmentSpecId: number) {
+  async deleteEquipmentSpec(equipmentSpecId: number, workTypeId?: number | null) {
     await ensureSelectedProjectId();
+    const suffix =
+      workTypeId != null
+        ? `?${new URLSearchParams({ workTypeId: String(workTypeId) }).toString()}`
+        : "";
     return apiFetch<void>(
-      `/reference/deleteEquipmentSpec/${encodeURIComponent(String(equipmentSpecId))}`,
+      `/reference/deleteEquipmentSpec/${encodeURIComponent(String(equipmentSpecId))}${suffix}`,
       { method: "DELETE" },
     );
   },
@@ -261,14 +257,6 @@ export const dailyReportResourceApi = {
     });
   },
 
-  async deleteMaterialType(materialTypeId: number) {
-    await ensureSelectedProjectId();
-    return apiFetch<void>(
-      `/reference/deleteMaterialType/${encodeURIComponent(String(materialTypeId))}`,
-      { method: "DELETE" },
-    );
-  },
-
   async getMaterialSpecList(materialTypeId: number) {
     await ensureSelectedProjectId();
     return apiFetch<DailyReportMaterialSpecResponse[]>(
@@ -292,10 +280,14 @@ export const dailyReportResourceApi = {
     });
   },
 
-  async deleteMaterialSpec(materialSpecId: number) {
+  async deleteMaterialSpec(materialSpecId: number, workTypeId?: number | null) {
     await ensureSelectedProjectId();
+    const suffix =
+      workTypeId != null
+        ? `?${new URLSearchParams({ workTypeId: String(workTypeId) }).toString()}`
+        : "";
     return apiFetch<void>(
-      `/reference/deleteMaterialSpec/${encodeURIComponent(String(materialSpecId))}`,
+      `/reference/deleteMaterialSpec/${encodeURIComponent(String(materialSpecId))}${suffix}`,
       { method: "DELETE" },
     );
   },

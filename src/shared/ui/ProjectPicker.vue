@@ -1,5 +1,5 @@
 <template>
-  <div ref="containerRef" class="project-picker">
+  <div ref="containerRef" class="project-picker" v-bind="$attrs">
     <button
       class="project-picker__button"
       type="button"
@@ -71,6 +71,8 @@
 </template>
 
 <script setup lang="ts">
+defineOptions({ inheritAttrs: false });
+
 import buildingIcon from "@fluentui/svg-icons/icons/building_20_regular.svg";
 import chevronDownIcon from "@fluentui/svg-icons/icons/chevron_down_20_regular.svg";
 import { storeToRefs } from "pinia";

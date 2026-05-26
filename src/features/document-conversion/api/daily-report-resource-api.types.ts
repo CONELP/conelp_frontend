@@ -192,7 +192,7 @@ export interface DailyReportMaterialHierarchyType {
 }
 
 export interface DailyReportMaterialHierarchyGroup {
-  workTypeId: number;
+  workTypeId: number | null;
   workTypeName: string | null;
   materialTypes: DailyReportMaterialHierarchyType[];
 }
@@ -210,7 +210,7 @@ export interface DailyReportEquipmentHierarchyType {
 }
 
 export interface DailyReportEquipmentHierarchyGroup {
-  workTypeId: number;
+  workTypeId: number | null;
   workTypeName: string | null;
   equipmentTypes: DailyReportEquipmentHierarchyType[];
 }

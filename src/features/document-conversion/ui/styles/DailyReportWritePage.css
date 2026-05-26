@@ -2030,7 +2030,8 @@
 }
 
 .daily-report-write-generate-button {
-  grid-column: 2;
+  grid-column: 1;
+  justify-self: start;
   background: var(--primary);
   color: #fff;
   box-shadow: 0 10px 22px rgba(37, 99, 235, 0.18);

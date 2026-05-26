@@ -409,6 +409,32 @@ function removeDailyReportLaborRow(row: DailyReportLaborDraft) {
   laborRows.value = laborRows.value.filter((entry) => entry.id !== row.id);
 }
 
+async function deleteDailyReportLaborRowOrType(row: DailyReportLaborDraft) {
+  if (row.laborTypeId === null) {
+    removeDailyReportLaborRow(row);
+    return;
+  }
+  const laborTypeId = row.laborTypeId;
+  const label = row.subWorkType?.trim() || "선택한 직종";
+  if (!window.confirm(`'${label}' 직종을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) {
+    return;
+  }
+  try {
+    await dailyReportResourceApi.deleteLaborType(laborTypeId);
+    laborRows.value = laborRows.value.filter(
+      (entry) => entry.laborTypeId !== laborTypeId,
+    );
+    laborTypeOptions.value = laborTypeOptions.value.filter(
+      (option) => option.id !== laborTypeId,
+    );
+  } catch (error: unknown) {
+    console.error(`deleteLaborType ${laborTypeId} failed`, error);
+    const message =
+      error instanceof Error ? error.message : "직종 삭제에 실패했어요.";
+    window.alert(message);
+  }
+}
+
 type DailyReportMaterialGroup = {
   key: string;
   workType: string;
@@ -524,6 +550,46 @@ function removeDailyReportMaterialRow(row: DailyReportMaterialDraft) {
   materialRows.value = materialRows.value.filter((entry) => entry.id !== row.id);
 }
 
+async function deleteDailyReportMaterialRowOrSpec(row: DailyReportMaterialDraft) {
+  if (row.materialSpecId === null) {
+    removeDailyReportMaterialRow(row);
+    return;
+  }
+  const materialSpecId = row.materialSpecId;
+  const materialTypeId = row.materialTypeId;
+  const workTypeId = row.workTypeId;
+  const label = row.specification?.trim() || row.type?.trim() || "선택한 자재 규격";
+  if (!window.confirm(`'${label}' 자재 규격을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) {
+    return;
+  }
+  try {
+    await dailyReportResourceApi.deleteMaterialSpec(materialSpecId, workTypeId);
+    materialRows.value = materialRows.value.filter(
+      (entry) =>
+        !(entry.materialSpecId === materialSpecId && entry.workTypeId === workTypeId),
+    );
+    const remainingForSpec = materialRows.value.some(
+      (entry) => entry.materialSpecId === materialSpecId,
+    );
+    if (!remainingForSpec && materialTypeId !== null) {
+      const nextSpecsByTypeId = new Map(materialSpecOptionsByTypeId.value);
+      const specs = nextSpecsByTypeId.get(materialTypeId) ?? [];
+      nextSpecsByTypeId.set(
+        materialTypeId,
+        specs.filter((spec) => spec.id !== materialSpecId),
+      );
+      materialSpecOptionsByTypeId.value = nextSpecsByTypeId;
+      materialSpecOriginalsBySpecId.value.delete(materialSpecId);
+      deletedMaterialSpecIds.value.delete(materialSpecId);
+    }
+  } catch (error: unknown) {
+    console.error(`deleteMaterialSpec ${materialSpecId} failed`, error);
+    const message =
+      error instanceof Error ? error.message : "자재 규격 삭제에 실패했어요.";
+    window.alert(message);
+  }
+}
+
 type DailyReportEquipmentGroup = {
   key: string;
   workType: string;
@@ -635,6 +701,48 @@ function removeDailyReportEquipmentRow(row: DailyReportEquipmentDraft) {
     return;
   }
   equipmentRows.value = equipmentRows.value.filter((entry) => entry.id !== row.id);
+}
+
+async function deleteDailyReportEquipmentRowOrSpec(row: DailyReportEquipmentDraft) {
+  if (row.equipmentSpecId === null) {
+    removeDailyReportEquipmentRow(row);
+    return;
+  }
+  const equipmentSpecId = row.equipmentSpecId;
+  const workTypeId = row.workTypeId;
+  const label = row.specification?.trim() || row.type?.trim() || "선택한 장비 규격";
+  if (!window.confirm(`'${label}' 장비 규격을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) {
+    return;
+  }
+  try {
+    await dailyReportResourceApi.deleteEquipmentSpec(equipmentSpecId, workTypeId);
+    equipmentRows.value = equipmentRows.value.filter(
+      (entry) =>
+        !(entry.equipmentSpecId === equipmentSpecId && entry.workTypeId === workTypeId),
+    );
+    const remainingForSpec = equipmentRows.value.some(
+      (entry) => entry.equipmentSpecId === equipmentSpecId,
+    );
+    if (!remainingForSpec) {
+      equipmentSpecOptions.value = equipmentSpecOptions.value.filter(
+        (option) => option.id !== equipmentSpecId,
+      );
+      const nextSpecsByTypeId = new Map(equipmentSpecOptionsByTypeId.value);
+      nextSpecsByTypeId.forEach((specs, typeId) => {
+        nextSpecsByTypeId.set(
+          typeId,
+          specs.filter((spec) => spec.id !== equipmentSpecId),
+        );
+      });
+      equipmentSpecOptionsByTypeId.value = nextSpecsByTypeId;
+      equipmentSpecOriginalsBySpecId.value.delete(equipmentSpecId);
+    }
+  } catch (error: unknown) {
+    console.error(`deleteEquipmentSpec ${equipmentSpecId} failed`, error);
+    const message =
+      error instanceof Error ? error.message : "장비 규격 삭제에 실패했어요.";
+    window.alert(message);
+  }
 }
 
 const dailyReportLaborSummaryItems = computed(() => {
@@ -3988,8 +4096,12 @@ function toDailyReportMaterialDeliveryRequestItem(
   };
 }
 
-function getDailyReportMaterialDeliveryGroupKey(date: string, materialTypeId: number) {
-  return `${date}:${materialTypeId}`;
+function getDailyReportMaterialDeliveryGroupKey(
+  date: string,
+  workTypeId: number | null,
+  materialTypeId: number,
+) {
+  return `${date}:${workTypeId ?? "null"}:${materialTypeId}`;
 }
 
 async function buildCurrentDateMaterialDeliveryRequests(
@@ -3998,12 +4110,16 @@ async function buildCurrentDateMaterialDeliveryRequests(
   const selectedDate = reportDates.value.today;
   const deliveryByGroupKey = new Map(
     currentDeliveries.map((delivery) => [
-      getDailyReportMaterialDeliveryGroupKey(delivery.date, delivery.materialTypeId),
+      getDailyReportMaterialDeliveryGroupKey(
+        delivery.date,
+        delivery.workTypeId,
+        delivery.materialTypeId,
+      ),
       delivery,
     ]),
   );
   const groupMap = new Map<
-    number,
+    string,
     {
       materialDeliveryId: number | null;
       workTypeId: number;
@@ -4031,19 +4147,15 @@ async function buildCurrentDateMaterialDeliveryRequests(
       continue;
     }
 
+    const groupKey = `${resolved.workTypeId}:${resolved.materialTypeId}`;
     const existingDelivery = deliveryByGroupKey.get(
       getDailyReportMaterialDeliveryGroupKey(
         selectedDate,
+        resolved.workTypeId,
         resolved.materialTypeId,
       ),
     );
-    const group = groupMap.get(resolved.materialTypeId);
-
-    if (group && group.workTypeId !== resolved.workTypeId) {
-      throw new Error(
-        `${row.type} 자재는 같은 날짜에 하나의 공종으로만 저장할 수 있습니다.`,
-      );
-    }
+    const group = groupMap.get(groupKey);
 
     const nextGroup =
       group ??
@@ -4059,7 +4171,7 @@ async function buildCurrentDateMaterialDeliveryRequests(
       resolved.materialSpecId,
       (nextGroup.lineQuantities.get(resolved.materialSpecId) ?? 0) + quantity,
     );
-    groupMap.set(resolved.materialTypeId, nextGroup);
+    groupMap.set(groupKey, nextGroup);
   }
 
   if (unresolvedRows.length > 0) {
@@ -4083,48 +4195,6 @@ async function buildCurrentDateMaterialDeliveryRequests(
 }
 
 async function applyMaterialReferenceCrudFromRows() {
-  for (const specId of deletedMaterialSpecIds.value) {
-    if (!materialSpecOriginalsBySpecId.value.has(specId)) {
-      continue;
-    }
-    try {
-      await dailyReportResourceApi.deleteMaterialSpec(specId);
-      const orig = materialSpecOriginalsBySpecId.value.get(specId);
-      materialSpecOriginalsBySpecId.value.delete(specId);
-      if (orig) {
-        const typeId = orig.materialTypeId;
-        const nextSpecsByTypeId = new Map(materialSpecOptionsByTypeId.value);
-        const specs = nextSpecsByTypeId.get(typeId) ?? [];
-        nextSpecsByTypeId.set(
-          typeId,
-          specs.filter((spec) => spec.id !== specId),
-        );
-        materialSpecOptionsByTypeId.value = nextSpecsByTypeId;
-      }
-    } catch (error) {
-      console.error(`deleteMaterialSpec ${specId} failed`, error);
-      throw error;
-    }
-  }
-  deletedMaterialSpecIds.value = new Set();
-
-  for (const typeId of deletedMaterialTypeIds.value) {
-    if (!materialTypeOriginalsByTypeId.value.has(typeId)) {
-      continue;
-    }
-    try {
-      await dailyReportResourceApi.deleteMaterialType(typeId);
-      materialTypeOriginalsByTypeId.value.delete(typeId);
-      materialTypeOptions.value = materialTypeOptions.value.filter(
-        (option) => option.id !== typeId,
-      );
-    } catch (error) {
-      console.error(`deleteMaterialType ${typeId} failed`, error);
-      throw error;
-    }
-  }
-  deletedMaterialTypeIds.value = new Set();
-
   const typeNameUpdates = new Map<number, { name: string; unit: string }>();
   for (const row of materialRows.value) {
     if (row.materialTypeId === null) continue;
@@ -4408,13 +4478,18 @@ async function hydrateDailyReportEquipmentFromServer() {
     ]);
 
     type EquipmentTypeRow = DailyReportEquipmentTypeResponse & {
-      workTypeId: number;
+      workTypeId: number | null;
       workTypeName: string | null;
     };
     const equipmentTypes: EquipmentTypeRow[] = [];
     const equipmentSpecs: DailyReportEquipmentSpecResponse[] = [];
+    const equipmentSpecIdsSeen = new Set<number>();
     const equipmentSpecsByTypeId = new Map<
       number,
+      DailyReportEquipmentSpecResponse[]
+    >();
+    const equipmentSpecsByWorkTypeAndTypeId = new Map<
+      string,
       DailyReportEquipmentSpecResponse[]
     >();
     equipmentHierarchy.forEach((group) => {
@@ -4432,8 +4507,25 @@ async function hydrateDailyReportEquipmentFromServer() {
           equipmentTypeName: equipmentType.name,
           isVisible: spec.isVisible,
         }));
-        equipmentSpecs.push(...specList);
-        equipmentSpecsByTypeId.set(equipmentType.id, specList);
+        specList.forEach((spec) => {
+          if (!equipmentSpecIdsSeen.has(spec.id)) {
+            equipmentSpecIdsSeen.add(spec.id);
+            equipmentSpecs.push(spec);
+          }
+        });
+        const mergedByTypeId = equipmentSpecsByTypeId.get(equipmentType.id) ?? [];
+        const mergedIds = new Set(mergedByTypeId.map((spec) => spec.id));
+        specList.forEach((spec) => {
+          if (!mergedIds.has(spec.id)) {
+            mergedByTypeId.push(spec);
+            mergedIds.add(spec.id);
+          }
+        });
+        equipmentSpecsByTypeId.set(equipmentType.id, mergedByTypeId);
+        equipmentSpecsByWorkTypeAndTypeId.set(
+          `${group.workTypeId}:${equipmentType.id}`,
+          specList,
+        );
       });
     });
     equipmentTypeOptions.value = equipmentTypes;
@@ -4458,25 +4550,27 @@ async function hydrateDailyReportEquipmentFromServer() {
     });
     equipmentSpecOriginalsBySpecId.value = specOriginals;
 
-    const endDateCountBySpecId = new Map<number, number>();
-    const accumulativeCountBySpecId = new Map<number, number>();
+    const endDateCountByKey = new Map<string, number>();
+    const accumulativeCountByKey = new Map<string, number>();
     equipmentDeploymentGroups.forEach((group) => {
       group.equipmentTypes.forEach((equipmentType) => {
         equipmentType.equipmentSpecs.forEach((spec) => {
-          endDateCountBySpecId.set(spec.equipmentSpecId, spec.endDateCount);
-          accumulativeCountBySpecId.set(
-            spec.equipmentSpecId,
-            spec.accumulativeCount,
-          );
+          const key = `${group.workTypeId}:${spec.equipmentSpecId}`;
+          endDateCountByKey.set(key, spec.endDateCount);
+          accumulativeCountByKey.set(key, spec.accumulativeCount);
         });
       });
     });
 
     equipmentRows.value = equipmentTypes.flatMap((equipmentType) => {
-      const specs = equipmentSpecsByTypeId.get(equipmentType.id) ?? [];
+      const specs =
+        equipmentSpecsByWorkTypeAndTypeId.get(
+          `${equipmentType.workTypeId}:${equipmentType.id}`,
+        ) ?? [];
       return specs.map((spec) => {
-        const todayCount = endDateCountBySpecId.get(spec.id) ?? 0;
-        const cumulativeCount = accumulativeCountBySpecId.get(spec.id) ?? 0;
+        const countKey = `${equipmentType.workTypeId}:${spec.id}`;
+        const todayCount = endDateCountByKey.get(countKey) ?? 0;
+        const cumulativeCount = accumulativeCountByKey.get(countKey) ?? 0;
         return createDailyReportEquipmentRow({
           includedInDocument:
             inclusionState.equipment.get(
@@ -4516,6 +4610,10 @@ async function hydrateDailyReportMaterialFromServer() {
 
     const materialTypes: DailyReportMaterialTypeResponse[] = [];
     const materialSpecsByTypeId = new Map<number, DailyReportMaterialSpecResponse[]>();
+    const materialSpecsByWorkTypeAndTypeId = new Map<
+      string,
+      DailyReportMaterialSpecResponse[]
+    >();
     materialHierarchy.forEach((group) => {
       group.materialTypes.forEach((materialType) => {
         materialTypes.push({
@@ -4525,15 +4623,25 @@ async function hydrateDailyReportMaterialFromServer() {
           workTypeId: group.workTypeId,
           workTypeName: group.workTypeName,
         });
-        materialSpecsByTypeId.set(
-          materialType.id,
-          materialType.materialSpecs.map((spec) => ({
-            id: spec.id,
-            name: spec.name,
-            materialTypeId: materialType.id,
-            materialTypeName: materialType.name,
-            isVisible: spec.isVisible,
-          })),
+        const specList = materialType.materialSpecs.map((spec) => ({
+          id: spec.id,
+          name: spec.name,
+          materialTypeId: materialType.id,
+          materialTypeName: materialType.name,
+          isVisible: spec.isVisible,
+        }));
+        const mergedByTypeId = materialSpecsByTypeId.get(materialType.id) ?? [];
+        const mergedIds = new Set(mergedByTypeId.map((spec) => spec.id));
+        specList.forEach((spec) => {
+          if (!mergedIds.has(spec.id)) {
+            mergedByTypeId.push(spec);
+            mergedIds.add(spec.id);
+          }
+        });
+        materialSpecsByTypeId.set(materialType.id, mergedByTypeId);
+        materialSpecsByWorkTypeAndTypeId.set(
+          `${group.workTypeId}:${materialType.id}`,
+          specList,
         );
       });
     });
@@ -4548,17 +4656,18 @@ async function hydrateDailyReportMaterialFromServer() {
     deletedMaterialSpecIds.value = new Set();
     deletedMaterialTypeIds.value = new Set();
 
-    const todayQtyBySpecId = new Map<number, number>();
-    const accumulativeQtyBySpecId = new Map<number, number>();
+    const todayQtyByKey = new Map<string, number>();
+    const accumulativeQtyByKey = new Map<string, number>();
     materialDeliveryGroups.forEach((group) => {
       group.materialTypes.forEach((materialType) => {
         materialType.materialSpecs.forEach((spec) => {
-          todayQtyBySpecId.set(
-            spec.materialSpecId,
+          const key = `${group.workTypeId}:${spec.materialSpecId}`;
+          todayQtyByKey.set(
+            key,
             parseDailyReportQuantity(spec.endDateQuantity ?? 0),
           );
-          accumulativeQtyBySpecId.set(
-            spec.materialSpecId,
+          accumulativeQtyByKey.set(
+            key,
             parseDailyReportQuantity(spec.accumulativeQuantity ?? 0),
           );
         });
@@ -4582,10 +4691,14 @@ async function hydrateDailyReportMaterialFromServer() {
     materialSpecOriginalsBySpecId.value = specOriginals;
 
     materialRows.value = materialTypes.flatMap((materialType) => {
-      const specs = materialSpecsByTypeId.get(materialType.id) ?? [];
+      const specs =
+        materialSpecsByWorkTypeAndTypeId.get(
+          `${materialType.workTypeId}:${materialType.id}`,
+        ) ?? [];
       return specs.map((spec) => {
-        const todayQty = todayQtyBySpecId.get(spec.id) ?? 0;
-        const cumulativeQty = accumulativeQtyBySpecId.get(spec.id) ?? 0;
+        const countKey = `${materialType.workTypeId}:${spec.id}`;
+        const todayQty = todayQtyByKey.get(countKey) ?? 0;
+        const cumulativeQty = accumulativeQtyByKey.get(countKey) ?? 0;
         return createDailyReportMaterialRow({
           includedInDocument:
             inclusionState.material.get(
@@ -5032,14 +5145,6 @@ onUnmounted(() => {
         <div class="daily-report-write-work-cell">
           <div class="daily-report-write-work-cell__header">
             <span class="daily-report-write-work-cell__title">오늘작업</span>
-            <button
-              type="button"
-              class="daily-report-write-save-button"
-              :disabled="isDailyReportSaving"
-              @click="handleDailyReportSave"
-            >
-              {{ isDailyReportSaving ? "저장 중" : "저장하기" }}
-            </button>
           </div>
 
           <div class="daily-report-worktype-list">
@@ -5189,14 +5294,6 @@ onUnmounted(() => {
         <div class="daily-report-write-work-cell">
           <div class="daily-report-write-work-cell__header">
             <span class="daily-report-write-work-cell__title">내일작업</span>
-            <button
-              type="button"
-              class="daily-report-write-save-button"
-              :disabled="isDailyReportSaving"
-              @click="handleDailyReportSave"
-            >
-              {{ isDailyReportSaving ? "저장 중" : "저장하기" }}
-            </button>
           </div>
 
           <div class="daily-report-worktype-list">
@@ -5281,14 +5378,6 @@ onUnmounted(() => {
         <div class="daily-report-resource-table daily-report-resource-table--labor">
           <div class="daily-report-resource-table__header">
             <h2 class="daily-report-resource-table__title">인력투입</h2>
-            <button
-              type="button"
-              class="daily-report-write-save-button"
-              :disabled="isDailyReportSaving"
-              @click="handleDailyReportSave"
-            >
-              {{ isDailyReportSaving ? "저장 중" : "저장하기" }}
-            </button>
           </div>
 
           <div class="daily-report-resource-sheet" role="region" aria-label="인력 투입현황 표">
@@ -5507,11 +5596,10 @@ onUnmounted(() => {
                       </td>
                       <td class="daily-report-resource-sheet__delete-cell">
                         <button
-                          v-if="row.laborTypeId === null"
                           type="button"
                           class="daily-report-resource-sheet__row-delete"
                           :aria-label="`${row.subWorkType || '인력'} 행 삭제`"
-                          @click="removeDailyReportLaborRow(row)"
+                          @click="deleteDailyReportLaborRowOrType(row)"
                         >
                           ×
                         </button>
@@ -5570,14 +5658,6 @@ onUnmounted(() => {
         <div class="daily-report-resource-table daily-report-resource-table--material">
           <div class="daily-report-resource-table__header">
             <h2 class="daily-report-resource-table__title">자재투입</h2>
-            <button
-              type="button"
-              class="daily-report-write-save-button"
-              :disabled="isDailyReportSaving"
-              @click="handleDailyReportSave"
-            >
-              {{ isDailyReportSaving ? "저장 중" : "저장하기" }}
-            </button>
           </div>
 
           <div class="daily-report-resource-sheet" role="region" aria-label="주요자재 투입현황 표">
@@ -5736,11 +5816,10 @@ onUnmounted(() => {
                     </td>
                     <td class="daily-report-resource-sheet__delete-cell">
                       <button
-                        v-if="row.materialSpecId === null"
                         type="button"
                         class="daily-report-resource-sheet__row-delete"
                         :aria-label="`${row.type || '자재'} 행 삭제`"
-                        @click="removeDailyReportMaterialRow(row)"
+                        @click="deleteDailyReportMaterialRowOrSpec(row)"
                       >
                         ×
                       </button>
@@ -5798,14 +5877,6 @@ onUnmounted(() => {
         <div class="daily-report-resource-table daily-report-resource-table--equipment">
           <div class="daily-report-resource-table__header">
             <h2 class="daily-report-resource-table__title">장비투입</h2>
-            <button
-              type="button"
-              class="daily-report-write-save-button"
-              :disabled="isDailyReportSaving"
-              @click="handleDailyReportSave"
-            >
-              {{ isDailyReportSaving ? "저장 중" : "저장하기" }}
-            </button>
           </div>
 
           <div class="daily-report-resource-sheet" role="region" aria-label="장비 투입현황 표">
@@ -5955,11 +6026,10 @@ onUnmounted(() => {
                     </td>
                     <td class="daily-report-resource-sheet__delete-cell">
                       <button
-                        v-if="row.equipmentSpecId === null"
                         type="button"
                         class="daily-report-resource-sheet__row-delete"
                         :aria-label="`${row.type || '장비'} 행 삭제`"
-                        @click="removeDailyReportEquipmentRow(row)"
+                        @click="deleteDailyReportEquipmentRowOrSpec(row)"
                       >
                         ×
                       </button>
@@ -6016,6 +6086,14 @@ onUnmounted(() => {
         @click="handleCreateDailyReportDocument"
       >
         {{ isDailyReportDocumentGenerating ? "생성 중" : "공사일보 생성" }}
+      </button>
+      <button
+        type="button"
+        class="daily-report-write-save-button"
+        :disabled="isDailyReportSaving"
+        @click="handleDailyReportSave"
+      >
+        {{ isDailyReportSaving ? "저장 중" : "저장하기" }}
       </button>
       <p
         v-if="dailyReportSaveMessage"
