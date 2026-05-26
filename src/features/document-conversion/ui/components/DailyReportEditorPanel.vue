@@ -3813,6 +3813,7 @@ async function resolveDailyReportEquipmentRowIds(
         const createdEquipmentSpec = await dailyReportResourceApi.createEquipmentSpec({
           name: equipmentSpecName,
           equipmentTypeId,
+          ...(workTypeId !== null ? { workTypeId } : {}),
           isVisible: row.includedInDocument,
         });
         equipmentSpecOptions.value = [
@@ -3833,9 +3834,9 @@ async function resolveDailyReportEquipmentRowIds(
         if (equipmentTypeName && workTypeId !== null) {
           const createdEquipmentSpec = await dailyReportResourceApi.createEquipmentSpec({
             name: equipmentSpecName,
+            workTypeId,
             newEquipmentType: {
               name: equipmentTypeName,
-              workTypeId,
             },
             isVisible: row.includedInDocument,
           });
@@ -3998,6 +3999,7 @@ async function resolveDailyReportMaterialRowIds(
         const createdMaterialSpec = await dailyReportResourceApi.createMaterialSpec({
           name: materialSpecName,
           materialTypeId,
+          ...(workTypeId !== null ? { workTypeId } : {}),
           isVisible: row.includedInDocument,
         });
         appendDailyReportMaterialSpecOption(materialTypeId, createdMaterialSpec);
@@ -4015,10 +4017,10 @@ async function resolveDailyReportMaterialRowIds(
           const unitInput = cleanDailyReportReferenceName(row.unit) || undefined;
           const createdMaterialSpec = await dailyReportResourceApi.createMaterialSpec({
             name: materialSpecName,
+            workTypeId,
             newMaterialType: {
               name: materialTypeName,
               unit: unitInput,
-              workTypeId,
             },
             isVisible: row.includedInDocument,
           });

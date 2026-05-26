@@ -54,10 +54,10 @@ export interface DailyReportEquipmentTypeUpdateRequest {
 
 export interface DailyReportEquipmentSpecCreateRequest {
   name: string;
+  workTypeId?: number;
   equipmentTypeId?: number;
   newEquipmentType?: {
     name: string;
-    workTypeId: number;
   };
   isVisible?: boolean;
 }
@@ -161,11 +161,11 @@ export interface DailyReportMaterialSpecResponse {
 
 export interface DailyReportMaterialSpecCreateRequest {
   name: string;
+  workTypeId?: number;
   materialTypeId?: number;
   newMaterialType?: {
     name: string;
     unit?: string;
-    workTypeId: number;
   };
   isVisible?: boolean;
 }
