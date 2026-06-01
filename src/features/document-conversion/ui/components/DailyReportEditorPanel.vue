@@ -2582,13 +2582,17 @@ async function handleDailyReportImageChange(
   }
 
   try {
-    const responses = await actPhotoApi.create({
-      date: getSectionDate(section),
+    const date = getSectionDate(section);
+    await actPhotoApi.create({
+      date,
       photos: files,
       descriptions: files.map(() => ""),
     });
-    const nextImages = responses.map(toDailyReportImageFromActPhotoResponse);
-    setImageDrafts(section, [...getImageDrafts(section), ...nextImages]);
+    const listResponses = await actPhotoApi.listByDate(date);
+    setImageDrafts(
+      section,
+      listResponses.map(toDailyReportImageFromActPhotoResponse),
+    );
   } catch (error) {
     console.error("create act photo failed", error);
   }
