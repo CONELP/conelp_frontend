@@ -72,4 +72,26 @@ export const actualWorkApi = {
       method: "DELETE",
     });
   },
+
+  // POST /api/actualWork/createActualWorkListFromPreviousDay?date=yyyy-MM-dd
+  async createFromPreviousDay(date: string) {
+    await ensureSelectedProjectId();
+    return apiFetch<ActualWorkResponse[]>(
+      `/actualWork/createActualWorkListFromPreviousDay?date=${encodeURIComponent(date)}`,
+      {
+        method: "POST",
+      },
+    );
+  },
+
+  // POST /api/actualWork/createActualWorkListFromMainSchedule?date=yyyy-MM-dd
+  async createFromMainSchedule(date: string) {
+    await ensureSelectedProjectId();
+    return apiFetch<ActualWorkResponse[]>(
+      `/actualWork/createActualWorkListFromMainSchedule?date=${encodeURIComponent(date)}`,
+      {
+        method: "POST",
+      },
+    );
+  },
 };

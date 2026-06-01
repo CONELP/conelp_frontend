@@ -4428,6 +4428,57 @@ async function hydrateDailyReportActualWorksFromServer() {
   }
 }
 
+const dailyReportSectionLabel: Record<"today" | "tomorrow", string> = {
+  today: "오늘",
+  tomorrow: "내일",
+};
+
+async function copyPreviousDayActualWorks(section: "today" | "tomorrow") {
+  const date = reportDates.value[section];
+  const label = dailyReportSectionLabel[section];
+
+  if (
+    !window.confirm(
+      `${label}(${date}) 작업일보를 어제 내용으로 덮어씁니다. 기존 입력은 모두 삭제돼요. 진행할까요?`,
+    )
+  ) {
+    return;
+  }
+
+  try {
+    await actualWorkApi.createFromPreviousDay(date);
+    await hydrateDailyReportActualWorksFromServer();
+  } catch (error) {
+    console.error("copy previous day actual works failed", error);
+    window.alert("어제 작업을 복사하지 못했어요.");
+  }
+}
+
+async function copyActualWorksFromMainSchedule(section: "today" | "tomorrow") {
+  const date = reportDates.value[section];
+  const label = dailyReportSectionLabel[section];
+
+  if (
+    !window.confirm(
+      `${label}(${date}) 작업일보를 공정표 내용으로 덮어씁니다. 기존 입력은 모두 삭제돼요. 진행할까요?`,
+    )
+  ) {
+    return;
+  }
+
+  try {
+    await actualWorkApi.createFromMainSchedule(date);
+    await hydrateDailyReportActualWorksFromServer();
+  } catch (error) {
+    console.error("copy actual works from main schedule failed", error);
+    const message =
+      error instanceof Error && error.message.includes("메인 공정표")
+        ? "메인 공정표가 없어 가져올 수 없어요."
+        : "공정표 작업을 복사하지 못했어요.";
+    window.alert(message);
+  }
+}
+
 async function hydrateDailyReportLaborFromServer() {
   try {
     const [laborTypes, attendanceResponses] = await Promise.all([
@@ -5217,6 +5268,23 @@ onUnmounted(() => {
             </button>
           </div>
 
+          <div class="daily-report-worktype-copy-row">
+            <button
+              type="button"
+              class="daily-report-worktype-copy"
+              @click="copyPreviousDayActualWorks('today')"
+            >
+              어제 작업복사
+            </button>
+            <button
+              type="button"
+              class="daily-report-worktype-copy"
+              @click="copyActualWorksFromMainSchedule('today')"
+            >
+              공정표 작업복사
+            </button>
+          </div>
+
           <div class="daily-report-write-attachments">
             <TransitionGroup
               v-if="todayImages.length > 0"
@@ -5363,6 +5431,23 @@ onUnmounted(() => {
               @click="addDailyReportWorkType('tomorrow')"
             >
               + 공종 추가
+            </button>
+          </div>
+
+          <div class="daily-report-worktype-copy-row">
+            <button
+              type="button"
+              class="daily-report-worktype-copy"
+              @click="copyPreviousDayActualWorks('tomorrow')"
+            >
+              어제 작업복사
+            </button>
+            <button
+              type="button"
+              class="daily-report-worktype-copy"
+              @click="copyActualWorksFromMainSchedule('tomorrow')"
+            >
+              공정표 작업복사
             </button>
           </div>
 
