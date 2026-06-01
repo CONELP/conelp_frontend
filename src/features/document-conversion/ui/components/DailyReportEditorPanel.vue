@@ -3940,7 +3940,12 @@ async function saveDailyReportEquipment() {
 
   for (const row of equipmentRows.value) {
     const count = Math.max(0, Math.round(parseDailyReportQuantity(row.todayQuantity)));
-    const hasInput = row.todayQuantity.trim().length > 0 || count > 0;
+    const hasInput =
+      row.process.trim().length > 0 ||
+      row.type.trim().length > 0 ||
+      row.specification.trim().length > 0 ||
+      row.todayQuantity.trim().length > 0 ||
+      count > 0;
     const resolved = await resolveDailyReportEquipmentRowIds(row, hasInput);
 
     if (!resolved) {
