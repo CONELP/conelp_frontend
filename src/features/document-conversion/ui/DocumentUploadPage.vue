@@ -205,6 +205,115 @@
         </section>
 
         <div
+          v-if="isConcreteDeliveryTest"
+          class="upload-dropzone upload-dropzone--batch upload-dropzone--delivery-note"
+          :class="{
+            'upload-dropzone--drag-active': isDeliveryNoteDragActive,
+          }"
+          aria-label="송장 사진 업로드"
+          @dragenter.prevent="handleDeliveryNoteDragEnter"
+          @dragover.prevent="handleDeliveryNoteDragOver"
+          @dragleave="handleDeliveryNoteDragLeave"
+          @drop.prevent="handleDeliveryNoteDrop"
+        >
+          <Transition name="upload-dropzone-overlay">
+            <div
+              v-if="isDeliveryNoteDragActive"
+              class="upload-dropzone__drop-overlay"
+              aria-hidden="true"
+            >
+              <span class="upload-dropzone__drop-label">
+                이미지를 여기에 놓아주세요
+              </span>
+            </div>
+          </Transition>
+
+          <button
+            class="upload-dropzone__trigger"
+            type="button"
+            aria-label="송장 사진 업로드"
+            @click="openDeliveryNoteFilePicker"
+          >
+            <img class="upload-dropzone__icon" :src="uploadIcon" alt="" />
+          </button>
+
+          <div class="upload-dropzone__batch-header">
+            <p class="upload-dropzone__batch-title">[송장]</p>
+          </div>
+
+          <div class="upload-dropzone__guide-list">
+            <p class="upload-dropzone__guide-item">
+              <span
+                class="upload-dropzone__status upload-dropzone__status--static"
+                aria-hidden="true"
+              >
+                <span class="upload-dropzone__status-bullet" />
+              </span>
+              <span>거래명세표 사진 (1장)</span>
+            </p>
+          </div>
+
+          <div
+            v-if="deliveryNoteFile"
+            class="upload-dropzone__selected"
+          >
+            <div class="upload-dropzone__selected-list">
+              <div
+                class="upload-dropzone__selected-item"
+                :class="{
+                  'upload-dropzone__selected-item--removing':
+                    isUploadedFileRemoving(deliveryNoteFile.id),
+                }"
+              >
+                <button
+                  class="upload-dropzone__preview-button"
+                  type="button"
+                  :aria-label="`${deliveryNoteFile.name} 크게 보기`"
+                  @click="handleOpenImagePreview(deliveryNoteFile)"
+                >
+                  <img
+                    v-if="deliveryNoteFile.thumbnail"
+                    class="upload-dropzone__selected-thumbnail"
+                    :src="deliveryNoteFile.thumbnail"
+                    :alt="deliveryNoteFile.name"
+                    draggable="false"
+                    :style="{ transform: `rotate(${deliveryNoteFile.rotation}deg)` }"
+                  />
+                </button>
+
+                <button
+                  class="upload-dropzone__selected-rotate"
+                  type="button"
+                  :aria-label="`${deliveryNoteFile.name} 90도 회전`"
+                  @click.stop="handleRotateUploadedFile(deliveryNoteFile.id)"
+                >
+                  <img
+                    class="upload-dropzone__selected-rotate-icon"
+                    :src="rotateIcon"
+                    alt=""
+                    aria-hidden="true"
+                  />
+                </button>
+
+                <button
+                  class="upload-dropzone__selected-remove"
+                  type="button"
+                  :aria-label="`${deliveryNoteFile.name} 삭제`"
+                  @click="handleRemoveDeliveryNote"
+                >
+                  <img
+                    class="upload-dropzone__selected-remove-icon"
+                    :src="dismissIcon"
+                    alt=""
+                    aria-hidden="true"
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div
           v-if="isGroupedUpload"
           class="upload-batches"
         >
@@ -766,6 +875,7 @@ const {
   rotateUploadedImageFile,
   reorderUploadedImageFiles,
   saveConcreteDeliveryUploadBatches,
+  saveConcreteDeliveryNoteFileId,
   saveConcreteStrengthUploadLots,
   selectLinkedConcreteDeliveryDocument,
   selectUploadDocument,
@@ -791,6 +901,10 @@ const strengthBatchFileIds = ref<
   Record<string, Record<StrengthUploadSectionId, string[]>>
 >({});
 const strengthSectionDragDepths = ref<Record<string, number>>({});
+const deliveryNoteFileId = ref<string | null>(null);
+const isDeliveryNoteDragActive = ref(false);
+let deliveryNoteDragDepth = 0;
+let isDeliveryNotePickerActive = false;
 const draggedUploadFileId = ref<string | null>(null);
 const dragOverUploadFileId = ref<string | null>(null);
 const dragOverUploadPlacement = ref<UploadFileDropPlacement>("before");
@@ -856,6 +970,103 @@ function resetConcreteUploadBatches() {
   strengthSectionDragDepths.value = {};
   activeConcreteBatchId.value = null;
   activeStrengthUploadSectionId.value = null;
+  deliveryNoteFileId.value = null;
+  isDeliveryNoteDragActive.value = false;
+  deliveryNoteDragDepth = 0;
+  isDeliveryNotePickerActive = false;
+}
+
+const deliveryNoteFile = computed(() => {
+  if (!deliveryNoteFileId.value) {
+    return null;
+  }
+  return (
+    uploadedFiles.value.find((file) => file.id === deliveryNoteFileId.value) ??
+    null
+  );
+});
+
+function setDeliveryNoteFile(file: File) {
+  if (deliveryNoteFileId.value) {
+    removeUploadedImageFile(deliveryNoteFileId.value);
+    deliveryNoteFileId.value = null;
+  }
+
+  const addedFileIds = addUploadedImageFiles([file]);
+
+  if (addedFileIds.length === 0) {
+    return;
+  }
+
+  deliveryNoteFileId.value = addedFileIds[0];
+  trackUploadedFiles(1, "delivery_note");
+}
+
+function openDeliveryNoteFilePicker() {
+  activeConcreteBatchId.value = null;
+  activeStrengthUploadSectionId.value = null;
+  isDeliveryNotePickerActive = true;
+  fileInput.value?.click();
+}
+
+function handleDeliveryNoteDragEnter(event: DragEvent) {
+  if (!hasDraggedFiles(event)) {
+    return;
+  }
+
+  deliveryNoteDragDepth += 1;
+  isDeliveryNoteDragActive.value = true;
+}
+
+function handleDeliveryNoteDragOver(event: DragEvent) {
+  if (!hasDraggedFiles(event)) {
+    return;
+  }
+
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = "copy";
+  }
+
+  isDeliveryNoteDragActive.value = true;
+}
+
+function handleDeliveryNoteDragLeave(event: DragEvent) {
+  if (!hasDraggedFiles(event)) {
+    return;
+  }
+
+  deliveryNoteDragDepth = Math.max(deliveryNoteDragDepth - 1, 0);
+  isDeliveryNoteDragActive.value = deliveryNoteDragDepth > 0;
+}
+
+function handleDeliveryNoteDrop(event: DragEvent) {
+  deliveryNoteDragDepth = 0;
+  isDeliveryNoteDragActive.value = false;
+
+  const files = toDraggedImageFiles(event.dataTransfer);
+  const firstFile = files[0];
+
+  if (firstFile) {
+    setDeliveryNoteFile(firstFile);
+  }
+}
+
+function handleRemoveDeliveryNote() {
+  if (!deliveryNoteFileId.value) {
+    return;
+  }
+
+  const fileIdToRemove = deliveryNoteFileId.value;
+
+  if (selectedPreviewFile.value?.id === fileIdToRemove) {
+    selectedPreviewFile.value = null;
+  }
+
+  deliveryNoteFileId.value = null;
+  removeUploadedImageFile(fileIdToRemove);
+  analyticsClient.trackAction("document", "remove_upload_file", "success", {
+    document_type: selectedDocument.value.type,
+  });
 }
 
 watchEffect(() => {
@@ -907,7 +1118,13 @@ function handleFileSelection(event: Event) {
     file.type.startsWith("image/"),
   );
 
-  if (files.length > 0 && isGroupedUpload.value) {
+  if (isDeliveryNotePickerActive) {
+    const firstFile = files[0];
+
+    if (firstFile) {
+      setDeliveryNoteFile(firstFile);
+    }
+  } else if (files.length > 0 && isGroupedUpload.value) {
     const batchId = activeConcreteBatchId.value ?? concreteUploadBatches.value[0]?.id;
 
     if (batchId && isConcreteStrengthTest.value && activeStrengthUploadSectionId.value) {
@@ -926,6 +1143,7 @@ function handleFileSelection(event: Event) {
 
   activeConcreteBatchId.value = null;
   activeStrengthUploadSectionId.value = null;
+  isDeliveryNotePickerActive = false;
 
   if (input) {
     input.value = "";
@@ -1686,6 +1904,7 @@ function handleGenerate() {
         fileIds: concreteBatchFileIds.value[batch.id] ?? [],
       })),
     );
+    saveConcreteDeliveryNoteFileId(deliveryNoteFileId.value);
   }
 
   if (isConcreteStrengthTest.value) {

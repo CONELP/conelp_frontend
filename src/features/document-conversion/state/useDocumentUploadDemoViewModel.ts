@@ -18,8 +18,6 @@ import { useDocumentConversionDemoStore } from "@/features/document-conversion/s
 import type { GeneratedDocumentListItem } from "@/features/document-conversion/state/useGeneratedDocumentsDemoViewModel";
 import { useGeneratedDocumentsDemoViewModel } from "@/features/document-conversion/state/useGeneratedDocumentsDemoViewModel";
 
-const CAT_MIN_IMAGE_UPLOAD_COUNT = 2;
-
 interface LinkedConcreteDeliveryDocumentOption {
   id: string;
   title: string;
@@ -353,9 +351,7 @@ export function useDocumentUploadDemoViewModel() {
       return true;
     }
 
-    const hasRequiredImageCount = isConcreteDeliveryTest.value
-      ? uploadedFiles.value.length >= CAT_MIN_IMAGE_UPLOAD_COUNT
-      : uploadedFiles.value.length > 0;
+    const hasRequiredImageCount = uploadedFiles.value.length > 0;
 
     return Boolean(
       hasRequiredWorkContext &&
@@ -608,6 +604,10 @@ export function useDocumentUploadDemoViewModel() {
     store.setConcreteDeliveryUploadBatches(batches);
   }
 
+  function saveConcreteDeliveryNoteFileId(fileId: string | null) {
+    store.setConcreteDeliveryNoteFileId(fileId);
+  }
+
   function saveConcreteStrengthUploadLots(
     lots: Array<{
       id: string;
@@ -742,6 +742,7 @@ export function useDocumentUploadDemoViewModel() {
     rotateUploadedImageFile: store.rotateUploadedImageFile,
     reorderUploadedImageFiles: store.reorderUploadedImageFiles,
     saveConcreteDeliveryUploadBatches,
+    saveConcreteDeliveryNoteFileId,
     saveConcreteStrengthUploadLots,
     selectLinkedConcreteDeliveryDocument,
     clearUpload: store.clearUpload,

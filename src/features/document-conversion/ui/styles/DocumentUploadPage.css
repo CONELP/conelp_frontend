@@ -384,6 +384,10 @@
   width: 100%;
 }
 
+.upload-dropzone--delivery-note {
+  margin-bottom: 1rem;
+}
+
 .upload-single-upload {
   display: grid;
   justify-items: center;

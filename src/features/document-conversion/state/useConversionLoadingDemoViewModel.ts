@@ -3,14 +3,6 @@ import { useRoute, useRouter } from "vue-router";
 import type { RouteLocationRaw } from "vue-router";
 
 import { materialInspectionRequestApi } from "@/features/document-conversion/api/material-inspection-request.api";
-import type {
-  CatAnalysisResponse,
-  CcstAnalysisResponse,
-  CreateCatDocumentRequest,
-  CreateCcstDocumentRequest,
-  CreateMirDocumentRequest,
-  MirAnalysisResponse,
-} from "@/features/document-conversion/api/material-inspection-request-api.types";
 import { documentCatalog } from "@/features/document-conversion/data/document-conversion-demo.seed";
 import type { DocumentCatalogType } from "@/features/document-conversion/model/document-conversion-demo.types";
 import { buildGenericPhotoSummary } from "@/features/document-conversion/services/document-photo-summary";
@@ -63,12 +55,7 @@ const CONCRETE_STRENGTH_LOADING_STEPS = [
 
 const DOCUMENT_SELECTION_ROUTE = "/documents";
 const UPLOAD_DOCUMENT_ROUTE = "/documents/upload";
-const UPLOAD_REVIEW_ROUTE = "/documents/upload/review";
 const GENERATED_DOCUMENTS_ROUTE = "/documents/generated";
-const CAT_MIN_IMAGE_UPLOAD_COUNT = 2;
-const CREATE_PHASES = ["mir-create", "cat-create"] as const;
-
-type CreatePhase = (typeof CREATE_PHASES)[number];
 
 function isDocumentCatalogType(value: string): value is DocumentCatalogType {
   return documentCatalog.some((document) => document.type === value);
@@ -109,13 +96,6 @@ export function useConversionLoadingDemoViewModel() {
       document_type: documentType,
       ...meta,
     });
-  }
-
-  function resolveCreatePhase(value: unknown): CreatePhase | null {
-    return typeof value === "string" &&
-      (CREATE_PHASES as ReadonlyArray<string>).includes(value)
-      ? (value as CreatePhase)
-      : null;
   }
 
   function shouldSaveBackgroundResult(documentType: DocumentCatalogType) {
@@ -174,7 +154,7 @@ export function useConversionLoadingDemoViewModel() {
       return "사용 위치를 입력해 주세요.";
     }
 
-    if (!store.mirUploadWorkTypeName.trim()) {
+    if (!store.mirUploadWorkTypeName.trim() || store.mirUploadWorkTypeId === null) {
       return "공종 이름을 입력해 주세요.";
     }
 
@@ -190,12 +170,20 @@ export function useConversionLoadingDemoViewModel() {
       return "사용 위치를 입력해 주세요.";
     }
 
-    if (!store.mirUploadWorkTypeName.trim()) {
+    if (!store.mirUploadWorkTypeName.trim() || store.mirUploadWorkTypeId === null) {
       return "공종 이름을 입력해 주세요.";
     }
 
-    if (store.uploadedImageFiles.length < CAT_MIN_IMAGE_UPLOAD_COUNT) {
-      return "송장 사진과 시험 사진을 각각 1장 이상 업로드해 주세요.";
+    if (!store.concreteDeliveryNoteFileId) {
+      return "송장 사진을 1장 업로드해 주세요.";
+    }
+
+    const batchesWithPhotos = store.concreteDeliveryUploadBatches.filter(
+      (batch) => batch.fileIds.length > 0,
+    );
+
+    if (batchesWithPhotos.length === 0) {
+      return "각 회차에 시험 사진을 1장 이상 업로드해 주세요.";
     }
 
     return "";
@@ -230,10 +218,18 @@ export function useConversionLoadingDemoViewModel() {
   async function createCatAnalysisUploadPayload(
     uploadedImageFiles: UploadedImageEntrySnapshot[],
     concreteDeliveryUploadBatches: ConcreteDeliveryUploadBatchSnapshot[],
+    deliveryNoteFileId: string | null,
   ) {
     const fileEntryById = new Map(
       uploadedImageFiles.map((entry) => [entry.id, entry]),
     );
+    const deliveryNoteEntry = deliveryNoteFileId
+      ? fileEntryById.get(deliveryNoteFileId)
+      : undefined;
+    const deliveryNote = deliveryNoteEntry
+      ? [await applyEntryRotation(deliveryNoteEntry)]
+      : [];
+
     const groupedBatches = concreteDeliveryUploadBatches
       .map((batch) => ({
         id: batch.id,
@@ -245,33 +241,13 @@ export function useConversionLoadingDemoViewModel() {
       }))
       .filter((batch) => batch.entries.length > 0);
 
-    if (groupedBatches.length === 0) {
-      const [deliveryNoteEntry, ...batchPhotoEntries] = uploadedImageFiles;
-
-      return {
-        deliveryNote: deliveryNoteEntry
-          ? [await applyEntryRotation(deliveryNoteEntry)]
-          : [],
-        metadata: [{ batch: 1, count: batchPhotoEntries.length }],
-        batchPhotos: await Promise.all(
-          batchPhotoEntries.map((entry) => applyEntryRotation(entry)),
-        ),
-      };
-    }
-
-    const deliveryNoteEntries = groupedBatches
-      .map((batch) => batch.entries[0])
-      .filter((entry): entry is UploadedImageEntrySnapshot => Boolean(entry));
-    const deliveryNote = await Promise.all(
-      deliveryNoteEntries.map((entry) => applyEntryRotation(entry)),
-    );
     const metadata = groupedBatches.map((batch, index) => ({
       batch: index + 1,
-      count: Math.max(batch.entries.length - 1, 0),
+      count: batch.entries.length,
     }));
     const batchPhotos = await Promise.all(
       groupedBatches
-        .flatMap((batch) => batch.entries.slice(1))
+        .flatMap((batch) => batch.entries)
         .map((entry) => applyEntryRotation(entry)),
     );
 
@@ -328,119 +304,35 @@ export function useConversionLoadingDemoViewModel() {
     };
   }
 
-  function toCreateMirDocumentRequest(result: MirAnalysisResponse): CreateMirDocumentRequest {
-    return {
-      application: result.application,
-      supplier: result.supplier,
-      deliveryDate: result.deliveryDate,
-      workTypeId: result.workTypeId,
-      lines: result.lines.map((line) => ({
-        manufacturer: line.manufacturer ?? "",
-        materialSpecId: line.materialSpecId,
-        quantity: line.quantity === null ? "" : String(line.quantity),
-      })),
-      photos: result.photos.map((photo) => ({
-        photoKey: photo.photoKey,
-        type: photo.type,
-        description: photo.description,
-      })),
-    };
-  }
-
-  function toCreateCatDocumentRequest(result: CatAnalysisResponse): CreateCatDocumentRequest {
-    return {
-      ...toCreateMirDocumentRequest(result),
-      batches: result.batches.map((batch) => ({
-        batch: String(batch.batch),
-        lineData: {
-          slump: batch.lineData.slump === null ? null : String(batch.lineData.slump),
-          air: batch.lineData.air === null ? "" : String(batch.lineData.air),
-          temp: batch.lineData.temp === null ? "" : String(batch.lineData.temp),
-          chloride:
-            batch.lineData.chloride === null ? "" : String(batch.lineData.chloride),
-          water: batch.lineData.water === null ? "" : String(batch.lineData.water),
-        },
-        photos: batch.photos.map((photo) => ({
-          photoKey: photo.photoKey,
-          type: photo.type,
-          description: photo.description,
-        })),
-      })),
-    };
-  }
-
-  function formatNullableDocumentNumber(value: string | number | null) {
-    return value === null ? null : String(value);
-  }
-
-  function toCreateCcstDocumentRequest(
-    result: CcstAnalysisResponse,
-  ): CreateCcstDocumentRequest {
-    return {
-      lines: result.lines.map((line) => ({
-        lot: Number(line.lot),
-        setNo: Number(line.setNo),
-        ageDays: Number(line.ageDays),
-        comp1: formatNullableDocumentNumber(line.comp1),
-        comp2: formatNullableDocumentNumber(line.comp2),
-        comp3: formatNullableDocumentNumber(line.comp3),
-        testDate: line.testDate,
-        photos: line.photos.map((photo) => ({
-          photoKey: photo.photoKey,
-          type: photo.type,
-          description: photo.description,
-        })),
-      })),
-    };
-  }
-
-  function enqueueMirAnalysisAndCreateBackgroundJob(options: {
+  function enqueueMirCreateBackgroundJob(options: {
     documentType: DocumentCatalogType;
     documentTypeLabel: string;
     application: string;
-    workTypeId: number | null;
+    workTypeId: number;
     uploadedImages: UploadedImageEntrySnapshot[];
   }) {
     const fileCount = options.uploadedImages.length;
-    let currentAction: "analyze" | "create_document" = "analyze";
 
     void backgroundJobs.enqueueJob(
       {
         documentType: options.documentType,
         documentTypeLabel: options.documentTypeLabel,
         summary: buildGenericPhotoSummary(fileCount),
-        initialStatus: "analyzing",
+        initialStatus: "generating",
         resultRoute: GENERATED_DOCUMENTS_ROUTE,
       },
       async (context) => {
         try {
-          context.updateStatus("analyzing");
+          context.updateStatus("generating");
           const rotatedImages = await Promise.all(
             options.uploadedImages.map((entry) => applyEntryRotation(entry)),
           );
 
-          const result = await materialInspectionRequestApi.analyzeMirPhoto({
+          const createResult = await materialInspectionRequestApi.createMirDocument({
             application: options.application,
             workTypeId: options.workTypeId,
             images: rotatedImages,
           });
-
-          if (shouldSaveBackgroundResult(options.documentType)) {
-            store.saveMirAnalysisResult(result);
-          }
-
-          trackDocumentAction(
-            "analyze",
-            "success",
-            { file_count: fileCount, background: true },
-            options.documentType,
-          );
-
-          currentAction = "create_document";
-          context.updateStatus("generating");
-          const createResult = await materialInspectionRequestApi.createMirDocument(
-            toCreateMirDocumentRequest(result),
-          );
 
           if (shouldSaveBackgroundResult(options.documentType)) {
             store.saveMirCreateResult(createResult);
@@ -457,7 +349,7 @@ export function useConversionLoadingDemoViewModel() {
           );
         } catch (error) {
           trackDocumentAction(
-            currentAction,
+            "create_document",
             "fail",
             {
               background: true,
@@ -473,34 +365,35 @@ export function useConversionLoadingDemoViewModel() {
     );
   }
 
-  function enqueueCatAnalysisAndCreateBackgroundJob(options: {
+  function enqueueCatCreateBackgroundJob(options: {
     documentType: DocumentCatalogType;
     documentTypeLabel: string;
     application: string;
-    workTypeId: number | null;
+    workTypeId: number;
     uploadedImages: UploadedImageEntrySnapshot[];
     concreteDeliveryUploadBatches: ConcreteDeliveryUploadBatchSnapshot[];
+    deliveryNoteFileId: string | null;
   }) {
     const fileCount = options.uploadedImages.length;
-    let currentAction: "analyze" | "create_document" = "analyze";
 
     void backgroundJobs.enqueueJob(
       {
         documentType: options.documentType,
         documentTypeLabel: options.documentTypeLabel,
         summary: buildGenericPhotoSummary(fileCount),
-        initialStatus: "analyzing",
+        initialStatus: "generating",
         resultRoute: GENERATED_DOCUMENTS_ROUTE,
       },
       async (context) => {
         try {
-          context.updateStatus("analyzing");
+          context.updateStatus("generating");
           const uploadPayload = await createCatAnalysisUploadPayload(
             options.uploadedImages,
             options.concreteDeliveryUploadBatches,
+            options.deliveryNoteFileId,
           );
 
-          const result = await materialInspectionRequestApi.analyzeCatPhoto({
+          const createResult = await materialInspectionRequestApi.createCatDocument({
             application: options.application,
             workTypeId: options.workTypeId,
             deliveryNote: uploadPayload.deliveryNote,
@@ -509,23 +402,6 @@ export function useConversionLoadingDemoViewModel() {
           });
 
           if (shouldSaveBackgroundResult(options.documentType)) {
-            store.saveCatAnalysisResult(result);
-          }
-
-          trackDocumentAction(
-            "analyze",
-            "success",
-            { file_count: fileCount, background: true },
-            options.documentType,
-          );
-
-          currentAction = "create_document";
-          context.updateStatus("generating");
-          const createResult = await materialInspectionRequestApi.createCatDocument(
-            toCreateCatDocumentRequest(result),
-          );
-
-          if (shouldSaveBackgroundResult(options.documentType)) {
             store.saveCatCreateResult(createResult);
           }
 
@@ -540,7 +416,7 @@ export function useConversionLoadingDemoViewModel() {
           );
         } catch (error) {
           trackDocumentAction(
-            currentAction,
+            "create_document",
             "fail",
             {
               background: true,
@@ -556,7 +432,7 @@ export function useConversionLoadingDemoViewModel() {
     );
   }
 
-  function enqueueConcreteStrengthAnalysisAndCreateBackgroundJob(options: {
+  function enqueueConcreteStrengthCreateBackgroundJob(options: {
     documentType: DocumentCatalogType;
     documentTypeLabel: string;
     catDocId: number;
@@ -564,45 +440,29 @@ export function useConversionLoadingDemoViewModel() {
     concreteStrengthUploadLots: ConcreteStrengthUploadLotSnapshot[];
   }) {
     const fileCount = options.uploadedImages.length;
-    let currentAction: "analyze" | "create_document" = "analyze";
 
     void backgroundJobs.enqueueJob(
       {
         documentType: options.documentType,
         documentTypeLabel: options.documentTypeLabel,
         summary: buildGenericPhotoSummary(fileCount),
-        initialStatus: "analyzing",
+        initialStatus: "generating",
         resultRoute: GENERATED_DOCUMENTS_ROUTE,
       },
       async (context) => {
         try {
-          context.updateStatus("analyzing");
+          context.updateStatus("generating");
           const uploadPayload = await createCcstAnalysisUploadPayload(
             options.uploadedImages,
             options.concreteStrengthUploadLots,
           );
 
-          const result = await materialInspectionRequestApi.analyzeCcstPhoto({
-            catDocId: options.catDocId,
+          await materialInspectionRequestApi.createCcstDocument(options.catDocId, {
             metadata: uploadPayload.metadata,
             lotPhotos: uploadPayload.lotPhotos,
           });
 
           trackDocumentAction(
-            "analyze",
-            "success",
-            { file_count: fileCount, background: true },
-            options.documentType,
-          );
-
-          currentAction = "create_document";
-          context.updateStatus("generating");
-          await materialInspectionRequestApi.createCcstDocument(
-            result.catDocId,
-            toCreateCcstDocumentRequest(result),
-          );
-
-          trackDocumentAction(
             "create_document",
             "success",
             {
@@ -613,7 +473,7 @@ export function useConversionLoadingDemoViewModel() {
           );
         } catch (error) {
           trackDocumentAction(
-            currentAction,
+            "create_document",
             "fail",
             {
               background: true,
@@ -621,154 +481,6 @@ export function useConversionLoadingDemoViewModel() {
               error_kind: "api",
             },
             options.documentType,
-          );
-
-          throw error;
-        }
-      },
-    );
-  }
-
-  function enqueueMirDraftCreateBackgroundJob() {
-    const draft = store.mirDocumentSubmissionDraft;
-    const documentType = selectedDocument.value.type;
-    const documentTypeLabel = selectedDocument.value.label;
-
-    if (!draft) {
-      loadingErrorMessage.value = "생성할 검토 결과를 찾지 못했어요.";
-      scheduleRouteNavigation(toDocumentRoute(UPLOAD_REVIEW_ROUTE), 1400);
-      return;
-    }
-
-    void backgroundJobs.enqueueJob(
-      {
-        documentType,
-        documentTypeLabel,
-        summary: "검토한 항목으로 문서를 생성하고 있어요.",
-        initialStatus: "generating",
-        resultRoute: GENERATED_DOCUMENTS_ROUTE,
-      },
-      async (context) => {
-        try {
-          let createRequest = draft.createRequest;
-
-          if (draft.updateRequest) {
-            context.updateStatus("analyzing");
-            const updatedResult = await materialInspectionRequestApi.updateMirData(
-              draft.updateRequest,
-            );
-
-            if (shouldSaveBackgroundResult(documentType)) {
-              store.saveMirAnalysisResult(updatedResult);
-            }
-
-            createRequest = toCreateMirDocumentRequest(updatedResult);
-          }
-
-          if (!createRequest) {
-            throw new Error("문서 생성 요청 정보를 찾지 못했어요.");
-          }
-
-          context.updateStatus("generating");
-          const createResult = await materialInspectionRequestApi.createMirDocument(
-            createRequest,
-          );
-
-          if (shouldSaveBackgroundResult(documentType)) {
-            store.saveMirCreateResult(createResult);
-          }
-
-          store.clearMirDocumentSubmissionDraft();
-          trackDocumentAction(
-            "create_document",
-            "success",
-            { background: true, reviewed: true },
-            documentType,
-          );
-        } catch (error) {
-          trackDocumentAction(
-            "create_document",
-            "fail",
-            {
-              background: true,
-              reviewed: true,
-              error_kind: "api",
-            },
-            documentType,
-          );
-
-          throw error;
-        }
-      },
-    );
-  }
-
-  function enqueueCatDraftCreateBackgroundJob() {
-    const draft = store.catDocumentSubmissionDraft;
-    const documentType = selectedDocument.value.type;
-    const documentTypeLabel = selectedDocument.value.label;
-
-    if (!draft) {
-      loadingErrorMessage.value = "생성할 검토 결과를 찾지 못했어요.";
-      scheduleRouteNavigation(toDocumentRoute(UPLOAD_REVIEW_ROUTE), 1400);
-      return;
-    }
-
-    void backgroundJobs.enqueueJob(
-      {
-        documentType,
-        documentTypeLabel,
-        summary: "검토한 항목으로 문서를 생성하고 있어요.",
-        initialStatus: "generating",
-        resultRoute: GENERATED_DOCUMENTS_ROUTE,
-      },
-      async (context) => {
-        try {
-          let createRequest = draft.createRequest;
-
-          if (draft.updateRequest) {
-            context.updateStatus("analyzing");
-            const updatedResult = await materialInspectionRequestApi.updateCatData(
-              draft.updateRequest,
-            );
-
-            if (shouldSaveBackgroundResult(documentType)) {
-              store.saveCatAnalysisResult(updatedResult);
-            }
-
-            createRequest = toCreateCatDocumentRequest(updatedResult);
-          }
-
-          if (!createRequest) {
-            throw new Error("문서 생성 요청 정보를 찾지 못했어요.");
-          }
-
-          context.updateStatus("generating");
-          const createResult = await materialInspectionRequestApi.createCatDocument(
-            createRequest,
-          );
-
-          if (shouldSaveBackgroundResult(documentType)) {
-            store.saveCatCreateResult(createResult);
-          }
-
-          store.clearCatDocumentSubmissionDraft();
-          trackDocumentAction(
-            "create_document",
-            "success",
-            { background: true, reviewed: true },
-            documentType,
-          );
-        } catch (error) {
-          trackDocumentAction(
-            "create_document",
-            "fail",
-            {
-              background: true,
-              reviewed: true,
-              error_kind: "api",
-            },
-            documentType,
           );
 
           throw error;
@@ -799,11 +511,11 @@ export function useConversionLoadingDemoViewModel() {
       return;
     }
 
-    enqueueMirAnalysisAndCreateBackgroundJob({
+    enqueueMirCreateBackgroundJob({
       documentType,
       documentTypeLabel,
       application: store.mirUploadApplication,
-      workTypeId: store.mirUploadWorkTypeId,
+      workTypeId: store.mirUploadWorkTypeId!,
       uploadedImages: snapshotUploadedImages(),
     });
     store.clearUpload();
@@ -833,11 +545,11 @@ export function useConversionLoadingDemoViewModel() {
       return;
     }
 
-    enqueueCatAnalysisAndCreateBackgroundJob({
+    enqueueCatCreateBackgroundJob({
       documentType,
       documentTypeLabel,
       application: store.mirUploadApplication,
-      workTypeId: store.mirUploadWorkTypeId,
+      workTypeId: store.mirUploadWorkTypeId!,
       uploadedImages: snapshotUploadedImages(),
       concreteDeliveryUploadBatches: store.concreteDeliveryUploadBatches.map(
         (batch) => ({
@@ -845,6 +557,7 @@ export function useConversionLoadingDemoViewModel() {
           fileIds: [...batch.fileIds],
         }),
       ),
+      deliveryNoteFileId: store.concreteDeliveryNoteFileId,
     });
     store.clearUpload();
     clearLoadingStepTimers();
@@ -872,7 +585,7 @@ export function useConversionLoadingDemoViewModel() {
       return;
     }
 
-    enqueueConcreteStrengthAnalysisAndCreateBackgroundJob({
+    enqueueConcreteStrengthCreateBackgroundJob({
       documentType,
       documentTypeLabel,
       catDocId: store.selectedConcreteDeliveryCatDocId!,
@@ -885,22 +598,6 @@ export function useConversionLoadingDemoViewModel() {
     });
     store.clearUpload();
     void router.replace({ path: DOCUMENT_SELECTION_ROUTE });
-  }
-
-  function startCreateDraftLoadingSequence(phase: CreatePhase) {
-    clearLoadingStepTimers();
-    loadingStepIndex.value = 0;
-    loadingErrorMessage.value = "";
-
-    if (phase === "mir-create") {
-      enqueueMirDraftCreateBackgroundJob();
-    } else {
-      enqueueCatDraftCreateBackgroundJob();
-    }
-
-    if (!loadingErrorMessage.value) {
-      void router.replace({ path: DOCUMENT_SELECTION_ROUTE });
-    }
   }
 
   watch(
@@ -918,17 +615,8 @@ export function useConversionLoadingDemoViewModel() {
   );
 
   watch(
-    () =>
-      [
-        selectedDocument.value.type,
-        resolveCreatePhase(route.query.phase),
-      ] as const,
-    ([documentType, phase]) => {
-      if (phase) {
-        startCreateDraftLoadingSequence(phase);
-        return;
-      }
-
+    () => selectedDocument.value.type,
+    (documentType) => {
       if (documentType === "material_registration") {
         startMirGenerationLoadingSequence();
         return;

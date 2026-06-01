@@ -161,7 +161,6 @@ export const uploadDocumentPresets: UploadDocumentPreset[] = [
   {
     documentType: "concrete_delivery_csi",
     guideItems: [
-      "출하증명서 사진",
       "슬럼프 시험 전경 사진",
       "보드판 사진",
       "공기량 사진",

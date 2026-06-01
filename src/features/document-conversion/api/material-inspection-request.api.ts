@@ -1,21 +1,13 @@
 import { apiFetch, apiFetchAttachment } from "@/shared/network/api-client";
 import type {
-  AnalyzeCatPhotoRequest,
-  AnalyzeCcstPhotoRequest,
-  AnalyzeMirPhotoRequest,
-  CatAnalysisResponse,
   CatLineResponse,
-  CreateCatDocumentRequest,
+  CreateCatDocumentMultipartRequest,
   CreateCatDocumentResponse,
-  CcstAnalysisResponse,
-  CreateCcstDocumentRequest,
+  CreateCcstDocumentMultipartRequest,
   CreateCcstDocumentResponse,
-  CreateMirDocumentRequest,
+  CreateMirDocumentMultipartRequest,
   CreateMirDocumentResponse,
   DocumentJobResponse,
-  MirAnalysisResponse,
-  UpdateCatDataRequest,
-  UpdateMirDataRequest,
   WorkTypeReferenceResponse,
 } from "@/features/document-conversion/api/material-inspection-request-api.types";
 
@@ -47,10 +39,6 @@ function appendJsonPart(formData: FormData, key: string, value: unknown) {
       type: "application/json",
     }),
   );
-}
-
-function toApiBody<TRequest extends object>(body: TRequest): Record<string, unknown> {
-  return body as unknown as Record<string, unknown>;
 }
 
 function hasSelectedProjectId() {
@@ -88,36 +76,7 @@ export const materialInspectionRequestApi = {
     );
   },
 
-  async analyzeMirPhoto(request: AnalyzeMirPhotoRequest) {
-    await ensureSelectedProjectId();
-
-    const formData = new FormData();
-
-    appendOptionalString(formData, "application", request.application);
-    appendOptionalNumber(formData, "workTypeId", request.workTypeId);
-    request.images.forEach((image) => {
-      formData.append("images", image);
-    });
-
-    return apiFetch<MirAnalysisResponse>(
-      "/materialInspectionRequest/analyzeMirPhoto",
-      {
-        method: "POST",
-        body: formData,
-      },
-    );
-  },
-
-  async updateMirData(request: UpdateMirDataRequest) {
-    await ensureSelectedProjectId();
-
-    return apiFetch<MirAnalysisResponse>("/materialInspectionRequest/updateMirData", {
-      method: "POST",
-      body: toApiBody(request),
-    });
-  },
-
-  async analyzeCatPhoto(request: AnalyzeCatPhotoRequest) {
+  async createCatDocument(request: CreateCatDocumentMultipartRequest) {
     await ensureSelectedProjectId();
 
     const formData = new FormData();
@@ -132,55 +91,30 @@ export const materialInspectionRequestApi = {
       formData.append("batchPhotos", image);
     });
 
-    return apiFetch<CatAnalysisResponse>("/cat/analyzeCatPhoto", {
+    return apiFetch<CreateCatDocumentResponse>("/cat/createCatDocument", {
       method: "POST",
       body: formData,
     });
   },
 
-  async updateCatData(request: UpdateCatDataRequest) {
-    await ensureSelectedProjectId();
-
-    return apiFetch<CatAnalysisResponse>("/cat/updateCatData", {
-      method: "POST",
-      body: toApiBody(request),
-    });
-  },
-
-  async createCatDocument(request: CreateCatDocumentRequest) {
-    await ensureSelectedProjectId();
-
-    return apiFetch<CreateCatDocumentResponse>("/cat/createCatDocument", {
-      method: "POST",
-      body: toApiBody(request),
-    });
-  },
-
-  async analyzeCcstPhoto(request: AnalyzeCcstPhotoRequest) {
+  async createCcstDocument(
+    catDocId: number,
+    request: CreateCcstDocumentMultipartRequest,
+  ) {
     await ensureSelectedProjectId();
 
     const formData = new FormData();
 
-    formData.append("catDocId", String(request.catDocId));
     appendJsonPart(formData, "metadata", request.metadata);
     request.lotPhotos.forEach((image) => {
       formData.append("lotPhotos", image);
     });
 
-    return apiFetch<CcstAnalysisResponse>("/ccst/analyzeCcstPhoto", {
-      method: "POST",
-      body: formData,
-    });
-  },
-
-  async createCcstDocument(catDocId: number, request: CreateCcstDocumentRequest) {
-    await ensureSelectedProjectId();
-
     return apiFetch<CreateCcstDocumentResponse>(
       `/ccst/createCcstDocument/${encodeURIComponent(String(catDocId))}`,
       {
         method: "POST",
-        body: toApiBody(request),
+        body: formData,
       },
     );
   },
@@ -196,14 +130,22 @@ export const materialInspectionRequestApi = {
     );
   },
 
-  async createMirDocument(request: CreateMirDocumentRequest) {
+  async createMirDocument(request: CreateMirDocumentMultipartRequest) {
     await ensureSelectedProjectId();
+
+    const formData = new FormData();
+
+    appendOptionalString(formData, "application", request.application);
+    appendOptionalNumber(formData, "workTypeId", request.workTypeId);
+    request.images.forEach((image) => {
+      formData.append("images", image);
+    });
 
     return apiFetch<CreateMirDocumentResponse>(
       "/materialInspectionRequest/createMirDocument",
       {
         method: "POST",
-        body: toApiBody(request),
+        body: formData,
       },
     );
   },

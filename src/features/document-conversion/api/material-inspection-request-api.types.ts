@@ -38,6 +38,36 @@ export interface AnalyzeMirPhotoRequest {
   images: File[];
 }
 
+export interface CreateMirDocumentMultipartRequest {
+  application?: string;
+  workTypeId: number;
+  images: File[];
+}
+
+export interface CatPhotoMetadataEntry {
+  batch: number;
+  count: number;
+}
+
+export interface CreateCatDocumentMultipartRequest {
+  application?: string;
+  workTypeId: number;
+  deliveryNote: File[];
+  metadata: CatPhotoMetadataEntry[];
+  batchPhotos: File[];
+}
+
+export interface CcstPhotoMetadataEntry {
+  lot: number;
+  ageDays: 7 | 28;
+  count: number;
+}
+
+export interface CreateCcstDocumentMultipartRequest {
+  metadata: CcstPhotoMetadataEntry[];
+  lotPhotos: File[];
+}
+
 export type CatPhotoType =
   | "OVERVIEW"
   | "TEST_BOARD"

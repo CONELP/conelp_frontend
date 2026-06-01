@@ -124,6 +124,15 @@
                   aria-hidden="true"
                 />
                 <button
+                  v-if="isSuper"
+                  class="desktop-app-header__menu-item"
+                  type="button"
+                  role="menuitem"
+                  @click="handleGoToSystemAdmin"
+                >
+                  시스템 관리자
+                </button>
+                <button
                   class="desktop-app-header__menu-item"
                   type="button"
                   role="menuitem"
@@ -190,6 +199,7 @@ let headerResizeObserver: ResizeObserver | null = null;
 let isHeaderUnmounted = false;
 
 const userLabel = computed(() => authStore.user?.userName ?? "");
+const isSuper = computed(() => authStore.user?.systemRole === "SUPER");
 const mobileMenuIcon = computed(() =>
   isMobileMenuOpen.value ? dismissIcon : navigationIcon,
 );
@@ -216,6 +226,11 @@ function toggleMobileMenu() {
 function closeMobileMenu() {
   isMobileMenuOpen.value = false;
   closeMenu();
+}
+
+async function handleGoToSystemAdmin() {
+  closeMobileMenu();
+  await router.push("/system-admin");
 }
 
 async function handleLogout() {

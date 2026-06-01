@@ -78,6 +78,7 @@ export const useDocumentConversionDemoStore = defineStore(
     const concreteDeliveryUploadBatches = ref<
       ConcreteDeliveryUploadBatchDraft[]
     >([]);
+    const concreteDeliveryNoteFileId = ref<string | null>(null);
     const concreteStrengthUploadLots = ref<ConcreteStrengthUploadLotDraft[]>([]);
 
     const selectedDocument = computed(() =>
@@ -96,6 +97,7 @@ export const useDocumentConversionDemoStore = defineStore(
 
     function clearUploadGrouping() {
       concreteDeliveryUploadBatches.value = [];
+      concreteDeliveryNoteFileId.value = null;
       concreteStrengthUploadLots.value = [];
       selectedConcreteDeliveryCatDocId.value = null;
     }
@@ -153,6 +155,9 @@ export const useDocumentConversionDemoStore = defineStore(
       uploadedImageFiles.value = uploadedImageFiles.value.filter(
         (entry) => entry.id !== fileIdToRemove,
       );
+      if (concreteDeliveryNoteFileId.value === fileIdToRemove) {
+        concreteDeliveryNoteFileId.value = null;
+      }
       concreteDeliveryUploadBatches.value =
         concreteDeliveryUploadBatches.value.map((batch) => ({
           ...batch,
@@ -216,6 +221,10 @@ export const useDocumentConversionDemoStore = defineStore(
         id: batch.id,
         fileIds: [...batch.fileIds],
       }));
+    }
+
+    function setConcreteDeliveryNoteFileId(fileId: string | null) {
+      concreteDeliveryNoteFileId.value = fileId;
     }
 
     function setConcreteStrengthUploadLots(
@@ -329,6 +338,7 @@ export const useDocumentConversionDemoStore = defineStore(
       mirDocumentSubmissionDraft,
       catDocumentSubmissionDraft,
       concreteDeliveryUploadBatches,
+      concreteDeliveryNoteFileId,
       concreteStrengthUploadLots,
       selectDocument,
       clearSelectedDocument,
@@ -337,6 +347,7 @@ export const useDocumentConversionDemoStore = defineStore(
       rotateUploadedImageFile,
       reorderUploadedImageFiles,
       setConcreteDeliveryUploadBatches,
+      setConcreteDeliveryNoteFileId,
       setConcreteStrengthUploadLots,
       setSelectedConcreteDeliveryCatDocId,
       clearUpload,
