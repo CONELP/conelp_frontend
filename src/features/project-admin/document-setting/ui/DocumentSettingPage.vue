@@ -15,6 +15,7 @@ const tabs = [
   { value: "MIR", label: "MIR (자재검수요청서)" },
   { value: "CAT", label: "CAT" },
   { value: "CCST", label: "CCST" },
+  { value: "MAT_INOUT", label: "MAT_INOUT (자재 수불현황표)" },
   { value: "DR", label: "DR (작업일보)" },
 ];
 
@@ -53,6 +54,13 @@ watch(selectedProjectId, (pid) => {
       <template #tab-CCST>
         <DocTypeSettingArea
           doc-type="CCST"
+          :selected-project-id="selectedProjectId"
+          :state="state"
+        />
+      </template>
+      <template #tab-MAT_INOUT>
+        <DocTypeSettingArea
+          doc-type="MAT_INOUT"
           :selected-project-id="selectedProjectId"
           :state="state"
         />

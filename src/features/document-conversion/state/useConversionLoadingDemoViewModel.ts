@@ -489,6 +489,55 @@ export function useConversionLoadingDemoViewModel() {
     );
   }
 
+  function enqueueMatInoutCreateBackgroundJob(options: {
+    documentType: DocumentCatalogType;
+    documentTypeLabel: string;
+  }) {
+    void backgroundJobs.enqueueJob(
+      {
+        documentType: options.documentType,
+        documentTypeLabel: options.documentTypeLabel,
+        summary: "프로젝트 전체 활성 자재반입 집계",
+        initialStatus: "generating",
+        resultRoute: GENERATED_DOCUMENTS_ROUTE,
+      },
+      async (context) => {
+        try {
+          context.updateStatus("generating");
+          await materialInspectionRequestApi.createMatInoutDocument();
+
+          trackDocumentAction(
+            "create_document",
+            "success",
+            { background: true },
+            options.documentType,
+          );
+        } catch (error) {
+          trackDocumentAction(
+            "create_document",
+            "fail",
+            { background: true, error_kind: "api" },
+            options.documentType,
+          );
+
+          throw error;
+        }
+      },
+    );
+  }
+
+  function startMatInoutGenerationLoadingSequence() {
+    clearLoadingStepTimers();
+    loadingStepIndex.value = 0;
+    loadingErrorMessage.value = "";
+
+    enqueueMatInoutCreateBackgroundJob({
+      documentType: selectedDocument.value.type,
+      documentTypeLabel: selectedDocument.value.label,
+    });
+    void router.replace({ path: DOCUMENT_SELECTION_ROUTE });
+  }
+
   function startMirGenerationLoadingSequence() {
     clearLoadingStepTimers();
     loadingStepIndex.value = 0;
@@ -629,6 +678,11 @@ export function useConversionLoadingDemoViewModel() {
 
       if (documentType === "concrete_strength_csi") {
         startConcreteStrengthLoadingSequence();
+        return;
+      }
+
+      if (documentType === "material_supply_status") {
+        startMatInoutGenerationLoadingSequence();
         return;
       }
 

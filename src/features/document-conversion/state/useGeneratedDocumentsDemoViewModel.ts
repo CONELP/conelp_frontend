@@ -69,6 +69,7 @@ const DOCUMENT_LABEL_BY_TYPE: Record<string, string> = {
   MIR: "자재 반입 검수요청",
   CAT: "콘크리트 타설 요청",
   CCST: "압축강도 시험 의뢰",
+  MAT_INOUT: "자재 수불현황표",
   SCHEDULE_3WEEK: "3주 공정표",
   SCHEDULE_3MONTH: "3개월 공정표",
 };
@@ -77,6 +78,7 @@ const DOCUMENT_CATALOG_TYPE_BY_JOB_TYPE: Partial<Record<string, DocumentCatalogT
   MIR: "material_registration",
   CAT: "concrete_delivery_csi",
   CCST: "concrete_strength_csi",
+  MAT_INOUT: "material_supply_status",
 };
 
 function formatGeneratedDocumentDate(value: string) {

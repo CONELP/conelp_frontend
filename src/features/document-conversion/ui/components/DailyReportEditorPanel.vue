@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import imageIcon from "@fluentui/svg-icons/icons/image_20_regular.svg";
 import chevronLeftIcon from "@fluentui/svg-icons/icons/chevron_left_20_regular.svg";
 import chevronRightIcon from "@fluentui/svg-icons/icons/chevron_right_20_regular.svg";
@@ -960,6 +960,11 @@ const laborOriginalsByLaborTypeId = ref<
 const previewImage = ref<DailyReportImageDraft | null>(null);
 const previewOriginalSrc = ref<string>("");
 const activeDailyReportTab = ref<DailyReportEditorTabId>("todayWork");
+watch(activeDailyReportTab, (tab) => {
+  if (tab === "todayWork" || tab === "tomorrowWork") {
+    void nextTick().then(resizeAllDailyReportTaskTextareas);
+  }
+});
 const taskSyncRequestIds = new Map<string, number>();
 const pendingTaskDeletes = new Set<string>();
 
@@ -2439,6 +2444,16 @@ function resizeDailyReportTaskTextarea(event: Event) {
 function autosizeTextareaElement(el: HTMLTextAreaElement) {
   el.style.height = "auto";
   el.style.height = `${el.scrollHeight}px`;
+}
+
+function resizeAllDailyReportTaskTextareas() {
+  document
+    .querySelectorAll<HTMLTextAreaElement>(".daily-report-task-textarea")
+    .forEach((el) => {
+      if (el.offsetParent !== null || el.clientHeight > 0) {
+        autosizeTextareaElement(el);
+      }
+    });
 }
 
 const vAutosizeTextarea = {
@@ -4522,6 +4537,8 @@ async function hydrateDailyReportActualWorksFromServer() {
     tomorrowWorkTypes.value = ensureDefaultWorkTypes(
       buildWorkTypeDraftsFromResponses(tomorrowResponses),
     );
+    await nextTick();
+    resizeAllDailyReportTaskTextareas();
   } catch (error) {
     console.error("hydrate daily report actual works failed", error);
   }

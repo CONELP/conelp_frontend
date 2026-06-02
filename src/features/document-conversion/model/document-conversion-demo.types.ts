@@ -3,8 +3,12 @@ export type DocumentGenerationMode = "direct" | "upload_required";
 export type DocumentCatalogType =
   | "daily_report_write"
   | "material_registration"
+  | "material_supply_status"
   | "concrete_delivery_csi"
-  | "concrete_strength_csi";
+  | "concrete_strength_csi"
+  | "concrete_management_ledger"
+  | "inspection_request"
+  | "meeting_minutes";
 
 export interface DocumentDemoCard {
   type: DocumentCatalogType;

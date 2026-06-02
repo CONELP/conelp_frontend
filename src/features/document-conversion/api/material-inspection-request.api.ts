@@ -169,6 +169,22 @@ export const materialInspectionRequestApi = {
     });
   },
 
+  async createMatInoutDocument() {
+    await ensureSelectedProjectId();
+
+    return apiFetch<DocumentJobResponse>("/matInout/createMatInout", {
+      method: "POST",
+    });
+  },
+
+  async getMatInoutList() {
+    await ensureSelectedProjectId();
+
+    return apiFetch<DocumentJobResponse[]>("/matInout/getMatInoutList", {
+      method: "GET",
+    });
+  },
+
   async downloadDocumentFile(key: string) {
     await ensureSelectedProjectId();
 

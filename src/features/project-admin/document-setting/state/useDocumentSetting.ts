@@ -24,27 +24,27 @@ function emptyPrompts(): Prompts {
 }
 
 function emptyScriptPrompts(): ScriptPrompts {
-  return { MIR: "", CAT: "", CCST: "" };
+  return { MIR: "", CAT: "", CCST: "", MAT_INOUT: "" };
 }
 
 function emptyScriptPromptFlags(): ScriptPromptFlags {
-  return { MIR: false, CAT: false, CCST: false };
+  return { MIR: false, CAT: false, CCST: false, MAT_INOUT: false };
 }
 
 function emptyTemplateUrls(): TemplateUrls {
-  return { MIR: null, CAT: null, DR: null };
+  return { MIR: null, CAT: null, DR: null, MAT_INOUT: null };
 }
 
 function emptyTemplateFlags(): TemplateFlags {
-  return { MIR: false, CAT: false, DR: false };
+  return { MIR: false, CAT: false, DR: false, MAT_INOUT: false };
 }
 
 function emptyTemplateRefUrls(): TemplateRefUrls {
-  return { MIR: null, CAT: null, CCST: null, DR: null };
+  return { MIR: null, CAT: null, CCST: null, DR: null, MAT_INOUT: null };
 }
 
 function emptyTemplateRefFlags(): TemplateRefFlags {
-  return { MIR: false, CAT: false, CCST: false, DR: false };
+  return { MIR: false, CAT: false, CCST: false, DR: false, MAT_INOUT: false };
 }
 
 export function useDocumentSetting() {
@@ -76,17 +76,20 @@ export function useDocumentSetting() {
       MIR: res.mirScriptPrompt ?? "",
       CAT: res.catScriptPrompt ?? "",
       CCST: res.ccstScriptPrompt ?? "",
+      MAT_INOUT: res.matInoutScriptPrompt ?? "",
     };
     templateUrls.value = {
       MIR: res.mirTemplateUrl,
       CAT: res.catTemplateUrl,
       DR: res.drTemplateUrl,
+      MAT_INOUT: res.matInoutTemplateUrl,
     };
     templateRefUrls.value = {
       MIR: res.mirTemplateRefUrl,
       CAT: res.catTemplateRefUrl,
       CCST: res.ccstTemplateRefUrl,
       DR: res.drTemplateRefUrl,
+      MAT_INOUT: res.matInoutTemplateRefUrl,
     };
   }
 

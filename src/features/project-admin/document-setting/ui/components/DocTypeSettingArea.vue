@@ -4,6 +4,7 @@ import { computed, ref } from "vue";
 import AdminButton from "@/shared/ui/admin/Button.vue";
 import AdminLabel from "@/shared/ui/admin/Label.vue";
 import type {
+  DocConfigDocType,
   ScriptPromptDocType,
   TemplateDocType,
   TemplateRefDocType,
@@ -20,6 +21,7 @@ const docTypeLabels: Record<ScriptPromptDocType, string> = {
   MIR: "MIR",
   CAT: "CAT",
   CCST: "CCST",
+  MAT_INOUT: "MAT_INOUT (자재 수불현황표)",
 };
 
 const placeholder = `문서번호는 다음 규칙을 따른다.
@@ -36,11 +38,18 @@ const templateFileInput = ref<HTMLInputElement | null>(null);
 const templateRefFileInput = ref<HTMLInputElement | null>(null);
 
 const hasTemplate = computed(() => props.docType !== "CCST");
-const hasDocNoPrompt = computed(() => props.docType !== "CCST");
+const hasDocNoPrompt = computed(
+  () => props.docType !== "CCST" && props.docType !== "MAT_INOUT",
+);
 const templateDocType = computed(() =>
   props.docType === "CCST" ? null : (props.docType as TemplateDocType),
 );
 const templateRefDocType = computed(() => props.docType as TemplateRefDocType);
+// MAT_INOUT 은 문서번호(yyyyMMdd 자동) 규칙이 없어 docNo 프롬프트 섹션을 렌더하지 않는다.
+// hasDocNoPrompt 가 false 인 docType 에서는 fallback 값이 실제로 쓰이지 않는다.
+const docNoDocType = computed<DocConfigDocType>(() =>
+  props.docType === "MAT_INOUT" ? "MIR" : (props.docType as DocConfigDocType),
+);
 
 async function onTemplateFileChange(e: Event) {
   const input = e.target as HTMLInputElement;
@@ -89,7 +98,7 @@ function onSave() {
     return;
   }
   if (hasDocNoPrompt.value) {
-    void props.state.save(props.selectedProjectId, props.docType);
+    void props.state.save(props.selectedProjectId, docNoDocType.value);
   }
 }
 
@@ -192,15 +201,15 @@ function onSaveScriptPrompt() {
         <p>· 포맷 예시, 치환 변수(<code>{yyyyMMdd}</code>, <code>{division}</code> 등), 금지 조건을 구체적으로 기재하세요.</p>
       </div>
       <textarea
-        v-model="state.prompts.value[docType]"
+        v-model="state.prompts.value[docNoDocType]"
         :placeholder="placeholder"
-        :disabled="state.isSaving.value[docType]"
+        :disabled="state.isSaving.value[docNoDocType]"
         rows="10"
         class="doc-area__textarea"
       />
       <div class="doc-area__actions">
-        <AdminButton :disabled="state.isSaving.value[docType]" @click="onSave">
-          {{ state.isSaving.value[docType] ? "저장 중..." : "문서번호 규칙 저장" }}
+        <AdminButton :disabled="state.isSaving.value[docNoDocType]" @click="onSave">
+          {{ state.isSaving.value[docNoDocType] ? "저장 중..." : "문서번호 규칙 저장" }}
         </AdminButton>
       </div>
     </section>

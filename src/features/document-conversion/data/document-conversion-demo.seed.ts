@@ -12,6 +12,10 @@ import clipboardTaskIcon from "@fluentui/svg-icons/icons/clipboard_task_24_regul
 import beakerIcon from "@fluentui/svg-icons/icons/beaker_24_regular.svg";
 import cylinderIcon from "@fluentui/svg-icons/icons/database_24_regular.svg";
 import noteEditIcon from "@fluentui/svg-icons/icons/note_edit_24_regular.svg";
+import arrowSwapIcon from "@fluentui/svg-icons/icons/arrow_swap_24_regular.svg";
+import bookIcon from "@fluentui/svg-icons/icons/book_24_regular.svg";
+import clipboardCheckmarkIcon from "@fluentui/svg-icons/icons/clipboard_checkmark_24_regular.svg";
+import peopleTeamIcon from "@fluentui/svg-icons/icons/people_team_24_regular.svg";
 
 export const selectionPageCopy: SelectionPageCopy = {
   eyebrow: "",
@@ -71,6 +75,18 @@ export const documentCatalog: DocumentDemoCard[] = [
     generationMode: "upload_required",
   },
   {
+    type: "material_supply_status",
+    label: "자재 수불 현황표",
+    chipLabel: "자재 수불 현황표",
+    iconSrc: arrowSwapIcon,
+    description: "프로젝트 전체 활성 자재반입을 집계해 수불 현황을 정리하는 문서",
+    uploadGuide: "입력 없이 현재까지의 자재반입 내역으로 바로 생성됩니다.",
+    resultLabel: "자재 수불 현황표 결과 시안",
+    status: "available",
+    accentLabel: "즉시 데모 가능",
+    generationMode: "direct",
+  },
+  {
     type: "concrete_delivery_csi",
     label: "콘크리트 반입시험",
     chipLabel: "콘크리트 반입시험",
@@ -93,6 +109,42 @@ export const documentCatalog: DocumentDemoCard[] = [
     status: "available",
     accentLabel: "즉시 데모 가능",
     generationMode: "upload_required",
+  },
+  {
+    type: "concrete_management_ledger",
+    label: "콘크리트 관리대장",
+    chipLabel: "콘크리트 관리대장",
+    iconSrc: bookIcon,
+    description: "콘크리트 타설과 품질 관리 이력을 누적 정리하는 문서",
+    uploadGuide: "타설 기록과 품질 시험 자료를 올려 주세요.",
+    resultLabel: "콘크리트 관리대장 결과 시안",
+    status: "coming_soon",
+    accentLabel: "준비 중",
+    generationMode: "upload_required",
+  },
+  {
+    type: "inspection_request",
+    label: "검측요청서",
+    chipLabel: "검측요청서",
+    iconSrc: clipboardCheckmarkIcon,
+    description: "공종별 검측 항목과 요청 정보를 정리하는 문서",
+    uploadGuide: "검측 대상 공종 자료를 올려 주세요.",
+    resultLabel: "검측요청서 결과 시안",
+    status: "coming_soon",
+    accentLabel: "준비 중",
+    generationMode: "upload_required",
+  },
+  {
+    type: "meeting_minutes",
+    label: "회의록",
+    chipLabel: "회의록",
+    iconSrc: peopleTeamIcon,
+    description: "회의 안건과 결정 사항, 후속 조치를 정리하는 문서",
+    uploadGuide: "회의 메모나 화이트보드 사진을 올려 주세요.",
+    resultLabel: "회의록 결과 시안",
+    status: "coming_soon",
+    accentLabel: "준비 중",
+    generationMode: "direct",
   },
 ];
 
