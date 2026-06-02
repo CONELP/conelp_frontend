@@ -2,8 +2,12 @@ import { computed, onMounted, ref, watch } from "vue";
 
 import { materialInspectionRequestApi } from "@/features/document-conversion/api/material-inspection-request.api";
 import type { DocumentJobResponse } from "@/features/document-conversion/api/material-inspection-request-api.types";
+import { documentCatalog } from "@/features/document-conversion/data/document-conversion-demo.seed";
 import type { DocumentCatalogType } from "@/features/document-conversion/model/document-conversion-demo.types";
-import { useBackgroundDocumentJobsStore } from "@/features/document-conversion/state/useBackgroundDocumentJobsStore";
+import {
+  useBackgroundDocumentJobsStore,
+  type BackgroundDocumentJob,
+} from "@/features/document-conversion/state/useBackgroundDocumentJobsStore";
 
 export type GeneratedDocumentStatus =
   | "PENDING"
@@ -217,6 +221,39 @@ function toGeneratedDocumentListItem(
   };
 }
 
+function resolvePendingCatalogType(
+  documentType: string,
+): DocumentCatalogType | null {
+  return documentCatalog.some((document) => document.type === documentType)
+    ? (documentType as DocumentCatalogType)
+    : null;
+}
+
+// 인메모리 백그라운드 잡(아직 서버 목록에 안 뜬 진행중 잡)을 목록 아이템으로 변환.
+// 동기 생성(자재 수불현황표 등)도 다른 문서처럼 "생성중"으로 보이게 통일.
+function toPendingGeneratedDocumentListItem(
+  job: BackgroundDocumentJob,
+): GeneratedDocumentListItem {
+  const createdAt = new Date(job.startedAt).toISOString();
+  const timeLabel = formatGeneratedDocumentTime(createdAt);
+
+  return {
+    id: `pending-${job.id}`,
+    jobId: -1,
+    documentType: resolvePendingCatalogType(job.documentType),
+    title: job.documentTypeLabel,
+    subtitle: [job.summary, timeLabel].filter(Boolean).join(", "),
+    createdAt,
+    resultUrl: null,
+    pdfUrl: null,
+    downloadFileName: "",
+    status: "RUNNING",
+    statusLabel: STATUS_LABEL.RUNNING,
+    statusTone: STATUS_TONE.RUNNING,
+    isDownloadable: false,
+  };
+}
+
 function sortGeneratedDocuments(
   documents: GeneratedDocumentListItem[],
 ) {
@@ -230,9 +267,41 @@ export function useGeneratedDocumentsDemoViewModel() {
   const generatedDocumentItems = ref<GeneratedDocumentListItem[]>([]);
   const isGeneratedDocumentsLoading = ref(false);
   const generatedDocumentsErrorMessage = ref("");
+  const backgroundJobs = useBackgroundDocumentJobsStore();
+
+  // 서버 목록에서 이미 진행중(RUNNING/PENDING)으로 내려온 docType 집합.
+  const inProgressServerTypes = computed(() => {
+    const types = new Set<string>();
+    generatedDocumentItems.value.forEach((item) => {
+      if (
+        item.documentType &&
+        (item.status === "RUNNING" || item.status === "PENDING")
+      ) {
+        types.add(item.documentType);
+      }
+    });
+    return types;
+  });
+
+  // 진행중 인메모리 잡(서버 목록 미반영분만) + 서버 생성 목록 병합.
+  // 서버가 같은 docType 을 이미 진행중으로 내려주면 인메모리 pending 은 숨겨 이중 표시 방지.
+  const pendingDocumentItems = computed(() =>
+    backgroundJobs.activeJobs
+      .map(toPendingGeneratedDocumentListItem)
+      .filter(
+        (item) =>
+          !item.documentType ||
+          !inProgressServerTypes.value.has(item.documentType),
+      ),
+  );
+
+  const mergedDocumentItems = computed(() => [
+    ...pendingDocumentItems.value,
+    ...generatedDocumentItems.value,
+  ]);
 
   const generatedDocumentGroups = computed(() =>
-    generatedDocumentItems.value.reduce<GeneratedDocumentDateGroup[]>(
+    mergedDocumentItems.value.reduce<GeneratedDocumentDateGroup[]>(
       (groups, document) => {
         const dateGroup = formatGeneratedDocumentDateGroup(document.createdAt);
         const existingGroup = groups.find((group) => group.dateKey === dateGroup.key);
@@ -287,8 +356,6 @@ export function useGeneratedDocumentsDemoViewModel() {
       isGeneratedDocumentsLoading.value = false;
     }
   }
-
-  const backgroundJobs = useBackgroundDocumentJobsStore();
 
   watch(
     () => backgroundJobs.completionSignal,

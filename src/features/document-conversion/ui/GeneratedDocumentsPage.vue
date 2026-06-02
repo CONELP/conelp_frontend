@@ -76,6 +76,22 @@
                   />
                 </button>
 
+                <button
+                  v-if="document.jobId > 0"
+                  class="generated-row__delete"
+                  type="button"
+                  aria-label="생성된 문서 삭제"
+                  :disabled="deletingDocumentId === document.id"
+                  @click="handleDeleteGeneratedDocument(document)"
+                >
+                  <img
+                    class="generated-row__delete-icon"
+                    :src="deleteIcon"
+                    alt=""
+                    aria-hidden="true"
+                  />
+                </button>
+
               </div>
             </article>
           </div>
@@ -94,6 +110,7 @@ import { ref } from "vue";
 import { RouterLink } from "vue-router";
 import downloadIcon from "@fluentui/svg-icons/icons/arrow_download_20_regular.svg";
 import backIcon from "@fluentui/svg-icons/icons/chevron_left_24_regular.svg";
+import deleteIcon from "@fluentui/svg-icons/icons/delete_20_regular.svg";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
 import { materialInspectionRequestApi } from "@/features/document-conversion/api/material-inspection-request.api";
@@ -105,9 +122,40 @@ const {
   generatedDocumentGroups,
   isGeneratedDocumentsLoading,
   generatedDocumentsErrorMessage,
+  refreshGeneratedDocuments,
 } = useGeneratedDocumentsDemoViewModel();
 
 const downloadingDocumentId = ref<string | null>(null);
+const deletingDocumentId = ref<string | null>(null);
+
+async function handleDeleteGeneratedDocument(document: GeneratedDocumentListItem) {
+  if (document.jobId <= 0 || deletingDocumentId.value === document.id) {
+    return;
+  }
+
+  if (!window.confirm(`'${document.title}' 문서를 삭제할까요?`)) {
+    return;
+  }
+
+  deletingDocumentId.value = document.id;
+
+  try {
+    await materialInspectionRequestApi.deleteDocumentJob(document.jobId);
+    analyticsClient.trackAction("document", "delete_generated", "success", {
+      document_type: document.documentType ?? "unknown",
+    });
+    await refreshGeneratedDocuments();
+  } catch (error) {
+    window.alert(
+      error instanceof Error ? error.message : "문서 삭제에 실패했습니다.",
+    );
+    analyticsClient.trackAction("document", "delete_generated", "fail", {
+      document_type: document.documentType ?? "unknown",
+    });
+  } finally {
+    deletingDocumentId.value = null;
+  }
+}
 
 function isStorageObjectKey(value: string) {
   return value.startsWith("gs://") || !/^https?:\/\//i.test(value);

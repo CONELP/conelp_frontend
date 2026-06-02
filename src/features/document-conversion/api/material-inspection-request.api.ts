@@ -223,6 +223,14 @@ export const materialInspectionRequestApi = {
     );
   },
 
+  async deleteDocumentJob(jobId: number) {
+    await ensureSelectedProjectId();
+
+    return apiFetch<void>(`/document/deleteDocument/${jobId}`, {
+      method: "DELETE",
+    });
+  },
+
   async downloadDocumentJob(jobId: number) {
     await ensureSelectedProjectId();
 

@@ -238,6 +238,36 @@
   opacity: 0.92;
 }
 
+.generated-row__delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 2.9rem;
+  height: 2.9rem;
+  margin-left: 0.5rem;
+  border-radius: 0.82rem;
+  border: 1px solid var(--outline-soft);
+  background: #fff;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.generated-row__delete:hover:not(:disabled) {
+  border-color: #c0392b;
+}
+
+.generated-row__delete:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.generated-row__delete-icon {
+  width: 1.16rem;
+  height: 1.16rem;
+  opacity: 0.92;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .generated-intro,
   .generated-list {
