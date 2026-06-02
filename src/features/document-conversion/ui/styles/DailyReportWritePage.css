@@ -1630,7 +1630,7 @@
   box-sizing: border-box;
   display: block;
   width: 100%;
-  min-height: 7rem;
+  min-height: 1.75rem;
   height: auto;
   padding: 0.72rem 0.62rem;
   overflow: hidden;

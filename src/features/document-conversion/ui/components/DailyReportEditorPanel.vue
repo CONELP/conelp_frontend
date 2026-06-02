@@ -292,6 +292,9 @@ const materialTypeOptions = ref<DailyReportMaterialTypeResponse[]>([]);
 const materialSpecOptionsByTypeId = ref(
   new Map<number, DailyReportMaterialSpecResponse[]>(),
 );
+const materialSpecOptionsByWorkTypeAndTypeId = ref(
+  new Map<string, DailyReportMaterialSpecResponse[]>(),
+);
 const isDailyReportSaving = ref(false);
 const dailyReportSaveMessage = ref("");
 const isDailyReportDocumentGenerating = ref(false);
@@ -947,6 +950,9 @@ const equipmentSpecOriginalsBySpecId = ref<
 >(new Map());
 const equipmentSpecOptionsByTypeId = ref<
   Map<number, DailyReportEquipmentSpecResponse[]>
+>(new Map());
+const equipmentSpecOptionsByWorkTypeAndTypeId = ref<
+  Map<string, DailyReportEquipmentSpecResponse[]>
 >(new Map());
 const laborOriginalsByLaborTypeId = ref<
   Map<number, { name: string; isVisible: boolean }>
@@ -2430,6 +2436,20 @@ function resizeDailyReportTaskTextarea(event: Event) {
   textarea.style.height = `${textarea.scrollHeight}px`;
 }
 
+function autosizeTextareaElement(el: HTMLTextAreaElement) {
+  el.style.height = "auto";
+  el.style.height = `${el.scrollHeight}px`;
+}
+
+const vAutosizeTextarea = {
+  mounted(el: HTMLTextAreaElement) {
+    autosizeTextareaElement(el);
+  },
+  updated(el: HTMLTextAreaElement) {
+    autosizeTextareaElement(el);
+  },
+};
+
 async function handleTaskBlur(
   workType: DailyReportWorkTypeDraft,
   task: DailyReportTaskDraft,
@@ -3083,6 +3103,7 @@ function findDailyReportMaterialTypeInWorkType(
 async function findDailyReportMaterialSpec(
   materialTypeId: number,
   specification: string,
+  workTypeId: number | null,
 ) {
   const normalizedSpecification = normalizeDailyReportMatchText(specification);
 
@@ -3090,7 +3111,15 @@ async function findDailyReportMaterialSpec(
     return null;
   }
 
-  const specs = await ensureDailyReportMaterialSpecsLoaded(materialTypeId);
+  await ensureDailyReportMaterialSpecsLoaded(materialTypeId);
+  const scopedKey =
+    workTypeId !== null ? `${workTypeId}:${materialTypeId}` : null;
+  const scopedSpecs =
+    scopedKey !== null
+      ? materialSpecOptionsByWorkTypeAndTypeId.value.get(scopedKey)
+      : undefined;
+  const specs =
+    scopedSpecs ?? materialSpecOptionsByTypeId.value.get(materialTypeId) ?? [];
   const exactMatches = specs.filter(
     (option) =>
       normalizeDailyReportMatchText(option.name) === normalizedSpecification,
@@ -3222,6 +3251,10 @@ async function loadDailyReportResourceReferences() {
 
     const materialTypes: DailyReportMaterialTypeResponse[] = [];
     const materialSpecsByTypeId = new Map<number, DailyReportMaterialSpecResponse[]>();
+    const materialSpecsByWorkTypeAndTypeId = new Map<
+      string,
+      DailyReportMaterialSpecResponse[]
+    >();
     materialHierarchy.forEach((group) => {
       group.materialTypes.forEach((materialType) => {
         materialTypes.push({
@@ -3231,25 +3264,35 @@ async function loadDailyReportResourceReferences() {
           workTypeId: group.workTypeId,
           workTypeName: group.workTypeName,
         });
-        materialSpecsByTypeId.set(
-          materialType.id,
-          materialType.materialSpecs.map((spec) => ({
-            id: spec.id,
-            name: spec.name,
-            materialTypeId: materialType.id,
-            materialTypeName: materialType.name,
-            isVisible: spec.isVisible,
-          })),
-        );
+        const specList = materialType.materialSpecs.map((spec) => ({
+          id: spec.id,
+          name: spec.name,
+          materialTypeId: materialType.id,
+          materialTypeName: materialType.name,
+          isVisible: spec.isVisible,
+        }));
+        materialSpecsByTypeId.set(materialType.id, specList);
+        if (group.workTypeId !== null) {
+          materialSpecsByWorkTypeAndTypeId.set(
+            `${group.workTypeId}:${materialType.id}`,
+            specList,
+          );
+        }
       });
     });
     materialTypeOptions.value = materialTypes;
     materialSpecOptionsByTypeId.value = materialSpecsByTypeId;
+    materialSpecOptionsByWorkTypeAndTypeId.value =
+      materialSpecsByWorkTypeAndTypeId;
 
     const equipmentTypes: DailyReportEquipmentTypeResponse[] = [];
     const equipmentSpecs: DailyReportEquipmentSpecResponse[] = [];
     const equipmentSpecsByTypeId = new Map<
       number,
+      DailyReportEquipmentSpecResponse[]
+    >();
+    const equipmentSpecsByWorkTypeAndTypeId = new Map<
+      string,
       DailyReportEquipmentSpecResponse[]
     >();
     equipmentHierarchy.forEach((group) => {
@@ -3269,11 +3312,19 @@ async function loadDailyReportResourceReferences() {
         }));
         equipmentSpecs.push(...specList);
         equipmentSpecsByTypeId.set(equipmentType.id, specList);
+        if (group.workTypeId !== null) {
+          equipmentSpecsByWorkTypeAndTypeId.set(
+            `${group.workTypeId}:${equipmentType.id}`,
+            specList,
+          );
+        }
       });
     });
     equipmentTypeOptions.value = equipmentTypes;
     equipmentSpecOptions.value = equipmentSpecs;
     equipmentSpecOptionsByTypeId.value = equipmentSpecsByTypeId;
+    equipmentSpecOptionsByWorkTypeAndTypeId.value =
+      equipmentSpecsByWorkTypeAndTypeId;
   } catch (error) {
     console.error("daily report resource references failed", error);
   }
@@ -3645,12 +3696,23 @@ async function ensureDailyReportEquipmentSpecsLoaded(equipmentTypeId: number) {
 async function findDailyReportEquipmentSpecByTypeId(
   equipmentTypeId: number,
   specification: string,
+  workTypeId: number | null,
 ) {
   const normalizedSpecification = normalizeDailyReportMatchText(specification);
   if (!normalizedSpecification) {
     return null;
   }
-  const specs = await ensureDailyReportEquipmentSpecsLoaded(equipmentTypeId);
+  await ensureDailyReportEquipmentSpecsLoaded(equipmentTypeId);
+  const scopedKey =
+    workTypeId !== null ? `${workTypeId}:${equipmentTypeId}` : null;
+  const scopedSpecs =
+    scopedKey !== null
+      ? equipmentSpecOptionsByWorkTypeAndTypeId.value.get(scopedKey)
+      : undefined;
+  const specs =
+    scopedSpecs ??
+    equipmentSpecOptionsByTypeId.value.get(equipmentTypeId) ??
+    [];
   const exactMatches = specs.filter(
     (option) =>
       normalizeDailyReportMatchText(option.name) === normalizedSpecification,
@@ -3661,10 +3723,18 @@ async function findDailyReportEquipmentSpecByTypeId(
 function appendDailyReportEquipmentSpecOption(
   equipmentTypeId: number,
   equipmentSpec: DailyReportEquipmentSpecResponse,
+  workTypeId: number | null,
 ) {
   const nextSpecsByTypeId = new Map(equipmentSpecOptionsByTypeId.value);
   const specs = nextSpecsByTypeId.get(equipmentTypeId) ?? [];
   nextSpecsByTypeId.set(equipmentTypeId, [...specs, equipmentSpec]);
+  if (workTypeId !== null) {
+    const scopedKey = `${workTypeId}:${equipmentTypeId}`;
+    const nextScoped = new Map(equipmentSpecOptionsByWorkTypeAndTypeId.value);
+    const scopedSpecs = nextScoped.get(scopedKey) ?? [];
+    nextScoped.set(scopedKey, [...scopedSpecs, equipmentSpec]);
+    equipmentSpecOptionsByWorkTypeAndTypeId.value = nextScoped;
+  }
   equipmentSpecOptionsByTypeId.value = nextSpecsByTypeId;
 }
 
@@ -3693,11 +3763,19 @@ function findOrAssignDailyReportMaterialType(row: DailyReportMaterialDraft) {
 function appendDailyReportMaterialSpecOption(
   materialTypeId: number,
   materialSpec: DailyReportMaterialSpecResponse,
+  workTypeId: number | null,
 ) {
   const nextSpecsByTypeId = new Map(materialSpecOptionsByTypeId.value);
   const specs = nextSpecsByTypeId.get(materialTypeId) ?? [];
   nextSpecsByTypeId.set(materialTypeId, [...specs, materialSpec]);
   materialSpecOptionsByTypeId.value = nextSpecsByTypeId;
+  if (workTypeId !== null) {
+    const scopedKey = `${workTypeId}:${materialTypeId}`;
+    const nextScoped = new Map(materialSpecOptionsByWorkTypeAndTypeId.value);
+    const scopedSpecs = nextScoped.get(scopedKey) ?? [];
+    nextScoped.set(scopedKey, [...scopedSpecs, materialSpec]);
+    materialSpecOptionsByWorkTypeAndTypeId.value = nextScoped;
+  }
 }
 
 async function saveDailyReportAttendance() {
@@ -3801,6 +3879,7 @@ async function resolveDailyReportEquipmentRowIds(
     const equipmentSpec = await findDailyReportEquipmentSpecByTypeId(
       equipmentTypeId,
       row.specification,
+      workTypeId,
     );
 
     if (equipmentSpec) {
@@ -3824,7 +3903,11 @@ async function resolveDailyReportEquipmentRowIds(
           ...equipmentSpecOptions.value,
           createdEquipmentSpec,
         ];
-        appendDailyReportEquipmentSpecOption(equipmentTypeId, createdEquipmentSpec);
+        appendDailyReportEquipmentSpecOption(
+          equipmentTypeId,
+          createdEquipmentSpec,
+          workTypeId,
+        );
         equipmentSpecOriginalsBySpecId.value.set(createdEquipmentSpec.id, {
           name: createdEquipmentSpec.name,
           isVisible: createdEquipmentSpec.isVisible,
@@ -3865,6 +3948,7 @@ async function resolveDailyReportEquipmentRowIds(
           appendDailyReportEquipmentSpecOption(
             createdEquipmentSpec.equipmentTypeId,
             createdEquipmentSpec,
+            workTypeId,
           );
           equipmentSpecOriginalsBySpecId.value.set(createdEquipmentSpec.id, {
             name: createdEquipmentSpec.name,
@@ -3992,6 +4076,7 @@ async function resolveDailyReportMaterialRowIds(
     const materialSpec = await findDailyReportMaterialSpec(
       materialTypeId,
       row.specification,
+      workTypeId,
     );
 
     if (materialSpec) {
@@ -4011,7 +4096,11 @@ async function resolveDailyReportMaterialRowIds(
           ...(workTypeId !== null ? { workTypeId } : {}),
           isVisible: row.includedInDocument,
         });
-        appendDailyReportMaterialSpecOption(materialTypeId, createdMaterialSpec);
+        appendDailyReportMaterialSpecOption(
+          materialTypeId,
+          createdMaterialSpec,
+          workTypeId,
+        );
         materialSpecOriginalsBySpecId.value.set(createdMaterialSpec.id, {
           name: createdMaterialSpec.name,
           isVisible: createdMaterialSpec.isVisible,
@@ -4052,6 +4141,7 @@ async function resolveDailyReportMaterialRowIds(
           appendDailyReportMaterialSpecOption(
             createdMaterialSpec.materialTypeId,
             createdMaterialSpec,
+            workTypeId,
           );
           materialSpecOriginalsBySpecId.value.set(createdMaterialSpec.id, {
             name: createdMaterialSpec.name,
@@ -4593,6 +4683,8 @@ async function hydrateDailyReportEquipmentFromServer() {
     equipmentTypeOptions.value = equipmentTypes;
     equipmentSpecOptions.value = equipmentSpecs;
     equipmentSpecOptionsByTypeId.value = equipmentSpecsByTypeId;
+    equipmentSpecOptionsByWorkTypeAndTypeId.value =
+      equipmentSpecsByWorkTypeAndTypeId;
 
     equipmentTypeOriginalsByTypeId.value = new Map(
       equipmentTypes.map((type) => [type.id, { name: type.name }]),
@@ -4750,6 +4842,8 @@ async function hydrateDailyReportMaterialFromServer() {
       });
     });
     materialSpecOptionsByTypeId.value = materialSpecsByTypeId;
+    materialSpecOptionsByWorkTypeAndTypeId.value =
+      materialSpecsByWorkTypeAndTypeId;
     materialSpecOriginalsBySpecId.value = specOriginals;
 
     materialRows.value = materialTypes.flatMap((materialType) => {
@@ -5248,19 +5342,20 @@ onUnmounted(() => {
                   <div class="daily-report-task-field daily-report-task-field--freeform">
                     <textarea
                       v-model="getPrimaryDailyReportTask(workType).text"
+                      v-autosize-textarea
                       class="daily-report-task-input daily-report-task-textarea"
-                    rows="4"
-	                      placeholder="작업 사항을 입력해 주세요."
-	                      @input="resizeDailyReportTaskTextarea"
-	                      @keydown.enter="
-	                        handleDailyReportTaskEnter(
-	                          'today',
-	                          workType,
-	                          getPrimaryDailyReportTask(workType),
-	                          $event,
-	                        )
-	                      "
-	                    />
+                      rows="1"
+                      placeholder="작업 사항을 입력해 주세요."
+                      @input="resizeDailyReportTaskTextarea"
+                      @keydown.enter="
+                        handleDailyReportTaskEnter(
+                          'today',
+                          workType,
+                          getPrimaryDailyReportTask(workType),
+                          $event,
+                        )
+                      "
+                    />
                   </div>
                 </div>
               </div>
@@ -5414,19 +5509,20 @@ onUnmounted(() => {
                   <div class="daily-report-task-field daily-report-task-field--freeform">
                     <textarea
                       v-model="getPrimaryDailyReportTask(workType).text"
+                      v-autosize-textarea
                       class="daily-report-task-input daily-report-task-textarea"
-                    rows="4"
-	                      placeholder="작업 사항을 입력해 주세요."
-	                      @input="resizeDailyReportTaskTextarea"
-	                      @keydown.enter="
-	                        handleDailyReportTaskEnter(
-	                          'tomorrow',
-	                          workType,
-	                          getPrimaryDailyReportTask(workType),
-	                          $event,
-	                        )
-	                      "
-	                    />
+                      rows="1"
+                      placeholder="작업 사항을 입력해 주세요."
+                      @input="resizeDailyReportTaskTextarea"
+                      @keydown.enter="
+                        handleDailyReportTaskEnter(
+                          'tomorrow',
+                          workType,
+                          getPrimaryDailyReportTask(workType),
+                          $event,
+                        )
+                      "
+                    />
                   </div>
                 </div>
               </div>
