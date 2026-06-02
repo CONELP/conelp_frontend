@@ -12,11 +12,11 @@ const { selectedProjectId } = useSelectedProjectId();
 const state = useDocumentSetting();
 
 const tabs = [
+  { value: "DR", label: "DR (작업일보)" },
   { value: "MIR", label: "MIR (자재검수요청서)" },
+  { value: "MAT_INOUT", label: "MAT_INOUT (자재 수불현황표)" },
   { value: "CAT", label: "CAT" },
   { value: "CCST", label: "CCST" },
-  { value: "MAT_INOUT", label: "MAT_INOUT (자재 수불현황표)" },
-  { value: "DR", label: "DR (작업일보)" },
 ];
 
 onMounted(() => {
@@ -35,7 +35,7 @@ watch(selectedProjectId, (pid) => {
       min-height="600px"
       :has-tabs="true"
       :tabs="tabs"
-      default-tab="MIR"
+      default-tab="DR"
     >
       <template #tab-MIR>
         <DocTypeSettingArea

@@ -169,12 +169,26 @@ export const materialInspectionRequestApi = {
     });
   },
 
-  async createMatInoutDocument() {
+  async createMatInoutDocument(
+    params: { startDate?: string; endDate?: string } = {},
+  ) {
     await ensureSelectedProjectId();
 
-    return apiFetch<DocumentJobResponse>("/matInout/createMatInout", {
-      method: "POST",
-    });
+    const query = new URLSearchParams();
+    if (params.startDate) {
+      query.append("startDate", params.startDate);
+    }
+    if (params.endDate) {
+      query.append("endDate", params.endDate);
+    }
+    const queryString = query.toString();
+
+    return apiFetch<DocumentJobResponse>(
+      `/matInout/createMatInout${queryString ? `?${queryString}` : ""}`,
+      {
+        method: "POST",
+      },
+    );
   },
 
   async getMatInoutList() {

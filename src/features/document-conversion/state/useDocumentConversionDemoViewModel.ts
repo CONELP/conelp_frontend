@@ -43,6 +43,10 @@ export function useDocumentConversionDemoViewModel() {
       return "/documents/daily-report/write";
     }
 
+    if (selectedType?.type === "material_supply_status") {
+      return "/documents/mat-inout/period";
+    }
+
     return selectedType?.generationMode === "direct"
       ? "/documents/generation"
       : "/documents/upload";

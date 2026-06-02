@@ -11,6 +11,7 @@ import DailyReportWritePage from "@/features/document-conversion/ui/DailyReportW
 import DocumentSelectionPage from "@/features/document-conversion/ui/DocumentSelectionPage.vue";
 import DocumentUploadPage from "@/features/document-conversion/ui/DocumentUploadPage.vue";
 import GeneratedDocumentsPage from "@/features/document-conversion/ui/GeneratedDocumentsPage.vue";
+import MatInoutPeriodPage from "@/features/document-conversion/ui/MatInoutPeriodPage.vue";
 import MaterialRegistrationResultPage from "@/features/document-conversion/ui/MaterialRegistrationResultPage.vue";
 import ResultPreviewPage from "@/features/document-conversion/ui/ResultPreviewPage.vue";
 import UploadFeedbackPage from "@/features/document-conversion/ui/UploadFeedbackPage.vue";
@@ -111,6 +112,11 @@ export const router = createRouter({
       path: "/documents/daily-report/write",
       name: "daily-report-write",
       component: DailyReportWritePage,
+    },
+    {
+      path: "/documents/mat-inout/period",
+      name: "mat-inout-period",
+      component: MatInoutPeriodPage,
     },
     {
       path: "/documents/upload/review",

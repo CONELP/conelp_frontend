@@ -61,6 +61,27 @@ function isDocumentCatalogType(value: string): value is DocumentCatalogType {
   return documentCatalog.some((document) => document.type === value);
 }
 
+function resolveQueryDate(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : undefined;
+}
+
+function buildMatInoutPeriodSummary(startDate?: string, endDate?: string) {
+  if (startDate && endDate) {
+    return `${startDate} ~ ${endDate}`;
+  }
+  if (startDate) {
+    return `${startDate} ~ 오늘`;
+  }
+  if (endDate) {
+    return `처음 ~ ${endDate}`;
+  }
+  return "전체 기간";
+}
+
 export function useConversionLoadingDemoViewModel() {
   const store = useDocumentConversionDemoStore();
   const backgroundJobs = useBackgroundDocumentJobsStore();
@@ -492,19 +513,24 @@ export function useConversionLoadingDemoViewModel() {
   function enqueueMatInoutCreateBackgroundJob(options: {
     documentType: DocumentCatalogType;
     documentTypeLabel: string;
+    startDate?: string;
+    endDate?: string;
   }) {
     void backgroundJobs.enqueueJob(
       {
         documentType: options.documentType,
         documentTypeLabel: options.documentTypeLabel,
-        summary: "프로젝트 전체 활성 자재반입 집계",
+        summary: buildMatInoutPeriodSummary(options.startDate, options.endDate),
         initialStatus: "generating",
         resultRoute: GENERATED_DOCUMENTS_ROUTE,
       },
       async (context) => {
         try {
           context.updateStatus("generating");
-          await materialInspectionRequestApi.createMatInoutDocument();
+          await materialInspectionRequestApi.createMatInoutDocument({
+            startDate: options.startDate,
+            endDate: options.endDate,
+          });
 
           trackDocumentAction(
             "create_document",
@@ -534,6 +560,8 @@ export function useConversionLoadingDemoViewModel() {
     enqueueMatInoutCreateBackgroundJob({
       documentType: selectedDocument.value.type,
       documentTypeLabel: selectedDocument.value.label,
+      startDate: resolveQueryDate(route.query.startDate),
+      endDate: resolveQueryDate(route.query.endDate),
     });
     void router.replace({ path: DOCUMENT_SELECTION_ROUTE });
   }
