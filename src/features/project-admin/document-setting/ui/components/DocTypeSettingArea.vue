@@ -5,19 +5,22 @@ import AdminButton from "@/shared/ui/admin/Button.vue";
 import AdminLabel from "@/shared/ui/admin/Label.vue";
 import type {
   DocConfigDocType,
-  ScriptPromptDocType,
+  DocGenPromptDocType,
   TemplateDocType,
   TemplateRefDocType,
 } from "@/features/project-admin/_shared/services/doc-config.api";
 import type { UseDocumentSettingReturn } from "@/features/project-admin/document-setting/state/useDocumentSetting";
 
+// DR 은 DrSettingArea 가 담당하므로 이 컴포넌트는 DR 을 제외한 5종만 렌더한다.
+type NonDrDocGenDocType = Exclude<DocGenPromptDocType, "DR">;
+
 const props = defineProps<{
-  docType: ScriptPromptDocType;
+  docType: NonDrDocGenDocType;
   selectedProjectId: string | null;
   state: UseDocumentSettingReturn;
 }>();
 
-const docTypeLabels: Record<ScriptPromptDocType, string> = {
+const docTypeLabels: Record<NonDrDocGenDocType, string> = {
   MIR: "MIR",
   CAT: "CAT",
   CCST: "CCST",
@@ -31,9 +34,17 @@ const placeholder = `문서번호는 다음 규칙을 따른다.
 - seq2 는 해당 날짜+division 조합으로 01 부터 순증가, 두 자리 zero-pad
 - 예: "${props.docType}-20260423-철근-01"`;
 
-const scriptPromptPlaceholder = `예) 28일 강도 셀 좌표는 시트 2번의 J열에 누적되며, 사진은 한 페이지당 4장 배치한다.
-- 양식의 특수한 셀 위치, 페이지 분할, 머리글/꼬리말, 정렬 규칙 등 LLM 이 양식변경/내용입력 스크립트를 생성할 때 참고할 자유 텍스트 지침을 작성하세요.
+const docGenPromptPlaceholder = `예) 28일 강도 셀 좌표는 시트 2번의 J열에 누적되며, 사진은 한 페이지당 4장 배치한다.
+- 양식의 특수한 셀 위치, 페이지 분할, 머리글/꼬리말, 정렬 규칙 등 LLM 이 양식변경/내용입력(doc-gen) 스크립트를 생성할 때 참고할 자유 텍스트 지침을 작성하세요.
 - 비워두면 LLM 은 기본 동작으로 생성합니다.`;
+
+const preprocessPromptPlaceholder = `예) 동일 송장번호의 입·출고 행은 하나의 그룹으로 묶고, 규격 표기가 다른 동일 자재는 같은 division 으로 분류한다.
+- 서버 집계 전 grouping 분류(preprocess) 단계에서 LLM 이 참고할 자유 텍스트 지침입니다.
+- 비워두면 기본 동작으로 분류합니다.`;
+
+const analyzePhotoPromptPlaceholder = `예) 송장 이미지에서 자재 규격이 흐리면 인접 행의 단위를 따르고, 합계 행은 자재로 인식하지 않는다.
+- MIR 송장 이미지 자재 식별(analyze) 단계에서 LLM 이 참고할 추가 규칙입니다.
+- 비워두면 기본 동작으로 식별합니다.`;
 
 const templateFileInput = ref<HTMLInputElement | null>(null);
 const templateRefFileInput = ref<HTMLInputElement | null>(null);
@@ -49,6 +60,9 @@ const templateDocType = computed(() =>
   props.docType === "CCST" ? null : (props.docType as TemplateDocType),
 );
 const templateRefDocType = computed(() => props.docType as TemplateRefDocType);
+// preprocess 단계 프롬프트는 MAT_INOUT 만, analyze 단계 프롬프트는 MIR 만 존재한다.
+const hasPreprocess = computed(() => props.docType === "MAT_INOUT");
+const hasAnalyze = computed(() => props.docType === "MIR");
 // MAT_INOUT / CONC_LOG 은 문서번호(yyyyMMdd 자동) 규칙이 없어 docNo 프롬프트 섹션을 렌더하지 않는다.
 // hasDocNoPrompt 가 false 인 docType 에서는 fallback 값이 실제로 쓰이지 않는다.
 const docNoDocType = computed<DocConfigDocType>(() =>
@@ -108,12 +122,29 @@ function onSave() {
   }
 }
 
-function onSaveScriptPrompt() {
+function onSaveDocGenPrompt() {
   if (!props.selectedProjectId) {
     alert("프로젝트를 먼저 선택해주세요.");
     return;
   }
-  void props.state.saveScriptPrompt(props.selectedProjectId, props.docType);
+  void props.state.saveDocGenPrompt(props.selectedProjectId, props.docType);
+}
+
+function onSavePreprocessPrompt() {
+  if (!props.selectedProjectId) {
+    alert("프로젝트를 먼저 선택해주세요.");
+    return;
+  }
+  if (props.docType !== "MAT_INOUT") return;
+  void props.state.savePreprocessPrompt(props.selectedProjectId, "MAT_INOUT");
+}
+
+function onSaveMirAnalyzePhotoPrompt() {
+  if (!props.selectedProjectId) {
+    alert("프로젝트를 먼저 선택해주세요.");
+    return;
+  }
+  void props.state.saveMirAnalyzePhotoPrompt(props.selectedProjectId);
 }
 </script>
 
@@ -220,31 +251,87 @@ function onSaveScriptPrompt() {
       </div>
     </section>
 
+    <section v-if="hasPreprocess" class="doc-area__section">
+      <AdminLabel>{{ docTypeLabels[docType] }} preprocess 프롬프트</AdminLabel>
+      <div class="doc-area__hint">
+        <p>· 서버 집계 전 grouping 분류(preprocess) 단계에서 LLM 에 전달되는 자유 텍스트 지침입니다.</p>
+        <p>· 송장/행 묶음 규칙, division 분류 기준 등을 작성하세요.</p>
+        <p>· 비워두면 기본 동작으로 분류됩니다.</p>
+      </div>
+      <textarea
+        v-model="state.preprocessPrompts.value.MAT_INOUT"
+        :placeholder="preprocessPromptPlaceholder"
+        :disabled="state.isSavingPreprocessPrompt.value.MAT_INOUT"
+        rows="12"
+        class="doc-area__textarea"
+      />
+      <div class="doc-area__actions">
+        <AdminButton
+          :disabled="state.isSavingPreprocessPrompt.value.MAT_INOUT"
+          @click="onSavePreprocessPrompt"
+        >
+          {{
+            state.isSavingPreprocessPrompt.value.MAT_INOUT
+              ? "저장 중..."
+              : "preprocess 프롬프트 저장"
+          }}
+        </AdminButton>
+      </div>
+    </section>
+
     <section class="doc-area__section">
-      <AdminLabel>{{ docTypeLabels[docType] }} 스크립트 프롬프트</AdminLabel>
+      <AdminLabel>{{ docTypeLabels[docType] }} 문서생성(doc-gen) 프롬프트</AdminLabel>
       <div class="doc-area__hint">
         <p>
-          · {{ docTypeLabels[docType] }} 문서 생성 시 양식변경 / 내용입력 LLM 호출에 매번 함께 전달되는 자유 텍스트 지침입니다.
+          · {{ docTypeLabels[docType] }} 문서 생성 시 양식변경 / 내용입력(doc-gen) LLM 호출에 매번 함께 전달되는 자유 텍스트 지침입니다.
         </p>
         <p>· 양식의 특수 규칙(셀 누적 위치, 페이지 분할, 머리글/꼬리말 등)을 작성하세요.</p>
         <p>· 비워두면 기본 동작으로 생성됩니다.</p>
       </div>
       <textarea
-        v-model="state.scriptPrompts.value[docType]"
-        :placeholder="scriptPromptPlaceholder"
-        :disabled="state.isSavingScriptPrompt.value[docType]"
+        v-model="state.docGenPrompts.value[docType]"
+        :placeholder="docGenPromptPlaceholder"
+        :disabled="state.isSavingDocGenPrompt.value[docType]"
         rows="14"
         class="doc-area__textarea"
       />
       <div class="doc-area__actions">
         <AdminButton
-          :disabled="state.isSavingScriptPrompt.value[docType]"
-          @click="onSaveScriptPrompt"
+          :disabled="state.isSavingDocGenPrompt.value[docType]"
+          @click="onSaveDocGenPrompt"
         >
           {{
-            state.isSavingScriptPrompt.value[docType]
+            state.isSavingDocGenPrompt.value[docType]
               ? "저장 중..."
-              : "스크립트 프롬프트 저장"
+              : "문서생성 프롬프트 저장"
+          }}
+        </AdminButton>
+      </div>
+    </section>
+
+    <section v-if="hasAnalyze" class="doc-area__section">
+      <AdminLabel>MIR analyze 프롬프트 (송장 이미지 자재 식별)</AdminLabel>
+      <div class="doc-area__hint">
+        <p>· MIR 송장 이미지에서 자재를 식별(analyze)하는 단계에서 LLM 에 전달되는 추가 규칙입니다.</p>
+        <p>· createMir / createCat 문서 생성 내부에서 사용됩니다.</p>
+        <p>· 비워두면 기본 동작으로 식별됩니다.</p>
+      </div>
+      <textarea
+        v-model="state.mirAnalyzePhotoPrompt.value"
+        :placeholder="analyzePhotoPromptPlaceholder"
+        :disabled="state.isSavingMirAnalyzePhotoPrompt.value"
+        rows="12"
+        class="doc-area__textarea"
+      />
+      <div class="doc-area__actions">
+        <AdminButton
+          :disabled="state.isSavingMirAnalyzePhotoPrompt.value"
+          @click="onSaveMirAnalyzePhotoPrompt"
+        >
+          {{
+            state.isSavingMirAnalyzePhotoPrompt.value
+              ? "저장 중..."
+              : "analyze 프롬프트 저장"
           }}
         </AdminButton>
       </div>

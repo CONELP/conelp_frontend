@@ -1,19 +1,21 @@
 import { ref } from "vue";
 
-import { dailyReportResourceApi } from "@/features/document-conversion/api/daily-report-resource.api";
 import {
   docConfigApi,
   type DocConfigDocType,
   type DocConfigResponse,
-  type ScriptPromptDocType,
+  type DocGenPromptDocType,
+  type PreprocessPromptDocType,
   type TemplateDocType,
   type TemplateRefDocType,
 } from "@/features/project-admin/_shared/services/doc-config.api";
 import { analyticsClient } from "@/shared/analytics/analytics-stub";
 
 type Prompts = Record<DocConfigDocType, string>;
-type ScriptPrompts = Record<ScriptPromptDocType, string>;
-type ScriptPromptFlags = Record<ScriptPromptDocType, boolean>;
+type DocGenPrompts = Record<DocGenPromptDocType, string>;
+type DocGenPromptFlags = Record<DocGenPromptDocType, boolean>;
+type PreprocessPrompts = Record<PreprocessPromptDocType, string>;
+type PreprocessPromptFlags = Record<PreprocessPromptDocType, boolean>;
 type TemplateUrls = Record<TemplateDocType, string | null>;
 type TemplateFlags = Record<TemplateDocType, boolean>;
 type TemplateRefUrls = Record<TemplateRefDocType, string | null>;
@@ -23,12 +25,27 @@ function emptyPrompts(): Prompts {
   return { MIR: "", CAT: "", CCST: "" };
 }
 
-function emptyScriptPrompts(): ScriptPrompts {
-  return { MIR: "", CAT: "", CCST: "", MAT_INOUT: "", CONC_LOG: "" };
+function emptyDocGenPrompts(): DocGenPrompts {
+  return { DR: "", MIR: "", CAT: "", CCST: "", MAT_INOUT: "", CONC_LOG: "" };
 }
 
-function emptyScriptPromptFlags(): ScriptPromptFlags {
-  return { MIR: false, CAT: false, CCST: false, MAT_INOUT: false, CONC_LOG: false };
+function emptyDocGenPromptFlags(): DocGenPromptFlags {
+  return {
+    DR: false,
+    MIR: false,
+    CAT: false,
+    CCST: false,
+    MAT_INOUT: false,
+    CONC_LOG: false,
+  };
+}
+
+function emptyPreprocessPrompts(): PreprocessPrompts {
+  return { DR: "", MAT_INOUT: "" };
+}
+
+function emptyPreprocessPromptFlags(): PreprocessPromptFlags {
+  return { DR: false, MAT_INOUT: false };
 }
 
 function emptyTemplateUrls(): TemplateUrls {
@@ -68,17 +85,20 @@ export function useDocumentSetting() {
     CAT: false,
     CCST: false,
   });
-  const isSavingScriptPrompt = ref<ScriptPromptFlags>(emptyScriptPromptFlags());
+  const isSavingDocGenPrompt = ref<DocGenPromptFlags>(emptyDocGenPromptFlags());
+  const isSavingPreprocessPrompt = ref<PreprocessPromptFlags>(
+    emptyPreprocessPromptFlags(),
+  );
+  const isSavingMirAnalyzePhotoPrompt = ref(false);
   const isUploadingTemplate = ref<TemplateFlags>(emptyTemplateFlags());
   const isUploadingTemplateRef = ref<TemplateRefFlags>(emptyTemplateRefFlags());
   const exists = ref(false);
   const prompts = ref<Prompts>(emptyPrompts());
-  const scriptPrompts = ref<ScriptPrompts>(emptyScriptPrompts());
+  const docGenPrompts = ref<DocGenPrompts>(emptyDocGenPrompts());
+  const preprocessPrompts = ref<PreprocessPrompts>(emptyPreprocessPrompts());
+  const mirAnalyzePhotoPrompt = ref("");
   const templateUrls = ref<TemplateUrls>(emptyTemplateUrls());
   const templateRefUrls = ref<TemplateRefUrls>(emptyTemplateRefUrls());
-  const drGuidePrompt = ref("");
-  const isLoadingDrGuidePrompt = ref(false);
-  const isSavingDrGuidePrompt = ref(false);
 
   function applyResponse(res: DocConfigResponse) {
     prompts.value = {
@@ -86,13 +106,19 @@ export function useDocumentSetting() {
       CAT: res.catDocNoPrompt ?? "",
       CCST: res.ccstDocNoPrompt ?? "",
     };
-    scriptPrompts.value = {
-      MIR: res.mirScriptPrompt ?? "",
-      CAT: res.catScriptPrompt ?? "",
-      CCST: res.ccstScriptPrompt ?? "",
-      MAT_INOUT: res.matInoutScriptPrompt ?? "",
-      CONC_LOG: res.concLogScriptPrompt ?? "",
+    docGenPrompts.value = {
+      DR: res.drDocGenPrompt ?? "",
+      MIR: res.mirDocGenPrompt ?? "",
+      CAT: res.catDocGenPrompt ?? "",
+      CCST: res.ccstDocGenPrompt ?? "",
+      MAT_INOUT: res.matInoutDocGenPrompt ?? "",
+      CONC_LOG: res.concLogDocGenPrompt ?? "",
     };
+    preprocessPrompts.value = {
+      DR: res.drPreprocessPrompt ?? "",
+      MAT_INOUT: res.matInoutPreprocessPrompt ?? "",
+    };
+    mirAnalyzePhotoPrompt.value = res.mirAnalyzePhotoPrompt ?? "";
     templateUrls.value = {
       MIR: res.mirTemplateUrl,
       CAT: res.catTemplateUrl,
@@ -113,7 +139,9 @@ export function useDocumentSetting() {
   function resetState() {
     exists.value = false;
     prompts.value = emptyPrompts();
-    scriptPrompts.value = emptyScriptPrompts();
+    docGenPrompts.value = emptyDocGenPrompts();
+    preprocessPrompts.value = emptyPreprocessPrompts();
+    mirAnalyzePhotoPrompt.value = "";
     templateUrls.value = emptyTemplateUrls();
     templateRefUrls.value = emptyTemplateRefUrls();
   }
@@ -130,49 +158,6 @@ export function useDocumentSetting() {
       console.error("문서 설정 로드 실패:", error);
     } finally {
       isLoading.value = false;
-    }
-
-    await loadDrGuidePrompt();
-  }
-
-  async function loadDrGuidePrompt() {
-    isLoadingDrGuidePrompt.value = true;
-    try {
-      const res = await dailyReportResourceApi.getDrGuidePrompt();
-      drGuidePrompt.value = res.prompt ?? "";
-    } catch (error: unknown) {
-      drGuidePrompt.value = "";
-      console.error("DR 가이드 프롬프트 로드 실패:", error);
-    } finally {
-      isLoadingDrGuidePrompt.value = false;
-    }
-  }
-
-  async function saveDrGuidePrompt(projectId: string) {
-    isSavingDrGuidePrompt.value = true;
-    try {
-      await ensureExists(projectId);
-      const trimmed = drGuidePrompt.value.trim();
-      const res = await dailyReportResourceApi.updateDrGuidePrompt(
-        trimmed.length > 0 ? trimmed : null,
-      );
-      drGuidePrompt.value = res.prompt ?? "";
-      analyticsClient.trackAction(
-        "admin_document_setting",
-        "save_dr_guide_prompt",
-        "success",
-      );
-      alert("DR 가이드 프롬프트가 저장되었습니다.");
-    } catch (error: unknown) {
-      console.error("DR 가이드 프롬프트 저장 실패:", error);
-      analyticsClient.trackAction(
-        "admin_document_setting",
-        "save_dr_guide_prompt",
-        "fail",
-      );
-      alert((error as Error).message);
-    } finally {
-      isSavingDrGuidePrompt.value = false;
     }
   }
 
@@ -211,32 +196,92 @@ export function useDocumentSetting() {
     }
   }
 
-  async function saveScriptPrompt(projectId: string, docType: ScriptPromptDocType) {
-    isSavingScriptPrompt.value[docType] = true;
+  async function saveDocGenPrompt(projectId: string, docType: DocGenPromptDocType) {
+    isSavingDocGenPrompt.value[docType] = true;
     try {
       await ensureExists(projectId);
-      const trimmed = scriptPrompts.value[docType].trim();
-      const res = await docConfigApi.updateScriptPrompt(projectId, {
+      const trimmed = docGenPrompts.value[docType].trim();
+      const res = await docConfigApi.updateDocGenPrompt(projectId, {
         docType,
         prompt: trimmed.length > 0 ? trimmed : null,
       });
       applyResponse(res);
       analyticsClient.trackAction(
         "admin_document_setting",
-        `save_${docType.toLowerCase()}_script_prompt`,
+        `save_${docType.toLowerCase()}_doc_gen_prompt`,
         "success",
       );
-      alert("스크립트 프롬프트가 저장되었습니다.");
+      alert("문서생성 프롬프트가 저장되었습니다.");
     } catch (error: unknown) {
-      console.error("스크립트 프롬프트 저장 실패:", error);
+      console.error("문서생성 프롬프트 저장 실패:", error);
       analyticsClient.trackAction(
         "admin_document_setting",
-        `save_${docType.toLowerCase()}_script_prompt`,
+        `save_${docType.toLowerCase()}_doc_gen_prompt`,
         "fail",
       );
       alert((error as Error).message);
     } finally {
-      isSavingScriptPrompt.value[docType] = false;
+      isSavingDocGenPrompt.value[docType] = false;
+    }
+  }
+
+  async function savePreprocessPrompt(
+    projectId: string,
+    docType: PreprocessPromptDocType,
+  ) {
+    isSavingPreprocessPrompt.value[docType] = true;
+    try {
+      await ensureExists(projectId);
+      const trimmed = preprocessPrompts.value[docType].trim();
+      const res = await docConfigApi.updatePreprocessPrompt(projectId, {
+        docType,
+        prompt: trimmed.length > 0 ? trimmed : null,
+      });
+      applyResponse(res);
+      analyticsClient.trackAction(
+        "admin_document_setting",
+        `save_${docType.toLowerCase()}_preprocess_prompt`,
+        "success",
+      );
+      alert("preprocess 프롬프트가 저장되었습니다.");
+    } catch (error: unknown) {
+      console.error("preprocess 프롬프트 저장 실패:", error);
+      analyticsClient.trackAction(
+        "admin_document_setting",
+        `save_${docType.toLowerCase()}_preprocess_prompt`,
+        "fail",
+      );
+      alert((error as Error).message);
+    } finally {
+      isSavingPreprocessPrompt.value[docType] = false;
+    }
+  }
+
+  async function saveMirAnalyzePhotoPrompt(projectId: string) {
+    isSavingMirAnalyzePhotoPrompt.value = true;
+    try {
+      await ensureExists(projectId);
+      const trimmed = mirAnalyzePhotoPrompt.value.trim();
+      const res = await docConfigApi.updateMirAnalyzePhotoPrompt(projectId, {
+        prompt: trimmed.length > 0 ? trimmed : null,
+      });
+      applyResponse(res);
+      analyticsClient.trackAction(
+        "admin_document_setting",
+        "save_mir_analyze_photo_prompt",
+        "success",
+      );
+      alert("MIR analyze 프롬프트가 저장되었습니다.");
+    } catch (error: unknown) {
+      console.error("MIR analyze 프롬프트 저장 실패:", error);
+      analyticsClient.trackAction(
+        "admin_document_setting",
+        "save_mir_analyze_photo_prompt",
+        "fail",
+      );
+      alert((error as Error).message);
+    } finally {
+      isSavingMirAnalyzePhotoPrompt.value = false;
     }
   }
 
@@ -297,24 +342,25 @@ export function useDocumentSetting() {
   return {
     isLoading,
     isSaving,
-    isSavingScriptPrompt,
+    isSavingDocGenPrompt,
+    isSavingPreprocessPrompt,
+    isSavingMirAnalyzePhotoPrompt,
     isUploadingTemplate,
     isUploadingTemplateRef,
-    isLoadingDrGuidePrompt,
-    isSavingDrGuidePrompt,
     exists,
     prompts,
-    scriptPrompts,
+    docGenPrompts,
+    preprocessPrompts,
+    mirAnalyzePhotoPrompt,
     templateUrls,
     templateRefUrls,
-    drGuidePrompt,
     load,
     save,
-    saveScriptPrompt,
+    saveDocGenPrompt,
+    savePreprocessPrompt,
+    saveMirAnalyzePhotoPrompt,
     uploadTemplate,
     uploadTemplateRef,
-    loadDrGuidePrompt,
-    saveDrGuidePrompt,
   };
 }
 

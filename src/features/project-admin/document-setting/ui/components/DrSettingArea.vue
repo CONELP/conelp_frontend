@@ -10,9 +10,13 @@ const props = defineProps<{
   state: UseDocumentSettingReturn;
 }>();
 
-const guidePromptPlaceholder = `예) 28일 강도가 비어 있으면 비고 칸에 "측정 예정" 으로 채운다.
-- DR 양식변경 / 내용입력 LLM 호출 system prompt 에 매번 주입되는 자유 텍스트 지침.
+const docGenPromptPlaceholder = `예) 28일 강도가 비어 있으면 비고 칸에 "측정 예정" 으로 채운다.
+- DR 양식변경 / 내용입력(doc-gen) LLM 호출 system prompt 에 매번 주입되는 자유 텍스트 지침.
 - 비워두면 기본 동작.`;
+
+const preprocessPromptPlaceholder = `예) 같은 공종의 작업 항목은 하나의 그룹으로 묶고, 오전/오후 구분 없이 일자 단위로 집계한다.
+- 서버 집계 전 grouping 분류(preprocess) 단계에서 LLM 이 참고할 자유 텍스트 지침.
+- 비워두면 기본 동작으로 분류.`;
 
 const templateFileInput = ref<HTMLInputElement | null>(null);
 const templateRefFileInput = ref<HTMLInputElement | null>(null);
@@ -57,10 +61,16 @@ async function onTemplateRefFileChange(e: Event) {
   }
 }
 
-function onSaveGuidePrompt() {
+function onSaveDocGenPrompt() {
   const pid = requireProject();
   if (!pid) return;
-  void props.state.saveDrGuidePrompt(pid);
+  void props.state.saveDocGenPrompt(pid, "DR");
+}
+
+function onSavePreprocessPrompt() {
+  const pid = requireProject();
+  if (!pid) return;
+  void props.state.savePreprocessPrompt(pid, "DR");
 }
 </script>
 
@@ -149,32 +159,58 @@ function onSaveGuidePrompt() {
     </section>
 
     <section class="dr-area__section">
-      <AdminLabel>DR 가이드 프롬프트</AdminLabel>
+      <AdminLabel>DR preprocess 프롬프트</AdminLabel>
+      <div class="dr-area__hint">
+        <p>· 서버 집계 전 grouping 분류(preprocess) 단계에서 LLM 에 전달되는 자유 텍스트 지침입니다.</p>
+        <p>· 작업 항목 묶음 규칙, 일자/공종 단위 집계 기준 등을 작성하세요.</p>
+        <p>· 비워두면 기본 동작으로 분류됩니다.</p>
+      </div>
+      <textarea
+        v-model="state.preprocessPrompts.value.DR"
+        :placeholder="preprocessPromptPlaceholder"
+        :disabled="state.isSavingPreprocessPrompt.value.DR"
+        rows="12"
+        class="dr-area__textarea"
+      />
+      <div class="dr-area__actions">
+        <AdminButton
+          :disabled="state.isSavingPreprocessPrompt.value.DR"
+          @click="onSavePreprocessPrompt"
+        >
+          {{
+            state.isSavingPreprocessPrompt.value.DR
+              ? "저장 중..."
+              : "preprocess 프롬프트 저장"
+          }}
+        </AdminButton>
+      </div>
+    </section>
+
+    <section class="dr-area__section">
+      <AdminLabel>DR 문서생성(doc-gen) 프롬프트</AdminLabel>
       <div class="dr-area__hint">
         <p>
-          · DR 문서 생성 시 양식변경 / 내용입력 LLM 호출 system prompt 에 매번 함께 전달되는 자유 텍스트 지침입니다.
+          · DR 문서 생성 시 양식변경 / 내용입력(doc-gen) LLM 호출 system prompt 에 매번 함께 전달되는 자유 텍스트 지침입니다.
         </p>
         <p>· 양식의 특수 규칙(셀 누적 위치, 행 복제, 페이지 분할 등)을 작성하세요.</p>
         <p>· 비워두면 기본 동작으로 생성됩니다.</p>
       </div>
       <textarea
-        v-model="state.drGuidePrompt.value"
-        :placeholder="guidePromptPlaceholder"
-        :disabled="
-          state.isLoadingDrGuidePrompt.value || state.isSavingDrGuidePrompt.value
-        "
+        v-model="state.docGenPrompts.value.DR"
+        :placeholder="docGenPromptPlaceholder"
+        :disabled="state.isSavingDocGenPrompt.value.DR"
         rows="14"
         class="dr-area__textarea"
       />
       <div class="dr-area__actions">
         <AdminButton
-          :disabled="
-            state.isLoadingDrGuidePrompt.value || state.isSavingDrGuidePrompt.value
-          "
-          @click="onSaveGuidePrompt"
+          :disabled="state.isSavingDocGenPrompt.value.DR"
+          @click="onSaveDocGenPrompt"
         >
           {{
-            state.isSavingDrGuidePrompt.value ? "저장 중..." : "가이드 프롬프트 저장"
+            state.isSavingDocGenPrompt.value.DR
+              ? "저장 중..."
+              : "문서생성 프롬프트 저장"
           }}
         </AdminButton>
       </div>

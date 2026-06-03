@@ -334,16 +334,4 @@ export const dailyReportResourceApi = {
     );
   },
 
-  async getDrGuidePrompt() {
-    await ensureSelectedProjectId();
-    return apiFetch<{ prompt: string }>("/dailyReport/getDrGuidePrompt");
-  },
-
-  async updateDrGuidePrompt(prompt: string | null) {
-    await ensureSelectedProjectId();
-    return apiFetch<{ prompt: string }>("/dailyReport/updateDrGuidePrompt", {
-      method: "PUT",
-      body: { prompt } as unknown as Record<string, unknown>,
-    });
-  },
 };

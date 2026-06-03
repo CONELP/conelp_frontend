@@ -2,7 +2,14 @@ import { axiosClient } from "@/shared/network/axios-client";
 
 export type DocConfigDocType = "MIR" | "CAT" | "CCST";
 export type UploadDocType = "MIR" | "CAT" | "DR" | "MAT_INOUT" | "CONC_LOG";
-export type ScriptPromptDocType = "MIR" | "CAT" | "CCST" | "MAT_INOUT" | "CONC_LOG";
+export type DocGenPromptDocType =
+  | "DR"
+  | "MIR"
+  | "CAT"
+  | "CCST"
+  | "MAT_INOUT"
+  | "CONC_LOG";
+export type PreprocessPromptDocType = "DR" | "MAT_INOUT";
 export type TemplateDocType = "MIR" | "CAT" | "DR" | "MAT_INOUT" | "CONC_LOG";
 export type TemplateRefDocType =
   | "MIR"
@@ -25,15 +32,22 @@ export interface DocConfigResponse {
   mirDocNoPrompt: string | null;
   catDocNoPrompt: string | null;
   ccstDocNoPrompt: string | null;
-  mirScriptPrompt: string | null;
-  catScriptPrompt: string | null;
-  ccstScriptPrompt: string | null;
+  // doc-gen 단계 (양식변경 + 내용입력) 추가 지침 — 6종
+  drDocGenPrompt: string | null;
+  mirDocGenPrompt: string | null;
+  catDocGenPrompt: string | null;
+  ccstDocGenPrompt: string | null;
+  matInoutDocGenPrompt: string | null;
+  concLogDocGenPrompt: string | null;
+  // preprocess 단계 (서버 집계 전 grouping 분류) — DR / MAT_INOUT 만
+  drPreprocessPrompt: string | null;
+  matInoutPreprocessPrompt: string | null;
+  // analyze 단계 (MIR 송장 이미지 자재 식별)
+  mirAnalyzePhotoPrompt: string | null;
   matInoutTemplateUrl: string | null;
   matInoutTemplateRefUrl: string | null;
-  matInoutScriptPrompt: string | null;
   concLogTemplateUrl: string | null;
   concLogTemplateRefUrl: string | null;
-  concLogScriptPrompt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -111,12 +125,37 @@ export const docConfigApi = {
     return data;
   },
 
-  async updateScriptPrompt(
+  // doc-gen 단계 추가 지침 (양식변경 + 내용입력 공통) — DR 포함 6종
+  async updateDocGenPrompt(
     projectId: string,
-    body: { docType: ScriptPromptDocType; prompt: string | null },
+    body: { docType: DocGenPromptDocType; prompt: string | null },
   ): Promise<DocConfigResponse> {
     const { data } = await axiosClient.put<DocConfigResponse>(
-      `/docConfig/updateScriptPrompt/${projectId}`,
+      `/docConfig/updateDocGenPrompt/${projectId}`,
+      body,
+    );
+    return data;
+  },
+
+  // preprocess 단계 전용 지침 — DR / MAT_INOUT 만
+  async updatePreprocessPrompt(
+    projectId: string,
+    body: { docType: PreprocessPromptDocType; prompt: string | null },
+  ): Promise<DocConfigResponse> {
+    const { data } = await axiosClient.put<DocConfigResponse>(
+      `/docConfig/updatePreprocessPrompt/${projectId}`,
+      body,
+    );
+    return data;
+  },
+
+  // MIR analyze 단계 추가 규칙 (송장 이미지 자재 식별)
+  async updateMirAnalyzePhotoPrompt(
+    projectId: string,
+    body: { prompt: string | null },
+  ): Promise<DocConfigResponse> {
+    const { data } = await axiosClient.put<DocConfigResponse>(
+      `/docConfig/updateMirAnalyzePhotoPrompt/${projectId}`,
       body,
     );
     return data;
