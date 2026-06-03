@@ -1,0 +1,1 @@
+import{d as o,o as s,c as a,D as r,_ as t}from"./index-D1j9NHu4.js";const n=["for"],l=o({__name:"Label",props:{for:{}},setup(p){return(e,_)=>(s(),a("label",{class:"admin-label",for:e.$props.for},[r(e.$slots,"default",{},void 0)],8,n))}}),d=t(l,[["__scopeId","data-v-bde12bbd"]]);export{d as A};
