@@ -263,6 +263,7 @@ type DailyReportEquipmentAddDraft = Pick<
 type DailyReportResourceAddFormState = Record<DailyReportResourceKind, boolean>;
 type DailyReportResourceColumnWidthState = Record<DailyReportResourceKind, number[]>;
 
+const editorPanelRootRef = ref<HTMLElement | null>(null);
 const todayImageInputRef = ref<HTMLInputElement | null>(null);
 const tomorrowImageInputRef = ref<HTMLInputElement | null>(null);
 const imageDragState = ref<DailyReportImageDragState | null>(null);
@@ -2454,6 +2455,22 @@ function resizeAllDailyReportTaskTextareas() {
         autosizeTextareaElement(el);
       }
     });
+}
+
+// The editor panel is mounted while hidden (schedule load decides visibility),
+// so the hydration-time resize runs before any textarea has layout. Re-run the
+// autosize whenever the panel gains size (becomes visible) or its width changes.
+let editorPanelResizeObserver: ResizeObserver | null = null;
+let pendingPanelResizeFrame = 0;
+
+function scheduleResizeAllDailyReportTaskTextareas() {
+  if (pendingPanelResizeFrame !== 0) {
+    return;
+  }
+  pendingPanelResizeFrame = requestAnimationFrame(() => {
+    pendingPanelResizeFrame = 0;
+    resizeAllDailyReportTaskTextareas();
+  });
 }
 
 const vAutosizeTextarea = {
@@ -4939,9 +4956,21 @@ onMounted(() => {
   document.addEventListener("mousedown", handleReportDateOutsideClick);
   document.addEventListener("mousedown", handleDailyReportResourceDocumentMouseDown);
   document.addEventListener("keydown", handleDailyReportResourceDocumentKeydown);
+  if (editorPanelRootRef.value && typeof ResizeObserver !== "undefined") {
+    editorPanelResizeObserver = new ResizeObserver(
+      scheduleResizeAllDailyReportTaskTextareas,
+    );
+    editorPanelResizeObserver.observe(editorPanelRootRef.value);
+  }
 });
 
 onUnmounted(() => {
+  editorPanelResizeObserver?.disconnect();
+  editorPanelResizeObserver = null;
+  if (pendingPanelResizeFrame !== 0) {
+    cancelAnimationFrame(pendingPanelResizeFrame);
+    pendingPanelResizeFrame = 0;
+  }
   stopDailyReportResourceColumnResize();
   document.removeEventListener("mousedown", handleReportDateOutsideClick);
   document.removeEventListener(
@@ -4954,7 +4983,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="daily-report-editor-panel">
+  <div ref="editorPanelRootRef" class="daily-report-editor-panel">
   <aside
     class="daily-report-write-panel daily-report-write-panel--with-tabs"
     aria-label="공사일보 작성"
