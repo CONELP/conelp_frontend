@@ -215,14 +215,6 @@ export function useConversionLoadingDemoViewModel() {
       return "생성된 콘크리트 반입시험 문서를 선택해 주세요.";
     }
 
-    if (!store.mirUploadApplication.trim()) {
-      return "사용 위치를 입력해 주세요.";
-    }
-
-    if (!store.mirUploadWorkTypeName.trim()) {
-      return "공종 이름을 입력해 주세요.";
-    }
-
     const lotPhotoCount = store.concreteStrengthUploadLots.reduce(
       (count, lot) =>
         count + lot.sevenDayFileIds.length + lot.twentyEightDayFileIds.length,
@@ -566,6 +558,55 @@ export function useConversionLoadingDemoViewModel() {
     void router.replace({ path: DOCUMENT_SELECTION_ROUTE });
   }
 
+  function enqueueConcLogCreateBackgroundJob(options: {
+    documentType: DocumentCatalogType;
+    documentTypeLabel: string;
+  }) {
+    void backgroundJobs.enqueueJob(
+      {
+        documentType: options.documentType,
+        documentTypeLabel: options.documentTypeLabel,
+        summary: "콘크리트 반입 전체 집계",
+        initialStatus: "generating",
+        resultRoute: GENERATED_DOCUMENTS_ROUTE,
+      },
+      async (context) => {
+        try {
+          context.updateStatus("generating");
+          await materialInspectionRequestApi.createConcLogDocument();
+
+          trackDocumentAction(
+            "create_document",
+            "success",
+            { background: true },
+            options.documentType,
+          );
+        } catch (error) {
+          trackDocumentAction(
+            "create_document",
+            "fail",
+            { background: true, error_kind: "api" },
+            options.documentType,
+          );
+
+          throw error;
+        }
+      },
+    );
+  }
+
+  function startConcLogGenerationLoadingSequence() {
+    clearLoadingStepTimers();
+    loadingStepIndex.value = 0;
+    loadingErrorMessage.value = "";
+
+    enqueueConcLogCreateBackgroundJob({
+      documentType: selectedDocument.value.type,
+      documentTypeLabel: selectedDocument.value.label,
+    });
+    void router.replace({ path: DOCUMENT_SELECTION_ROUTE });
+  }
+
   function startMirGenerationLoadingSequence() {
     clearLoadingStepTimers();
     loadingStepIndex.value = 0;
@@ -711,6 +752,11 @@ export function useConversionLoadingDemoViewModel() {
 
       if (documentType === "material_supply_status") {
         startMatInoutGenerationLoadingSequence();
+        return;
+      }
+
+      if (documentType === "concrete_management_ledger") {
+        startConcLogGenerationLoadingSequence();
         return;
       }
 

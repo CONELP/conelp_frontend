@@ -17,6 +17,7 @@ const tabs = [
   { value: "MAT_INOUT", label: "MAT_INOUT (자재 수불현황표)" },
   { value: "CAT", label: "CAT" },
   { value: "CCST", label: "CCST" },
+  { value: "CONC_LOG", label: "CONC_LOG (콘크리트 관리대장)" },
 ];
 
 onMounted(() => {
@@ -61,6 +62,13 @@ watch(selectedProjectId, (pid) => {
       <template #tab-MAT_INOUT>
         <DocTypeSettingArea
           doc-type="MAT_INOUT"
+          :selected-project-id="selectedProjectId"
+          :state="state"
+        />
+      </template>
+      <template #tab-CONC_LOG>
+        <DocTypeSettingArea
+          doc-type="CONC_LOG"
           :selected-project-id="selectedProjectId"
           :state="state"
         />

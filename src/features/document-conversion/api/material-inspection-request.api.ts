@@ -199,6 +199,22 @@ export const materialInspectionRequestApi = {
     });
   },
 
+  async createConcLogDocument() {
+    await ensureSelectedProjectId();
+
+    return apiFetch<DocumentJobResponse>("/concLog/createConcLogDocument", {
+      method: "POST",
+    });
+  },
+
+  async getConcLogList() {
+    await ensureSelectedProjectId();
+
+    return apiFetch<DocumentJobResponse[]>("/concLog/getConcLogDocumentList", {
+      method: "GET",
+    });
+  },
+
   async downloadDocumentFile(key: string) {
     await ensureSelectedProjectId();
 

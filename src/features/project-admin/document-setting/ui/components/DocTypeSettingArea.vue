@@ -22,6 +22,7 @@ const docTypeLabels: Record<ScriptPromptDocType, string> = {
   CAT: "CAT",
   CCST: "CCST",
   MAT_INOUT: "MAT_INOUT (자재 수불현황표)",
+  CONC_LOG: "CONC_LOG (콘크리트 관리대장)",
 };
 
 const placeholder = `문서번호는 다음 규칙을 따른다.
@@ -39,16 +40,21 @@ const templateRefFileInput = ref<HTMLInputElement | null>(null);
 
 const hasTemplate = computed(() => props.docType !== "CCST");
 const hasDocNoPrompt = computed(
-  () => props.docType !== "CCST" && props.docType !== "MAT_INOUT",
+  () =>
+    props.docType !== "CCST" &&
+    props.docType !== "MAT_INOUT" &&
+    props.docType !== "CONC_LOG",
 );
 const templateDocType = computed(() =>
   props.docType === "CCST" ? null : (props.docType as TemplateDocType),
 );
 const templateRefDocType = computed(() => props.docType as TemplateRefDocType);
-// MAT_INOUT 은 문서번호(yyyyMMdd 자동) 규칙이 없어 docNo 프롬프트 섹션을 렌더하지 않는다.
+// MAT_INOUT / CONC_LOG 은 문서번호(yyyyMMdd 자동) 규칙이 없어 docNo 프롬프트 섹션을 렌더하지 않는다.
 // hasDocNoPrompt 가 false 인 docType 에서는 fallback 값이 실제로 쓰이지 않는다.
 const docNoDocType = computed<DocConfigDocType>(() =>
-  props.docType === "MAT_INOUT" ? "MIR" : (props.docType as DocConfigDocType),
+  props.docType === "MAT_INOUT" || props.docType === "CONC_LOG"
+    ? "MIR"
+    : (props.docType as DocConfigDocType),
 );
 
 async function onTemplateFileChange(e: Event) {

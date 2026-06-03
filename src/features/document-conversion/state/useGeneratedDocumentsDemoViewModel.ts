@@ -70,10 +70,11 @@ const DOWNLOADABLE_STATUSES: ReadonlyArray<GeneratedDocumentStatus> = [
 ];
 const DOCUMENT_LABEL_BY_TYPE: Record<string, string> = {
   DR: "일일 작업일보",
-  MIR: "자재 반입 검수요청",
-  CAT: "콘크리트 타설 요청",
-  CCST: "압축강도 시험 의뢰",
+  MIR: "자재반입 검수요청서",
+  CAT: "콘크리트 반입시험 보고서",
+  CCST: "콘크리트 압축강도시험 보고서",
   MAT_INOUT: "자재 수불현황표",
+  CONC_LOG: "콘크리트 관리대장",
   SCHEDULE_3WEEK: "3주 공정표",
   SCHEDULE_3MONTH: "3개월 공정표",
 };
@@ -83,6 +84,7 @@ const DOCUMENT_CATALOG_TYPE_BY_JOB_TYPE: Partial<Record<string, DocumentCatalogT
   CAT: "concrete_delivery_csi",
   CCST: "concrete_strength_csi",
   MAT_INOUT: "material_supply_status",
+  CONC_LOG: "concrete_management_ledger",
 };
 
 function formatGeneratedDocumentDate(value: string) {

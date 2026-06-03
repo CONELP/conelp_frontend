@@ -207,11 +207,9 @@ export function useDocumentUploadDemoViewModel() {
   const isConcreteStrengthTest = computed(
     () => selectedDocument.value.type === "concrete_strength_csi",
   );
+  // CCST 는 사용 위치·공종을 받지 않으므로 기본 정보(공종명/사용위치) 섹션 제외.
   const requiresWorkContext = computed(
-    () =>
-      isMaterialInspectionRequest.value ||
-      isConcreteDeliveryTest.value ||
-      isConcreteStrengthTest.value,
+    () => isMaterialInspectionRequest.value || isConcreteDeliveryTest.value,
   );
   const workContextHint = computed(() =>
     resolveDocumentWorkContextHint(
@@ -341,10 +339,8 @@ export function useDocumentUploadDemoViewModel() {
     );
 
     if (isConcreteStrengthTest.value) {
-      return Boolean(
-        hasRequiredWorkContext &&
-          selectedLinkedConcreteDeliveryDocumentId.value,
-      );
+      // CCST 는 사용 위치·공종을 받지 않으므로 연결 반입시험 문서만 필수.
+      return Boolean(selectedLinkedConcreteDeliveryDocumentId.value);
     }
 
     if (!requiresWorkContext.value) {

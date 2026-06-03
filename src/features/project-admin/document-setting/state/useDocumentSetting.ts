@@ -24,27 +24,41 @@ function emptyPrompts(): Prompts {
 }
 
 function emptyScriptPrompts(): ScriptPrompts {
-  return { MIR: "", CAT: "", CCST: "", MAT_INOUT: "" };
+  return { MIR: "", CAT: "", CCST: "", MAT_INOUT: "", CONC_LOG: "" };
 }
 
 function emptyScriptPromptFlags(): ScriptPromptFlags {
-  return { MIR: false, CAT: false, CCST: false, MAT_INOUT: false };
+  return { MIR: false, CAT: false, CCST: false, MAT_INOUT: false, CONC_LOG: false };
 }
 
 function emptyTemplateUrls(): TemplateUrls {
-  return { MIR: null, CAT: null, DR: null, MAT_INOUT: null };
+  return { MIR: null, CAT: null, DR: null, MAT_INOUT: null, CONC_LOG: null };
 }
 
 function emptyTemplateFlags(): TemplateFlags {
-  return { MIR: false, CAT: false, DR: false, MAT_INOUT: false };
+  return { MIR: false, CAT: false, DR: false, MAT_INOUT: false, CONC_LOG: false };
 }
 
 function emptyTemplateRefUrls(): TemplateRefUrls {
-  return { MIR: null, CAT: null, CCST: null, DR: null, MAT_INOUT: null };
+  return {
+    MIR: null,
+    CAT: null,
+    CCST: null,
+    DR: null,
+    MAT_INOUT: null,
+    CONC_LOG: null,
+  };
 }
 
 function emptyTemplateRefFlags(): TemplateRefFlags {
-  return { MIR: false, CAT: false, CCST: false, DR: false, MAT_INOUT: false };
+  return {
+    MIR: false,
+    CAT: false,
+    CCST: false,
+    DR: false,
+    MAT_INOUT: false,
+    CONC_LOG: false,
+  };
 }
 
 export function useDocumentSetting() {
@@ -77,12 +91,14 @@ export function useDocumentSetting() {
       CAT: res.catScriptPrompt ?? "",
       CCST: res.ccstScriptPrompt ?? "",
       MAT_INOUT: res.matInoutScriptPrompt ?? "",
+      CONC_LOG: res.concLogScriptPrompt ?? "",
     };
     templateUrls.value = {
       MIR: res.mirTemplateUrl,
       CAT: res.catTemplateUrl,
       DR: res.drTemplateUrl,
       MAT_INOUT: res.matInoutTemplateUrl,
+      CONC_LOG: res.concLogTemplateUrl,
     };
     templateRefUrls.value = {
       MIR: res.mirTemplateRefUrl,
@@ -90,6 +106,7 @@ export function useDocumentSetting() {
       CCST: res.ccstTemplateRefUrl,
       DR: res.drTemplateRefUrl,
       MAT_INOUT: res.matInoutTemplateRefUrl,
+      CONC_LOG: res.concLogTemplateRefUrl,
     };
   }
 

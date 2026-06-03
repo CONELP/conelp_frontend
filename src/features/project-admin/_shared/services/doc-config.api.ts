@@ -1,10 +1,16 @@
 import { axiosClient } from "@/shared/network/axios-client";
 
 export type DocConfigDocType = "MIR" | "CAT" | "CCST";
-export type UploadDocType = "MIR" | "CAT" | "DR" | "MAT_INOUT";
-export type ScriptPromptDocType = "MIR" | "CAT" | "CCST" | "MAT_INOUT";
-export type TemplateDocType = "MIR" | "CAT" | "DR" | "MAT_INOUT";
-export type TemplateRefDocType = "MIR" | "CAT" | "CCST" | "DR" | "MAT_INOUT";
+export type UploadDocType = "MIR" | "CAT" | "DR" | "MAT_INOUT" | "CONC_LOG";
+export type ScriptPromptDocType = "MIR" | "CAT" | "CCST" | "MAT_INOUT" | "CONC_LOG";
+export type TemplateDocType = "MIR" | "CAT" | "DR" | "MAT_INOUT" | "CONC_LOG";
+export type TemplateRefDocType =
+  | "MIR"
+  | "CAT"
+  | "CCST"
+  | "DR"
+  | "MAT_INOUT"
+  | "CONC_LOG";
 
 export interface DocConfigResponse {
   id: number;
@@ -25,6 +31,9 @@ export interface DocConfigResponse {
   matInoutTemplateUrl: string | null;
   matInoutTemplateRefUrl: string | null;
   matInoutScriptPrompt: string | null;
+  concLogTemplateUrl: string | null;
+  concLogTemplateRefUrl: string | null;
+  concLogScriptPrompt: string | null;
   createdAt: string;
   updatedAt: string;
 }
