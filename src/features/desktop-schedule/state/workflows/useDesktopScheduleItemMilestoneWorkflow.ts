@@ -66,6 +66,10 @@ type CopiedScheduleClipboard = {
   milestones: CopiedScheduleMilestone[];
   cutOriginSnapshot?: DesktopScheduleLocalSnapshot;
   cutWorkConnections?: DesktopScheduleWorkConnection[];
+  // 복사 모드에서 복제할 원본 item 로컬 id — 붙여넣기 시 duplicateWorkAndWorkDep 호출용
+  copySourceItemIds?: string[];
+  // 복사 모드 앵커(가장 이른) 날짜 — 붙여넣기 시 dayOffset 계산용
+  copyAnchorStartDate?: string;
 };
 
 type SchedulePasteTarget = {
@@ -859,6 +863,8 @@ export function useDesktopScheduleItemMilestoneWorkflow(deps: DesktopScheduleIte
       })),
       cutOriginSnapshot,
       cutWorkConnections: sourceWorkConnections,
+      copySourceItemIds: mode === "copy" ? sourceItems.map((item) => item.id) : [],
+      copyAnchorStartDate: mode === "copy" ? anchorStartDate : undefined,
     };
 
     if (mode === "cut") {
@@ -1237,41 +1243,29 @@ export function useDesktopScheduleItemMilestoneWorkflow(deps: DesktopScheduleIte
     }
 
     const snapshot = captureWorkingSnapshot();
-    const createdItems: Array<{
-      localItem: DesktopScheduleItem;
-      preparedItem: PreparedCopiedScheduleItem;
-    }> = [];
+
+    // 복제 대상 원본 work id 확보 (로컬 생성 중이면 영속 id 확정까지 대기)
+    const copySourceItemIdSet = new Set(copiedScheduleClipboard.copySourceItemIds ?? []);
+    const sourceItemsForDuplicate = workingItems.value.filter((item) =>
+      copySourceItemIdSet.has(item.id),
+    );
+    await waitForPendingItemCreations(sourceItemsForDuplicate.map((item) => item.id));
+    const sourceWorkIds = sourceItemsForDuplicate
+      .map((item) => getPersistedWorkIdForItem(item))
+      .filter((workId) => workId > 0);
+
+    // 붙여넣기 날짜 지정: 앵커(가장 이른) work 를 target 날짜에 맞춰 전체를 동일 일수 이동
+    const pasteDayOffset =
+      target.date && copiedScheduleClipboard.copyAnchorStartDate
+        ? diffDays(copiedScheduleClipboard.copyAnchorStartDate, target.date)
+        : 0;
+
+    // 마일스톤은 원자 API 범위 밖이므로 기존 로컬 생성 경로 유지
     const createdMilestones: Array<{
       localMilestone: DesktopScheduleMilestone;
       preparedMilestone: PreparedCopiedScheduleMilestone;
     }> = [];
-    let nextItems = workingItems.value;
     let nextMilestones = workingMilestones.value;
-
-    preparedItems.forEach((preparedItem) => {
-      const previousItemIds = new Set(nextItems.map((item) => item.id));
-      nextItems = desktopScheduleService.createItem(workingRows.value, nextItems, {
-        rowId: preparedItem.row.id,
-        startDate: preparedItem.startDate,
-        name: preparedItem.copiedItem.name,
-        durationDays: preparedItem.durationDays,
-        division: preparedItem.row.source.division,
-        workType: preparedItem.row.source.workType,
-        subWorkType: preparedItem.row.source.subWorkType,
-        annotation: preparedItem.copiedItem.annotation,
-        zoneIds: preparedItem.copiedItem.zoneIds,
-        floorIds: preparedItem.copiedItem.floorIds,
-        componentTypeIds: preparedItem.copiedItem.componentTypeIds,
-      });
-
-      const createdItem = nextItems.find((item) => !previousItemIds.has(item.id));
-      if (createdItem) {
-        createdItems.push({
-          localItem: createdItem,
-          preparedItem,
-        });
-      }
-    });
 
     const reservedMilestoneLabels = new Set(
       nextMilestones
@@ -1302,39 +1296,22 @@ export function useDesktopScheduleItemMilestoneWorkflow(deps: DesktopScheduleIte
       }
     });
 
-    if (createdItems.length === 0 && createdMilestones.length === 0) {
+    if (sourceWorkIds.length === 0 && createdMilestones.length === 0) {
       showScheduleToast("붙여넣을 수 있는 작업 또는 마일스톤이 없습니다.");
       closeContextMenu();
       return;
     }
 
-    const pendingCreationByItemId = new Map<string, Deferred<number>>();
     const pendingCreationByMilestoneId = new Map<string, Deferred<number>>();
-    createdItems.forEach(({ localItem }) => {
-      const pendingCreation = createDeferred<number>();
-      pendingCreationByItemId.set(localItem.id, pendingCreation);
-      pendingWorkCreationByItemId.set(localItem.id, pendingCreation.promise);
-    });
     createdMilestones.forEach(({ localMilestone }) => {
       const pendingCreation = createDeferred<number>();
       pendingCreationByMilestoneId.set(localMilestone.id, pendingCreation);
       pendingMilestoneCreationByMilestoneId.set(localMilestone.id, pendingCreation.promise);
     });
 
-    workingItems.value = nextItems;
     workingMilestones.value = nextMilestones;
-    createdItems.forEach(({ localItem, preparedItem }) => {
-      if (preparedItem.copiedItem.colorHex !== null) {
-        workingItems.value = desktopScheduleService.updateItemColor(
-          workingItems.value,
-          [localItem.id],
-          preparedItem.copiedItem.colorHex,
-        );
-      }
-    });
     selectionState.value = {
       ...createEmptyDesktopScheduleSelectionState(),
-      itemIds: createdItems.map(({ localItem }) => localItem.id),
       milestoneIds: createdMilestones.map(({ localMilestone }) => localMilestone.id),
     };
     renamingItemId.value = null;
@@ -1343,71 +1320,24 @@ export function useDesktopScheduleItemMilestoneWorkflow(deps: DesktopScheduleIte
 
     const didSave = await runScheduleMutation(
       async () => {
-        const remainingPendingItemIds = new Set(createdItems.map(({ localItem }) => localItem.id));
+        // 1) 작업 + 내부 의존관계를 단일 원자 API 로 일괄 복제 (응답 그대로 반영)
+        if (sourceWorkIds.length > 0) {
+          const response = await desktopScheduleApi.duplicateWorkAndWorkDep({
+            scheduleVersionId,
+            sourceWorkIds,
+            dayOffset: pasteDayOffset,
+          });
+          if (getSelectedScheduleVersionId() === scheduleVersionId) {
+            applyServerMutationPatch(response, { rebuildSnapshot: true });
+          }
+        }
+
+        // 2) 마일스톤 생성 (기존 경로)
         const remainingPendingMilestoneIds = new Set(
           createdMilestones.map(({ localMilestone }) => localMilestone.id),
         );
 
         try {
-          for (const { localItem, preparedItem } of createdItems) {
-            const subWorkTypeId = preparedItem.row.source.subWorkTypeId;
-            const pendingCreation = pendingCreationByItemId.get(localItem.id);
-
-            if (typeof subWorkTypeId !== "number" || subWorkTypeId <= 0) {
-              throw new Error("붙여넣을 세부공종 정보를 확인하지 못했습니다.");
-            }
-
-            try {
-              const createdWorkId = await desktopScheduleApi.createWork({
-                startDate: preparedItem.startDate,
-                workLeadTime: preparedItem.durationDays,
-                subWorkTypeId,
-                scheduleVersionId,
-              }).then(async (response) => {
-                const createdWork = response.updatedWorks?.[0];
-
-                if (!createdWork) {
-                  throw new Error("생성된 작업 ID를 확인하지 못했습니다.");
-                }
-
-                let mutationResponse = response;
-                let createdWorkForMerge = createdWork;
-
-                if (createdWork.workName !== preparedItem.copiedItem.name) {
-                  mutationResponse = await desktopScheduleApi.updateWork({
-                    items: [
-                      {
-                        workId: createdWork.workId,
-                        workName: preparedItem.copiedItem.name,
-                      },
-                    ],
-                  });
-                  createdWorkForMerge =
-                    mutationResponse.updatedWorks?.find((work) => work.workId === createdWork.workId) ??
-                    {
-                      ...createdWork,
-                      workName: preparedItem.copiedItem.name,
-                    };
-                }
-
-                if (getSelectedScheduleVersionId() === scheduleVersionId) {
-                  applyServerMutationPatch(mutationResponse);
-                  mergeCreatedWorkIntoPendingItem(localItem.id, localItem, createdWorkForMerge);
-                }
-
-                return createdWork.workId;
-              });
-
-              pendingCreation?.resolve(createdWorkId);
-            } catch (error) {
-              pendingCreation?.reject(error);
-              throw error;
-            } finally {
-              remainingPendingItemIds.delete(localItem.id);
-              pendingWorkCreationByItemId.delete(localItem.id);
-            }
-          }
-
           for (const { localMilestone, preparedMilestone } of createdMilestones) {
             const pendingCreation = pendingCreationByMilestoneId.get(localMilestone.id);
 
@@ -1439,12 +1369,6 @@ export function useDesktopScheduleItemMilestoneWorkflow(deps: DesktopScheduleIte
             }
           }
         } finally {
-          remainingPendingItemIds.forEach((itemId) => {
-            pendingCreationByItemId
-              .get(itemId)
-              ?.reject(new Error("작업 붙여넣기 동기화가 중단되었습니다."));
-            pendingWorkCreationByItemId.delete(itemId);
-          });
           remainingPendingMilestoneIds.forEach((milestoneId) => {
             pendingCreationByMilestoneId
               .get(milestoneId)
@@ -1462,11 +1386,11 @@ export function useDesktopScheduleItemMilestoneWorkflow(deps: DesktopScheduleIte
     if (didSave) {
       pushLocalHistoryEntry(snapshot);
       showScheduleToast(
-        `${formatScheduleEntityCount(createdItems.length, createdMilestones.length)}를 붙여넣었어요.`,
+        `${formatScheduleEntityCount(sourceWorkIds.length, createdMilestones.length)}를 붙여넣었어요.`,
       );
     }
     trackScheduleMutationResult("paste_items", didSave, {
-      item_count: createdItems.length,
+      item_count: sourceWorkIds.length,
       milestone_count: createdMilestones.length,
     });
   }

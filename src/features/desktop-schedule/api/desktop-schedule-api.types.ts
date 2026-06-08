@@ -201,6 +201,13 @@ export interface DesktopScheduleWorkCreateRequest {
   scheduleVersionId: DesktopScheduleVersionId;
 }
 
+export interface DesktopScheduleWorkDuplicateRequest {
+  scheduleVersionId: DesktopScheduleVersionId;
+  sourceWorkIds: DesktopScheduleWorkId[];
+  // 모든 새 work startDate 에 더할 일수(음수 가능). 생략/0 이면 원본 기간 그대로 복제
+  dayOffset?: number;
+}
+
 export interface DesktopScheduleWorkUpdateItem {
   workId: DesktopScheduleWorkId;
   workName?: string;

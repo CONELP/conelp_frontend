@@ -26,6 +26,7 @@ import type {
   DesktopScheduleVersionResponse,
   DesktopScheduleVersionUpdateRequest,
   DesktopScheduleWorkCreateRequest,
+  DesktopScheduleWorkDuplicateRequest,
   DesktopScheduleWorkDepCreateRequest,
   DesktopScheduleWorkDepId,
   DesktopScheduleWorkDepResponse,
@@ -471,6 +472,14 @@ export const desktopScheduleApi = {
   // POST /api/work/createWork
   createWork(body: DesktopScheduleWorkCreateRequest) {
     return apiFetch<DesktopScheduleMutationResponse>("/work/createWork", {
+      method: "POST",
+      body: toApiBody(body),
+    });
+  },
+
+  // POST /api/work/duplicateWorkAndWorkDep — 여러 work + 내부 의존관계 일괄 복제(원자)
+  duplicateWorkAndWorkDep(body: DesktopScheduleWorkDuplicateRequest) {
+    return apiFetch<DesktopScheduleMutationResponse>("/work/duplicateWorkAndWorkDep", {
       method: "POST",
       body: toApiBody(body),
     });
