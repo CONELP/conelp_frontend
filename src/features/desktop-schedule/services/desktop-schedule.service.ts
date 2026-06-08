@@ -288,11 +288,6 @@ function buildConnectionGeometry(
   sourceBar: DesktopScheduleBarLayout,
   targetBar: DesktopScheduleBarLayout,
 ) {
-  const sourceX = sourceBar.left + sourceBar.width;
-  const sourceY = sourceBar.top + sourceBar.height / 2;
-  const targetX = targetBar.left;
-  const targetY = targetBar.top + targetBar.height / 2;
-
   function buildRoundedOrthogonalPath(
     points: Array<{ x: number; y: number }>,
     cornerRadius = 10,
@@ -341,15 +336,26 @@ function buildConnectionGeometry(
     return segments.join(" ");
   }
 
-  if (sourceY === targetY) {
-    return {
-      path: `M ${sourceX} ${sourceY} L ${targetX} ${targetY}`,
-      labelX: (sourceX + targetX) / 2,
-      labelY: sourceY,
-    };
-  }
+  // 날짜 겹침 판단: target 시작이 source 종료 이전이면 겹침 → 위/아래 수직 연결,
+  // 아니면 좌/우 수평 연결 (source 오른쪽 → target 왼쪽)
+  const sourceRightX = sourceBar.left + sourceBar.width;
+  const overlap = targetBar.left < sourceRightX;
 
-  if (targetX >= sourceX + 24) {
+  if (!overlap) {
+    // 좌/우: source 오른쪽 핸들 → target 왼쪽 핸들
+    const sourceX = sourceRightX;
+    const sourceY = sourceBar.top + sourceBar.height / 2;
+    const targetX = targetBar.left;
+    const targetY = targetBar.top + targetBar.height / 2;
+
+    if (sourceY === targetY) {
+      return {
+        path: `M ${sourceX} ${sourceY} L ${targetX} ${targetY}`,
+        labelX: (sourceX + targetX) / 2,
+        labelY: sourceY,
+      };
+    }
+
     const bendX = sourceX + Math.max((targetX - sourceX) / 2, 28);
 
     return {
@@ -364,17 +370,24 @@ function buildConnectionGeometry(
     };
   }
 
-  const bendX = Math.max(sourceX, targetX) + 36;
+  // 겹침: 위/아래 수직 연결. source 가 target 보다 아래에 있으면 위로 올라감
+  // (source-top → target-bottom), 아니면 아래로 내려감 (source-bottom → target-top)
+  const sourceBelow = sourceBar.top > targetBar.top;
+  const sourceX = sourceBar.left + sourceBar.width / 2;
+  const targetX = targetBar.left + targetBar.width / 2;
+  const sourceY = sourceBelow ? sourceBar.top : sourceBar.top + sourceBar.height;
+  const targetY = sourceBelow ? targetBar.top + targetBar.height : targetBar.top;
+  const bendY = (sourceY + targetY) / 2;
 
   return {
     path: buildRoundedOrthogonalPath([
       { x: sourceX, y: sourceY },
-      { x: bendX, y: sourceY },
-      { x: bendX, y: targetY },
+      { x: sourceX, y: bendY },
+      { x: targetX, y: bendY },
       { x: targetX, y: targetY },
     ]),
-    labelX: bendX + 10,
-    labelY: (sourceY + targetY) / 2,
+    labelX: (sourceX + targetX) / 2,
+    labelY: bendY,
   };
 }
 
@@ -698,10 +711,30 @@ function buildShellLayout(
   const descendantItemCountByParentId = new Map<string, number>();
   const rowBarDraftsById = new Map<string, RowBarDraft[]>();
   const rowHeightById = new Map<string, number>();
+  const rowLaneGapById = new Map<string, number>();
   const rowTopById = new Map<string, number>();
   const layoutScale = rowHeight / DESKTOP_SCHEDULE_SHELL_DEFAULTS.rowHeight;
   const divisionRowHeight = Math.max(Math.round(rowHeight * 0.77), 24);
   const laneGap = Math.max(Math.round(rowHeight * 0.1), 4);
+  // 같은 row 안에서 위/아래 레인으로 붙어 연결된 노드는 엣지가 끼이지 않도록 레인 간격을 더 준다
+  const connectedStackLaneGapExtra = Math.max(Math.round(rowHeight * 0.5), 18);
+
+  // 엣지(작업 연결 + 크리티컬 패스)로 이어진 itemId 인접 관계
+  const connectedItemIds = new Map<string, Set<string>>();
+  const linkConnectedItems = (sourceItemId: string, targetItemId: string) => {
+    if (!connectedItemIds.has(sourceItemId)) connectedItemIds.set(sourceItemId, new Set());
+    if (!connectedItemIds.has(targetItemId)) connectedItemIds.set(targetItemId, new Set());
+    connectedItemIds.get(sourceItemId)!.add(targetItemId);
+    connectedItemIds.get(targetItemId)!.add(sourceItemId);
+  };
+  workConnections.forEach((connection) =>
+    linkConnectedItems(connection.sourceItemId, connection.targetItemId),
+  );
+  criticalPaths.forEach((criticalPath) =>
+    linkConnectedItems(criticalPath.sourceItemId, criticalPath.targetItemId),
+  );
+
+  const rowPairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
   const verticalPadding = Math.max((rowHeight - barHeight) / 2, 4);
   const itemBarHorizontalPadding = ITEM_BAR_HORIZONTAL_PADDING * layoutScale;
   const preferredLaneByItemId = options.preferredLaneByItemId ?? {};
@@ -897,12 +930,56 @@ function buildShellLayout(
         1,
       1,
     );
+
+    // 같은 row 안에서 서로 다른 레인(위/아래로 붙음)에 있는 두 노드가 엣지로 연결되어 있으면
+    // 엣지가 보이도록 레인 간격에 여유를 준다
+    const laneByItemId = new Map(rowBarDrafts.map((draft) => [draft.itemId, draft.laneIndex]));
+    const hasStackedConnection = rowBarDrafts.some((draft) => {
+      const neighbors = connectedItemIds.get(draft.itemId);
+      if (!neighbors) return false;
+      for (const neighborItemId of neighbors) {
+        const neighborLane = laneByItemId.get(neighborItemId);
+        if (neighborLane !== undefined && neighborLane !== draft.laneIndex) {
+          return true;
+        }
+      }
+      return false;
+    });
+    const effectiveLaneGap = hasStackedConnection ? laneGap + connectedStackLaneGapExtra : laneGap;
+
     const stackedRowHeight =
-      verticalPadding * 2 + laneCount * barHeight + Math.max(laneCount - 1, 0) * laneGap;
+      verticalPadding * 2 + laneCount * barHeight + Math.max(laneCount - 1, 0) * effectiveLaneGap;
 
     rowBarDraftsById.set(row.id, rowBarDrafts);
+    rowLaneGapById.set(row.id, effectiveLaneGap);
     rowHeightById.set(row.id, Math.max(rowHeight, stackedRowHeight));
   });
+
+  // 다른 row(= 다른 subWorkType) 간 엣지 중, 두 바가 날짜로 겹쳐 실제로 위/아래 수직 연결되는
+  // 경우만 row 간 여유 공간이 필요하다. 좌/우 수평 연결(겹침 없음)은 갭 불필요.
+  const barDraftByItemId = new Map<string, RowBarDraft>();
+  rowBarDraftsById.forEach((drafts) => {
+    drafts.forEach((draft) => barDraftByItemId.set(draft.itemId, draft));
+  });
+  const verticallyConnectedRowPairs = new Set<string>();
+  const registerVerticalRowGap = (sourceItemId: string, targetItemId: string) => {
+    const sourceBar = barDraftByItemId.get(sourceItemId);
+    const targetBar = barDraftByItemId.get(targetItemId);
+    if (!sourceBar || !targetBar || sourceBar.rowId === targetBar.rowId) {
+      return;
+    }
+    // buildConnectionGeometry 와 동일한 겹침 판정: 겹치면 위/아래 수직 연결 → 여유 필요
+    const overlap = targetBar.left < sourceBar.left + sourceBar.width;
+    if (overlap) {
+      verticallyConnectedRowPairs.add(rowPairKey(sourceBar.rowId, targetBar.rowId));
+    }
+  };
+  workConnections.forEach((connection) =>
+    registerVerticalRowGap(connection.sourceItemId, connection.targetItemId),
+  );
+  criticalPaths.forEach((criticalPath) =>
+    registerVerticalRowGap(criticalPath.sourceItemId, criticalPath.targetItemId),
+  );
 
   const milestoneRow: DesktopScheduleShellRow = {
     id: DESKTOP_SCHEDULE_MILESTONE_ROW_ID,
@@ -930,6 +1007,8 @@ function buildShellLayout(
   const processRows: DesktopScheduleShellRow[] = [];
   let currentDivision: string | null = null;
   let currentDivisionId: number | undefined;
+  let previousChildRow: DesktopScheduleShellRow | null = null;
+  let previousChildRowId: string | null = null;
 
   [...visibleRows].sort(compareRowsForShellGrouping).forEach((row) => {
     const division = row.source.division ?? "미분류";
@@ -966,6 +1045,17 @@ function buildShellLayout(
       return;
     }
 
+    // 바로 위 row(다른 subWorkType)와 엣지로 연결되어 위/아래로 붙으면, 위 row 높이를 늘려
+    // 두 row 사이에 엣지가 보일 여유 공간을 만든다 (배경은 위 row 가 덮음)
+    if (
+      previousChildRow &&
+      previousChildRowId &&
+      verticallyConnectedRowPairs.has(rowPairKey(previousChildRowId, row.id))
+    ) {
+      previousChildRow.height += connectedStackLaneGapExtra;
+      accumulatedTop += connectedStackLaneGapExtra;
+    }
+
     const nextRowHeight = rowHeightById.get(row.id) ?? rowHeight;
     rowTopById.set(row.id, accumulatedTop);
 
@@ -992,6 +1082,8 @@ function buildShellLayout(
 
     accumulatedTop += nextRowHeight;
     processRows.push(shellRow);
+    previousChildRow = shellRow;
+    previousChildRowId = row.id;
   });
 
   const itemBars: DesktopScheduleBarLayout[] = visibleRows.flatMap((row) => {
@@ -1005,6 +1097,8 @@ function buildShellLayout(
       return [];
     }
 
+    const rowLaneGap = rowLaneGapById.get(row.id) ?? laneGap;
+
     return (rowBarDraftsById.get(row.id) ?? []).map((draft) => ({
       id: draft.id,
       itemId: draft.itemId,
@@ -1014,7 +1108,7 @@ function buildShellLayout(
       name: draft.name,
       colorHex: draft.colorHex,
       left: draft.left,
-      top: rowTop + verticalPadding + draft.laneIndex * (barHeight + laneGap),
+      top: rowTop + verticalPadding + draft.laneIndex * (barHeight + rowLaneGap),
       width: draft.width,
       height: draft.height,
       startDate: draft.startDate,
