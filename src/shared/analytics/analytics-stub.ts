@@ -11,15 +11,19 @@ type GtagArguments =
   | ["set", Record<string, unknown>]
   | ["config", string, Record<string, unknown>?]
   | ["event", string, Record<string, AnalyticsValue>?];
+type GtagDataLayerCommand = GtagArguments | IArguments;
 
 declare global {
   interface Window {
-    dataLayer?: GtagArguments[];
+    dataLayer?: GtagDataLayerCommand[];
     gtag?: (...args: GtagArguments) => void;
   }
 }
 
+const GA_TAG_ID = import.meta.env.VITE_GA_TAG_ID?.trim() ?? "";
 const GA_MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID?.trim() ?? "";
+const GA_LOADER_ID = GA_TAG_ID || GA_MEASUREMENT_ID;
+const GA_CONFIG_ID = GA_TAG_ID || GA_MEASUREMENT_ID;
 const ANALYTICS_DEBUG_STORAGE_KEY = "conelp.analytics.debug";
 const MAX_STRING_PARAM_LENGTH = 120;
 
@@ -44,6 +48,22 @@ function readStoredDebugFlag() {
 
 function shouldDebugAnalytics() {
   return import.meta.env.DEV || readStoredDebugFlag();
+}
+
+function hasAnalyticsConfig() {
+  return !!GA_LOADER_ID && !!GA_CONFIG_ID;
+}
+
+function hasCurrentGtagScript() {
+  return Array.from(document.querySelectorAll<HTMLScriptElement>("script[data-conelp-ga]")).some(
+    (script) => script.dataset.conelpGa === GA_LOADER_ID,
+  );
+}
+
+function createGtagQueue() {
+  return function gtag(..._args: GtagArguments) {
+    window.dataLayer?.push(arguments);
+  };
 }
 
 function toAnalyticsValue(value: unknown): AnalyticsValue | undefined {
@@ -86,40 +106,36 @@ function normalizePayload(payload: AnalyticsPayload = {}) {
 }
 
 function ensureGtag() {
-  if (isGtagInitialized || !GA_MEASUREMENT_ID || !isBrowserEnvironment()) {
+  if (isGtagInitialized || !hasAnalyticsConfig() || !isBrowserEnvironment()) {
     return;
   }
 
   isGtagInitialized = true;
   window.dataLayer = window.dataLayer ?? [];
-  window.gtag =
-    window.gtag ??
-    ((...args: GtagArguments) => {
-      window.dataLayer?.push(args);
-    });
+  window.gtag = window.gtag ?? createGtagQueue();
 
   window.gtag("js", new Date());
-  window.gtag("config", GA_MEASUREMENT_ID, {
+  window.gtag("config", GA_CONFIG_ID, {
     send_page_view: false,
     ...(currentUserId ? { user_id: currentUserId } : {}),
     ...(shouldDebugAnalytics() ? { debug_mode: true } : {}),
   });
 
-  if (document.querySelector("script[data-conelp-ga]")) {
+  if (hasCurrentGtagScript()) {
     return;
   }
 
   const script = document.createElement("script");
   script.async = true;
   script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(
-    GA_MEASUREMENT_ID,
+    GA_LOADER_ID,
   )}`;
-  script.dataset.conelpGa = GA_MEASUREMENT_ID;
+  script.dataset.conelpGa = GA_LOADER_ID;
   document.head.appendChild(script);
 }
 
 function syncUserIdToGtag() {
-  if (!GA_MEASUREMENT_ID || !isBrowserEnvironment()) {
+  if (!hasAnalyticsConfig() || !isBrowserEnvironment()) {
     return;
   }
 
@@ -127,26 +143,17 @@ function syncUserIdToGtag() {
   window.gtag?.("set", {
     user_id: currentUserId,
   });
-  window.gtag?.("config", GA_MEASUREMENT_ID, {
+  window.gtag?.("config", GA_CONFIG_ID, {
     send_page_view: false,
     user_id: currentUserId,
     ...(shouldDebugAnalytics() ? { debug_mode: true } : {}),
   });
 }
 
-function mirrorEvent(eventName: string, payload: Record<string, AnalyticsValue>) {
-  if (!shouldDebugAnalytics()) {
-    return;
-  }
-
-  console.info("[analytics]", eventName, payload);
-}
-
 function trackEvent(eventName: string, payload: AnalyticsPayload = {}) {
   const normalizedPayload = normalizePayload(payload);
-  mirrorEvent(eventName, normalizedPayload);
 
-  if (!GA_MEASUREMENT_ID || !isBrowserEnvironment()) {
+  if (!hasAnalyticsConfig() || !isBrowserEnvironment()) {
     return;
   }
 
@@ -186,12 +193,17 @@ export const analyticsClient = {
   },
   trackRouteView(payload: RouteViewPayload) {
     const routeName = normalizeRouteName(payload.routeName);
-
-    trackEvent("route_view", {
-      route_name: routeName,
+    const pagePayload = {
       page_title: routeName,
       page_path: payload.routePath,
       page_location: resolvePageLocation(payload.routePath),
+    };
+
+    trackEvent("page_view", pagePayload);
+
+    trackEvent("route_view", {
+      route_name: routeName,
+      ...pagePayload,
     });
   },
   trackError(feature: string, statusGroup: string, meta?: Record<string, unknown>) {
