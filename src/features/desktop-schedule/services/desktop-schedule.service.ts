@@ -110,7 +110,7 @@ export const DESKTOP_SCHEDULE_SHELL_DEFAULTS = {
 } as const;
 export const DESKTOP_SCHEDULE_MILESTONE_ROW_ID = "row:milestones";
 export const DESKTOP_SCHEDULE_MILESTONE_LABEL_HINT_TEXT = "마일스톤";
-const WORK_CONNECTION_COLOR = "#64748b";
+const WORK_CONNECTION_COLOR = "#94a3b8";
 
 const CRITICAL_PATH_COLORS = [
   "#cb3a31",
@@ -339,7 +339,8 @@ function buildConnectionGeometry(
   // 날짜 겹침 판단: target 시작이 source 종료 이전이면 겹침 → 위/아래 수직 연결,
   // 아니면 좌/우 수평 연결 (source 오른쪽 → target 왼쪽)
   const sourceRightX = sourceBar.left + sourceBar.width;
-  const overlap = targetBar.left < sourceRightX;
+  // lagDays=0(다음날 바로 시작, 맞닿음)도 위/아래 수직 연결로 처리 (<=)
+  const overlap = targetBar.left <= sourceRightX;
 
   if (!overlap) {
     // 좌/우: source 오른쪽 핸들 → target 왼쪽 핸들
@@ -968,8 +969,8 @@ function buildShellLayout(
     if (!sourceBar || !targetBar || sourceBar.rowId === targetBar.rowId) {
       return;
     }
-    // buildConnectionGeometry 와 동일한 겹침 판정: 겹치면 위/아래 수직 연결 → 여유 필요
-    const overlap = targetBar.left < sourceBar.left + sourceBar.width;
+    // buildConnectionGeometry 와 동일한 겹침 판정 (lagDays=0 맞닿음 포함, <=)
+    const overlap = targetBar.left <= sourceBar.left + sourceBar.width;
     if (overlap) {
       verticallyConnectedRowPairs.add(rowPairKey(sourceBar.rowId, targetBar.rowId));
     }
