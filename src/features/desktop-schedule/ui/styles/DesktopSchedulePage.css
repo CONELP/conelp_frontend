@@ -247,7 +247,7 @@
   position: fixed;
   top: 4.35rem;
   left: 50%;
-  z-index: 80;
+  z-index: 1000;
   transform: translateX(-50%);
   display: inline-flex;
   align-items: center;

@@ -194,7 +194,7 @@ const phoneNumber = ref("");
 const jobTitle = ref("");
 
 const hasFieldErrors = computed(() => Object.keys(authStore.fieldErrors).length > 0);
-const logoSrc = new URL("../../../../conelp_logo.png", import.meta.url).href;
+const logoSrc = "/conelp_logo.png";
 
 onMounted(() => {
   authStore.clearError();

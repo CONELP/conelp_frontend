@@ -3,8 +3,10 @@ import { createRouter, createWebHashHistory } from "vue-router";
 import { analyticsClient } from "@/shared/analytics/analytics-stub";
 import AiAgentChatPage from "@/features/ai-agent/ui/AiAgentChatPage.vue";
 import AiAgentThreadListPage from "@/features/ai-agent/ui/AiAgentThreadListPage.vue";
-import DesktopDashboardPage from "@/features/desktop-dashboard/ui/DesktopDashboardPage.vue";
+// 임시 비활성 — /dashboard 라우트 차단. 복구 가이드: docs/temporary-disabled-features/dashboard-and-schedule-import.md
+// import DesktopDashboardPage from "@/features/desktop-dashboard/ui/DesktopDashboardPage.vue";
 import DesktopSchedulePage from "@/features/desktop-schedule/ui/DesktopSchedulePage.vue";
+import LandingPage from "@/features/landing/ui/LandingPage.vue";
 import LoginPage from "@/features/auth/ui/LoginPage.vue";
 import ConversionLoadingPage from "@/features/document-conversion/ui/ConversionLoadingPage.vue";
 import DailyReportWritePage from "@/features/document-conversion/ui/DailyReportWritePage.vue";
@@ -49,6 +51,14 @@ export const router = createRouter({
       redirect: "/schedule",
     },
     {
+      path: "/landing",
+      name: "landing",
+      component: LandingPage,
+      meta: {
+        public: true,
+      },
+    },
+    {
       path: "/login",
       name: "login",
       component: LoginPage,
@@ -57,9 +67,10 @@ export const router = createRouter({
       },
     },
     {
+      // 임시 비활성 — 헤더 탭 숨김 상태에서 직접 URL 접근 차단.
+      // 복구 가이드: docs/temporary-disabled-features/dashboard-and-schedule-import.md
       path: "/dashboard",
-      name: "desktop-dashboard",
-      component: DesktopDashboardPage,
+      redirect: "/schedule",
     },
     {
       path: "/schedule",
@@ -250,7 +261,10 @@ router.beforeEach(async (to) => {
   }
 
   if (to.meta.public) {
-    if (to.path === "/login" && authStore.isAuthenticated) {
+    if (
+      (to.path === "/login" || to.path === "/landing") &&
+      authStore.isAuthenticated
+    ) {
       return "/schedule";
     }
 
@@ -258,12 +272,7 @@ router.beforeEach(async (to) => {
   }
 
   if (!authStore.isAuthenticated) {
-    return {
-      path: "/login",
-      query: {
-        redirect: to.fullPath,
-      },
-    };
+    return "/landing";
   }
 
   const requiresSuper = to.matched.some((route) => route.meta.requiresSuper);

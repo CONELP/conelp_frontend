@@ -15,7 +15,7 @@ import type {
 import { normalizeMilestoneLabelFromApi } from "@/features/desktop-schedule/services/domain/desktop-schedule-milestone-label.service";
 import { desktopScheduleService } from "@/features/desktop-schedule/services/desktop-schedule.service";
 
-const WORK_CONNECTION_COLOR = "#64748b";
+const WORK_CONNECTION_COLOR = "#94a3b8";
 
 function parseLocalDate(value: string) {
   const [year, month, day] = value.split("-").map(Number);

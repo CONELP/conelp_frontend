@@ -366,7 +366,7 @@ function isActive(section: DesktopHeaderSection) {
   return currentPath.startsWith("/documents") || currentPath.startsWith("/preview");
 }
 
-const logoSrc = new URL("../../../conelp_logo.png", import.meta.url).href;
+const logoSrc = "/conelp_logo.png";
 </script>
 
 <style scoped src="./styles/DesktopAppHeader.css"></style>
