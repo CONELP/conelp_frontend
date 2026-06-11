@@ -205,7 +205,6 @@ const emit = defineEmits<{
   "import-dialog-submit": [];
   "toggle-ai-verification": [];
   "toggle-ai-verification-flag": [itemId: string];
-  "export-schedule-excel": [range: "3week" | "3month"];
   "rename-schedule-version": [payload: { scheduleVersionId: number; versionName: string }];
   "delete-schedule-version": [scheduleVersionId: number];
   "open-schedule-version-review": [];
@@ -239,10 +238,6 @@ const draftRailDragState = ref<{
   hasMoved: boolean;
 } | null>(null);
 const shouldSuppressNextDraftClick = ref(false);
-const exportMenuRootRef = ref<HTMLElement | null>(null);
-const exportMenuRef = ref<HTMLElement | null>(null);
-const isExportMenuOpen = ref(false);
-const exportMenuPosition = ref({ x: 0, y: 0 });
 const pastMainMenuRootRef = ref<HTMLElement | null>(null);
 const pastMainMenuRef = ref<HTMLElement | null>(null);
 const isPastMainMenuOpen = ref(false);
@@ -456,14 +451,6 @@ function handleDocumentPointerDown(event: PointerEvent) {
   }
 
   if (
-    isExportMenuOpen.value &&
-    !exportMenuRootRef.value?.contains(target) &&
-    !exportMenuRef.value?.contains(target)
-  ) {
-    isExportMenuOpen.value = false;
-  }
-
-  if (
     isPastMainMenuOpen.value &&
     !pastMainMenuRootRef.value?.contains(target) &&
     !pastMainMenuRef.value?.contains(target)
@@ -488,11 +475,6 @@ function handleDocumentPointerDown(event: PointerEvent) {
 
 function handleDocumentKeyDown(event: KeyboardEvent) {
   if (event.key === "Escape") {
-    if (isExportMenuOpen.value) {
-      isExportMenuOpen.value = false;
-      return;
-    }
-
     if (isPastMainMenuOpen.value) {
       isPastMainMenuOpen.value = false;
       return;
@@ -558,30 +540,6 @@ function formatPastMainTimestamp(value: string | null | undefined) {
     month: "2-digit",
     day: "2-digit",
   }).format(date);
-}
-
-function toggleExportMenu(event: MouseEvent) {
-  if (isExportMenuOpen.value) {
-    isExportMenuOpen.value = false;
-    return;
-  }
-
-  const trigger = event.currentTarget;
-  if (!(trigger instanceof HTMLElement)) {
-    return;
-  }
-
-  const rect = trigger.getBoundingClientRect();
-  exportMenuPosition.value = {
-    x: rect.left,
-    y: rect.bottom + 4,
-  };
-  isExportMenuOpen.value = true;
-}
-
-function selectExportRange(range: "3week" | "3month") {
-  isExportMenuOpen.value = false;
-  emit("export-schedule-excel", range);
 }
 
 function emitImportSchedule() {
@@ -1289,48 +1247,6 @@ onUnmounted(() => {
           공정표 불러오기
         </button>
         -->
-
-        <div ref="exportMenuRootRef" class="schedule-shell__export-menu-root">
-          <button
-            type="button"
-            class="schedule-shell__schedule-action-button"
-            :aria-expanded="isExportMenuOpen"
-            aria-haspopup="true"
-            @click="toggleExportMenu"
-          >
-            엑셀로 내보내기 ▾
-          </button>
-
-          <Teleport to="body">
-            <div
-              v-if="isExportMenuOpen"
-              ref="exportMenuRef"
-              class="schedule-context-menu schedule-shell__export-menu"
-              :style="{
-                left: `${exportMenuPosition.x}px`,
-                top: `${exportMenuPosition.y}px`,
-              }"
-              role="menu"
-            >
-              <button
-                type="button"
-                class="schedule-context-menu__item"
-                role="menuitem"
-                @click="selectExportRange('3week')"
-              >
-                3주 공정표 만들기
-              </button>
-              <button
-                type="button"
-                class="schedule-context-menu__item"
-                role="menuitem"
-                @click="selectExportRange('3month')"
-              >
-                3개월 공정표 만들기
-              </button>
-            </div>
-          </Teleport>
-        </div>
       </div>
 
       <button

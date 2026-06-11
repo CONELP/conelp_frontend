@@ -12,6 +12,7 @@ import type {
   CreateProjectPayload,
   CreateUserToProjectPayload,
   Project,
+  RecalculateEmbeddingsResponse,
   SystemRole,
   UpdateCompanyPayload,
   UpdateCompanyToProjectPayload,
@@ -174,5 +175,16 @@ export const systemAdminApi = {
   },
   async deleteApiKey(projectId: string): Promise<void> {
     await axiosClient.delete(`/super/deleteApiKey/${projectId}`);
+  },
+
+  // Embedding
+  async recalculateAllEmbeddings(): Promise<RecalculateEmbeddingsResponse> {
+    // 전 프로젝트 모든 행을 동기로 재계산하는 장시간 API — 기본 10s 타임아웃으로는 부족
+    const { data } = await axiosClient.post<RecalculateEmbeddingsResponse>(
+      "/super/embedding/recalculateAllEmbeddings",
+      undefined,
+      { timeout: 0 },
+    );
+    return data;
   },
 };

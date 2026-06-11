@@ -744,7 +744,6 @@ watch(
               @import-dialog-submit="importFlow.submit"
               @toggle-ai-verification="aiVerification.toggleMode"
               @toggle-ai-verification-flag="aiVerification.toggleFlag"
-              @export-schedule-excel="version.exportAsExcel"
               @select-schedule-version="version.select"
               @cell-selection-change="handleScheduleCellSelectionChange"
               @rename-schedule-version="version.renameDraft"

@@ -22,6 +22,47 @@
                 @select="handleSelectDocument(document.type)"
               />
             </section>
+
+            <section
+              class="selection-shell selection-grid selection-schedule-export"
+              aria-label="공정표 생성"
+            >
+              <button
+                class="schedule-export-chip"
+                type="button"
+                :disabled="exportingScheduleRange !== null"
+                @click="handleExportSchedule('3week')"
+              >
+                <span class="schedule-export-chip__icon-frame" aria-hidden="true">
+                  <img
+                    class="schedule-export-chip__icon"
+                    :src="calendar3DayIcon"
+                    alt=""
+                  />
+                </span>
+                <span class="schedule-export-chip__label">
+                  {{ exportingScheduleRange === "3week" ? "3주공정표 생성 중…" : "3주공정표 생성" }}
+                </span>
+              </button>
+
+              <button
+                class="schedule-export-chip"
+                type="button"
+                :disabled="exportingScheduleRange !== null"
+                @click="handleExportSchedule('3month')"
+              >
+                <span class="schedule-export-chip__icon-frame" aria-hidden="true">
+                  <img
+                    class="schedule-export-chip__icon"
+                    :src="calendarMonthIcon"
+                    alt=""
+                  />
+                </span>
+                <span class="schedule-export-chip__label">
+                  {{ exportingScheduleRange === "3month" ? "3개월공정표 생성 중…" : "3개월공정표 생성" }}
+                </span>
+              </button>
+            </section>
           </section>
 
           <footer class="selection-shell selection-footer">
@@ -123,8 +164,15 @@ import { ref } from "vue";
 import { RouterLink, useRouter } from "vue-router";
 import downloadIcon from "@fluentui/svg-icons/icons/arrow_download_20_regular.svg";
 import documentsIcon from "@fluentui/svg-icons/icons/chevron_right_20_regular.svg";
+import calendar3DayIcon from "@fluentui/svg-icons/icons/calendar_3_day_24_regular.svg";
+import calendarMonthIcon from "@fluentui/svg-icons/icons/calendar_month_24_regular.svg";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
+import {
+  desktopScheduleApi,
+  findMainScheduleVersion,
+  getSelectedDesktopScheduleVersionId,
+} from "@/features/desktop-schedule/api/desktop-schedule.api";
 import { materialInspectionRequestApi } from "@/features/document-conversion/api/material-inspection-request.api";
 import { useGeneratedDocumentsDemoViewModel } from "@/features/document-conversion/state/useGeneratedDocumentsDemoViewModel";
 import type { GeneratedDocumentListItem } from "@/features/document-conversion/state/useGeneratedDocumentsDemoViewModel";
@@ -147,6 +195,7 @@ const {
 } = useGeneratedDocumentsDemoViewModel();
 const router = useRouter();
 const downloadingDocumentId = ref<string | null>(null);
+const exportingScheduleRange = ref<"3week" | "3month" | null>(null);
 
 clearSelectedDocument();
 
@@ -185,20 +234,81 @@ async function downloadGeneratedDocumentAttachment(
   return materialInspectionRequestApi.downloadDocumentJobAttachment(generatedDocument.jobId);
 }
 
+function triggerBlobDownload(blob: Blob, filename: string) {
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = objectUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(objectUrl);
+}
+
 function saveGeneratedDocumentBlob(
   generatedDocument: GeneratedDocumentListItem,
   blob: Blob,
   filename = "",
 ) {
-  const objectUrl = URL.createObjectURL(blob);
-  const link = document.createElement("a");
+  triggerBlobDownload(blob, filename || generatedDocument.downloadFileName);
+}
 
-  link.href = objectUrl;
-  link.download = filename || generatedDocument.downloadFileName;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(objectUrl);
+async function resolveExportScheduleVersionId() {
+  const versions = await desktopScheduleApi.getScheduleVersionList();
+  const selectedId = getSelectedDesktopScheduleVersionId();
+  const selectedVersion =
+    typeof selectedId === "number"
+      ? versions.find((version) => version.id === selectedId) ?? null
+      : null;
+
+  const version =
+    selectedVersion ?? findMainScheduleVersion(versions) ?? versions[0] ?? null;
+
+  return version?.id ?? null;
+}
+
+async function handleExportSchedule(range: "3week" | "3month") {
+  if (exportingScheduleRange.value) {
+    return;
+  }
+
+  exportingScheduleRange.value = range;
+
+  try {
+    const scheduleVersionId = await resolveExportScheduleVersionId();
+
+    if (scheduleVersionId === null) {
+      window.alert("생성할 공정표가 없어요.");
+      return;
+    }
+
+    const { blob, filename } =
+      range === "3week"
+        ? await desktopScheduleApi.export3WeekSchedule({
+            scheduleVersionId,
+            excludedSubWorkTypeIds: [],
+          })
+        : await desktopScheduleApi.export3MonthSchedule({
+            scheduleVersionId,
+            excludedSubWorkTypeIds: [],
+          });
+    const fallbackName = range === "3week" ? "3주공정표.xlsx" : "3개월공정표.xlsx";
+
+    triggerBlobDownload(blob, filename || fallbackName);
+    analyticsClient.trackAction("document", "export_schedule_excel", "success", {
+      schedule_range: range,
+    });
+  } catch (error) {
+    window.alert(
+      error instanceof Error ? error.message : "엑셀을 생성하지 못했어요.",
+    );
+    analyticsClient.trackAction("document", "export_schedule_excel", "fail", {
+      schedule_range: range,
+    });
+  } finally {
+    exportingScheduleRange.value = null;
+  }
 }
 
 async function handleDownloadGeneratedDocument(

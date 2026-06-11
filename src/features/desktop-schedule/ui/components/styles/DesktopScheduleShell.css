@@ -491,10 +491,6 @@
   color: #111827;
 }
 
-.schedule-shell__export-menu-root {
-  position: relative;
-}
-
 .schedule-shell__main-version-root {
   position: relative;
   display: inline-flex;

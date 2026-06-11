@@ -187,3 +187,9 @@ export interface ApiKeyMasked {
   revokedAt: string | null;
   createdAt: string;
 }
+
+// Embedding
+export interface RecalculateEmbeddingsResponse {
+  perTable: Record<string, number>;
+  total: number;
+}
