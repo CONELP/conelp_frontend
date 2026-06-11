@@ -176,6 +176,8 @@ export interface DesktopScheduleWorkResponse {
 export interface DesktopScheduleExportRequest {
   scheduleVersionId: DesktopScheduleVersionId;
   excludedSubWorkTypeIds: number[];
+  /** yyyy-MM-dd. 3주: 해당 날짜부터 21일, 3개월: 해당 월 1일 ~ +2개월 말일. 생략 시 생성 시점 기준. */
+  startDate?: string;
 }
 
 export interface DesktopScheduleImportExcelRequest {

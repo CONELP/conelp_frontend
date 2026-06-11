@@ -30,37 +30,16 @@
               <button
                 class="schedule-export-chip"
                 type="button"
-                :disabled="exportingScheduleRange !== null"
-                @click="handleExportSchedule('3week')"
+                @click="handleGoToScheduleExport"
               >
                 <span class="schedule-export-chip__icon-frame" aria-hidden="true">
                   <img
                     class="schedule-export-chip__icon"
-                    :src="calendar3DayIcon"
+                    :src="ganttChartIcon"
                     alt=""
                   />
                 </span>
-                <span class="schedule-export-chip__label">
-                  {{ exportingScheduleRange === "3week" ? "3주공정표 생성 중…" : "3주공정표 생성" }}
-                </span>
-              </button>
-
-              <button
-                class="schedule-export-chip"
-                type="button"
-                :disabled="exportingScheduleRange !== null"
-                @click="handleExportSchedule('3month')"
-              >
-                <span class="schedule-export-chip__icon-frame" aria-hidden="true">
-                  <img
-                    class="schedule-export-chip__icon"
-                    :src="calendarMonthIcon"
-                    alt=""
-                  />
-                </span>
-                <span class="schedule-export-chip__label">
-                  {{ exportingScheduleRange === "3month" ? "3개월공정표 생성 중…" : "3개월공정표 생성" }}
-                </span>
+                <span class="schedule-export-chip__label">공정표 생성</span>
               </button>
             </section>
           </section>
@@ -164,15 +143,9 @@ import { ref } from "vue";
 import { RouterLink, useRouter } from "vue-router";
 import downloadIcon from "@fluentui/svg-icons/icons/arrow_download_20_regular.svg";
 import documentsIcon from "@fluentui/svg-icons/icons/chevron_right_20_regular.svg";
-import calendar3DayIcon from "@fluentui/svg-icons/icons/calendar_3_day_24_regular.svg";
-import calendarMonthIcon from "@fluentui/svg-icons/icons/calendar_month_24_regular.svg";
+import ganttChartIcon from "@fluentui/svg-icons/icons/gantt_chart_24_regular.svg";
 
 import DesktopAppHeader from "@/app/ui/DesktopAppHeader.vue";
-import {
-  desktopScheduleApi,
-  findMainScheduleVersion,
-  getSelectedDesktopScheduleVersionId,
-} from "@/features/desktop-schedule/api/desktop-schedule.api";
 import { materialInspectionRequestApi } from "@/features/document-conversion/api/material-inspection-request.api";
 import { useGeneratedDocumentsDemoViewModel } from "@/features/document-conversion/state/useGeneratedDocumentsDemoViewModel";
 import type { GeneratedDocumentListItem } from "@/features/document-conversion/state/useGeneratedDocumentsDemoViewModel";
@@ -195,7 +168,6 @@ const {
 } = useGeneratedDocumentsDemoViewModel();
 const router = useRouter();
 const downloadingDocumentId = ref<string | null>(null);
-const exportingScheduleRange = ref<"3week" | "3month" | null>(null);
 
 clearSelectedDocument();
 
@@ -254,61 +226,11 @@ function saveGeneratedDocumentBlob(
   triggerBlobDownload(blob, filename || generatedDocument.downloadFileName);
 }
 
-async function resolveExportScheduleVersionId() {
-  const versions = await desktopScheduleApi.getScheduleVersionList();
-  const selectedId = getSelectedDesktopScheduleVersionId();
-  const selectedVersion =
-    typeof selectedId === "number"
-      ? versions.find((version) => version.id === selectedId) ?? null
-      : null;
-
-  const version =
-    selectedVersion ?? findMainScheduleVersion(versions) ?? versions[0] ?? null;
-
-  return version?.id ?? null;
-}
-
-async function handleExportSchedule(range: "3week" | "3month") {
-  if (exportingScheduleRange.value) {
-    return;
-  }
-
-  exportingScheduleRange.value = range;
-
-  try {
-    const scheduleVersionId = await resolveExportScheduleVersionId();
-
-    if (scheduleVersionId === null) {
-      window.alert("생성할 공정표가 없어요.");
-      return;
-    }
-
-    const { blob, filename } =
-      range === "3week"
-        ? await desktopScheduleApi.export3WeekSchedule({
-            scheduleVersionId,
-            excludedSubWorkTypeIds: [],
-          })
-        : await desktopScheduleApi.export3MonthSchedule({
-            scheduleVersionId,
-            excludedSubWorkTypeIds: [],
-          });
-    const fallbackName = range === "3week" ? "3주공정표.xlsx" : "3개월공정표.xlsx";
-
-    triggerBlobDownload(blob, filename || fallbackName);
-    analyticsClient.trackAction("document", "export_schedule_excel", "success", {
-      schedule_range: range,
-    });
-  } catch (error) {
-    window.alert(
-      error instanceof Error ? error.message : "엑셀을 생성하지 못했어요.",
-    );
-    analyticsClient.trackAction("document", "export_schedule_excel", "fail", {
-      schedule_range: range,
-    });
-  } finally {
-    exportingScheduleRange.value = null;
-  }
+function handleGoToScheduleExport() {
+  analyticsClient.trackAction("document", "select_type", "success", {
+    document_type: "schedule_export",
+  });
+  void router.push("/documents/schedule-export");
 }
 
 async function handleDownloadGeneratedDocument(

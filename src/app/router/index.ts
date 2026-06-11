@@ -16,6 +16,7 @@ import GeneratedDocumentsPage from "@/features/document-conversion/ui/GeneratedD
 import MatInoutPeriodPage from "@/features/document-conversion/ui/MatInoutPeriodPage.vue";
 import MaterialRegistrationResultPage from "@/features/document-conversion/ui/MaterialRegistrationResultPage.vue";
 import ResultPreviewPage from "@/features/document-conversion/ui/ResultPreviewPage.vue";
+import ScheduleExportPage from "@/features/document-conversion/ui/ScheduleExportPage.vue";
 import UploadFeedbackPage from "@/features/document-conversion/ui/UploadFeedbackPage.vue";
 
 const SystemAdminLayout = () => import("@/features/system-admin/ui/SystemAdminLayout.vue");
@@ -130,6 +131,11 @@ export const router = createRouter({
       path: "/documents/mat-inout/period",
       name: "mat-inout-period",
       component: MatInoutPeriodPage,
+    },
+    {
+      path: "/documents/schedule-export",
+      name: "schedule-export",
+      component: ScheduleExportPage,
     },
     {
       path: "/documents/upload/review",
