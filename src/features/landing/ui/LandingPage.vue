@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import LandingContact from "@/features/landing/ui/components/LandingContact.vue";
-import LandingDocCatalog from "@/features/landing/ui/components/LandingDocCatalog.vue";
 import LandingDocGen from "@/features/landing/ui/components/LandingDocGen.vue";
 import LandingFormFidelity from "@/features/landing/ui/components/LandingFormFidelity.vue";
 import LandingHeader from "@/features/landing/ui/components/LandingHeader.vue";
@@ -19,7 +18,6 @@ import LandingSchedule from "@/features/landing/ui/components/LandingSchedule.vu
       <LandingProblem />
       <LandingDocGen />
       <LandingFormFidelity />
-      <LandingDocCatalog />
       <LandingSchedule />
       <LandingProgress />
     </main>

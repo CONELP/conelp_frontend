@@ -6,9 +6,6 @@ import { PROBLEM } from "@/features/landing/data/landing.content";
   <section class="problem">
     <div class="problem__inner">
       <h2 class="problem__title">{{ PROBLEM.title }}</h2>
-      <div class="problem__body">
-        <p v-for="(line, i) in PROBLEM.body" :key="i">{{ line }}</p>
-      </div>
 
       <div class="problem__grid">
         <ul class="problem__pains">
@@ -43,15 +40,7 @@ import { PROBLEM } from "@/features/landing/data/landing.content";
   font-weight: 700;
   color: var(--ink-strong);
   line-height: 1.3;
-}
-
-.problem__body {
-  margin-top: 1.25rem;
-  display: grid;
-  gap: 0.5rem;
-  color: var(--ink-muted);
-  font-size: clamp(0.95rem, 2.4vw, 1.05rem);
-  line-height: 1.6;
+  text-align: center;
 }
 
 .problem__grid {
@@ -62,6 +51,8 @@ import { PROBLEM } from "@/features/landing/data/landing.content";
 }
 
 .problem__pains {
+  list-style: none;
+  padding-left: 0;
   display: grid;
   gap: 0.85rem;
 }
@@ -90,6 +81,8 @@ import { PROBLEM } from "@/features/landing/data/landing.content";
   font-size: 1.8rem;
   color: var(--primary);
   font-weight: 700;
+  line-height: 1;
+  transform: rotate(90deg);
 }
 
 .problem__solution {
@@ -107,6 +100,7 @@ import { PROBLEM } from "@/features/landing/data/landing.content";
 
 .problem__solution-list {
   margin-top: 0.9rem;
+  list-style: none;
   display: grid;
   gap: 0.5rem;
   color: var(--ink);
@@ -135,6 +129,7 @@ import { PROBLEM } from "@/features/landing/data/landing.content";
   }
   .problem__arrow {
     font-size: 2.4rem;
+    transform: none;
   }
 }
 </style>

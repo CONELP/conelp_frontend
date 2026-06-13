@@ -27,9 +27,3 @@ export interface FeatureCard {
   title: string;
   lines: string[];
 }
-
-export interface CatalogColumn {
-  heading: string;
-  /** 강조(현재 지원) 항목은 highlighted=true */
-  items: Array<{ label: string; highlighted?: boolean }>;
-}

@@ -45,6 +45,7 @@ import { FORM_FIDELITY } from "@/features/landing/data/landing.content";
   font-weight: 700;
   color: var(--ink-strong);
   line-height: 1.25;
+  text-align: center;
 }
 
 .fidelity__grid {
@@ -56,7 +57,8 @@ import { FORM_FIDELITY } from "@/features/landing/data/landing.content";
 
 .fidelity__samples {
   position: relative;
-  min-height: 240px;
+  min-height: clamp(320px, 42vw, 540px);
+  padding-block: clamp(1.5rem, 4vw, 3rem);
   display: grid;
   place-items: center;
 }
@@ -71,16 +73,16 @@ import { FORM_FIDELITY } from "@/features/landing/data/landing.content";
 }
 
 .fidelity__sample--0 {
-  transform: translate(-18%, -10%) rotate(-5deg);
+  transform: translate(-24%, 10%);
   z-index: 1;
 }
 .fidelity__sample--1 {
-  transform: translate(0, 4%) rotate(0deg);
-  z-index: 3;
+  transform: translate(0, 0);
+  z-index: 2;
 }
 .fidelity__sample--2 {
-  transform: translate(20%, 12%) rotate(5deg);
-  z-index: 2;
+  transform: translate(24%, -10%);
+  z-index: 3;
 }
 
 .fidelity__cards {
@@ -98,11 +100,13 @@ import { FORM_FIDELITY } from "@/features/landing/data/landing.content";
 .fidelity__card-title {
   font-size: 1.15rem;
   font-weight: 700;
-  color: var(--ink-strong);
+  color: var(--primary);
 }
 
 .fidelity__card-list {
-  margin-top: 0.85rem;
+  margin-top: 0.15rem;
+  padding-left: 2.5rem;
+  list-style: none;
   display: grid;
   gap: 0.5rem;
   color: var(--ink-muted);
@@ -116,20 +120,26 @@ import { FORM_FIDELITY } from "@/features/landing/data/landing.content";
 }
 
 .fidelity__card-list li::before {
-  content: "-";
+  content: "";
   position: absolute;
   left: 0;
-  color: var(--primary);
+  top: 0.55em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary);
 }
 
 .fidelity__card-list li.is-lead {
   color: var(--ink);
   font-weight: 600;
   padding-left: 0;
+  margin-left: -2.5rem;
+  margin-bottom: 1.1rem;
 }
 
 .fidelity__card-list li.is-lead::before {
-  content: "";
+  display: none;
 }
 
 @media (min-width: 860px) {

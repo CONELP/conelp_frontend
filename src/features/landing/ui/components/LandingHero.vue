@@ -4,7 +4,6 @@ import { HERO, LOGO_SRC } from "@/features/landing/data/landing.content";
 
 <template>
   <section class="hero">
-    <div class="hero__glow" aria-hidden="true" />
     <div class="hero__inner">
       <img class="hero__logo" :src="LOGO_SRC" :alt="HERO.title" />
       <h1 class="hero__subtitle">{{ HERO.subtitle }}</h1>
@@ -17,18 +16,6 @@ import { HERO, LOGO_SRC } from "@/features/landing/data/landing.content";
 .hero {
   position: relative;
   overflow: hidden;
-}
-
-.hero__glow {
-  position: absolute;
-  top: -30%;
-  left: 50%;
-  width: min(720px, 90vw);
-  height: 480px;
-  transform: translateX(-50%);
-  background: radial-gradient(circle, var(--primary-glow), transparent 70%);
-  opacity: 0.5;
-  pointer-events: none;
 }
 
 .hero__inner {
@@ -47,7 +34,7 @@ import { HERO, LOGO_SRC } from "@/features/landing/data/landing.content";
 
 .hero__subtitle {
   margin-top: 1rem;
-  font-size: clamp(1.25rem, 4.5vw, 2.1rem);
+  font-size: clamp(0.625rem, 2.25vw, 1.05rem);
   font-weight: 700;
   color: var(--ink);
 }

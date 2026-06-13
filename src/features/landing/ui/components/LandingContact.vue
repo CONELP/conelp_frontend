@@ -54,7 +54,7 @@ import { CONTACT, LOGO_SRC } from "@/features/landing/data/landing.content";
 .contact__tagline {
   margin-top: 0.5rem;
   letter-spacing: 0.35em;
-  font-size: 0.8rem;
+  font-size: 0.405rem;
   color: var(--ink-muted);
 }
 

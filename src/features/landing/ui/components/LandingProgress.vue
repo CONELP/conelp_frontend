@@ -6,7 +6,6 @@ import { PROGRESS } from "@/features/landing/data/landing.content";
   <section class="progress">
     <div class="progress__inner">
       <h2 class="progress__title">{{ PROGRESS.title }}</h2>
-      <p class="progress__subtitle">{{ PROGRESS.subtitle }}</p>
 
       <div class="progress__grid">
         <div class="progress__shot">
@@ -32,12 +31,7 @@ import { PROGRESS } from "@/features/landing/data/landing.content";
   font-weight: 700;
   color: var(--ink-strong);
   line-height: 1.25;
-}
-
-.progress__subtitle {
-  margin-top: 0.85rem;
-  color: var(--ink-muted);
-  font-size: clamp(0.95rem, 2.4vw, 1.05rem);
+  text-align: center;
 }
 
 .progress__grid {
@@ -61,13 +55,18 @@ import { PROGRESS } from "@/features/landing/data/landing.content";
 }
 
 .progress__list {
+  list-style: none;
+  padding: 1.6rem;
+  border-radius: var(--radius-panel);
+  background: linear-gradient(160deg, var(--primary-soft), #fff);
+  border: 1px solid var(--primary-outline);
   display: grid;
-  gap: 0.7rem;
+  gap: 0.6rem;
 }
 
 .progress__list li {
   position: relative;
-  padding-left: 1.25rem;
+  padding-left: 1rem;
   color: var(--ink);
   font-size: 1rem;
   line-height: 1.5;
@@ -77,9 +76,9 @@ import { PROGRESS } from "@/features/landing/data/landing.content";
   content: "";
   position: absolute;
   left: 0;
-  top: 0.5em;
-  width: 7px;
-  height: 7px;
+  top: 0.55em;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: var(--primary);
 }
