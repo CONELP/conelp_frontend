@@ -30,6 +30,7 @@ const menuGroups: MenuGroup[] = [
       { label: "역할 관리", to: "/system-admin/global/role" },
       { label: "표준 데이터", to: "/system-admin/global/standard" },
       { label: "임베딩 관리", to: "/system-admin/global/embedding" },
+      { label: "문서 관리", to: "/system-admin/global/document" },
     ],
   },
   {

@@ -33,6 +33,8 @@ const GlobalStandardPage = () =>
   import("@/features/system-admin/ui/pages/GlobalStandardPage.vue");
 const GlobalEmbeddingPage = () =>
   import("@/features/system-admin/ui/pages/GlobalEmbeddingPage.vue");
+const GlobalDocumentPage = () =>
+  import("@/features/system-admin/ui/pages/GlobalDocumentPage.vue");
 const ApiKeyPage = () =>
   import("@/features/project-admin/api-key/ui/ApiKeyPage.vue");
 const DocumentSettingPage = () =>
@@ -228,6 +230,11 @@ export const router = createRouter({
           path: "global/embedding",
           name: "system-admin-global-embedding",
           component: GlobalEmbeddingPage,
+        },
+        {
+          path: "global/document",
+          name: "system-admin-global-document",
+          component: GlobalDocumentPage,
         },
         {
           path: "project/master-data",

@@ -1,4 +1,15 @@
 export { systemAdminApi } from "@/features/system-admin/services/system-admin.api";
+export { superDocumentApi } from "@/features/system-admin/services/super-document.api";
+
+export type {
+  SuperDocStatus,
+  SuperDocType,
+  SuperDocumentJob,
+  SuperDocumentJobListParams,
+  SuperDocumentSource,
+  SuperDocumentSourceLine,
+  SuperDocumentSourcePhoto,
+} from "@/features/system-admin/model/super-document.types";
 
 export type {
   ApiKeyMasked,
