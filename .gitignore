@@ -5,3 +5,5 @@ dist/
 legacy/
 backend/constructionHelperBackendMain/
 backend/api/api-list/
+
+.claude/
