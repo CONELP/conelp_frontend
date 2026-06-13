@@ -265,6 +265,35 @@ function sortGeneratedDocuments(
   );
 }
 
+function groupGeneratedDocumentsByDate(
+  documents: GeneratedDocumentListItem[],
+): GeneratedDocumentDateGroup[] {
+  return documents.reduce<GeneratedDocumentDateGroup[]>((groups, document) => {
+    const dateGroup = formatGeneratedDocumentDateGroup(document.createdAt);
+    const existingGroup = groups.find((group) => group.dateKey === dateGroup.key);
+
+    if (existingGroup) {
+      existingGroup.documents.push(document);
+      return groups;
+    }
+
+    groups.push({
+      dateKey: dateGroup.key,
+      dateLabel: dateGroup.label,
+      documents: [document],
+    });
+
+    return groups;
+  }, []);
+}
+
+export interface GeneratedDocumentTypeFilterOption {
+  // 문서 종류 식별 키 (title 사용 — 종류별로 유일). null = 전체.
+  value: string;
+  label: string;
+  count: number;
+}
+
 export function useGeneratedDocumentsDemoViewModel() {
   const generatedDocumentItems = ref<GeneratedDocumentListItem[]>([]);
   const isGeneratedDocumentsLoading = ref(false);
@@ -303,27 +332,56 @@ export function useGeneratedDocumentsDemoViewModel() {
   ]);
 
   const generatedDocumentGroups = computed(() =>
-    mergedDocumentItems.value.reduce<GeneratedDocumentDateGroup[]>(
-      (groups, document) => {
-        const dateGroup = formatGeneratedDocumentDateGroup(document.createdAt);
-        const existingGroup = groups.find((group) => group.dateKey === dateGroup.key);
-
-        if (existingGroup) {
-          existingGroup.documents.push(document);
-          return groups;
-        }
-
-        groups.push({
-          dateKey: dateGroup.key,
-          dateLabel: dateGroup.label,
-          documents: [document],
-        });
-
-        return groups;
-      },
-      [],
-    ),
+    groupGeneratedDocumentsByDate(mergedDocumentItems.value),
   );
+
+  // 문서 종류별 필터. null = 전체 보기.
+  const selectedDocumentTypeFilter = ref<string | null>(null);
+
+  // 현재 목록에 존재하는 문서 종류 옵션 (등장 순서 유지 + 종류별 건수).
+  const documentTypeFilterOptions = computed<GeneratedDocumentTypeFilterOption[]>(() => {
+    const optionByValue = new Map<string, GeneratedDocumentTypeFilterOption>();
+
+    mergedDocumentItems.value.forEach((document) => {
+      const value = document.title;
+      const existing = optionByValue.get(value);
+
+      if (existing) {
+        existing.count += 1;
+        return;
+      }
+
+      optionByValue.set(value, { value, label: document.title, count: 1 });
+    });
+
+    return [...optionByValue.values()];
+  });
+
+  // 선택한 종류가 더 이상 존재하지 않으면 전체 보기로 되돌림 (삭제/새로고침 대응).
+  watch(documentTypeFilterOptions, (options) => {
+    if (
+      selectedDocumentTypeFilter.value !== null &&
+      !options.some((option) => option.value === selectedDocumentTypeFilter.value)
+    ) {
+      selectedDocumentTypeFilter.value = null;
+    }
+  });
+
+  const filteredDocumentGroups = computed(() => {
+    const selected = selectedDocumentTypeFilter.value;
+
+    if (selected === null) {
+      return generatedDocumentGroups.value;
+    }
+
+    return groupGeneratedDocumentsByDate(
+      mergedDocumentItems.value.filter((document) => document.title === selected),
+    );
+  });
+
+  function setDocumentTypeFilter(value: string | null) {
+    selectedDocumentTypeFilter.value = value;
+  }
 
   const recentGeneratedDocuments = computed(() =>
     sortGeneratedDocuments(
@@ -372,6 +430,10 @@ export function useGeneratedDocumentsDemoViewModel() {
 
   return {
     generatedDocumentGroups,
+    filteredDocumentGroups,
+    documentTypeFilterOptions,
+    selectedDocumentTypeFilter,
+    setDocumentTypeFilter,
     recentGeneratedDocuments,
     todayGeneratedDocuments,
     isGeneratedDocumentsLoading,

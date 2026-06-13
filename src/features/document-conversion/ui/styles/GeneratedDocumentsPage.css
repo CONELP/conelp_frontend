@@ -67,6 +67,57 @@
   letter-spacing: -0.03em;
 }
 
+.generated-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 1.15rem;
+}
+
+.generated-filter__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.78rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--outline-soft);
+  background: var(--surface-1);
+  color: var(--ink-muted);
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.generated-filter__chip:hover:not(.generated-filter__chip--active) {
+  border-color: var(--primary-outline);
+  color: var(--ink);
+}
+
+.generated-filter__chip--active {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+}
+
+.generated-filter__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.2rem;
+  padding: 0 0.32rem;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  color: var(--ink-muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.generated-filter__chip--active .generated-filter__count {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
 .generated-list {
   width: calc(100% + (var(--page-inline) * 2));
   margin-left: calc(var(--page-inline) * -1);

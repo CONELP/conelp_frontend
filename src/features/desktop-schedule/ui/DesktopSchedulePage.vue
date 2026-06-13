@@ -105,7 +105,7 @@ const isDailyReportPanelOpen = ref(!initialCompactScheduleView);
 const dailyReportPanelWidth = ref(readStoredDailyReportPanelWidth());
 const dailyReportPanelResizeState = ref<DailyReportPanelResizeState | null>(null);
 const isCompactScheduleView = ref(initialCompactScheduleView);
-const isCompactScheduleLeftPanelOpen = ref(true);
+const isCompactScheduleLeftPanelOpen = ref(false);
 const shouldApplyInitialTimelineScroll = ref(
   load.status !== "success",
 );
@@ -373,6 +373,7 @@ function setCompactScheduleViewState(nextIsCompactScheduleView: boolean) {
 
   if (nextIsCompactScheduleView && !wasCompactScheduleView) {
     isDailyReportPanelOpen.value = false;
+    isCompactScheduleLeftPanelOpen.value = false;
   }
 }
 

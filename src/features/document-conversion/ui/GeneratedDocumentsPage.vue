@@ -17,6 +17,37 @@
 
       <section class="generated-shell generated-intro">
         <h1 class="generated-intro__title">생성된 문서</h1>
+
+        <div
+          v-if="!isGeneratedDocumentsLoading && documentTypeFilterOptions.length > 0"
+          class="generated-filter"
+          role="group"
+          aria-label="문서 종류 필터"
+        >
+          <button
+            type="button"
+            class="generated-filter__chip"
+            :class="{ 'generated-filter__chip--active': selectedDocumentTypeFilter === null }"
+            :aria-pressed="selectedDocumentTypeFilter === null"
+            @click="setDocumentTypeFilter(null)"
+          >
+            전체
+          </button>
+          <button
+            v-for="option in documentTypeFilterOptions"
+            :key="option.value"
+            type="button"
+            class="generated-filter__chip"
+            :class="{
+              'generated-filter__chip--active': selectedDocumentTypeFilter === option.value,
+            }"
+            :aria-pressed="selectedDocumentTypeFilter === option.value"
+            @click="setDocumentTypeFilter(option.value)"
+          >
+            {{ option.label }}
+            <span class="generated-filter__count">{{ option.count }}</span>
+          </button>
+        </div>
       </section>
 
       <section v-if="isGeneratedDocumentsLoading" class="generated-empty">
@@ -27,9 +58,9 @@
         {{ generatedDocumentsErrorMessage }}
       </section>
 
-      <section v-else-if="generatedDocumentGroups.length > 0" class="generated-list">
+      <section v-else-if="filteredDocumentGroups.length > 0" class="generated-list">
         <section
-          v-for="group in generatedDocumentGroups"
+          v-for="group in filteredDocumentGroups"
           :key="group.dateKey"
           class="generated-group"
         >
@@ -99,7 +130,11 @@
       </section>
 
       <section v-else class="generated-empty">
-        생성된 문서가 없어요
+        {{
+          selectedDocumentTypeFilter === null
+            ? "생성된 문서가 없어요"
+            : "선택한 종류의 문서가 없어요"
+        }}
       </section>
     </main>
   </div>
@@ -119,7 +154,10 @@ import type { GeneratedDocumentListItem } from "@/features/document-conversion/s
 import { analyticsClient } from "@/shared/analytics/analytics-stub";
 
 const {
-  generatedDocumentGroups,
+  filteredDocumentGroups,
+  documentTypeFilterOptions,
+  selectedDocumentTypeFilter,
+  setDocumentTypeFilter,
   isGeneratedDocumentsLoading,
   generatedDocumentsErrorMessage,
   refreshGeneratedDocuments,

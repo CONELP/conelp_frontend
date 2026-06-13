@@ -46,12 +46,27 @@ const HolidayManagementPage = () =>
 const ScheduleValidationPage = () =>
   import("@/features/project-admin/schedule-validation/ui/ScheduleValidationPage.vue");
 
+const MOBILE_VIEWPORT_MEDIA_QUERY = "(max-width: 1023px)";
+
+function isMobileViewport() {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return false;
+  }
+
+  return window.matchMedia(MOBILE_VIEWPORT_MEDIA_QUERY).matches;
+}
+
+// 모바일(세로모드)에서는 문서생성, 데스크톱에서는 공정표가 기본 화면.
+function getDefaultAuthenticatedRoute() {
+  return isMobileViewport() ? "/documents" : "/schedule";
+}
+
 export const router = createRouter({
   history: createWebHashHistory(),
   routes: [
     {
       path: "/",
-      redirect: "/schedule",
+      redirect: () => getDefaultAuthenticatedRoute(),
     },
     {
       path: "/landing",
@@ -278,7 +293,7 @@ router.beforeEach(async (to) => {
       (to.path === "/login" || to.path === "/landing") &&
       authStore.isAuthenticated
     ) {
-      return "/schedule";
+      return getDefaultAuthenticatedRoute();
     }
 
     return true;
