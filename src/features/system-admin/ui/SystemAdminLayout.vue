@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
 
 import { useAuthStore } from "@/features/auth/state/useAuthStore";
@@ -19,6 +19,11 @@ interface MenuGroup {
 const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
+
+const sidebarCollapsed = ref(false);
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value;
+}
 
 const menuGroups: MenuGroup[] = [
   {
@@ -85,7 +90,12 @@ async function handleLogout() {
     </header>
 
     <div class="sa-layout__body">
-      <aside class="sa-layout__sidebar" aria-label="시스템 관리자 메뉴">
+      <aside
+        v-show="!sidebarCollapsed"
+        id="sa-sidebar"
+        class="sa-layout__sidebar"
+        aria-label="시스템 관리자 메뉴"
+      >
         <nav class="sa-layout__nav">
           <div
             v-for="group in menuGroups"
@@ -110,6 +120,31 @@ async function handleLogout() {
       </aside>
 
       <main class="sa-layout__main">
+        <button
+          class="sa-layout__sidebar-toggle"
+          type="button"
+          :aria-expanded="!sidebarCollapsed"
+          aria-controls="sa-sidebar"
+          :title="sidebarCollapsed ? '메뉴 펼치기' : '메뉴 숨기기'"
+          @click="toggleSidebar"
+        >
+          <svg
+            class="sa-layout__chevron"
+            :class="{ 'sa-layout__chevron--flip': sidebarCollapsed }"
+            viewBox="0 0 24 24"
+            width="20"
+            height="20"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.75"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+          <span class="sa-layout__sr-only">{{ sidebarCollapsed ? "메뉴 펼치기" : "메뉴 숨기기" }}</span>
+        </button>
         <RouterView />
       </main>
     </div>
@@ -142,6 +177,17 @@ async function handleLogout() {
   gap: 8px;
   font-size: 14px;
   font-weight: 600;
+}
+.sa-layout__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 .sa-layout__brand-link {
   color: var(--primary);
@@ -181,6 +227,33 @@ async function handleLogout() {
   flex: 1;
   display: flex;
   min-height: 0;
+}
+
+.sa-layout__sidebar-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  margin-bottom: 16px;
+  background: var(--surface-1);
+  color: var(--ink-muted);
+  border: 1px solid var(--outline-soft);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.sa-layout__sidebar-toggle:hover {
+  background: var(--surface-3);
+  color: var(--ink);
+}
+.sa-layout__chevron {
+  display: block;
+  transition: transform 120ms ease;
+}
+.sa-layout__chevron--flip {
+  transform: rotate(180deg);
 }
 
 .sa-layout__sidebar {
