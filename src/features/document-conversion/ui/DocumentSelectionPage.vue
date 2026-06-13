@@ -13,20 +13,18 @@
           </section>
 
           <section class="selection-body">
-            <section class="selection-shell selection-grid">
+            <section
+              class="selection-shell selection-grid"
+              aria-label="공사일보·공정표"
+            >
               <DocumentTypeCard
-                v-for="document in documents"
+                v-for="document in primaryDocuments"
                 :key="document.type"
                 :document="document"
                 :selected="document.isSelected"
                 @select="handleSelectDocument(document.type)"
               />
-            </section>
 
-            <section
-              class="selection-shell selection-grid selection-schedule-export"
-              aria-label="공정표 생성"
-            >
               <button
                 class="schedule-export-chip"
                 type="button"
@@ -41,6 +39,40 @@
                 </span>
                 <span class="schedule-export-chip__label">공정표 생성</span>
               </button>
+
+              <DocumentTypeCard
+                v-for="document in primaryTailDocuments"
+                :key="document.type"
+                :document="document"
+                :selected="document.isSelected"
+                @select="handleSelectDocument(document.type)"
+              />
+            </section>
+
+            <section
+              class="selection-shell selection-grid selection-grid--secondary"
+              aria-label="자재 문서"
+            >
+              <DocumentTypeCard
+                v-for="document in materialDocuments"
+                :key="document.type"
+                :document="document"
+                :selected="document.isSelected"
+                @select="handleSelectDocument(document.type)"
+              />
+            </section>
+
+            <section
+              class="selection-shell selection-grid selection-grid--secondary"
+              aria-label="기타 문서"
+            >
+              <DocumentTypeCard
+                v-for="document in otherDocuments"
+                :key="document.type"
+                :document="document"
+                :selected="document.isSelected"
+                @select="handleSelectDocument(document.type)"
+              />
             </section>
           </section>
 
@@ -139,7 +171,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { RouterLink, useRouter } from "vue-router";
 import downloadIcon from "@fluentui/svg-icons/icons/arrow_download_20_regular.svg";
 import documentsIcon from "@fluentui/svg-icons/icons/chevron_right_20_regular.svg";
@@ -166,6 +198,38 @@ const {
   isGeneratedDocumentsLoading,
   generatedDocumentsErrorMessage,
 } = useGeneratedDocumentsDemoViewModel();
+const PRIMARY_DOCUMENT_TYPES = ["daily_report_write"];
+const PRIMARY_TAIL_DOCUMENT_TYPES = ["meeting_minutes"];
+const MATERIAL_DOCUMENT_TYPES = [
+  "material_registration",
+  "material_supply_status",
+  "inspection_request",
+];
+
+const primaryDocuments = computed(() =>
+  documents.value.filter((document) =>
+    PRIMARY_DOCUMENT_TYPES.includes(document.type),
+  ),
+);
+const primaryTailDocuments = computed(() =>
+  documents.value.filter((document) =>
+    PRIMARY_TAIL_DOCUMENT_TYPES.includes(document.type),
+  ),
+);
+const materialDocuments = computed(() =>
+  documents.value.filter((document) =>
+    MATERIAL_DOCUMENT_TYPES.includes(document.type),
+  ),
+);
+const otherDocuments = computed(() =>
+  documents.value.filter(
+    (document) =>
+      !PRIMARY_DOCUMENT_TYPES.includes(document.type) &&
+      !PRIMARY_TAIL_DOCUMENT_TYPES.includes(document.type) &&
+      !MATERIAL_DOCUMENT_TYPES.includes(document.type),
+  ),
+);
+
 const router = useRouter();
 const downloadingDocumentId = ref<string | null>(null);
 

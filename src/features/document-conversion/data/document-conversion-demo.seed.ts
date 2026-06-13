@@ -89,7 +89,7 @@ export const documentCatalog: DocumentDemoCard[] = [
   {
     type: "concrete_delivery_csi",
     label: "콘크리트 반입시험",
-    chipLabel: "콘크리트 반입시험",
+    chipLabel: "콘크리트 반입시험 / CSI등록",
     iconSrc: beakerIcon,
     description: "반입 정보와 CSI 입력 항목을 한 번에 정리하는 문서",
     uploadGuide: "출하증명서와 현장 반입 사진을 올려 주세요.",
@@ -101,7 +101,7 @@ export const documentCatalog: DocumentDemoCard[] = [
   {
     type: "concrete_strength_csi",
     label: "콘크리트 압축강도",
-    chipLabel: "콘크리트 압축강도",
+    chipLabel: "콘크리트 압축강도 / CSI등록",
     iconSrc: cylinderIcon,
     description: "압축강도 결과와 CSI 항목을 묶어 보여 주는 문서",
     uploadGuide: "시험 결과표와 시편 사진을 올려 주세요.",

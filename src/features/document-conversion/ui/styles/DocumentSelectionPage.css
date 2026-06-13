@@ -71,7 +71,7 @@
   align-content: start;
 }
 
-.selection-schedule-export {
+.selection-grid--secondary {
   margin-top: 0.78rem;
   padding-top: 0.78rem;
   border-top: 1px solid var(--outline-soft);
