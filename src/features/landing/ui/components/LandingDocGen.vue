@@ -72,7 +72,7 @@ import { DOC_GEN } from "@/features/landing/data/landing.content";
 
 .docgen__step {
   width: 100%;
-  max-width: 180px;
+  max-width: 240px;
   flex: none;
 }
 
@@ -124,7 +124,7 @@ import { DOC_GEN } from "@/features/landing/data/landing.content";
     gap: clamp(1rem, 3vw, 2.5rem);
   }
   .docgen__step {
-    width: 180px;
+    width: 240px;
     max-width: none;
     align-self: flex-start;
   }

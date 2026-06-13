@@ -27,7 +27,7 @@ import { HERO, LOGO_SRC } from "@/features/landing/data/landing.content";
 }
 
 .hero__logo {
-  width: clamp(300px, 50vw, 520px);
+  width: clamp(300px, 70vw, 700px);
   height: auto;
   margin-inline: auto;
 }
