@@ -64,13 +64,14 @@ export interface SuperDocumentSource {
 // 원본 사진/추출정보를 지원하는 문서 종류
 export const SOURCE_SUPPORTED_DOC_TYPES: SuperDocType[] = ["MIR", "CAT", "CCST"];
 
+// 기존 문서생성 화면(useGeneratedDocumentsDemoViewModel 의 DOCUMENT_LABEL_BY_TYPE)과 동일 용어 사용.
 export const SUPER_DOC_TYPE_LABELS: Record<SuperDocType, string> = {
-  DR: "작업일보",
-  MIR: "자재 검수요청",
-  CAT: "콘크리트 타설검사",
-  CCST: "콘크리트 강도시험",
-  MAT_INOUT: "자재 반출입",
-  CONC_LOG: "콘크리트 타설일지",
+  DR: "일일 작업일보",
+  MIR: "자재반입 검수요청서",
+  CAT: "콘크리트 반입시험 보고서",
+  CCST: "콘크리트 압축강도시험 보고서",
+  MAT_INOUT: "자재 수불현황표",
+  CONC_LOG: "콘크리트 관리대장",
   SCHEDULE_3WEEK: "3주 공정표",
   SCHEDULE_3MONTH: "3개월 공정표",
 };

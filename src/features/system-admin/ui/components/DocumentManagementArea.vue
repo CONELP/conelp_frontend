@@ -127,17 +127,31 @@ const isReuploadOpen = ref(false);
 const reuploadTarget = ref<SuperDocumentJob | null>(null);
 const reuploadFile = ref<File | null>(null);
 const reuploadInputRef = ref<HTMLInputElement | null>(null);
+const isDragging = ref(false);
 
 function openReupload(job: SuperDocumentJob) {
   reuploadTarget.value = job;
   reuploadFile.value = null;
+  isDragging.value = false;
   if (reuploadInputRef.value) reuploadInputRef.value.value = "";
   isReuploadOpen.value = true;
 }
 
+function setReuploadFile(file: File | null) {
+  if (file && !file.name.toLowerCase().endsWith(".xlsx")) {
+    alert("xlsx 파일만 재등록할 수 있습니다.");
+    return;
+  }
+  reuploadFile.value = file;
+}
+
 function onReuploadFileChange(event: Event) {
-  const target = event.target as HTMLInputElement;
-  reuploadFile.value = target.files?.[0] ?? null;
+  setReuploadFile((event.target as HTMLInputElement).files?.[0] ?? null);
+}
+
+function onReuploadDrop(event: DragEvent) {
+  isDragging.value = false;
+  setReuploadFile(event.dataTransfer?.files?.[0] ?? null);
 }
 
 async function submitReupload() {
@@ -311,14 +325,20 @@ onMounted(() => {
           전이 검증 없이 상태만 교체하는 수동 오버라이드입니다 (예: 승인 처리).
         </p>
         <div class="doc-area__field">
-          <AdminLabel for="status-input">상태 *</AdminLabel>
-          <AdminSelect
-            id="status-input"
-            :model-value="statusInput"
-            :options="statusOptions"
-            placeholder="상태 선택"
-            @update:model-value="statusInput = ($event as SuperDocStatus)"
-          />
+          <AdminLabel>상태 *</AdminLabel>
+          <div class="doc-area__status-choices" role="group" aria-label="상태 선택">
+            <button
+              v-for="opt in statusOptions"
+              :key="opt.value"
+              type="button"
+              class="doc-area__status-choice"
+              :class="{ 'doc-area__status-choice--active': statusInput === opt.value }"
+              :aria-pressed="statusInput === opt.value"
+              @click="statusInput = opt.value"
+            >
+              {{ opt.label }}
+            </button>
+          </div>
         </div>
       </div>
       <template #footer>
@@ -342,16 +362,32 @@ onMounted(() => {
           다운로드는 새 xlsx 로 폴백됩니다.
         </p>
         <div class="doc-area__field">
-          <AdminLabel for="reupload-input">xlsx 파일 *</AdminLabel>
+          <AdminLabel>xlsx 파일 *</AdminLabel>
+          <button
+            type="button"
+            class="doc-area__dropzone"
+            :class="{
+              'doc-area__dropzone--drag': isDragging,
+              'doc-area__dropzone--has': reuploadFile,
+            }"
+            @click="reuploadInputRef?.click()"
+            @dragover.prevent="isDragging = true"
+            @dragenter.prevent="isDragging = true"
+            @dragleave.prevent="isDragging = false"
+            @drop.prevent="onReuploadDrop"
+          >
+            <span v-if="reuploadFile" class="doc-area__dropzone-name">{{ reuploadFile.name }}</span>
+            <span v-else class="doc-area__dropzone-hint">
+              xlsx 파일을 여기로 끌어다 놓거나 클릭해 선택
+            </span>
+          </button>
           <input
-            id="reupload-input"
             ref="reuploadInputRef"
-            class="doc-area__file"
+            class="doc-area__file-hidden"
             type="file"
             accept=".xlsx"
             @change="onReuploadFileChange"
           />
-          <p v-if="reuploadFile" class="doc-area__file-name">{{ reuploadFile.name }}</p>
         </div>
       </div>
       <template #footer>
@@ -492,12 +528,69 @@ onMounted(() => {
   color: var(--ink-muted);
   line-height: 1.5;
 }
-.doc-area__file {
+.doc-area__status-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.doc-area__status-choice {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+  color: var(--ink);
+  background: var(--surface-1);
+  border: 1px solid var(--outline-soft);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.doc-area__status-choice:hover {
+  background: var(--surface-3);
+}
+.doc-area__status-choice--active {
+  background: var(--primary-soft);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+.doc-area__file-hidden {
+  display: none;
+}
+.doc-area__dropzone {
+  font: inherit;
+  width: 100%;
+  min-height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 16px;
+  color: var(--ink-muted);
+  background: var(--surface-3);
+  border: 1.5px dashed var(--outline-soft);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.doc-area__dropzone:hover {
+  border-color: var(--primary);
+  color: var(--ink);
+}
+.doc-area__dropzone--drag {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.doc-area__dropzone--has {
+  border-style: solid;
+  color: var(--ink);
+}
+.doc-area__dropzone-hint {
   font-size: 13px;
 }
-.doc-area__file-name {
-  margin: 0;
-  font-size: 12px;
-  color: var(--ink);
+.doc-area__dropzone-name {
+  font-size: 13px;
+  font-weight: 600;
+  word-break: break-all;
 }
 </style>
